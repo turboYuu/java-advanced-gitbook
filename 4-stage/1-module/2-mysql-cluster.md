@@ -277,8 +277,8 @@ show variables like '%binlog_group%';
 #组提交同步延迟时间为1s
 set global binlog_group_commit_sync_delay=1000;
 # binlog_group_commit_sync_no_delay_count ，这个参数表示我们在binlog_group_commit_sync_delay等待时间内，
-# 如果事物数达到binlog_group_commit_sync_no_delay_count 设置的参数，就会触动一次组提交，
-# 如果这个值设为为0的话就不会有任何的影响。 如果到达时间但是事物数并没有达到的话，也是会进行一次组提交操作的。
+# 如果事务数达到binlog_group_commit_sync_no_delay_count 设置的参数，就会触动一次组提交，
+# 如果这个值设为为0的话就不会有任何的影响。 如果到达时间但是事务数并没有达到的话，也是会进行一次组提交操作的。
 set global binlog_group_commit_sync_no_delay_count=100;
 ```
 
@@ -531,9 +531,49 @@ show slave status \G;
 
 161的my.cnf
 
+```
+log_bin=mysql-bin
+server-id=1
+sync-binlog=1
 
+#relay log
+relay-log=mysql-relay-bin
+relay_log_purge=0
+log_slave_updates=1
+
+binlog-ignore-db=information_schema
+binlog-ignore-db=mysql
+binlog-ignore-db=performance_schema
+binlog-ignore-db=sys
+
+#半同步复制
+rpl_semi_sync_master_enabled=1
+rpl_semi_sync_master_timeout=1000
+rpl_semi_sync_slave_enabled=1
+```
 
 162的my.cnf
+
+```
+log_bin=mysql-bin
+server-id=2
+sync-binlog=1
+
+#relay log
+relay-log=mysql-relay-bin
+relay_log_purge=0
+log_slave_updates=1
+
+binlog-ignore-db=information_schema
+binlog-ignore-db=mysql
+binlog-ignore-db=performance_schema
+binlog-ignore-db=sys
+
+#半同步复制
+rpl_semi_sync_master_enabled=1
+rpl_semi_sync_master_timeout=1000
+rpl_semi_sync_slave_enabled=1
+```
 
 
 
