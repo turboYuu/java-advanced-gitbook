@@ -17,7 +17,7 @@ mysql主从搭建和双主搭建涉及到的服务器
 wget https://downloads.mysql.com/archives/get/p/23/file/mysql-5.7.28-1.el7.x86_64.rpm-bundle.tar
 ```
 
-![image-20210725120219094](../../assest/image-20210725120219094.png)
+![image-20210725120219094](assest/image-20210725120219094.png)
 
 2.删除mariadb
 
@@ -39,7 +39,7 @@ rpm -ivh mysql-community-devel-5.7.28-1.el7.x86_64.rpm
 
 4.安装过程中出现的问题及解决
 
-![image-20210725142140222](../../assest/image-20210725142140222.png)
+![image-20210725142140222](assest/image-20210725142140222.png)
 
 ```sh
 yum search perl
@@ -101,11 +101,11 @@ systemctl stop firewalld
 systemctl disable firewalld.service
 ```
 
-![image-20210725143836255](../../assest/image-20210725143836255.png)
+![image-20210725143836255](assest/image-20210725143836255.png)
 
 13.默认的datadir目录：/var/lib/mysql
 
-![image-20210725171641061](../../assest/image-20210725171641061.png)
+![image-20210725171641061](assest/image-20210725171641061.png)
 
 ## 1.2 mysql主从配置
 
@@ -117,7 +117,7 @@ systemctl disable firewalld.service
 vi /etc/my.cnf
 ```
 
-![image-20210725153913337](../../assest/image-20210725153913337.png)
+![image-20210725153913337](assest/image-20210725153913337.png)
 
 2.重启mysql服务
 
@@ -135,13 +135,13 @@ mysql> flush privileges;
 mysql> show master status;
 ```
 
-![image-20210725154153089](../../assest/image-20210725154153089.png)
+![image-20210725154153089](assest/image-20210725154153089.png)
 
 ### 1.2.2 slave节点配置
 
 1.修改my.cnf，slave的server-id=2
 
-![image-20210725154446814](../../assest/image-20210725154446814.png)
+![image-20210725154446814](assest/image-20210725154446814.png)
 
 2.重启服务
 
@@ -163,7 +163,7 @@ start slave;
 show slave status \G;
 ```
 
-![image-20210725154646368](../../assest/image-20210725154646368.png)
+![image-20210725154646368](assest/image-20210725154646368.png)
 
 ## 1.3 配置半同步复制
 
@@ -175,11 +175,9 @@ show slave status \G;
 select @@have_dynamic_loading;
 ```
 
+![image-20210725164303639](assest/image-20210725164303639.png)
 
-
-![image-20210725164303639](../../assest/image-20210725164303639.png)
-
-![image-20210725164421968](../../assest/image-20210725164421968.png)
+![image-20210725164421968](assest/image-20210725164421968.png)
 
 2.在master上安装插件`rpl_semi_sync_master`
 
@@ -188,7 +186,7 @@ install plugin rpl_semi_sync_master soname 'semisync_master.so';
 show variables like '%semi%';
 ```
 
-![image-20210725164630443](../../assest/image-20210725164630443.png)
+![image-20210725164630443](assest/image-20210725164630443.png)
 
 3.配置
 
@@ -200,7 +198,7 @@ set global rpl_semi_sync_master_timeout=1000;
 //建议在my.cnf中配置
 ```
 
-![image-20210725164835666](../../assest/image-20210725164835666.png)
+![image-20210725164835666](assest/image-20210725164835666.png)
 
 4.重启mysql
 
@@ -217,7 +215,7 @@ install plugin rpl_semi_sync_slave soname 'semisync_slave.so';
 show variables like '%semi%';
 ```
 
-![image-20210725165132274](../../assest/image-20210725165132274.png)
+![image-20210725165132274](assest/image-20210725165132274.png)
 
 2.启动slave支持半同步复制
 
@@ -225,7 +223,7 @@ show variables like '%semi%';
 set global rpl_semi_sync_slave_enabled=1;
 ```
 
-![image-20210725165258882](../../assest/image-20210725165258882.png)
+![image-20210725165258882](assest/image-20210725165258882.png)
 
 ```
 root@localhost (none)>show global status like 'rpl_semi%';
@@ -243,7 +241,7 @@ stop slave;
 start slave;
 ```
 
-![image-20210725165354955](../../assest/image-20210725165354955.png)
+![image-20210725165354955](assest/image-20210725165354955.png)
 
 ### 1.3.3 测试半同步状态
 
@@ -255,7 +253,7 @@ cat /var/log/mysqld.log
 
 可以看到日志已经启动半同步信息。
 
-![image-20210725165948592](../../assest/image-20210725165948592.png)
+![image-20210725165948592](assest/image-20210725165948592.png)
 
 
 
@@ -269,7 +267,7 @@ cat /var/log/mysqld.log
 show variables like '%binlog_group%';
 ```
 
-![image-20210725170323126](../../assest/image-20210725170323126.png)
+![image-20210725170323126](assest/image-20210725170323126.png)
 
 1.引入并行复制
 
@@ -282,13 +280,11 @@ set global binlog_group_commit_sync_delay=1000;
 set global binlog_group_commit_sync_no_delay_count=100;
 ```
 
-
-
-![image-20210725170511276](../../assest/image-20210725170511276.png)
+![image-20210725170511276](assest/image-20210725170511276.png)
 
 建议修改my.cnf，并重启。
 
-![image-20210725185100981](../../assest/image-20210725185100981.png)
+![image-20210725185100981](assest/image-20210725185100981.png)
 
 ### 1.4.2 Slave节点配置
 
@@ -296,27 +292,27 @@ set global binlog_group_commit_sync_no_delay_count=100;
 show variables like '%slave%';
 ```
 
-![image-20210725171029096](../../assest/image-20210725171029096.png)
+![image-20210725171029096](assest/image-20210725171029096.png)
 
-![image-20210725171423040](../../assest/image-20210725171423040.png)
+![image-20210725171423040](assest/image-20210725171423040.png)
 
 ```
 show variables like '%relay_log%';
 ```
 
-![image-20210725172235076](../../assest/image-20210725172235076.png)
+![image-20210725172235076](assest/image-20210725172235076.png)
 
-![image-20210725172526747](../../assest/image-20210725172526747.png)
+![image-20210725172526747](assest/image-20210725172526747.png)
 
 只读属性relay_log_recovery ，在my.cnf中修改
 
-![image-20210725172617928](../../assest/image-20210725172617928.png)
+![image-20210725172617928](assest/image-20210725172617928.png)
 
 ```
 systemctl restart mysqld
 ```
 
-![image-20210725172731157](../../assest/image-20210725172731157.png)
+![image-20210725172731157](assest/image-20210725172731157.png)
 
 在my.cnf中修改，
 
@@ -328,21 +324,17 @@ master_info_repository=TABLE				#设置为TABLE，这样性能可以有50%-80%�
 relay_log_info_repository=TABLE 
 ```
 
-![image-20210725173826250](../../assest/image-20210725173826250.png)
+![image-20210725173826250](assest/image-20210725173826250.png)
 
 修改后重启mysql
 
-
-
-![image-20210725173754067](../../assest/image-20210725173754067.png)
+![image-20210725173754067](assest/image-20210725173754067.png)
 
 
 
 ### 1.4.3 并行复制监控
 
-
-
-![image-20210725174542182](../../assest/image-20210725174542182.png)
+![image-20210725174542182](assest/image-20210725174542182.png)
 
 ## 1.5 读写分离
 
@@ -395,25 +387,19 @@ chmod 660 /etc/mysql-proxy.cnf
 [root@localhost ~]# vi mysql-proxy-0.8.5-linux-el6-x86-64bit/share/doc/mysql-proxy/rw-splitting.lua
 ```
 
-![image-20210725213528437](../../assest/image-20210725213528437.png)
+![image-20210725213528437](assest/image-20210725213528437.png)
 
 6.启动
 
-![image-20210725213918913](../../assest/image-20210725213918913.png)
-
-
-
-
+![image-20210725213918913](assest/image-20210725213918913.png)
 
 ### 1.5.2 测试：
 
-![image-20210725215538557](../../assest/image-20210725215538557.png)
+![image-20210725215538557](assest/image-20210725215538557.png)
 
 
 
-![image-20210725220428326](../../assest/image-20210725220428326.png)
-
-
+![image-20210725220428326](assest/image-20210725220428326.png)
 
 # 2.mysql双主搭建
 
@@ -423,7 +409,7 @@ chmod 660 /etc/mysql-proxy.cnf
 
 1.master1 ,my.cnf 修改
 
-![image-20210726235125830](../../assest/image-20210726235125830.png)
+![image-20210726235125830](assest/image-20210726235125830.png)
 
 2.重启mysql
 
@@ -433,7 +419,7 @@ systemctl restart mysqld
 
 show master status;
 
-![image-20210726235352824](../../assest/image-20210726235352824.png)
+![image-20210726235352824](assest/image-20210726235352824.png)
 
 3.授权
 
@@ -443,7 +429,7 @@ show master status;
 
 1.修改my.cnf
 
-![image-20210727000411911](../../assest/image-20210727000411911.png)
+![image-20210727000411911](assest/image-20210727000411911.png)
 
 2.重启mysql
 
@@ -461,7 +447,7 @@ mysql> flush privileges;
 mysql> show master status;
 ```
 
-![image-20210727000752302](../../assest/image-20210727000752302.png)
+![image-20210727000752302](assest/image-20210727000752302.png)
 
 ```
 show master status;
@@ -475,14 +461,14 @@ show master status;
 mysql> change master to master_host='192.168.1.153',master_port=3306,master_user='root',master_password='123456',master_log_file='mysql-bin.000001',master_log_pos=884;
 ```
 
-![image-20210727001534638](../../assest/image-20210727001534638.png)
+![image-20210727001534638](assest/image-20210727001534638.png)
 
 ```
 start slave;
 show slave status \G;
 ```
 
-![image-20210727001704736](../../assest/image-20210727001704736.png)
+![image-20210727001704736](assest/image-20210727001704736.png)
 
 ### master2  上配置
 
@@ -500,19 +486,19 @@ start slave;
 show slave status \G;
 ```
 
-![image-20210727002234896](../../assest/image-20210727002234896.png)
+![image-20210727002234896](assest/image-20210727002234896.png)
 
 
 
 ## 2.4 测试：
 
-![image-20210727002800333](../../assest/image-20210727002800333.png)
+![image-20210727002800333](assest/image-20210727002800333.png)
 
-![image-20210727002903530](../../assest/image-20210727002903530.png)
+![image-20210727002903530](assest/image-20210727002903530.png)
 
 在master1和master2上插入数据，会发现主键递增的步长为2
 
-![image-20210727003606085](../../assest/image-20210727003606085.png)
+![image-20210727003606085](assest/image-20210727003606085.png)
 
 # 3.MHA搭建
 
@@ -591,7 +577,7 @@ ssh-keygen -t rsa
 ssh-copy-id 192.168.1.160
 ```
 
-![image-20210728003420154](../../assest/image-20210728003420154.png)
+![image-20210728003420154](assest/image-20210728003420154.png)
 
 之后可以在MHA Manager服务器上检查下，看看.ssh/authorized_keys文件是否包含3个公钥
 
@@ -599,7 +585,7 @@ ssh-copy-id 192.168.1.160
 cat /root/.ssh/authorized_keys
 ```
 
-![image-20210728003601908](../../assest/image-20210728003601908.png)
+![image-20210728003601908](assest/image-20210728003601908.png)
 
 执行下面命令，将MHA Manager的公钥添加到authorized_keys文件中（此时应该包含4个公钥）
 
@@ -607,7 +593,7 @@ cat /root/.ssh/authorized_keys
 cat /root/.ssh/id_rsa.pub >> /root/.ssh/authorized_keys
 ```
 
-![image-20210728003743953](../../assest/image-20210728003743953.png)
+![image-20210728003743953](assest/image-20210728003743953.png)
 
 从MHA Manager服务器执行下面命令，向其他三台MySQL服务器分发公钥信息。
 
@@ -647,7 +633,7 @@ wget https://github.com/yoshinorim/mha4mysql-manager/releases/download/v0.58/mha
 wget https://github.com/yoshinorim/mha4mysql-node/releases/download/v0.58/mha4mysql-node-0.58-0.el7.centos.noarch.rpm
 ```
 
-![image-20210728004151259](../../assest/image-20210728004151259.png)
+![image-20210728004151259](assest/image-20210728004151259-1627551526420.png)
 
 **三台MySQL服务器需要安装node，MHA Manager服务需要安装manager和mode**
 
@@ -775,7 +761,7 @@ master_binlog_dir="/var/lib/mysql"
 masterha_check_ssh --conf=/etc/mha/app1.cnf
 ```
 
-![image-20210728012940427](../../assest/image-20210728012940427.png)
+![image-20210728012940427](assest/image-20210728012940427.png)
 
 #### 检测MySQL主从复制
 
@@ -785,7 +771,7 @@ masterha_check_ssh --conf=/etc/mha/app1.cnf
 masterha_check_repl --conf=/etc/mha/app1.cnf
 ```
 
-![image-20210728020943237](../../assest/image-20210728020943237.png)
+![image-20210728020943237](assest/image-20210728020943237.png)
 
 ### 3.3.6 MHA Manager启动
 
@@ -807,7 +793,7 @@ masterha_check_status --conf=/etc/mha/app1.cnf
 tail -f /var/log/mha/app1/manager.log
 ```
 
-![image-20210728021419917](../../assest/image-20210728021419917.png)
+![image-20210728021419917](assest/image-20210728021419917.png)
 
 ## 3.4 测试
 
@@ -825,7 +811,7 @@ systemctl stop mysqld
 tail -f /var/log/mha/app1/manager.log
 ```
 
-![image-20210728180003825](../../assest/image-20210728180003825.png)
+![image-20210728180003825](assest/image-20210728180003825.png)
 
 在162上观察主库信息。
 
@@ -833,11 +819,11 @@ tail -f /var/log/mha/app1/manager.log
 show master status;
 ```
 
-![image-20210728180348336](../../assest/image-20210728180348336.png)
+![image-20210728180348336](assest/image-20210728180348336.png)
 
 在163上观察，新的主库为162。
 
-![image-20210728180408398](../../assest/image-20210728180408398.png)
+![image-20210728180408398](assest/image-20210728180408398.png)
 
 在162上建库，插入数据，
 
@@ -847,11 +833,11 @@ create TABLE position ( id int(20),name varchar(50), salary varchar(20), city va
 insert into position values(1, 'Java', 13000, 'shanghai');
 ```
 
-![image-20210728180441172](../../assest/image-20210728180441172.png)
+![image-20210728180441172](assest/image-20210728180441172.png)
 
 在163上观察，库表和数据都通过过来了：
 
-![image-20210728180512835](../../assest/image-20210728180512835.png)
+![image-20210728180512835](assest/image-20210728180512835.png)
 
 ### 3.4.2 将原主库切回为主库
 
@@ -863,7 +849,7 @@ systemctl start mysqld
 
 2.161挂到新主库162上做从库（找到宕机时的binlog文件和偏移量，从上次宕机时开始恢复）在`/var/log/mha/app1/manager.log`中找到
 
-![image-20210729160435275](../../assest/image-20210729160435275.png)
+![image-20210729160435275](assest/image-20210729160435275.png)
 
 ```
 change master to master_host='192.168.1.162' ,master_port=3306,master_user='root',master_password='123456',master_log_file='mysql-bin.000005',master_log_pos=2188;
@@ -871,7 +857,7 @@ change master to master_host='192.168.1.162' ,master_port=3306,master_user='root
 start slave;
 ```
 
-![image-20210728180955375](../../assest/image-20210728180955375.png)
+![image-20210728180955375](assest/image-20210728180955375.png)
 
 3. 编辑配置文件 /etc/mha/app1.cnf
 
@@ -919,7 +905,7 @@ masterha_stop --global_conf=/etc/masterha/masterha_default.conf --conf=/etc/mha/
 masterha_master_switch --conf=/etc/mha/app1.cnf --master_state=alive --new_master_host=192.168.1.161 -- new_master_port=3306 --orig_master_is_new_slave --running_updates_limit=10000
 ```
 
-![image-20210728195625149](../../assest/image-20210728195625149.png)
+![image-20210728195625149](assest/image-20210728195625149.png)
 
 ```shell
 #修改主机名
@@ -932,7 +918,7 @@ init 6
 masterha_master_switch --conf=/etc/mha/app1.cnf --master_state=alive --new_master_host=master1 --new_master_port=3306 --orig_master_is_new_slave --running_updates_limit=10000
 ```
 
-![image-20210729004000582](../../assest/image-20210729004000582.png)
+![image-20210729004000582](assest/image-20210729004000582.png)
 
 查看切换日志文件，即可了解161节点是否再次切换为主节点
 
@@ -961,5 +947,5 @@ Query OK, 0 rows affected (0.02 sec)
 mysqldump --all-databases > mysql_backup_all.sql -uroot -p
 ```
 
-![image-20210725155404088](../../assest/image-20210725155404088.png)
+![image-20210725155404088](assest/image-20210725155404088.png)
 
