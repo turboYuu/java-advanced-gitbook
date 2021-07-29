@@ -13,5 +13,5 @@
 * [第四阶段 大型分布式存储系统架构进阶](4-stage/README.md)
     * [模块一 MySQL海量数据存储与优化（上）](4-stage/1-module/1-mysql.md)
         * [MySQL集群架构搭建实战](4-stage/1-module/2-mysql-cluster.md)
-    * [模块二 MySQL海量数据存储与优化（上）](4-stage/2-module/1-mysql.md)
+    * [模块二 MySQL海量数据存储与优化（下）](4-stage/2-module/1-mysql.md)
 
