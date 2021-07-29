@@ -1,5 +1,3 @@
-MHA搭建
-
 mysql主从搭建和双主搭建涉及到的服务器
 
 | 角色          | IP            |      |      |
@@ -923,5 +921,5 @@ Query OK, 0 rows affected (0.02 sec)
 mysqldump --all-databases > mysql_backup_all.sql -uroot -p
 ```
 
-![image-20210725155404088](../../assest/image-202107290040006682.png)
+![image-20210725155404088](../../assest/image-20210725155404088.png)
 
