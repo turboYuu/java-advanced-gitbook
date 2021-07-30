@@ -1,11 +1,11 @@
 mysql主从搭建和双主搭建涉及到的服务器
 
-| 角色          | IP            | 主机名（修改/etc/hostname,init 6重启） |      |
-| ------------- | ------------- | -------------------------------------- | ---- |
-| MySQL_Master1 | 192.168.1.150 |                                        |      |
-| MySQL_Master2 | 192.168.1.153 |                                        |      |
-| MySQL_Slave1  | 192.168.1.152 |                                        |      |
-| MySQL_Proxy   | 192.168.1.156 |                                        |      |
+| 角色          | IP            |      |      |
+| ------------- | ------------- | ---- | ---- |
+| MySQL_Master1 | 192.168.1.150 |      |      |
+| MySQL_Master2 | 192.168.1.153 |      |      |
+| MySQL_Slave1  | 192.168.1.152 |      |      |
+| MySQL_Proxy   | 192.168.1.156 |      |      |
 
 # 1.mysql主从搭建
 
@@ -504,12 +504,12 @@ show slave status \G;
 
 ## 3.1 环境准备
 
-| 名称              | IP            | 角色         |      |
-| ----------------- | ------------- | ------------ | ---- |
-| MHA_Manager       | 192.168.1.160 | MHA Manager  |      |
-| MHA_MySQL_Master1 | 192.168.1.161 | MySQL_Master |      |
-| MHA_MySQL_Slave1  | 192.168.1.162 | MySQL_Slave  |      |
-| MHA_MySQL_Slave2  | 192.168.1.163 | MySQL_Slave  |      |
+| 名称              | IP            | 角色         | 主机名（修改/etc/hostname,init 6重启） |
+| ----------------- | ------------- | ------------ | -------------------------------------- |
+| MHA_Manager       | 192.168.1.160 | MHA Manager  |                                        |
+| MHA_MySQL_Master1 | 192.168.1.161 | MySQL_Master |                                        |
+| MHA_MySQL_Slave1  | 192.168.1.162 | MySQL_Slave  |                                        |
+| MHA_MySQL_Slave2  | 192.168.1.163 | MySQL_Slave  |                                        |
 
 三台MySQL服务上配置好，主从配置，半同步复制。
 
