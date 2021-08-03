@@ -648,8 +648,10 @@ HintManager主要使用ThreadLocal管理分片键信息，进行hint强制路由
   ```java
   public class MyHintShardingAlgorithm implements HintShardingAlgorithm<Integer> {
      @Override
-     public Collection<String> doSharding(Collection<String> collection, 		HintShardingValue<Integer> hintShardingValue) {
-        //添加分库或分表路由逻辑  }
+     public Collection<String> doSharding(Collection<String> collection, 		
+                                          HintShardingValue<Integer> hintShardingValue) {
+        //添加分库或分表路由逻辑  
+     }
   }
   ```
 
