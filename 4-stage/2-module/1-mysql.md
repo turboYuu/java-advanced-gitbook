@@ -649,7 +649,7 @@ HintManager主要使用ThreadLocal管理分片键信息，进行hint强制路由
   public class MyHintShardingAlgorithm implements HintShardingAlgorithm<Integer> {
      @Override
      public Collection<String> doSharding(Collection<String> collection, 		
-                                          HintShardingValue<Integer> hintShardingValue) {
+            HintShardingValue<Integer> hintShardingValue) {
         //添加分库或分表路由逻辑  
      }
   }
@@ -660,7 +660,7 @@ HintManager主要使用ThreadLocal管理分片键信息，进行hint强制路由
   ```properties
   #强制路由库和表
   spring.shardingsphere.sharding.tables.b_order.database-strategy.hint.algorithm-class-name=com.lagou.hint.MyHintShardingAlgorithm 
-  spring.shardingsphere.sharding.tables.b_order.table-strategy.hint.algorithm- class-name=com.lagou.hint.MyHintShardingAlgorithm
+  spring.shardingsphere.sharding.tables.b_order.table-strategy.hint.algorithm-class-name=com.lagou.hint.MyHintShardingAlgorithm
   spring.shardingsphere.sharding.tables.b_order.actual-data-nodes=ds$->{0..1}.b_order$->{0..1}
   ```
 
