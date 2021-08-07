@@ -1,5 +1,3 @@
-# MySQL
-
 # 第五部分 分库分表实战及中间件
 
 ## 1 实战背景
@@ -930,3 +928,4 @@ Seata AT事务模型包含TM（事务管理器）、RM（资源管理器）、TC
 
 ![Sharding-Proxy Architecture](assest/sharding-proxy-brief_v2.png)
 
+# 第六部分 运维和第三方工具
