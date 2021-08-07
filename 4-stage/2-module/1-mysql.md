@@ -900,15 +900,80 @@ Seata AT事务模型包含TM（事务管理器）、RM（资源管理器）、TC
 
 ![image-20210805003534423](assest/image-20210805003534423.png)
 
+在Seata，,AT是分为两个阶段的，第一阶段，就是各个阶段本地提交操作；第二阶段会根据第一阶段的情况决定是进行全局提交还是全局回滚操作。具体的执行流程如下：
 
+- TM开启分布式事务，负责全局事务的begin和commit/rollback（TM向TC注册全局事务记录）；
+- RM作为参与者，负责分支事务的执行结果上报，并且通过TC的协调进行commit/rollback（RM向TC汇报资源准备状态）；
+- RM分支事务结束，事务一阶段结束；
+- 根据TC汇总事务信息，由TM发起事务提交或回滚操作；
+- TC通知所有RM提交/回滚资源，事务二阶段结束；
 
 #### 1.7.3 Sharding-JDBC整合XA原理
 
+Java通过定义JTA接口实现了XA的模型，JTA接口里的ResourceManager需要数据库厂商提供XA的驱动实现，而TransactionManager则需要事务管理器的厂商实现，传统的事务管理器需要同应用服务器绑定，因此使用成本很高。而嵌入式事务管理器可以以jar包的形式提供服务，同ShardingSphere集成后，可保证分片后跨库事务强一致性。
+
+ShardingSphere支持以下功能：
+
+- 支持数据分片后的跨库XA事务
+- 两阶段提交保证操作的原子性和数据的强一致性
+- 服务宕机重启后，提交/回滚中的事务可自动恢复
+- SPI机制整合主流的XA事务管理器，默认Atomikos
+- 同时支持XA和非XA的连接池
+- 提供spring-boot和namespace的接入端
+
+ShardingSphere整合XA事务时，分离了XA事务管理和连接池管理，这样接入XA时，可以做到对业务的零侵入。
+
 ![XA事务实现原理](assest/2pc-xa-transaction-design_cn.png)
+
+- Begin（开启XA全局事务）
+
+  XAShardingTransactionManager会调用具体的XA事务管理器开启XA的全局事务。
+
+- 执行物理SQL
+
+  ShardingSphere进行解析/优化/路由后生成SQL操作，执行引擎为每个物理SQL创建连接的同时，物理连接所对应的XAResource也会被注册到当前事务中。事务管理器会在此阶段发送XAResource.start命令给数据库，数据库在收到XAResource.end命令之前的所有SQL操作，会被标记为XA事务。
+
+  例如：
+
+  ```
+  XAResource1.start             ## Enlist阶段执行 
+  statement.execute("sql1");    ## 模拟执行一个分片SQL1 
+  statement.execute("sql2");    ## 模拟执行一个分片SQL2 
+  XAResource1.end               ## 提交阶段执行
+  ```
+
+  这里sql1和sql2将会被标记为XA事务。
+
+- Commit/rollback（提交XA事务）
+
+  XAShardingTransactionManager收到接入端的提交命令后，会委托实际的XA事务管理器进行提交动作，这时事务管理器会收集当前线程里所有注册的XAResource，首先发送XAResource.end指令，用以标记此XA事务的边界。接着会依次发送prepare指令，收集所有参与XAResource投票，如果所有XAResource的反馈结果都是OK，则会再次调用commit指令进行最终提交，如果有一个XAResource的反馈结果为no，则会调用rollback指令进行回滚。在事务管理器发出提交指令后，任何XAResource产生的异常都会通过recovery日志进行重试，来保证提交阶段的操作原子性，和数据强一致性。
+
+  ```
+  XAResource1.prepare           ## ack: yes
+  XAResource2.prepare           ## ack: yes
+  XAResource1.commit
+  XAResource2.commit
+  
+  XAResource1.prepare           ## ack: yes
+  XAResource2.prepare           ## ack: no
+  XAResource1.rollback
+  XAResource2.rollback
+  ```
 
 #### 1.7.4 Sharding-JDBC整合Saga原理
 
+ShardingSphere的柔性事务已通过第三方servicecomb-saga组件实现的，通过SPI机制注入使用。ShardingShere是基于反向SQL技术实现的反向补偿操作，它将对数据库进行更新操作的SQL自动生成反向SQL，并交由Saga-actuator引擎执行。使用方则无需再关注如何实现补偿方法，将柔性事务管理器的应用范畴成功的定位回了事务的本源——数据库层面。ShardingSphere支持以下功能：
+
+- 完全支持跨库事务
+- 支持失败SQL重试及最大努力送达
+- 支持反向SQL，自动生成更新快照以及自动补偿
+- 默认使用关系型数据库进行快照及事务日志的持久化，支持使用SPI的方式加载其他类型的持久化
+
+Saga柔性事务的实现类为SagaShardingTransactionManager，ShardingSphere通过Hook的方式拦截逻辑SQL的解析和路由结果，这样在分片物理SQL执行前，可以生成逆向SQL，在事务提交阶段再把SQL调用链交给Saga引擎处理。
+
 ![柔性事务Saga](assest/sharding-transaction-base-saga-design.png)
+
+
 
 #### 1.7.5 Sharding-JDBC整合Seata原理
 
@@ -916,16 +981,102 @@ Seata AT事务模型包含TM（事务管理器）、RM（资源管理器）、TC
 
 #### 1.7.6 Sharding-JDBC分布式事务实战
 
+ShardingSphere整合了XA、Saga和Seata模式后，为分布式事务控制提供了极大的便利性，可以在编程时，采用以下同一模式进行使用。
 
+- 引入Maven依赖
+
+  ```
+  //XA模式
+  <dependency>
+     <groupId>org.apache.shardingsphere</groupId>
+     <artifactId>sharding-transaction-xa-core</artifactId>    
+     <version>${shardingsphere.version}</version>    
+  </dependency>
+  //Saga模式 
+  <dependency>
+     <groupId>io.shardingsphere</groupId>
+     <artifactId>sharding-transaction-base-saga</artifactId>    
+     <version>${shardingsphere-spi-impl.version}</version> 
+  </dependency>
+  //Seata模式 
+  <dependency>
+     <groupId>org.apache.shardingsphere</groupId>
+     <artifactId>sharding-transaction-base-seata-at</artifactId>    
+     <version>${sharding-sphere.version}</version>
+  </dependency>
+  ```
+
+- Java编码方式设置事务类型
+
+  ```
+  TransactionTypeHolder.set(TransactionType.XA); 
+  TransactionTypeHolder.set(TransactionType.BASE);
+  ```
+
+- 参数配置
 
 ### 1.8 SPI加载剖析
 
+Service Provider Interface（SPI）是Java提供的一套被第三方实现或扩展的API，可用于实现框架扩展或组件替换。
 
+Apache ShardingSphere所有通过SPI方式载入功能的模块。
+
+- SQL解析
+- 数据库协议
+- 数据脱敏
+- 分布式主键
+- 分布式事务
+- XA事务管理器
+- 注册中心
 
 ### 1.9 编排治理剖析
 
+编排治理模块提供配置中心/注册中心（以及规划中的元数据中心）、配置动态化、数据库熔断禁用、调用链路等治理功能。
+
 ### 1.10 Sharding-Proxy实战
 
+定位为透明化的数据库代理端，提供封装了数据库二进制协议的服务端版本，用于完成对异构语言的支持。
+
+- 向应用程序完全透明化，可直接当作MySQL使用
+- 适用于任何我兼容MySQL协议的客户端
+
 ![Sharding-Proxy Architecture](assest/sharding-proxy-brief_v2.png)
+
+Sharding-Proxy的优势在于对异构语言的支持，以及为DBA提供可操作入口。
+
+**Sharding-Proxy使用过程：**
+
+- 下载Sharding-Proxy的最新发行版
+
+- 解压后修改conf/server.yaml和以config-前缀开头的文件，进行分片规则、读写分离规则配置
+
+  编辑%SHARDING_PROXY_HOME%\conf\config-xxx.yaml
+
+  编辑%SHARDING_PROXY_HOME%\conf\server.yaml
+
+- 引入依赖jar
+
+  如连接MySQL，需要将mysql-connector-java- 5.1.48.jar拷贝到${sharding-proxy}\lib
+
+  连接PostgreSQL，不需要额外依赖
+
+- Linux运行bin\start.sh，window运行bin\start.bat
+
+  配置端口号启动：\bin\start.sh ${port}
+
+- 使用客户端工具连接。如：mysql -h127.0.0.1 -p3307 -uroot -p
+
+若想使用Sharding-Proxy的数据库治理功能，则需要使用注册中心实现实例熔断和从库禁用功能。Sharding-Proxy默认提供了Zookeeper的注册中心解决方案。
+
+**注意事项**
+
+- Sharding-Proxy默认不支持hint，如需支持，请在conf/server.yaml中，将props的属性proxy.hint.enabled设置为true。在Sharding-Proxy中，HintShardingAlgorithm的泛型只能是String类型。
+- Sharding-Proxy默认使用3307端口。
+- Sharding-Proxy使用conf/server.yaml配置注册中心，认证信息以及公用属性。
+- Sharding-Proxy支持多逻辑数据源，每个以config-做前缀命名yaml配置文件，即为一个逻辑数据源。
+
+
+
+## 第2节 MyCat实战
 
 # 第六部分 运维和第三方工具
