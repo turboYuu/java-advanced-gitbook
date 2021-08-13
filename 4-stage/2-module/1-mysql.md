@@ -1077,6 +1077,57 @@ Sharding-Proxy的优势在于对异构语言的支持，以及为DBA提供可操
 
 
 
-## 第2节 MyCat实战
+## 第2节 Mycat实战
+
+
+
+![image-20210810232614989](assest/image-20210810232614989.png)
+
+![image-20210810232826113](assest/image-20210810232826113.png)
+
+![image-20210810232917072](assest/image-20210810232917072.png)
+
+
+
+
+
+
+
+
+
+```
+/*!*/
+
+/*!mycat:db_type=master*/ SELECT * FROM city;
+
+/*!mycat:db_type=slave*/ SELECT * FROM city;
+```
+
+
 
 # 第六部分 运维和第三方工具
+
+## 第1节 工具介绍
+
+### 1.1 Yearning介绍
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
