@@ -42,11 +42,31 @@ BSON有三个特点：轻量性，可便利性，高效性
 
 
 
+![image-20210814171109592](assest/image-20210814171109592.png)
+
+![image-20210814171202492](assest/image-20210814171202492.png)
 
 
 
 
 
+![image-20210814172345492](assest/image-20210814172345492.png)
+
+![image-20210814172408212](assest/image-20210814172408212.png)
+
+
+
+## 1.8 mongo shell的启动
+
+
+
+## 1.9 MongoDB GUI工具
+
+### 1.9.1 MongoDB Compass Community
+
+
+
+### 1.9.2 NoSQLBooster（mongobooster）
 
 
 
