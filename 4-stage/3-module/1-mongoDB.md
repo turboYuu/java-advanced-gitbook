@@ -177,6 +177,16 @@ db.集合名.find(条件)
 | 小于等 | {key:{$lte:value}} |      |       |
 | 不等于 | {key:{$ne:value}}  |      |       |
 
+```
+db.lg_resume_preview.find({})
+db.lg_resume_preview.find()
+db.lg_resume_preview.find({name:"李四"})
+db.lg_resume_preview.find({expectSalary:45000)
+db.lg_resume_preview.find({expectSalary:{$eq: 45000}})
+db.lg_resume_preview.find({expectSalary:{$gt: 45000}})
+db.lg_resume_preview.find({expectSalary:{$lt: 45000}})
+```
+
 **逻辑条件查询**
 
 ```
@@ -191,25 +201,112 @@ not条件
 	db.集合名.find({key:{$not:{$操作符:value}}}).pretty()
 ```
 
+```
+db.lg_resume_preview.find({city:"shanghai",expectSalary:45000})
+db.lg_resume_preview.find({$and: [{city:"shanghai"},{expectSalary:45000}]})
+
+db.lg_resume_preview.find({$or: [{city:"shanghai"},{expectSalary:45000}]})
+db.lg_resume_preview.find({city: {$not: {$eq: "beijing"}}})
+```
+
 **分页查询**
 
 db.集合名.find({条件}).sort({排序字段:排序方式}).skip(跳过的行数).limit(一页显示多少数据)
 
-
+```
+db.lg_resume_preview.find({expectSalary:45000).sort({ city:-1 }).skip(4).limit(2)
+```
 
 ### 2.2.3 数据更新 
 
 ```
+$set:设置字段值
+$unset:删除指定字段
+$inc:对修改的值进行自增
+db.集合名.update(
+	<query>,
+	<update>,
+	{
+		upsert:<boolean>,
+		multi:<boolean>,
+		writeConcern:<document>
+	}
+)
+
+参数说明：
+query：update的查询条件，类似sql update查询内where后面的。
+update：update的对象和一些更新的操作符（如$set,$inc...）等，也可以理解为sql update中set后面的
+upsert：可选，这个参数的意思是，如果不存在update的记录，是否插入objNew，true为插入，默认false,不插入
+multi：可选，默认false,只更新找到的第一条记录，如果为true,就把按条件查询出来的多条记录全部更新。
+writeConcern：可选，用来指定mongoDB对写操作的回执行为比如写的行为是否需要确认。
+
+举例：
+db.集合名.update({条件},{$set:{字段名:值}},{multi:true})
+```
+
+```
+writeConcern 包括以下字段：
+{w:<value>,j:<boolean>,wtimeout:<number>}
+	w:指定写操作传播到的成员数量
+比如：
 
 ```
 
+```
+-- 数据更新
+/** 更新 张三的工资为40000*/
+db.lg_resume_preview.update({name:"张三"}, 
+    {$set:{expectSalary:40000}}, 
+    { multi: false, upsert: false}
+)
 
+db.lg_resume_preview.update({expectSalary:45000}, 
+    {$set:{expectSalary:49000}}, 
+    { multi: true, upsert: true}
+)
+/** inc*/
+db.lg_resume_preview.update({name:"李四"}, 
+    {$inc:{expectSalary:-900}}, 
+    { multi: false, upsert: false}
+)
+/** 删除字段*/
+db.lg_resume_preview.update({name:"李四"}, 
+    {$unset:{expectSalary:""}}, 
+    { multi: false, upsert: false}
+)
+/**没有操作符，会删除其他字段，只留expectSalary*/
+db.lg_resume_preview.update({name:"李四"}, 
+    {expectSalary:18000}, 
+    { multi: false, upsert: false}
+)
+```
 
 ### 2.2.4 数据删除
 
+```
+db.collection.remove(
+	<query>,
+	{
+		justOne:<boolean>,
+		writeConcern:<document>
+	}
+)
+
+参数说明：
+query：可选，删除的文档的条件
+justOne:可选，如果设置为true或1,则只删除一个文档，如果不设置该参数，使用默认值false,则删除所有匹配条件的文档。
+writeConcern:可选，用来指定mongod对写操作的回执行为。
+```
+
+```
+-- 删除数据
+db.lg_resume_preview.remove({expectSalary:18000}, {justOne: true})
+db.lg_resume_preview.find({city:"beijing"})
+db.lg_resume_preview.remove({city:"beijing"}, {justOne: true})
+db.lg_resume_preview.remove({})
+```
+
 ## 2.3 MongoDB聚合操作
-
-
 
 ### 2.3.1 聚合操作简介
 
