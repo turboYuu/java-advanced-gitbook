@@ -114,6 +114,22 @@ config		  指定配置文件
 
 ## 2.1 MongoDB的基本操作
 
+```
+查看数据库
+	show dbs;
+切换数据库 如果没有对应的数据库则创建
+	use 数据库名;
+创建集合
+	db.createcollection("集合名");
+查看集合
+	show tables;
+	show collections;
+删除集合
+	db.集合名.drop();
+删除当前数据库
+	db.dropDatabase();
+```
+
 
 
 ## 2.2 MongoDB集合数据操作（CURD）
@@ -122,23 +138,72 @@ https://docs.mongodb.com/guides/
 
 ### 2.2.1 数据添加
 
+1）插入单条数据db.集合名.insert(文档)
+
+文档的数据结构和JSON基本一致。所有存储在集合中的数据都是BSON格式。BSON是一种类json的一种二进制形式的存储格式，简称Binary JSON。
+
+2）例如：
+
 db.lg_resume_preview.insert({name:"张晓峰",birthday:new ISODate("2000-07-01"),expectSalary:45000,city:'beijing'})
+
+没有指定_id这个字段 系统会自动生成一个12字节BSON类型数据，有以下格式：
+
+前4个字节表示时间戳 ObjectId("对象Id字符串").getTimestamp()来获取
+
+接下来的3个字节是机器标识码
+
+紧接的两个字节由进程id组成（PID）
+
+最后三个字节是随机数。
+
+3）插入多条数据
+
+db.集合名.insert([文档,文档])
 
 ![image-20210815012306191](assest/image-20210815012306191.png)
 
 ### 2.2.2 数据查询
 
-比较条件查询
+**比较条件查询**
 
 db.集合名.find(条件)
 
+| 操作   | 条件格式           | 例子 | RDBMS |
+| ------ | ------------------ | ---- | ----- |
+| 等于   | {key:value}        |      |       |
+| 大于   | {key:{$gt:value}}  |      |       |
+| 小于   | {key:{$lt:value}}  |      |       |
+| 大于等 | {key:{$gte:value}} |      |       |
+| 小于等 | {key:{$lte:value}} |      |       |
+| 不等于 | {key:{$ne:value}}  |      |       |
 
+**逻辑条件查询**
 
-逻辑条件查询
+```
+andt条件
+MongoDB的find()方法可以传入多个键(key)，每个键(key)以逗号隔开，即常规SQL的AND条件
+	db.集合名.find({key1:value1,key2:value2}).pretty()
+	
+or条件
+	db.集合名.find({$or:[{key1:value1},{key2:value2}]}).pretty()
+	
+not条件
+	db.集合名.find({key:{$not:{$操作符:value}}}).pretty()
+```
+
+**分页查询**
+
+db.集合名.find({条件}).sort({排序字段:排序方式}).skip(跳过的行数).limit(一页显示多少数据)
 
 
 
 ### 2.2.3 数据更新 
+
+```
+
+```
+
+
 
 ### 2.2.4 数据删除
 
