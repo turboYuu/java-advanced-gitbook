@@ -116,18 +116,18 @@ config		  指定配置文件
 
 ```
 查看数据库
-	show dbs;
+	show dbs
 切换数据库 如果没有对应的数据库则创建
-	use 数据库名;
+	use 数据库名
 创建集合
-	db.createcollection("集合名");
+	db.createcollection("集合名")
 查看集合
-	show tables;
-	show collections;
+	show tables
+	show collections
 删除集合
-	db.集合名.drop();
+	db.集合名.drop()
 删除当前数据库
-	db.dropDatabase();
+	db.dropDatabase()
 ```
 
 
@@ -310,17 +310,95 @@ db.lg_resume_preview.remove({})
 
 ### 2.3.1 聚合操作简介
 
+聚合是MongoDB的高级查询语言，它允许我们通过转化合并由多个文档的数据来生成新的在单个文档中不存在的文档信息。一般都是将记录按条件分组之后进行一系列求最大值、最小值、平均值的简单操作，也可以对记录进行复杂的数据统计，数据挖掘等操作。聚合操作的输入是集中的文档，输出可以是一个文档也可以是多个文档。
+
 ### 2.3.2 MongoDB聚合操作分类
+
+- 单目的聚合操作（Single Purpose Aggregation Operation）
+- 聚合管道（Aggregation Pipeline）
+- MapReduce编程模型
 
 ### 2.3.3 单目的聚合操作
 
+单目的聚合命令常用的有：count()和distinct()
+
+```
+db.lg_resume_preview.find().count()
+db.lg_resume_preview.count()
+db.lg_resume_preview.distinct("city")
+```
+
 ### 2.3.4 聚合管道（Aggregation Pipeline）
+
+```
+db.collection.aggregater(AGGREGATE_OPERATION)
+如：
+db.lg_resume_preview.aggregate([{$group: { _id: "$city",city_count:{$sum: 1}}}])
+```
+
+MongoDB中聚合（aggregate）主要用于统计数据（诸如统计平均值，求和等），并返回计算后的数据结果。
+
+表达式：处理输入文档并输出。表达式只能用于计算当前聚合管道的文档，不能处理其他的文档。
+
+| 表达式    | 描述                                         |
+| --------- | -------------------------------------------- |
+| $sum      | 计算总和                                     |
+| $avg      | 计算平均值                                   |
+| $min      | 最小值                                       |
+| $max      | 最大值                                       |
+| $push     | 在结果文档中插入值到一个数组中               |
+| $addToSet | 在结果文档中插入值到一个数组中，但数据不重复 |
+| $first    | 根据资源文档的排序获取第一个文档数据         |
+| $last     | 根据资源文档的排序获取最后一个文档数据       |
+
+MongoDB中使用`db.COLLECTION_NAME.aggregate([{},...])`方法来构建和使用聚合管道，内阁文档通过一个由一个或多个阶段（stage）组成的管道，经过一系列的处理，输出相应的结果。
+
+MongoDB的聚合管道将MongoDB文档在一个管道处理完毕后将结果传递给下一个管道处理。管道操作可以重复。
+
+常用的几个操作：
+
+- $group:将集合中的文档分组，可用于统计结果。
+- $project:修改输入文档的结构。可以用来重命名，增加或删除域，也可以用于创建计算结果以及嵌套文档。
+- $match:用于过滤数据，只输出符合条件的文档。$match使用MongoDB的标准查询操作。
+- $limit: 用来限制MongoDB聚合管道返回的文档数。
+- $skip:将输入文档排序后输出。
+- $geoNear:输出接近某一地理位置的有序文档。
+
+```
+/**统计city出现个数*/
+db.lg_resume_preview.aggregate([{$group: { _id: "$city",city_count:{$sum: 1}}}])
+
+/**统计city平均薪资*/
+db.lg_resume_preview.aggregate([{$group: { _id: "$city",avgSalary:{$avg: "$expectSalary"}}}])
+
+/**统计city min薪资*/
+db.lg_resume_preview.aggregate([{$group: { _id: "$city",expectSalary:{$min: "$expectSalary"}}}])
+
+/**统计city max薪资*/
+db.lg_resume_preview.aggregate([{$group: { _id: "$city",expectSalary:{$max: "$expectSalary"}}}])
+
+db.lg_resume_preview.aggregate([{$group: { _id: "$city",name:{$first: "$name"}}}])
+db.lg_resume_preview.aggregate([{$group: { _id: "$city",city_name:{$push: "$city"}}])
+db.lg_resume_preview.aggregate([{$group: { _id: "$city",city_name:{$addToSet: "$city"}}}])
+
+db.lg_resume_preview.aggregate([{$group: { _id: "$city",avgSalary:{$avg: "$expectSalary"}}},
+{$project: {city:"$city",sal:"$avgSalary"}}])
+
+db.lg_resume_preview.aggregate([{$group: { _id: "$city",city_count:{$sum: 1}}},
+{$match: {city_count:{$gt:2}}}])
+```
+
+
 
 ![image-20210815182827697](assest/image-20210815182827697.png)
 
 ![image-20210815183032744](assest/image-20210815183032744.png)
 
 ### 2.3.5 MapReduce编程模型
+
+Pipeline查询速度快于MapReduce，但是MapReduce的强大之处在于能够在多台Server上并行执行复杂的聚合逻辑。MongoDB不允许Pipeline的单个聚合操作占用过多的系统内存，如果一个聚合操作消耗20%以上的内存，那么MongoDB直接停止操作，并向客户端输出错误消息。
+
+**MapReduce是一种计算模型，简单说就是将大批量的工作（数据）分解（MAP）执行，然后再将结果合并成最终结果（REDUCE）。**
 
 ```
 db.lg_resume_preview.mapReduce(
@@ -330,52 +408,186 @@ db.lg_resume_preview.mapReduce(
          query:{expectSalary:{$gt:15000}},
          finalize:function(key,value){
              return value+5000
-         },verbose:true,
+         },verbose:false,
          out: "citySalary"
       })
 ```
 
+使用MapReduce要实现两个函数Map函数和Reduce函数，Map函数调用emit(key,value)，遍历collection中所有的记录，将key与value传递给Reduce函数进行处理。
 
+**参数说明：**
+
+- map:是JavaScript函数，负责将每一个输入文档转换为零或多个文档，生成键值对序列，作为reduce函数参数
+- reduce：是JavaScript函数，对Map操作的输出做合并的化简操作（将key-value变成key-values，也就是把values数组变成一个单一的值value）
+- out：统计结果存放集合
+- query: 一个筛选条件，只有满足条件的文档才会调用map函数。
+- sort：和limit结合的sort排序参数（也是在发往map函数前给文档排序），可以优化分组机制
+- limit: 发往map函数的文档数量上线（没有limit,单独使用sort的用处不大）
+- finalize:可以对reduce输出结果再一次修改
+- verbose:是否包括信息中的时间信息，默认为false
+
+![image-20210816161510897](assest/image-20210816161510897.png)
 
 # 第三部分 MongoDB索引Index
 
 ## 3.1 什么是索引
 
-> 索引是一种单独的、物理的对数据库表中一列或多列的值进行排序的一种存储结构，它是某个表中一列或若干列值的集合和相应的指向表中物理标识这些值的数据页
+> 索引是一种单独的、物理的对数据库表中一列或多列的值进行排序的一种存储结构，它是某个表中一列或若干列值的集合和相应的指向表中物理标识这些值的数据页的逻辑指针清单。默认情况下Mongo在一个集合（collection）创建时，自动地对集合地_id创建了唯一索引
 
 ## 3.2 索引类型
 
 ### 3.2.1 单键索引（Single Field）
 
+MongoDB支持所有数据类型中地单个字段索引，并且可以在文档地任何字段上定义。
 
+对于单个字段索引，索引键的排序顺序无关紧要，因为MongoDB可以在任意方向读取索引。
+
+单个例上创建索引：
+
+```
+db.集合名.createIndex({"字段名":排序方式})
+
+db.lg_resume_preview.createIndex({name:1})
+db.lg_resume_preview.getIndexes()
+```
+
+**特殊单键索引 过期索引TTL (Time To Live)**
+
+TTL索引是MongoDB中一种特殊的索引，可以支持文档在一定时间之后自动过期删除，目前TTL索引只能在单字段上建立，**并且字段类型必须是日期类型。**
+
+```
+db.集合名.createIndex({"日期字段":排序方式},{expireAfterSeconds:秒数})
+```
 
 过期索引或删除索引上的数据
 
+```
+db.lg_index_test.insert({name:"test1",salary:38000,birthday:new ISODate("2020-08-12")})
 
+db.lg_index_test.createIndex({birthday:1},{expireAfterSeconds:5})
+```
 
 ### 3.2.2 复合索引（Compound Index）
 
-https://docs.mongodb.com/manual/core/index-compound/
+官网参考：https://docs.mongodb.com/manual/core/index-compound/
+
+在多个字段的基础上搜索表，需要在MongoDB中创建复合索引。复合索引支持基于多个字段的索引，这种扩展了索引的概念并将它们扩展到索引中的更大域。
+
+创建复合索引的注意事项：字段顺序、索引方向。
+
+```
+db.集合名.createIndex({"字段名1":排序方式,"字段名2":排序方式})
+```
 
 ### 3.2.3 多键索引（Multikey indexes）
 
+针对属性包括数组数据的情况，MongoDB支持针对数组中每一个element创建索引，Multikey indexes支持Strings，numbers和nested documents
+
 ### 3.2.4 地理空间索引（Geospatial Index）
+
+针对地理空间坐标数据创建索引。
+
+2dsphere索引，用于存储和查找球面上的点
+
+2d索引，用于存储和查找平面上的点
+
+```
+db.company.insert(
+   {
+     loc : { type: "Point", coordinates: [ 116.482451, 39.914176 ] },
+     name: "大望路地铁",
+     category : "Parks"
+   }
+)
+db.company.ensureIndex({loc:"2dsphere"})
+db.company.getIndexes()
+db.company.find({
+  "loc" : {
+      "$geoWithin" : {
+       "$center":[[116.482451,39.914176],0.05] 
+      }
+  } 
+})
+
+/** 计算中心点最近的三个点 */
+db.company.aggregate([
+   {
+     $geoNear: {
+        near: { type: "Point", coordinates: [116.482451,39.914176 ] },
+        key: "loc",
+        distanceField: "dist.calculated"
+     }
+   },
+   { $limit: 3 }
+])
+```
 
 ### 3.2.5 全文索引
 
+MongoDB提供了针对string内容的文本查询，Text Index支持任意属性值为string或string数组元素的索引查询。注意：**一个集合仅支持最多一个Text Index**，中文分词不理想，推荐ES。
+
+```
+db.集合名.createIndex({"字段":"text"})
+db.集合名.find({"$text":{"$search":"two"}})
+
+db.textTextIndex.insert({id:4,name:"test4",description:"three world three dream",city:"dj"})
+db.textTextIndex.find()
+
+db.textTextIndex.createIndex({description:"text"})
+db.textTextIndex.find({"$text":{"$search":"two"}})
+```
+
 ### 3.2.6 哈希索引 Hashed Index
 
-https://docs.mongodb.com/manual/core/index-hashed/
+官网参考：https://docs.mongodb.com/manual/core/index-hashed/
+
+针对属性的哈希值进行索引查询，当要使用hashed index时，MongoDB能够自动计算hash值，无需程序计算hash值。注：hash index仅支持等于查询，不支持范围查询。
+
+```
+db.集合名.createIndex({"字段":"hashed"})
+```
 
 ## 3.3 索引和explain
 
 ### 3.3.1 索引管理
 
+创建索引并在后台运行
 
+```
+db.COLLECTION_NAME.createIndex({"字段":1},{background:true})
+
+db.textTextIndex.createIndex({name:1},{background:true})
+```
+
+获取针对某个集合的索引
+
+```
+db.textTextIndex.getIndexes()
+```
+
+索引大小
+
+```
+db.textTextIndex.totalIndexSize()
+```
+
+索引重建
+
+```
+db.textTextIndex.reIndex()
+```
+
+索引删除
+
+```
+db.COLLECTION_NAME.dropIndex("INDEX-NAME") 
+db.COLLECTION_NAME.dropIndexes()
+注意: _id 对应的索引是删除不了的
+```
 
 ### 3.3.2 explain分析
 
-
+![image-20210816181656466](assest/image-20210816181656466.png)
 
 ## 3.4 慢查询分析
 
