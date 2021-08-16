@@ -117,7 +117,7 @@ config		  指定配置文件
 ```
 查看数据库
 	show dbs
-切换数据库 如果没有对应的数据库则创建
+切换数据库 如果没有对应的数据库则创建（数据库中要创建集合，才会真正创建出数据库）
 	use 数据库名
 创建集合
 	db.createcollection("集合名")
@@ -432,7 +432,7 @@ db.lg_resume_preview.mapReduce(
 
 ## 3.1 什么是索引
 
-> 索引是一种单独的、物理的对数据库表中一列或多列的值进行排序的一种存储结构，它是某个表中一列或若干列值的集合和相应的指向表中物理标识这些值的数据页的逻辑指针清单。默认情况下Mongo在一个集合（collection）创建时，自动地对集合地_id创建了唯一索引
+> 索引是一种单独的、物理的对数据库表中一列或多列的值进行排序的一种存储结构，它是某个表中一列或若干列值的集合和相应的指向表中物理标识这些值的数据页的逻辑指针清单。默认情况下Mongo在一个集合（collection）创建时，自动地对集合地_id创建了唯一索引。
 
 ## 3.2 索引类型
 
@@ -587,11 +587,241 @@ db.COLLECTION_NAME.dropIndexes()
 
 ### 3.3.2 explain分析
 
+循环插入100万条数据，不使用索引字段查询查看执行计划，然后给某个字段建立索引，使用索引字段作为查询条件，再查看执行计划进行分析。
+
+explain()接收不同的参数，通过设置不同的参数，可以查看更详细的查询计划。
+
+- queryPlanner：queryPlanner是默认参数，具体执行计划信息参考下面表格》
+- executionStats：executionStats会返回执行计划的一些统计信息（有些版本中和allPlansExecution等同）。
+- allPlansExecution：allPlansExecution用来获取所有执行计划，结果参数基本与上文相同。
+
+**1、queryPlanner默认参数**
+
+| 参数                           | 含义                                                         |
+| ------------------------------ | ------------------------------------------------------------ |
+| plannerVersion                 | 查询计划版本                                                 |
+| namespace                      | 要查询的集合（该值返回的是该query所查询的表）数据库.集合     |
+| indexFilterSet                 | 针对该query是否有indexFilter                                 |
+| parsedQuery                    | 查询条件                                                     |
+| winningPlan                    | 被选中的执行计划                                             |
+| winningPlan.stage              | 被选中执行计划的stage(查询方式)，常见的有：COLLSCAN/全表扫描：（应该知道就是CollectionScan，就是所谓的“集合扫描”， 和mysql中table scan/heap scan类似，这个就是所谓的性能最烂最无奈的由来）、IXSCAN/索引扫描：（是IndexScan，这就说明 我们已经命中索引了）、FETCH/根据索引去检索文档、 SHARD_MERGE/合并分片结果、IDHACK/针对_id进行查询等 |
+| winningPlan.inputStage         | 用来描述子stage，并且为其父stage提供文档和索引关键字。       |
+| winningPlan.stage的child stage | 如果此处是IXSCAN，表示进行的是index scanning。               |
+| winningPlan.keyPattern         | 所扫描的index内容                                            |
+| winningPlan.indexName          | winning plan所选用的index。                                  |
+| winningPlan.isMultiKey         | 是否是MultiKey，此处返回是false，如果索引建立再array上，此处将是true。 |
+| winningPlan.direction          | 此query的查询顺序，此处是forward，如果用了.sort({字段:-1}) 将显示backward。 |
+| filter                         | 过滤条件                                                     |
+| winningPlan.indexBounds        | winningplan所扫描的索引范围,如果没有制定范围就是[MaxKey, MinKey]，这主要是直接定位到mongodb的chunck中去查找数据，加快数据读取。 |
+| rejectedPlans                  | 被拒绝的执行计划的详细返回，其中具体信息与winningPlan的返回中意义相同，故不在此赘述） |
+| serverInfo                     | MongoDB服务器信息                                            |
+
+**2、executionStats参数**
+
+| 参数                                   | 含义                                                         |
+| -------------------------------------- | ------------------------------------------------------------ |
+| executionSuccess                       | 是否执行成功                                                 |
+| nReturned                              | 返回的文档数                                                 |
+| executionTimeMillis                    | 执行耗时                                                     |
+| totalKeysExamined                      | 索引扫描次数                                                 |
+| totalDocsExamined                      | 文档扫描次数                                                 |
+| executionStages                        | 这个分类下描述执行的状态                                     |
+| stage                                  | 扫描方式，具体可选值与上文的相同                             |
+| nReturned                              | 查询结果数量                                                 |
+| executionTimeMillisEstimate            | 检索document获得数据的时间                                   |
+| inputStage.executionTimeMillisEstimate | 该查询扫面文档index所用时间                                  |
+| works                                  | 工作单元数，一个查询会分解成小的工作单元                     |
+| advanced                               | 优先返回的结果数                                             |
+| docsExamined                           | 文档检查数目，与totalDocsExamined一致。检查了总共的document 个数，而从返回上面的nReturned数量 |
+
+**3、executionStats返回逐层分析**
+
+第一层，executionTimeMillis 最为直观explain返回值是executionTimeMillis值，指的是这条语句的执行时间，这个值当然是希望越少越好。
+
+其中有3个executionTimeMillis，分别是：
+
+executionStats.executionTimeMillis 该query的整体查询时间。
+
+executionStats.executionStages.executionTimeMillisEstimate 该查询检索document获取数据的时间。
+
+executionStats.executionStages.inputStage.exexutionTimeMillisEstimate 该查询扫描文档index所用时间。
+
+第二层，index与document扫描数与查询返回条目数，主要讨论3个返回项 nReturned、totalKeysExamined、totalDocsExamined，分别代表该条查询返回的条目，索引扫描条目、文档扫描条目。这些都是直观地影响到executionTimeMillis，扫描地越少速度越快。对于一个查询最理想地状态是：nReturded=totalKeysExamined=totalDocsExamined。
+
+第三层，stage状态分析，那又是什么影响到了totalKeysExamined和totalDocsExamined？是stage的类型。
+
+类型列举如下：
+
+COLLSCAN：全表扫描
+
+IXSCAN：索引扫描
+
+TETCH：根据索引去检索指定document
+
+SHARD_MERGE：将各个分片返回数据进行merge
+
+SORT：表明在内存中进行了排序
+
+LIMIT：使用limit限制返回数
+
+SKIP：使用skip进行跳过
+
+IDHACK：针对_id进行查询
+
+SHARDING_FILTER：通过mongos对分片数据进行查询
+
+COUNT：利用db.coll.explain().count()之类及逆行count运算
+
+TEXT：使用全文索引进行查询时候的stage返回
+
+PROJECTION：限定返回字段时stage的返回
+
+```
+/**限定返回字段,去掉_id*/
+db.lg_resume.find({name:{$gt:"test222333"}},{_id:0}).explain("executionStats")
+```
+
+对于普通查询，希望看到stage的组合（查询的时候尽可能用上索引）：
+
+Fetch+IDHACK
+
+Tetch+IXSCAN
+
+Limit+(Fetch+IXSCAN)
+
+PROJECTION+IXSCAN
+
+不希望看到包含如下的stage：
+
+COLLSCAN
+
+SORT
+
+COUNT
+
+**4、allPlansExecution参数**
+
+```
+queryPlanner 参数 和 executionStats的拼接
+```
+
+
+
 ![image-20210816181656466](assest/image-20210816181656466.png)
+
+```
+示例：
+db.lg_resume.find({name:"test11011"}).explain("executionStats")
+db.lg_resume.find({id:{$gt:222333}}).explain()
+/**限定返回字段*/
+db.lg_resume.find({name:{$gt:"test222333"}},{_id:0}).explain("executionStats")
+```
 
 ## 3.4 慢查询分析
 
+1、开启内置的查询分析器，记录读写操作效率
+
+```
+db.setProfilingLevel(n,m) n的取值可选0,1,2
+
+0 表示不记录
+1 表示记录慢速操作，如果值为1，m必须赋值，单位为ms，用于定于慢速查询时间阈值
+2 表示记录所有的读写操作
+```
+
+2、查询监控结果
+
+```
+db.system.profile.find().sort({millis:-1}).limit(3)
+```
+
+3、分析慢速查询
+
+应用程序设计不合理，不正确的数据模型，硬件配置问题，缺少索引等
+
+4、解读explain结果 确定是否缺少索引
+
+
+
 ## 3.5 MongoDB索引底层实现原理
+
+MongoDB时文档型的数据库，它使用BSON格式保存数据，比关系型数据库存储更方便。MySQL是关系型数据库，数据的关联性非常强，底层索引租住数据使用B+树，B+树由于数据全部存储在叶子节点，并且通过指针串联在一起，这样就容易进行区间遍历甚至全部遍历。**MongoDB使用B-树**，所有节点都有Data域，只要找到指定索引就可以进行访问，单次查询从结构上来看要快于MySQL。
+
+B-树是一种自平衡的搜索树，形式简单：
+
+![image-20210817012020299](assest/image-20210817012020299.png)
+
+B-树的特点：
+
+- 多路非二叉树
+- 每个节点 即保存数据 又保存索引
+- 搜索时 相当于二分查找
+
+B+树是B-树的变种
+
+![image-20210817012159726](assest/image-20210817012159726.png)
+
+B+树的特点：
+
+- 多路非二叉树
+- 只有叶子节点保存数据
+- 搜索时 也相当于二分查找
+- 增加了 相邻节点指针
+
+从上面可以看出最核心的区别有2个：一个是数据保存位置，一个是相邻节点的指向。就是这两个造成MongoDB和MySQL的差别。
+
+- B+树相邻节点的指针可以大大增加区间访问性，可使用在范围查询等，而B-树每个节点key和data在一起适合随机读写，而区间查找效率很差。
+- B+树更适合外部存储，也就是磁盘存储，使用B-结构的话，每次磁盘预读中的很多数据是用不上的数据。因此，它没能利用好磁盘预读提供的数据。B+数 由于节点内无data域，每个节点能索引的范围更大更精确。
+- 注意这个区别相当重要，是基于（1）（2）的，**B-数每个节点即保存数据又保存索引，树的深度小，所以磁盘IO次数少**，B+树只有叶子节点保存数据，较B-树而言深度大磁盘IO多，但是区间访问比较好。
+
+# 第四部分 MongoDB应用实战
+
+## 4.1 MongoDB的适用场景
+
+> - 网站数据
+> - 缓存
+> - 大尺寸、低价值的数据
+> - 高伸缩性的场景
+> - 用于对象及JSON数据的存储
+
+## 4.2 MongoDB的行业具体应用场景
+
+- 游戏场景
+- 物流场景
+- 社交场景
+- 物联网场景
+- 直播
+
+## 4.3 如何抉择是否使用MongoDB
+
+| 应用特征                                           | Yes/No  |
+| -------------------------------------------------- | ------- |
+| 应用不需要事务及复杂 join 支持                     | 必须Yes |
+| 新应用，需求会变，数据模型无法确定，想快速迭代开发 | ?       |
+| 应用需要2000-3000以上的读写QPS（更高也可以）       | ?       |
+| 应用需要TB甚至 PB 级别数据存储                     | ?       |
+| 应用发展迅速，需要能快速水平扩展                   | ?       |
+| 应用要求存储的数据不丢失                           | ?       |
+| 应用需要99.999%高可用                              | ?       |
+| 应用需要大量的地理位置查询、文本查询               | ?       |
+
+## 4.4 Java访问MongoDB
+
+
+
+## 4.5 Spring 访问MongoDB
+
+
+
+## 4.6 Spring Boot访问MongoDB
+
+### 4.6.1 MomgoTemplate的方式
+
+### 4.6.2 MongoRepository
+
+
+
+
 
 
 
