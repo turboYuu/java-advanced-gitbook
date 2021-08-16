@@ -944,8 +944,37 @@ Query OK, 0 rows affected (0.02 sec)
 # 扩展：mysqldump
 
 ```
+参考
+mysqldump --help
+```
+
+**备份所有库**
+
+```
 mysqldump --all-databases > mysql_backup_all.sql -uroot -p
 ```
 
 ![image-20210725155404088](assest/image-20210725155404088.png)
+
+**备份指定库**
+
+```
+# mysqldump -uroot -p 数据库名 > dev.sql
+
+mysqldump -uroot -p smart-admin-dev > dev.sql
+```
+
+**备份指定表**
+
+```
+#mysqldump -uroot -p 数据库名 数据表名 > d_patent_infos_enhance.sql
+mysqldump -uroot -p smart-admin-dev d_patent_infos_enhance > d_patent_infos_enhance.sql
+```
+
+**导入备份**
+
+```
+在选中的数据库中执行 
+mysql> source /root/tools/dev.sql
+```
 
