@@ -249,14 +249,22 @@ writeConcern 包括以下字段：
 {w:<value>,j:<boolean>,wtimeout:<number>}
 	w:指定写操作传播到的成员数量
 比如：
-
+w=1(默认)：则要求得到写操作已经传播到独立的Mongod示例或副本集的primary成员的确认
+w=0：则不要求确认写操作，可能会返回socket exception和networking errors
+w="majority"：要求得到写操作已经传播到大多数具有存储数据具有投票的（data-bearing voting）成员（也就是members[n].vote值大于0的成员）的确认
+	j：要求得到Mongodb的写操作已经写到硬盘日志的确认
+比如
+j=true：要求得到Mongodb(w指定的实例个数)的写操作已经写道硬盘日志的确认。j=true本身并不保证因为副本集故障而不回滚。
+	wtimeout:write concern的时间限制，只适用于w>1的情况
+wtimeout在超过指定时间后写操作会返回error，即使写操作最后执行成功，当这些写操作返回时，MongoDB不会撤销在wtimeout时间限制之前执行成功的数据修改。
+如果未指定wtimeout选项并且未指定write concern级别，则写入操作将无限期阻止。指定wtimeout值为0等同于没有wtimeout选项。
 ```
 
 ```
 -- 数据更新
 /** 更新 张三的工资为40000*/
 db.lg_resume_preview.update({name:"张三"}, 
-    {$set:{expectSalary:40000}}, 
+    {$set:{expectSalary:40000}}, j
     { multi: false, upsert: false}
 )
 
@@ -807,9 +815,105 @@ B+树的特点：
 
 ## 4.4 Java访问MongoDB
 
+https://gitee.com/turboYuu/mongo-db-4.3/tree/master/lab/mongo_java_demo
+
+maven依赖
+
+```xml
+<dependency>
+    <groupId>org.mongodb</groupId>
+    <artifactId>mongo-java-driver</artifactId>
+    <version>3.10.1</version>
+</dependency>
+```
+
+文档添加
+
+```java
+public static void main(String[] args) {
+    MongoClient mongoClient = new MongoClient("192.168.31.138",27017);
+    MongoDatabase turbo = mongoClient.getDatabase("turbo");
+    MongoCollection<Document> lgResumePreview = turbo.getCollection("lg_resume_preview");
+    Document document = Document.parse("{name:'lisi',city:'bj',expectSalary:45000,
+                                       birthday:new ISODate('2012-12-08')}");
+    lgResumePreview.insertOne(document);
+    mongoClient.close();
+}
+```
+
+
+
+文档查询和过滤
+
+```java
+public static void main(String[] args) {
+    MongoClient mongoClient = new MongoClient("192.168.31.138",27017);
+    MongoDatabase turbo = mongoClient.getDatabase("turbo");
+    MongoCollection<Document> lgResumePreview = turbo.getCollection("lg_resume_preview");
+    Document sdoc = new Document();
+    sdoc.append("expectSalary",-1);
+    FindIterable<Document> documents = lgResumePreview.
+        find(Document.parse("{expectSalary:{$gt:21000}}")).sort(sdoc);
+    //或者使用Filters
+    //FindIterable<Document> documents = 
+    //		lgResumePreview.find(Filters.gt("expectSalary",18000)).sort(sdoc);
+    for (Document doc:documents){
+        System.out.println(doc);
+    }
+    mongoClient.close();
+}
+```
+
 
 
 ## 4.5 Spring 访问MongoDB
+
+https://gitee.com/turboYuu/mongo-db-4.3/tree/master/lab/mongo_spring_demo
+
+1、Maven
+
+```
+<dependency>
+    <groupId>org.springframework.data</groupId>
+    <artifactId>spring-data-mongodb</artifactId>
+    <version>2.2.9.RELEASE</version>
+</dependency>
+```
+
+2、配置文件中配置MongoTempate
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:mongo="http://www.springframework.org/schema/data/mongo"
+       xsi:schemaLocation="
+       http://www.springframework.org/schema/beans 
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.springframework.org/schema/context 
+       http://www.springframework.org/schema/context/spring-context.xsd
+       http://www.springframework.org/schema/data/mongo 
+       http://www.springframework.org/schema/data/mongo/spring-mongo.xsd">
+
+    <mongo:db-factory id="mongoDbFactory" client-uri="mongodb://192.168.31.138:27017/turbo">
+    </mongo:db-factory>
+    <bean id="mongoTemplate" class="org.springframework.data.mongodb.core.MongoTemplate">
+        <constructor-arg index="0" ref="mongoDbFactory"></constructor-arg>
+    </bean>
+    <!--开启组件扫描-->
+    <context:component-scan base-package="com.turbo"></context:component-scan>
+</beans>
+```
+
+3、Dao实现类注入MongoTemplate
+
+```java
+@Autowired
+private MongoTemplate mongoTemplate;
+```
+
+4、从Spring容器中获取Dao对象 进行测试（注意要开启组件扫描）
 
 
 
@@ -817,7 +921,87 @@ B+树的特点：
 
 ### 4.6.1 MomgoTemplate的方式
 
+https://gitee.com/turboYuu/mongo-db-4.3/tree/master/lab/mongo_springboot_template
+
+1、基于maven新建springboot工程
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-mongodb</artifactId>
+    <version>2.2.9.RELEASE</version>
+</dependency>
+```
+
+2、配置文件application.properties
+
+```properties
+spring.data.mongodb.host=192.168.31.138
+spring.data.mongodb.port=27017
+spring.data.mongodb.database=turbo
+```
+
+3、Dao实现类 注入MongoTemplate 完成增删改查
+
+```java
+@Autowired
+private MongoTemplate mongoTemplate;
+```
+
+4、从Spring容器中获取Dao对象 进行测试
+
+
+
 ### 4.6.2 MongoRepository
+
+https://gitee.com/turboYuu/mongo-db-4.3/tree/master/lab/mongo_springboot_repository
+
+1、基于maven新建springboot工程
+
+```
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-mongodb</artifactId>
+    <version>2.2.9.RELEASE</version>
+</dependency>
+```
+
+2、配置文件application.properties
+
+```properties
+spring.data.mongodb.host=192.168.31.138
+spring.data.mongodb.port=27017
+spring.data.mongodb.database=turbo
+```
+
+4、编写实体类 并在实体类上打 @Document("集合名")
+
+```java
+@Document("lg_resume_datas")
+public class Resume {
+```
+
+4、编写Repository接口 继承MongoRepository
+
+```java
+package com.turbo.repository;
+
+import com.turbo.bean.Resume;
+import org.springframework.data.mongodb.repository.MongoRepository;
+import java.util.List;
+
+public interface ResumeReposiptry extends MongoRepository<Resume,String> {
+
+    List<Resume> findByNameEquals(String name);
+    List<Resume> findByNameAndExpectSalary(String name,double expectSalary);
+}
+```
+
+具体方法参考：https://docs.spring.io/spring-data/jpa/docs/current/reference/html/#jpa.query-methods.query-creation
+
+如果内置方法不够用，可自己定义。
+
+5、从Spring容器中获取Repository对象，进行测试。
 
 
 
@@ -825,7 +1009,11 @@ B+树的特点：
 
 ## 5.1 MongoDB逻辑结构
 
+![image-20210817234311485](assest/image-20210817234311485.png)
 
+MongoDB与MySQL中的架构差不多，底层都使用了可插拔的存储引擎以满足用户不同需求。用户可以根据程序的数据特征选择不同的存储引擎，在最新版的MongoDB中使用了WiredTiger作为默认的存储引擎，WiredTiger提供了不同粒度的并发控制和压缩机制，能够为不同种类的应用提供最好的性能和存储率。
+
+在存储迎请上层就是MongoDB的数据模型的查询语言了，由于MongoDB对数据的存储与RDBMS有较大的差异，所以它创建了一套不同的数据模型和查询语言。
 
 ## 5.2 MongoDB的数据模型
 
@@ -833,31 +1021,123 @@ B+树的特点：
 
 #### 内嵌
 
+内嵌的方式是指把相关联的数据保存在同一个文档结构中。MongoDB的文档结构允许一个字段或者一个数组内的值作为一个嵌套的文档。
+
 #### 引用
 
+引用方式通过存储数据引用信息来实现两个不同文档之间的关联，应用程序可以通过解析这些数据引用来访问相关数据。
+
 ### 5.2.2 如何选择数据模型
+
+#### 选择内嵌
+
+- 数据对象之间有包含关系，一般是数据对象之间有一对多或者一对一的关系。
+- 需要经常一起读取的数据。
+- 有map-reduce/aggregation需求的数据放在一起，这些操作都只能操作单个collection。
+
+#### 选择引用
+
+- 当嵌套数据会导致很多数据的重复，并且读性能的优势有不足以覆盖数据重复的弊端。
+- 需要表达比较复杂的多对多关系的时候。
+- 大型层次结果数据集，嵌套不要太深。
 
 ## 5.3 MongoDB的存储引擎
 
 ### 5.3.1 存储引擎概述
 
+> 存储引擎是MongoDB的核心组件，负责管理数据如歌存储在硬盘和内存中。MongoDB支持的存储引擎有MMAPv1，WiredTiger和InMemory。InMemory存储引擎用于将数据只存储在内存中，只将少量的元数据（meta-data）和诊断日志（Diagnostic）存储到硬盘文件中，由于不需要Disk的IO操作，就能获取所需的数据，InMemory存储引擎大幅度降低的数据查询的延迟（Latency）。
+>
+> 从mongodb3.2开始默认的存储引擎是WiredTiger，3.2版本之间的默认存储引擎是MMAPv1，mongodb4.x不再支持MMAPv1存储引擎。
 
+```
+storage:
+   journal:
+       enabled: true    
+       dbPath: /data/mongo/    
+       ##是否一个库一个文件夹    
+       directoryPerDB: true    
+       ##数据引擎
+	   engine: wiredTiger    
+	   ##WT引擎配置
+       WiredTiger:
+       		engineConfig:
+           	##WT最大使用cache（根据服务器实际情况调节）            
+           	cacheSizeGB: 2
+           	##是否将索引也按数据库名单独存储
+            directoryForIndexes: true
+            journalCompressor:none （默认snappy）
+       ##表压缩配置
+       collectionConfig:
+            blockCompressor: zlib (默认snappy,还可选none、zlib)
+       ##索引配置
+       indexConfig:
+            prefixCompression: true
+```
 
 ### 5.3.2 WiredTiger存储引擎优势
 
+1、文档空间分配方式
 
+WiredTiger使用的BTree存储	MMAPv1 线性存储 需要Padding
+
+2、并发级别
+
+WiredTiger 文档级别锁（对应MySQL行锁），MMAPv1引擎使用表级锁
+
+3、数据压缩
+
+snappy(默认)和zlib，相比MMAPv1（无压缩）空间节省数倍
+
+4、内存使用
+
+WiredTiger可以指定内存的使用大小
+
+5、Cache使用
+
+WT引擎使用了二级缓存wiredTiger Cache，File System Cache来保证Disk上的数据的最终一致性。而MMAPv1只有journal日志。
 
 ### 5.3.3 WiredTiger引擎包含的文件和作用
 
+![image-20210818004703857](assest/image-20210818004703857.png)
 
+- WiredTiger.basecfg：存储基本配置信息，与ConfigServer有关系
+- WiredTiger.lock：定义锁操作
+- table*.wt：存储各张表的数据
+- WiredTiger.wt：粗出table*的元数据
+- WiredTiger.turtle：存储WiredTiger.wt的元数据
+- journal：存储WAL（Write Ahead Log）
 
 ### 5.3.4 WiredTiger存储引擎实现原理
 
 #### 写请求
 
+WiredTiger的写操作会默认写入`Cache`，并持久化到`WAL`（Write Ahead Log），每60s或Log文件达到2G做一次`checkpoint`（当然也可以通过在写入时传入`j:true`的参数强制journal文件的同步，writeConcern{w:<value>,j:<boolean>,without:<bunber>}）产生快照文件。WiredTiger初始化时，恢复至最新的快照状态，然后再根据WAL恢复数据，保证数据的完整性。
+
+![image-20210818005650559](assest/image-20210818005650559.png)
+
+Cache是基于BTree的，节点是一个page，root page是根节点，internal page是中间索引节点，leaf page真正存储数据，数据以page单位读写。WiredTiger采用Copy on Write的方式管理写操作（insert、update、delete），写操作会先缓存在cache里，持久化时，写操作不会在原来的leaf page上进行，而是写入新分配的page，每次checkpoint都会产生一个新的root page。
+
 #### checkpoint流程
 
+> 1.对所有的table进行一次checkpoint，每个table的checkpoint的元数据更新至WiredTiger.wt
+>
+> 2.对wiredTiger.wt进行checkpoint，将该table checkpoint的元数据更新至临时文件WiredTiger.turtle.set
+>
+> 3.将WiredTiger.turtle.set重命名为WiredTiger.turtle
+>
+> 4.上述过程中如果中间失败，WiredTiger在下次连接初始化时，首先将数据恢复至最新的快照状态，然后根据WAL恢复数据，以保证存储可靠性。
+
 #### Journaling
+
+在数据库宕机时，为保证MongoDB中数据的是就行，MongoDB使用了Write Ahead Logging向磁盘上journal文件预先进行写入。除了journal日志，MongoDB还使用检查点（checkpoint）来保证数据的一致性，**当数据库发生宕机时，就需要checkpoint和journal文件协作完成数据的恢复工作。**
+
+1.在数据文件中查找上一个检查点的标识符
+
+2.在journal文件中查找标识符对应的记录
+
+3.重做对应记录之后的全部操作
+
+![image-20210818011357842](assest/image-20210818011357842.png)
 
 
 
@@ -865,7 +1145,21 @@ B+树的特点：
 
 # 第六部分 MongoDB集群高可用
 
+## 6.1 MongoDB主从赋值架构原理和缺陷
 
+![image-20210818011445512](assest/image-20210818011445512.png)
+
+## 6.2 复制集replica sets
+
+### 6.2.1 什么时复制集
+
+![image-20210818011606793](assest/image-20210818011606793.png)
+
+### 6.2.2 为什么使用复制集
+
+
+
+### 6.2.3 复制集集群架构原理
 
 # 第七部分 MongoDB安全认证
 
