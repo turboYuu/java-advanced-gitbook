@@ -1051,27 +1051,27 @@ MongoDB与MySQL中的架构差不多，底层都使用了可插拔的存储引�
 
 ```
 storage:
-   journal:
-       enabled: true    
-       dbPath: /data/mongo/    
-       ##是否一个库一个文件夹    
-       directoryPerDB: true    
-       ##数据引擎
-	   engine: wiredTiger    
-	   ##WT引擎配置
-       WiredTiger:
-			engineConfig:
-           		##WT最大使用cache（根据服务器实际情况调节）
-           		cacheSizeGB: 2
-            	##是否将索引也按数据库名单独存储
-				directoryForIndexes: true
-				journalCompressor:none （默认snappy）
-       		##表压缩配置
-       		collectionConfig:
-            	blockCompressor: zlib (默认snappy,还可选none、zlib)
-       		##索引配置
-       		indexConfig:
-            	prefixCompression: true
+    journal:
+        enabled: true    
+        dbPath: /data/mongo/    
+        ##是否一个库一个文件夹    
+        directoryPerDB: true    
+        ##数据引擎
+        engine: wiredTiger    
+        ##WT引擎配置
+        WiredTiger:
+            engineConfig:
+                ##WT最大使用cache（根据服务器实际情况调节）
+                cacheSizeGB: 2
+                ##是否将索引也按数据库名单独存储
+                directoryForIndexes: true
+                journalCompressor:none （默认snappy）
+            ##表压缩配置
+            collectionConfig:
+                blockCompressor: zlib (默认snappy,还可选none、zlib)
+            ##索引配置
+            indexConfig:
+                prefixCompression: true
 ```
 
 ### 5.3.2 WiredTiger存储引擎优势
