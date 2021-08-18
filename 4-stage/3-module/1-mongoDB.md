@@ -1177,6 +1177,175 @@ mongodb4.0后不再支持主从复制！
 
 ### 6.2.3 复制集集群架构原理
 
+
+
+### 6.2.4 复制集搭建
+
+![image-20210818144226133](assest/image-20210818144226133.png)
+
+#### 1、主节点配置 mongo_37017.cong
+
+```
+#主节点配置
+dbpath=/data/mongo/data/server1
+bind_ip=0.0.0.0
+port=37017
+fork=true
+logpath=/data/mongo/logs/server1.log
+replSet=lagouCluster
+```
+
+#### 2、从节点1配置 mongo_37018.conf
+
+```
+#从节点1配置
+dbpath=/data/mongo/data/server2
+bind_ip=0.0.0.0
+port=37018
+fork=true
+logpath=/data/mongo/logs/server2.log
+replSet=lagouCluster
+```
+
+#### 3、从节点2配置 mongo_37019.conf
+
+```
+#从节点2配置
+dbpath=/data/mongo/data/server3
+bind_ip=0.0.0.0
+port=37019
+fork=true
+logpath=/data/mongo/logs/server3.log
+replSet=lagouCluster
+```
+
+#### 4、初始化节点配置
+
+启动三个节点
+
+```
+./bin/mongod -f mongo_37017.conf
+./bin/mongod -f mongo_37018.conf
+./bin/mongod -f mongo_37019.conf
+```
+
+然后进入任意一个节点 运行如下命令：
+
+```
+var cfg ={"_id":"lagouCluster",
+	"protocolVersion" : 1,
+	"members":[
+		{"_id":1,"host":"192.168.31.139:37017","priority":10}, 
+		{"_id":2,"host":"192.168.31.139:37018"}
+	] 
+	}
+
+rs.initiate(cfg)
+rs.status()
+```
+
+![image-20210818135113102](assest/image-20210818135113102.png)
+
+![image-20210818135146949](assest/image-20210818135146949.png)
+
+![image-20210818135220610](assest/image-20210818135220610.png)
+
+#### 5、节点的动态增删
+
+```
+增加节点
+rs.add("192.168.31.139:37019")
+删除slave节点
+rs.remove("192.168.31.139:37019")
+```
+
+![image-20210818135443489](assest/image-20210818135443489.png)
+
+#### 6、复制集操作演示
+
+进入主节点 --- 插入数据 --- 进入从节点验证
+
+注意：默认节点下从节点不能读取数据，调用rs.slaveOk()解决。
+
+![image-20210818140132537](assest/image-20210818140132537.png)
+
+![image-20210818140242365](assest/image-20210818140242365.png)
+
+为了保证高可用，在集群当中如果主节点挂掉后，会自动在从节点中选举一个，重新作为主节点。
+
+rs.status()
+
+节点说明：
+
+PRIMARY节点：可以查询和新增数据
+
+SECONDARY节点：只能查询，不能新增，基于priority权重可以被选为主节点
+
+ARBITER节点：不能查询数据和新增数据，不能变成主节点
+
+### 6.2.5 复制集成员的配置参数
+
+| 参数字段       | 类型说明 | 取值                          | 说明                                                         |
+| -------------- | -------- | ----------------------------- | ------------------------------------------------------------ |
+| _id            | 整数     | _id:0                         | 复制集中的表示                                               |
+| host           | 字符串   | host:"主机:端口"              | 节点主机名                                                   |
+| arbiterOnly    | 布尔值   | arbiterOnly:true              | 是否为仲裁(裁判)节点                                         |
+| priority(权重) | 整数     | priority=0\|1                 | 默认1，是否有资格变成主节点，取值范围0-1000，0永远不 会变成主节点 |
+| hidden         | 布尔值   | hidden=true\|false,0\|1       | 隐藏，权重必须为0，才可以设置                                |
+| votes          | 整数     | votes= 0\|1                   | 投票，是否为投票节点,0不投票，1投票                          |
+| slaveDelay     | 整数     | slaveDelay=3600               | 从库的延迟多少秒                                             |
+| buildIndexes   | 布尔值   | buildIndexes=true\|false,0\|1 | 主库的索引，从库也创建，_id索引无效                          |
+
+举例：
+
+```
+var cfg ={"_id":"lagouCluster",
+	"protocolVersion" : 1,
+	"members":[
+		{"_id":1,"host":"192.168.31.139:37017","priority":10},
+		{"_id":2,"host":"192.168.31.139:37018","priority":0},
+		{"_id":3,"host":"192.168.31.139:37019","priority":5},
+		{"_id":4,"host":"192.168.31.139:37020","arbiterOnly":true}
+	] 
+	}
+	//重新装载配置，并重新生成集群节点。
+	rs.reconfig(cfg)
+	//查看集群状态
+	rs.status()
+```
+
+![image-20210818142920550](assest/image-20210818142920550.png)
+
+![image-20210818142955392](assest/image-20210818142955392.png)
+
+### 6.2.6 有仲裁节点复制集搭建
+
+和上面的配置步骤相同，只是增加了一个特殊的仲裁节点
+
+注入节点执行 rs.addArb("IP:端口号")；
+
+```
+rs.addArb("192.168.31.139:37020")
+```
+
+## 6.3 分片集群Shard Cluster
+
+### 6.3.1 什么是分片
+
+
+
+### 6.3.2 为什么要分片
+
+
+
+### 6.3.3 分片的工作原理
+
+
+
+### 6.3.4 分片集群的搭建过程
+
+
+
 # 第七部分 MongoDB安全认证
 
 
