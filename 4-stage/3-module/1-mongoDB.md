@@ -1147,7 +1147,17 @@ Cache是基于BTree的，节点是一个page，root page是根节点，internal 
 
 ## 6.1 MongoDB主从赋值架构原理和缺陷
 
+master-slave结构中master节点负责数据的读写，slave没有写入权限只负责读取数据。
+
 ![image-20210818011445512](assest/image-20210818011445512.png)
+
+在主从结构中，主节点的操作记录为oplog（operation log）。oplog存储在系统数据库local的oplog.$main集合中，这个集合的每个文档都代表主节点上执行的一个操作。从服务器会定期从主服务器中获取oplog记录，然后在本机上执行！对于存储oplog的集合，mongodb采用的固定集合，也就是说随着操作过多，新的操作会覆盖旧的操作。
+
+主从结果普没有自动故障转移功能，需要指定master和slave端，不推荐在生产中使用。
+
+mongodb4.0后不再支持主从复制！
+
+[main]Master/slave replication is no longer supported
 
 ## 6.2 复制集replica sets
 
@@ -1155,9 +1165,15 @@ Cache是基于BTree的，节点是一个page，root page是根节点，internal 
 
 ![image-20210818011606793](assest/image-20210818011606793.png)
 
+复制集是由一组拥有相同数据集的mongod实例组成的集群。
+
+复制集是一个集群，它是2台及以上的服务器组成，以及复制集成员包括Primary主节点，secondary从节点和投票节点。复制集提供者数据的冗余备份，并在多个服务器上存储数据副本，提高数据的可用性，保证数据的安全性。
+
 ### 6.2.2 为什么使用复制集
 
-
+- 高可用
+- 灾难备份
+- 功能隔离
 
 ### 6.2.3 复制集集群架构原理
 
