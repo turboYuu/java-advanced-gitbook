@@ -1161,7 +1161,7 @@ mongodb4.0后不再支持主从复制！
 
 ## 6.2 复制集replica sets
 
-### 6.2.1 什么时复制集
+### 6.2.1 什么是复制集
 
 ![image-20210818011606793](assest/image-20210818011606793.png)
 
@@ -1177,7 +1177,75 @@ mongodb4.0后不再支持主从复制！
 
 ### 6.2.3 复制集集群架构原理
 
+一个复制集中Primary节点上能够完成读写操作，Secondary节点仅能用于读操作。Primary节点需要记录所有改变数据库状态的操作，这些操作记录保存在oplog中，这个文件存储在local数据库，各个Secondary节点通过此oplog来复制数据并应用于本地，保持本地的数据与主节点的一致。oplog具有幂等性，即无论执行几次，其结果一致，这个比mysql的二进制日志更好用。
 
+oplog的组成结构
+
+```
+{
+"ts" : Timestamp(1446011584, 2),
+"h" : NumberLong("1687359108795812092"), "v" : 2,
+"op" : "i",
+"ns" : "test.nosql",
+"o" : { "_id" : ObjectId("563062c0b085733f34ab4129"), "name" : "mongodb", "score" : "10"}
+}
+ts:操作时间，当前timestamp+计数器，计数器每秒都被重置
+h:操作的全局唯一标识
+v:oplog版本信息
+op:操作类型
+	i:插入操作
+	u:更新操作
+	d:删除操作
+	c:执行命令（如createDatabase,dropDatabase）
+n:空操作，特殊用途
+ns:操作针对集合
+o:操作内容
+o2:更新查询条件，仅update操作包含该字段
+```
+
+复制集数据同步分为初始化同步和keep复制同步。初始化同步指全量从主节点同步数据，如果Primary节点数据量比较大同步时间会比较长。而keep复制指初始化同步后，节点之间的实时同步一般是增量同步。
+
+初始化同步有以下两中情况触发：
+
+（1）Secondary第一次加入。
+
+（2）Secondary落后的数据量超过oplog的大小，也会被全量复制。
+
+MongoDB的Primary节点选举基于心跳触发。一个复制集N个节点中任意两个节点维持心跳，每个节点维护其他N-1节点的状态。
+
+![image-20210819130923849](assest/image-20210819130923849.png)
+
+> 心跳检测：
+>
+> 整个集群需要保持一定的通信才能知道哪些节点活着哪些节点挂掉。mongodb节点会向副本集中的其他节点每2秒就会发送一次pings包，如果其他节点在10秒内没有返回就标识为不能访问。每个节点内部都会维护一个状态映射表，表明当前每个节点是什么角色，日志时间戳等关键信息。如果主节点发现自己无法与大部分节点通讯则把自己降级为secondary只读节点。
+
+主节点选举触发的时机：
+
+> 第一次初始化一个复制集
+>
+> Secondary节点权重比Priamry节点高时，发起替换选举
+>
+> Secondary节点发现集群中没有Primary时，发起选举
+>
+> Primary节点不能访问到大部分（Majority）成员时主动降级
+
+当触发选举时，Secondary节点尝试将自身选举为Primary。主节点选举是一个二阶段过程+多数派协议。
+
+> 第一阶段：
+>
+> 检测自身是否有被选举的资格，如果符合资格会向其他节点发起本节点是否有选举资格的FreshnessCheck，进行同僚仲裁
+>
+> 第二阶段：
+>
+> 发起者向集群中存活节点发送Elect(选举)请求，仲裁者收到请求的节点会执行一系列合法性检查，如果检查通过，则仲裁者（**一个复制集中最多50个节点，其中只有7个具有投票权**）给发起者投一票。
+>
+> pv0通过30秒选举锁防止一次选举中两次投票。
+>
+> pv1使用terms(一个单调递增的选举计数器)来防止在一次选举中投两次票的情况。
+>
+> 多数派协议：
+>
+> 发起者如果会的超过半数的投票，则选举通过，自身成为Primary节点。获得低于半数选票的原因，除了常见的网络问题外，相同优先级的节点同时通过第一阶段的同僚仲裁并进入第二阶段也是一个原因。因此，当选票不足时，会sleep[0,1]秒内随机时间后再次尝试选举。
 
 ### 6.2.4 复制集搭建
 
@@ -1271,7 +1339,7 @@ rs.remove("192.168.31.139:37019")
 
 ![image-20210818140242365](assest/image-20210818140242365.png)
 
-为了保证高可用，在集群当中如果主节点挂掉后，会自动在从节点中选举一个，重新作为主节点。
+为了保证高可用，在集群当中如果主节点挂掉后，会自动在从节点中选举一个，重新作为主节点。当节点恢复后会触发新的Primary选举。
 
 rs.status()
 
@@ -1332,21 +1400,333 @@ rs.addArb("192.168.31.139:37020")
 
 ### 6.3.1 什么是分片
 
-
+分片（sharding）是mongoDB用来将大型集合水平分割到不同服务器（或者复制集）上所采用的方法。不需要功能强大的大型计算机就可以存储更多的数据，处理更大的负载。
 
 ### 6.3.2 为什么要分片
 
+>- 存储容量超过单据磁盘容量
+>- 活跃的数据集超出单机内存容量，导致很多请求都需要从磁盘读取数据，影响性能
+>- IOPS超出单个MongoDB节点的服务能力，随着数据的增长，单机实例的瓶颈会越来越明显
+>- 副本集具有节点数量限制
 
+>垂直扩展：增加更多的CPU和存储资源来扩展容量
+>
+>水平扩展：将数据集分布在多个服务器上。水平扩展即分片。
 
 ### 6.3.3 分片的工作原理
 
+![image-20210819143222772](assest/image-20210819143222772.png)
 
+**分片集群由以下3个服务组成：**
+
+- Shards Server：每个shard由一个或多个mongod进程组成，用于存储数据。
+
+- Router Server：数据库集群的请求入口，所有请求都通过Router(mongos)进行协调，不需要在应用程序添加一个路由选择器，Router(mongos)就是一个请求分发中心它负责把应用程序的请求转发到对应的Shard服务器上。
+- Config Server：配置服务器。存储所有数据元信息（路由、分片）的配置。
+
+#### 片键（shard key）
+
+为了在数据集合中分配文档，MongoDB使用分片主键分隔集合
+
+#### 区块（chunk）
+
+在一个shard server内部，MongoDB还是会把分为chunks，每个chunk代表这个shard server内部一部分数据。MongoDB分割分片数据到区块，每一个区块包含基于分片主键的左闭右开的区间范围。
+
+#### 分片策略
+
+- 范围分片（Range based sharding）
+
+  ![image-20210819144856178](assest/image-20210819144856178.png)
+
+  范围分片是基于分片主键的值切分数据，每一区块将分配到一个范围。
+
+  范围分片适合满足在一点过范围内的查找，例如查找x的值在[20,30)之间的数据，mongo路由根据Config Server中存储的元数据，可以直接定位到指定的shard的chunk中。
+
+  去点：如果shard key有明显递增（或递减）趋势，则新插入的文档多会分布到同一chunk，无法扩展写的能力。
+
+- hash分片（Hash based sharding）
+
+  ![image-20210819145544443](assest/image-20210819145544443.png)
+
+  Hash分片是计算一个分片主键的hash值，每一个区块将分配一个范围的hash值。
+
+  Hash分片与范围分片互补，能将文档随机分散到各个chunk，充分的扩展写能力，弥补了范围分片的不足，缺点是不能高效的服务范围查询，所有的范围查询要发到后端所有的Shard才能找出满足条件的文档。
+
+- 组合片键 A+B（散列思想，不能是直接hash）
+
+  数据库中没有比较合适的片键供选择，或者打算使用的片键基数大小（即变化少，如星期只有7天可变化），可以选另一字段使用组合片键，甚至可以添加冗余字段来组合。一般是粗粒度+细粒度进行组合。
+
+#### 合理的选择 shard key
+
+无非从两个方面考虑，数据的查询和写入，最好的效果就是数据查询时能命中更少的分片，数据写入时能够随机的写入每个分片，关键在于如何权衡性能和负载。
 
 ### 6.3.4 分片集群的搭建过程
 
+![image-20210819150522479](assest/image-20210819150522479.png)
 
+#### 1、配置并启动config节点集群
+
+节点1 config-17017.conf
+
+```
+# 数据库文件位置
+dbpath=config/config1
+#日志文件位置
+logpath=config/logs/config1.log
+# 以追加方式写入日志
+logappend=true
+# 是否以守护进程方式运行
+fork = true
+bind_ip=0.0.0.0
+port = 17017
+# 表示是一个配置服务器
+configsvr=true
+#配置服务器副本集名称
+replSet=configsvr
+```
+
+节点2 config-17018.conf
+
+```
+# 数据库文件位置
+dbpath=config/config2
+#日志文件位置
+logpath=config/logs/config2.log
+# 以追加方式写入日志
+logappend=true
+# 是否以守护进程方式运行
+fork = true
+bind_ip=0.0.0.0
+port = 17018
+# 表示是一个配置服务器
+configsvr=true
+#配置服务器副本集名称
+replSet=configsvr
+```
+
+节点3 config-17019.conf
+
+```
+# 数据库文件位置
+dbpath=config/config3
+#日志文件位置
+logpath=config/logs/config3.log
+# 以追加方式写入日志
+logappend=true
+# 是否以守护进程方式运行
+fork = true
+bind_ip=0.0.0.0
+port = 17019
+# 表示是一个配置服务器
+configsvr=true
+#配置服务器副本集名称
+replSet=configsvr
+```
+
+启动配置节点
+
+```
+./bin/mongod -f config/config-17017.conf 
+./bin/mongod -f config/config-17018.conf 
+./bin/mongod -f config/config-17019.conf
+```
+
+![image-20210818194158972](assest/image-20210818194158972.png)
+
+进入任意节点的mongo shell，并添加配置节点集群，注意 use admin
+
+```
+./bin/mongo --port 17017
+
+use admin
+
+var cfg ={"_id":"configsvr", 
+"members":[
+{"_id":1,"host":"192.168.1.139:17017"},
+{"_id":2,"host":"192.168.1.139:17018"},
+{"_id":3,"host":"192.168.1.139:17019"}]
+};
+
+rs.initiate(cfg)
+```
+
+![image-20210818224606926](assest/image-20210818224606926.png)
+
+
+
+#### 2、配置shard集群
+
+shard1集群搭建37017-37019
+
+```
+dbpath=shard/shard1/shard1-37017
+bind_ip=0.0.0.0
+port=37017
+fork=true
+logpath=shard/shard1/shard1-37017.log
+replSet=shard1
+shardsvr=true
+
+dbpath=shard/shard1/shard1-37018
+bind_ip=0.0.0.0
+port=37018
+fork=true
+logpath=shard/shard1/shard1-37018.log
+replSet=shard1
+shardsvr=true
+
+dbpath=shard/shard1/shard1-37019
+bind_ip=0.0.0.0
+port=37019
+fork=true
+logpath=shard/shard1/shard1-37019.log
+replSet=shard1
+shardsvr=true
+```
+
+
+
+```
+启动每个mongod,然后进入其中一个mongo shell进行集群配置
+var cfg ={"_id":"shard1",
+"protocolVersion" : 1,
+"members":[
+{"_id":1,"host":"192.168.1.139:37017"},
+{"_id":2,"host":"192.168.1.139:37018"},
+{"_id":3,"host":"192.168.1.139:37019"}]
+};
+
+rs.initiate(cfg)
+rs.status()
+```
+
+![image-20210818230332667](assest/image-20210818230332667.png)
+
+shard2集群搭建47017-47019
+
+```
+bpath=shard/shard2/shard2-47017
+bind_ip=0.0.0.0
+port=47017
+fork=true
+logpath=shard/shard2/logs/shard2-47017.log
+replSet=shard2
+shardsvr=true
+
+bpath=shard/shard2/shard2-47018
+bind_ip=0.0.0.0
+port=47018
+fork=true
+logpath=shard/shard2/logs/shard2-47018.log
+replSet=shard2
+shardsvr=true
+
+bpath=shard/shard2/shard2-47019
+bind_ip=0.0.0.0
+port=47019
+fork=true
+logpath=shard/shard2/logs/shard2-47019.log
+replSet=shard2
+shardsvr=true
+```
+
+
+
+```
+启动每个mongod,然后进入其中一个mongo shell进行集群配置
+var cfg ={"_id":"shard2",
+"protocolVersion" : 1,
+"members":[
+{"_id":1,"host":"192.168.1.139:47017"},
+{"_id":2,"host":"192.168.1.139:47018"},
+{"_id":3,"host":"192.168.1.139:47019"}]
+};
+
+rs.initiate(cfg) 
+rs.status()
+```
+
+![image-20210818231250543](assest/image-20210818231250543.png)
+
+#### 3、配置和启动 路由节点
+
+route-27017.conf
+
+```
+port=27017
+bind_ip=0.0.0.0
+fork=true
+logpath=route/logs/route.log
+configdb=configsvr/192.168.1.139:17017,192.168.1.139:17018,192.168.1.139:17019
+```
+
+启动路由节点使用mongos（注意不是mongod）
+
+```
+./bin/mongos -f route/route-27017.conf
+```
+
+![image-20210818232814711](assest/image-20210818232814711.png)
+
+#### 4、mongos（路由）中添加分片节点
+
+进入路由mongos
+
+```
+./bin/mongo -port 27017
+
+sh.status()
+//增加分片
+sh.addShard("shard1/192.168.1.139:37017,192.168.1.139:37018,192.168.1.139:37019");
+sh.addShard("shard2/192.168.1.139:47017,192.168.1.139:47018,192.168.1.139:47019");
+
+sh.status()
+```
+
+![image-20210819003027667](assest/image-20210819003027667.png)
+
+
+
+#### 5、开启数据库和集合分片（指定片键）
+
+继续使用mongos完成分片开启和分片大小设置
+
+```
+为数据库开启分片功能
+sh.enableSharding("lagou_resume")
+为指定集合开启分片功能
+sh.shardCollection("lagou_resume.lagou_resume_datas",{"片键字段名如name":索引说明})
+sh.shardCollection("lagou_resume.lagou_resume_datas",{"name":"hashed"})
+```
+
+![image-20210819003536272](assest/image-20210819003536272.png)
+
+
+
+#### 6、向集合中插入数据测试
+
+通过路由循环向集合中添加数
+
+```
+use lagou_resume
+for(var i=1;i<1000;i++){
+  db.lagou_resume_datas.insert({name:"test"+i,salary:(Math.random()*20000).toFixed(2)});
+}
+```
+
+![image-20210819004230665](assest/image-20210819004230665.png)
+
+7、验证分片效果
+
+分别进入 shard1 和 shard2 中的数据库 进行验证
+
+![image-20210819004334324](assest/image-20210819004334324.png)
+
+![image-20210819004346433](assest/image-20210819004346433.png)
 
 # 第七部分 MongoDB安全认证
+
+## 7.1 安全认证概述
 
 
 
