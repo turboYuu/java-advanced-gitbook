@@ -2102,7 +2102,9 @@ https://www.mongodb.com/subscription/downloads/archived
 
 ![image-20210820162338834](assest/image-20210820162338834.png)
 
-2.单机绿色的 install Agent![image-20210820162620068](assest/image-20210820162620068.png)
+2.单机绿色的 install Agent
+
+![image-20210820162620068](assest/image-20210820162620068.png)
 
 根据目标数据库的操作系统，选择相应的Agent安装。（PS：实际的操作系统版本可能更多，大致一致即可，只要能装上）
 
