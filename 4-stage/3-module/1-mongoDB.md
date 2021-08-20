@@ -1,3 +1,5 @@
+
+
 MongoDB是一款高性能的NoSQL（Not Only SQL 不仅仅SQL）数据库
 
 # 第一部分 MongoDB体系结构
@@ -1670,6 +1672,8 @@ configdb=configsvr/192.168.1.139:17017,192.168.1.139:17018,192.168.1.139:17019
 
 #### 4、mongos（路由）中添加分片节点
 
+![image-20210820004844510](assest/image-20210820004844510.png)
+
 进入路由mongos
 
 ```
@@ -1728,6 +1732,297 @@ for(var i=1;i<1000;i++){
 
 ## 7.1 安全认证概述
 
+MongoDB默认是没有账号的，可以直接连接，无需身份验证。实际项目中肯定要权限验证。
+
+## 7.2 用户相关操作
+
+### 7.2.1 切换到admin数据库对用户的添加
+
+use admin
+
+db.createUser(userDocument)：用于创建MongoDB登录用户以及分配权限的方法
+
+```
+db.createUser({user:"账号",pwd:"密码",roles:[{role:"角色",db:"安全认证的数据库"}]})
+```
+
+user：创建的用户名称，如admin、root、turboyu
+
+pwd：用户登录的密码
+
+roles：为用户分配的角色，不同的角色拥有不同的权限，参数是数组，可以同时设置多个
+
+role：角色，MongoDB已经约定好的角色，不同的角色对应不同的权限
+
+db：数据库实例名称，如MongoDB 默认自带的有admin、local、config、test等，即为哪个数据库实例设置用户。
+
+
+
+举例：
+
+```
+db.createUser({user:"myroot",pwd:"123456",roles:[{role:"root",db:"turbo"}]})
+```
+
+![image-20210819165751636](assest/image-20210819165751636.png)
+
+### 7.2.2 修改密码
+
+```
+db.changeUserPassword("账号","新密码")
+```
+
+![image-20210819165808924](assest/image-20210819165808924.png)
+
+### 7.2.3 用户添加角色
+
+```
+db.grantRolesToUser("账号",[{role:"角色名",db:"数据库名"}])
+```
+
+### 7.2.4 以auth方式启动mongod
+
+./bin/mongod -f conf/mongo.conf --auth
+
+(也可以在mongo.cnf中添加auth=true参数)
+
+### 7.2.5 验证用户
+
+```
+db.auth("账号","密码")
+```
+
+![image-20210819170210363](assest/image-20210819170210363.png)
+
+### 7.2.6 删除用户
+
+```
+db.dropUser("账号")
+```
+
+![image-20210819170300885](assest/image-20210819170300885.png)
+
+## 7.3 角色
+
+### 7.3.1 数据库内置的角色
+
+
+
+### 7.3.2 各个类型用户对应的角色
+
+
+
+## 7.4 单机安全认证实现流程
+
+创建mydb1数据库并创建两个用户，zhangsan拥有读写权限，lisi拥有只读权限，测试两个账户的权限。
+
+以超级管理员登录测试权限
+
+### 1.创建管理员
+
+MongoDB服务端开启安全检查之前，至少需要一个管理员账号，admin数据库中的用户用户都被视为管理员。如果admin库没有任何用户的话，即使在其他数据中创建了用户，启用了身份验证，默认的连接方式依然会有超级权限，即仍然可以不验证账号密码照样进行CRUD，安全认证相当于无效。
+
+```
+>use admin
+switched to db admin
+>db.createUser({user:"root",pwd:"123456",roles:[{role:"root",db:"admin"}]})
+```
+
+![image-20210819235520892](assest/image-20210819235520892.png)
+
+### 2.创建普通用户
+
+新建数据库mydb1，没有安全认证之前可以随意CRUD。
+
+- 为admin库创建管理员之后，现在来为普通数据库创建普通用户，以mydb1为例，方式与创建管理员一致，切换到指定数据库进行创建即可。
+- 如下，为mydb1数据库创建两个用户，zhangsan拥有读写权限，lisi拥有只读权限，密码都是123456
+
+```
+use mydb1
+db.createUser({user:"zhangsan",pwd:"123456",roles:[{role:"readWrite",db:"mydb1"}]})
+db.createUser({user:"lisi",pwd:"123456",roles:[{role:"read",db:"mydb1"}]})
+```
+
+![image-20210819232716432](assest/image-20210819232716432.png)
+
+接着从客户端关闭MongoDB服务端（使用kill也可以），之后服务端以安全认证方式进行启动
+
+```
+>use admin
+
+>db.shutdownServer()
+```
+
+![image-20210819232914665](assest/image-20210819232914665.png)
+
+### 3.MongoDB安全认证方式启动
+
+./bin/mongod -f conf/mongo.conf --auth
+
+(也可以在mongo.cnf中添加auth=true参数)
+
+### 4.分别以普通用户登录验证权限
+
+普通用户现在仍然可以像以前一样进行登录，直接登录进入mgdb1,登录时成功的，只是登录后日志少了很多东西，而且执行show dbs，以及show table等命令都是失败，即使没有被安全认证的数据库，用户同样操作不了，这是因为权限不足。一句话：用户只能在自己的权限范围内的数据库中进行操作。
+
+```
+./bin/mongo localhost:端口号/mydb1
+> show dbs
+```
+
+如下所示，登录之后必须使用db.auth("账号","密码")方法进行安全认证们，才能进行权限范围内的操作
+
+![image-20210819233653581](assest/image-20210819233653581.png)
+
+### 5.以管理员登录验证权限
+
+客户端管理员登录如下，安全认证通过后，拥有对所有数据库的所有权限
+
+```
+mongo localhost:端口号
+> use admin
+switched to db admin
+> db.auth("root","123456") 
+1
+> show dbs
+```
+
+## 7.5 分片集群安全认证
+
+### 1.开启安全认证之前 进入路由创建管理员和普通用户
+
+创建管理员
+
+![image-20210820005357390](assest/image-20210820005357390.png)
+
+创建普通用户
+
+```
+use lagou_resume
+db.createUser({user:"turboyu",pwd:"123456",roles:[{role:"readWrite",db:"lagou_resume"}]})
+```
+
+![image-20210820010038748](assest/image-20210820010038748.png)
+
+### 2.关闭所有的配置节点 分片节点 和 路由节点 
+
+批量关闭进程
+
+```
+安装psmisc  
+	yum install psmisc
+安装完之后可以使用killall 命令,快速关闭多个进程 
+	killall  mongod
+```
+
+### 3.生成密钥文件 并修改权限
+
+509证书 -- 自己下去了解
+
+```
+openssl rand -base64 756 > data/mongodb/testKeyFile.file 
+chmod 600 data/mongodb/keyfile/testKeyFile.file
+```
+
+### 4.配置节点集群和分片节点集群 开启安全认证和指定密钥文件
+
+在对应的配置文件中添加
+
+```
+auth=true
+keyFile=data/mongodb/testKeyFile.file
+```
+
+### 5.在路由配置文件中 设置密钥文件
+
+```
+keyFile=data/mongodb/testKeyFile.file
+```
+
+### 6.启动所有的配置节点 分片节点 和 路由节点 使用路由进行权限验证
+
+可以编写一个shell脚本 批量启动
+
+```
+./bin/mongod -f config/config-17017.conf
+./bin/mongod -f config/config-17018.conf
+./bin/mongod -f config/config-17019.conf
+./bin/mongod -f shard/shard1/shard1-37017.conf
+./bin/mongod -f shard/shard1/shard1-37018.conf
+./bin/mongod -f shard/shard1/shard1-37019.conf
+./bin/mongod -f shard/shard2/shard2-47017.conf
+./bin/mongod -f shard/shard2/shard2-47018.conf
+./bin/mongod -f shard/shard2/shard2-47019.conf
+./bin/mongos -f route/route-27017.conf
+```
+
+![image-20210820014251090](assest/image-20210820014251090.png)
+
+![image-20210820014501546](assest/image-20210820014501546.png)
+
+执行startup.sh文件
+
+![image-20210820014612716](assest/image-20210820014612716.png)
+
+
+
+![image-20210820015124865](assest/image-20210820015124865.png)
+
+![image-20210820015220872](assest/image-20210820015220872.png)
+
+
+
+
+
+### 7.Spring boot连接安全认证的分片集群
+
+root用户名会报错
+
+```
+spring.data.mongodb.host=192.168.1.139
+spring.data.mongodb.port=27017
+spring.data.mongodb.database=lagou_resume
+spring.data.mongodb.username=turboyu
+spring.data.mongodb.password=123456
+```
+
+![image-20210820020211955](assest/image-20210820020211955.png)
+
+# 第八部分 MongoDB监控和数据备份与恢复
+
+## 8.1 MongoDB监控
+
+### 8.1.1 MongoDB Ops Manager简介
+
+
+
+### 8.1.2 Ops Manager作用
+
+
+
+### 8.1.3 安装Ops Manager
+
+### 8.1.4 配置Ops Manager
+
+### 8.1.5 配置MongoDB Ops Manager Agent
+
+### 8.1.6 监控现有的Sharding Cluster服务
+
+## 8.2 MongoDB数据库备份与恢复
+
+### 8.2.1 备份的目的
+
+### 8.2.2 备份机制和实现方式
+
+### 8.2.3 mongodump
+
+### 8.2.4 mongorestore
+
+### 8.2.5 被反和恢复的重要选项 --oplog --oplogReplay --oplogLimit
+
+### 8.2.6 全量增加备份和恢复案例
+
+### 8.2.7 定时备份
 
 
 
@@ -1735,4 +2030,33 @@ for(var i=1;i<1000;i++){
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+![image-20210819211544295](assest/image-20210819211544295.png)
 
