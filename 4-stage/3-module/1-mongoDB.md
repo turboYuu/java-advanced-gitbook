@@ -2026,19 +2026,111 @@ spring.data.mongodb.password=123456
 
 ### 8.1.1 MongoDB Ops Manager简介
 
-
+MongoDB Ops Manager(MMS)是用于监控和备份MongoDB的基础设施服务。MongoDB Ops Manager是一个Web应用程序，它需要1个mongodb数据库，这个数据库是用来支持本身的MongoDB Ops Manager来运行的。因此，如果想要MongoDB Ops Manager运行起来，最少需要安装一个MongoDB数据库。
 
 ### 8.1.2 Ops Manager作用
 
-
+- 简易的自动化数据库部署、扩展、升级和任务管理
+- 通过Ops平台提供的超过100项仪表，图标，可以对mongodb进行多种监控；
+- 支持单节点、分片集群的备份和恢复
 
 ### 8.1.3 安装Ops Manager
 
+1.下载对应的版本Ops Manager安装包
+
+https://docs.opsmanager.mongodb.com/current/installation/
+
+https://www.mongodb.com/subscription/downloads/archived
+
+这里选择了4.1.3版本
+
+2.上传到服务器并解压
+
+`tar -xvf mongodb-mms-4.1.3.53428.20190304T2149Z-1.x86_64.tar.gz`
+
+3.编辑配置文件
+
+`vi conf/conf-mms.properties`
+
+根据自己的mongodb进行配置，如：mongodb:192.168.1.139:27777/?maxPoolSize=150
+
+需要先启动一个27777的mongodb实例
+
+![image-20210820160642903](assest/image-20210820160642903.png)
+
+`vi conf/mms.conf`
+
+![image-20210820153534680](assest/image-20210820153534680.png)
+
+一般修改端口和内存，如果虚拟机内存不够，可是适当减少内存配置比如`-Xmx4352 -Xms4352` 改为 `-Xmx2352 -Xms2352`
+
+4.配置完成后，启动Ops Manager 启动时间会比较长
+
+启动之间确保Ops Manager对应的mongodb数据库已经启动
+
+`./bin/mongodb-mms start`
+
+5.访问Ops Manager的首页，进行应用配置
+
+这里的端口是在mms.conf中配置的，http://ip:端口
+
 ### 8.1.4 配置Ops Manager
+
+1.登录页面
+
+![image-20210820160758188](assest/image-20210820160758188.png)
+
+2.注册账号
+
+密码：turboyu123456@
+
+![image-20210820161006963](assest/image-20210820161006963.png)
+
+3.使用创建的用户登录。来到Ops Manager的配置页面。
+
+![image-20210820161222821](assest/image-20210820161222821.png)
+
+配置很多，填写要求的字段即可 
+
+![image-20210820161856908](assest/image-20210820161856908.png)
+
+
 
 ### 8.1.5 配置MongoDB Ops Manager Agent
 
+1.点击 下面页面中的Manage your existing deployment
+
+![image-20210820162338834](assest/image-20210820162338834.png)
+
+2.单机绿色的 install Agent![image-20210820162620068](assest/image-20210820162620068.png)
+
+根据目标数据库的操作系统，选择相应的Agent安装。（PS：实际的操作系统版本可能更多，大致一致即可，只要能装上）
+
+![image-20210820172219804](assest/image-20210820172219804.png)
+
+3.根据弹出的安装步骤，安装agent
+
+![image-20210820172340976](assest/image-20210820172340976.png)
+
+
+
+![image-20210820173252278](assest/image-20210820173252278.png)
+
+4.按照上面的提示步骤一步步操作即可，下面是主要的截图
+
+![image-20210820180043489](assest/image-20210820180043489.png)
+
+![image-20210820180253917](assest/image-20210820180253917.png)
+
+
+
 ### 8.1.6 监控现有的Sharding Cluster服务
+
+1.确保你的shard集群已经启动
+
+确保 配置集群、分片集群、路由 都启动（注意dbpath和logpath适应绝对路径，否则监控有警告）
+
+
 
 ## 8.2 MongoDB数据库备份与恢复
 
