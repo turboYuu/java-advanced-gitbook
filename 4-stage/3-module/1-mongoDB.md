@@ -1,5 +1,7 @@
 
 
+
+
 MongoDB是一款高性能的NoSQL（Not Only SQL 不仅仅SQL）数据库
 
 # 第一部分 MongoDB体系结构
@@ -2132,27 +2134,408 @@ https://www.mongodb.com/subscription/downloads/archived
 
 确保 配置集群、分片集群、路由 都启动（注意dbpath和logpath适应绝对路径，否则监控有警告）
 
+2.在安装好的agent界面点击继续
+
+![image-20210820180253917](assest/image-20210820180253917.png)
+
+3.配置监控服务，单机实例或者集群实例都可以
+
+![image-20210821135922210](assest/image-20210821135922210.png)
+
+
+
+4.配置弯沉点击continue，会进行集群发现
+
+![image-20210821140627740](assest/image-20210821140627740.png)
+
+继续continue
+
+![image-20210821140753698](assest/image-20210821140753698.png)
+
+5.集群发现要求 配置节点 和 分片节点 必须是绝对路径 注意一下即可
+
+![image-20210821141016142](assest/image-20210821141016142.png)
+
+
+
+6.点击continue/Just Monitor 即可看到集群信息
+
+
+
+![image-20210821141137178](assest/image-20210821141137178.png)
+
+![image-20210821141159833](assest/image-20210821141159833.png)
+
+点击METRICS
+
+![image-20210821141233419](assest/image-20210821141233419.png)
+
+7.查看具体的分片 和 监控指标
+
+![image-20210821141423006](assest/image-20210821141423006.png)
+
 
 
 ## 8.2 MongoDB数据库备份与恢复
 
 ### 8.2.1 备份的目的
 
+```
+防止硬件故障引起的数据丢失
+防止认为错误误删数据
+时间回溯
+监管要求
+```
+
+
+
 ### 8.2.2 备份机制和实现方式
+
+#### 全量备份实现方式
+
+```
+文件系统快照
+复制数据文件
+mongodump
+```
+
+#### 解决方案
+
+![image-20210821191307777](assest/image-20210821191307777.png)
+
+![image-20210821191358900](assest/image-20210821191358900.png)
 
 ### 8.2.3 mongodump
 
+在MongoDB中，使用mongodump命令来备份MongoDB数据，该命令可以到处所有数据到指定目录中。mongodump命令可以通过参数指定导出数据库或者集合
+
+mongodump命令脚本语法：
+
+```
+> mongodump -h dbhost -d dbname -o dbdirectory
+```
+
+- -h：mongodb所在服务地址，例如：127.0.0.1，当然也可以指定端口号：127.0.0.1:37017
+- --db 或者 -d：需要备份的数据库实例，例如：lg
+- --out或-o：备份的数据存放位置，例如：/root/bdatas 在备份完成后，系统自动在root目录下建立一个bdatas目录，这个目录中存放该数据库实例的备份数据。
+
+mongodump命令可选参数列表如下：
+
+| 语法                                           | 描述                | 实例                                                         |
+| ---------------------------------------------- | ------------------- | ------------------------------------------------------------ |
+| mongodump --host HOST_NAME --port PORT_NUM     | 备份所有MongoDB数据 | mongodump --host=192.168.1.139 --port 37017                  |
+| mongodump --db DB_NAME --out BACKIP_DIRECTORY  | 备份指定数据库      | mongodump -h 192.168.1.139:37017 -d lg -o /root/bdatas       |
+| mongodump --db DB_NAME --collection COLLECTION | 备份指定集合        | mongodump --host=192.168.1.139  --port=37017 -d local -c oplog.rs  -o=/root/oplog_bak |
+
+举例：
+
+```
+./bin/mongodump -h 192.168.1.139:37017 -d lg -o /root/bdatas
+
+./bin/mongodump --host=192.168.1.139  --port=37017 -d local -c oplog.rs  -o=/root/oplog_bak
+```
+
 ### 8.2.4 mongorestore
+
+mongodb使用mongorestore命令来恢复备份数据。
+
+mongorestore命令脚本语法：
+
+```
+> mongorestore -h <hostname><:port> -d dbname <path>
+```
+
+- --host<:port>,-h<:port>
+
+  MongoDB所在服务器地址，默认为localhost:37017
+
+- --db或者-d
+
+  需要恢复的数据库实例
+
+- --drop
+
+  恢复的时候，先删除当前数据，然后恢复备份数据。
+
+- <path>
+
+  mongrestore最后一个参数，这只备份数据所在位置，例如/root/bdatas/lg，不能同时指定<path>和--dir。
+
+  注意：恢复指定数据库，需要在恢复的路径中出现数据库的名字
+
+- --dir
+
+  指定备份的目录，不同同时指定<path>和--dir选项。
+
+
+
+```
+./bin/mongorestore -h 192.168.1.139:37017 -d lg /root/bdatas/lg
+./bin/mongorestore -h 192.168.1.139:37017 /root/bdatas
+```
+
+
+
+![image-20210821154202249](assest/image-20210821154202249.png)
+
+![image-20210821154422960](assest/image-20210821154422960.png)
+
+
 
 ### 8.2.5 被反和恢复的重要选项 --oplog --oplogReplay --oplogLimit
 
+mongodump有一个值得一提的选项是`--oplog`，注意这是replica set或者master/slave(不推荐)模式使用，standalone模式运行mongodb并不推荐。
+
+mongodump选项：
+
+> --oplog：选项支队全库导出有效，所以不能指定-d选项。--oplog的作用：oplog的米的幂等性（已存在的数据，重做oplog不会重复；不存在的数据重做oplog，就可以进入数据库）
+
+举例：
+
+```
+./bin/mongodump -h 192.168.1.139:37017 --oplog -o /root/bdatas
+```
+
+![image-20210821162655420](assest/image-20210821162655420.png)
+
+![image-20210821162718907](assest/image-20210821162718907.png)
+
+mongorestore的选项：
+
+> --oplogReplay：可以重放oplog.bson中的操作内容
+>
+> --oplogLimit：回放的时间节点，即此时间之前的数据恢复，假设后面又误操作，误操作的数据不回复
+
+```
+mongorestore -h localhost:37017 --oplogReplay /root/dump
+```
+
+通过oplog查询误操作的最后时间：
+
+```
+/root/mongodb/bin/bsondump oplog.rs.bson | grep "\"op\":\"d\"" | head
+```
+
+
+
+![image-20210821163628369](assest/image-20210821163628369.png)
+
+或者使用：
+
+```
+db.oplog.rs.find({"op" : "d"}).sort({"ts":-1})
+```
+
+![image-20210821164229982](assest/image-20210821164229982.png)
+
+举例：
+
+```
+mongorestore -h localhost:37017 --oplogReplay --oplogLimit "1629535999:4" /root/dump
+```
+
+
+
 ### 8.2.6 全量增加备份和恢复案例
+
+注意问题：
+
+```
+删除复制集中原来的数据文件目录，重建数据目录
+重启复制集中的实例，进行复制集配置
+var cfg ={"_id":"lagouCluster",
+	"protocolVersion" : 1,
+	"members":[
+		{"_id":1,"host":"192.168.1.139:37017","priority":10}, 
+		{"_id":2,"host":"192.168.1.139:37018"},
+		{"_id":3,"host":"192.168.1.139:37019"}
+	] 
+	}
+	
+rs.initiate(cfg)
+```
+
+1.进入mongodb插入两条数据
+
+```
+use  lg
+db.lg_resume.insert({name:"test1",salary:18000.5})
+db.lg_resume.insert({name:"test2",salary:15000.5})
+```
+
+2.进行全量备份
+
+```
+./bin/mongodump --host=192.168.1.139 --port=37017  --out=/root/fullbackup
+```
+
+![image-20210821180000429](assest/image-20210821180000429.png)
+
+3.继续插入数据 并更新
+
+```
+db.lg_resume.insert({name:"test3",salary:28000.5})
+db.lg_resume.insert({name:"test4",salary:35000.5})
+db.lg_resume.insert({name:"test5",salary:45000.5})
+db.lg_resume.update({name:"test3"},{$set:{salary:38000.5}}) 
+db.lg_resume.update({name:"test4"},{$set:{salary:45000.5}})
+```
+
+4.增量备份
+
+```
+./bin/mongodump --host=192.168.1.139  --port=37017 -d local -c oplog.rs  -o=/root/oplog_bak
+```
+
+![image-20210821180227483](assest/image-20210821180227483.png)
+
+5.删除所有数据
+
+```
+db.lg_resume.remove({})
+db.lg_resume.find()
+```
+
+![image-20210821180339448](assest/image-20210821180339448.png)
+
+6.先回复全量数据
+
+```
+./bin/mongorestore --host=192.168.1.139 --port=37017 --dir=/root/fullbackup
+查看数据恢复
+db.lg_resume.find()
+```
+
+![image-20210821180439526](assest/image-20210821180439526.png)
+
+7.恢复数据到指定的时间点
+
+oplog.rs.bson改名为oplog.bson，删除oplog.rs.metadata.bson
+
+![image-20210821165922394](assest/image-20210821165922394.png)
+
+
+
+```
+use local
+找出第一次更新的时间
+db.oplog.rs.find({"op" : "u"}).sort({"ts":1})
+
+恢复到指定时间点的数据
+./bin/mongorestore --host=192.168.1.139 --port=37017 --oplogReplay --oplogLimit "实际查询出来的时间" /root/oplog_bak/local
+
+./bin/mongorestore --host=192.168.1.139 --port=37017 --oplogReplay --oplogLimit "1629535999:4" /root/oplog_bak/local
+
+use lg
+db.lg_resume.find()
+```
+
+![image-20210821170544063](assest/image-20210821170544063.png)
+
+![image-20210821170751387](assest/image-20210821170751387.png)
+
+
+
+8.恢复所有的增量数据
+
+```
+./bin/mongorestore --host=192.168.1.139 --port=37017 --oplogReplay  /root/oplog_bak/local
+```
+
+数据恢复时出现的问题：
+
+![image-20210821173401925](assest/image-20210821173401925.png)
+
+![image-20210821181138543](assest/image-20210821181138543.png)
 
 ### 8.2.7 定时备份
 
+1.准备备份目录
+
+mkdir  -p  /root/backup/mongod_bak/mongod_bak_now /root/backup/mongod_bak/mongod_bak_list
+
+2.编写备份脚本
+
+vi /root/backup/mongobk.sh
+
+```
+#!/bin/sh
+# dump 命令执行路径，根据mongodb安装路径而定
+DUMP=/root/mongodb/mongodb-linux-x86_64-4.1.3/bin/mongodump
+# 临时备份路径
+OUT_DIR=/root/backup/mongod_bak/mongod_bak_now
+# 压缩后的备份存放路径
+TAR_DIR=/root/backup/mongod_bak/mongod_bak_list
+# 当前系统时间
+DATE=`date +%Y_%m_%d%H%M%S`
+# 数据库账号
+#DB_USER=user
+# 数据库密码
+#DB_PASS=password
+# 代表删除7天前的备份，即只保留近7天的备份
+DAYS=7
+# 最终保存的数据库备份文件
+TAR_BAK="mongod_bak_$DATE.tar.gz"
+cd $OUT_DIR
+rm -rf $OUT_DIR/*
+mkdir -p $OUT_DIR/$DATE
+$DUMP -h 127.0.0.1 --port 37017 -o $OUT_DIR/$DATE
+# 压缩格式为  .tar.gz 格式
+tar -zPcvf $TAR_DIR/$TAR_BAK $OUT_DIR/$DATE
+# 删除 7 天前的备份文件
+find $TAR_DIR/ -mtime +$DAYS -delete
+
+exit
+```
 
 
 
+3.修改脚本权限
+
+```
+chmod +x /root/backup/mongobk.sh
+```
+
+
+
+4.编辑crontab
+
+crontab -e
+
+```
+#表示每天凌晨2点30执行备份
+30 2 * * * /root/backup/mongobk.sh
+```
+
+```
+#一分钟备份一次
+* * * * * /root/backup/mongobk.sh
+```
+
+![image-20210821183822938](assest/image-20210821183822938.png)
+
+5.查看crontab
+
+service crond status
+
+![image-20210821184019334](assest/image-20210821184019334.png)
+
+6.如果没有启动 可以使用下面的命令 启动定时服务和加入开启自启动
+
+```
+# 启动定时任务 
+service crond start 
+# 加入开机自动启动
+chkconfig --level 35 crond on  
+```
+
+7.查看定时任务和删除定时任务
+
+```
+crontab  -l 查看
+crontab  -r 删除
+crontab  -e 编辑
+```
 
 
 
