@@ -16,4 +16,6 @@
     * [模块二 MySQL海量数据存储与优化（下）](4-stage/2-module/1-mysql.md)
     * [模块三 MongoDB ](4-stage/3-module/1-mongoDB.md)
         * [Neo4j](4-stage/3-module/2-Neo4j.md)
+* [第五阶段 大型分布式系统缓存架构进阶](5-stage/README.md)
+    * [模块一 分布式缓存Redis 分布式解决方案Codis](5-stage/1-module/1-redis.md)
 
