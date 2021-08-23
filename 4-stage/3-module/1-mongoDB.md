@@ -1,7 +1,3 @@
-
-
-
-
 MongoDB是一款高性能的NoSQL（Not Only SQL 不仅仅SQL）数据库
 
 # 第一部分 MongoDB体系结构
@@ -922,6 +918,8 @@ private MongoTemplate mongoTemplate;
 
 
 ## 4.6 Spring Boot访问MongoDB
+
+db.lg_resume_datas.createIndex({name:1},{unique:true})，创建唯一索引可避免 name字段数据重复
 
 ### 4.6.1 MomgoTemplate的方式
 
@@ -1927,6 +1925,13 @@ switched to db admin
 
 创建管理员
 
+```
+use admin
+db.createUser({user:"root",pwd:"123456",roles:[{role:"root",db:"admin"}]})
+```
+
+
+
 ![image-20210820005357390](assest/image-20210820005357390.png)
 
 创建普通用户
@@ -1954,6 +1959,7 @@ db.createUser({user:"turboyu",pwd:"123456",roles:[{role:"readWrite",db:"lagou_re
 509证书 -- 自己下去了解
 
 ```
+在bin所在目录执行
 openssl rand -base64 756 > data/mongodb/testKeyFile.file 
 chmod 600 data/mongodb/keyfile/testKeyFile.file
 ```
@@ -2006,7 +2012,7 @@ keyFile=data/mongodb/testKeyFile.file
 
 
 
-
+> 单独在路由上加了权限认证后 ，默认无法单独进入具体的分片查看数据 ，如果想单独进入分片查看数据，则需要和路由权限认证方式相同的操作，去给配置主节点以及每个分片主节点都加相同用户名和密码的权限认证
 
 ### 7.Spring boot连接安全认证的分片集群
 
@@ -2536,34 +2542,6 @@ crontab  -l 查看
 crontab  -r 删除
 crontab  -e 编辑
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
