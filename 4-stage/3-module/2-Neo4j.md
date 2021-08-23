@@ -341,7 +341,8 @@ MATCH (person:Person) return person.name,person.age
   CREATE  
   (<node1-label-name>)-[<relationship-label-name>:<relationship-name> {<define-properties-list>}]->(<node2-label-name>)
   RETURN <relationship-label-name>
-其中<define-properties-list>  是分配给新创建关系的属性（名称- 值对）的列表。 
+
+  其中< define-properties-list>是分配给新创建关系的属性（名称- 值对）的列表。 
   {
     <property1-name>:<property1-value>,   
     <property2-name>:<property2-value>,
@@ -349,8 +350,6 @@ MATCH (person:Person) return person.name,person.age
     <propertyn-name>:<propertyn-value> 
    }
   ```
-  
-  
   
   ```
   match(person1:Person {name:"范闲"}),(person2:Person{name:"林婉儿"}) 
@@ -371,8 +370,6 @@ MATCH (person:Person) return person.name,person.age
     (<node1-label-name>:<node1-name>)
   ```
 
-  
-
   ```
   create(person1:Person {cid:4,name:"长公主",age:49,gender:1,character:"A",money:5000}) 
   -[r:Friend]->
@@ -392,9 +389,7 @@ MATCH (person:Person) return person.name,person.age
   (<node1-label-name>:<node1-name>{<define-properties-list>})
   ```
   
-
-  
-  ```
+```
   create (person1:Person {cid:9,name:"靖王世子",age:23,gender:0,character:"A",money:3000})
   -[r:Friend {date:"11-02-2000"}]->
   (person2:Person {cid:8,name:"二皇子",age:24,gender:0,character:"B",money:6000})
