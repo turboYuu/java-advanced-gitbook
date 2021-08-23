@@ -8,37 +8,186 @@ Neo4j是一个NoSQL的图形数据库
 
 ### 1.1.1 图论起源 --科尼斯堡(Konigsberg)七桥问题
 
+![image-20210823162801404](assest/image-20210823162801404.png)
+
+满足一笔画的图满足两个条件
+
+- 图必须是一个完整图
+- 有零或二个奇数点
+
 ### 1.1.2 图和节点
+
+图是一组节点和连接这些节点关系组成。**图形数据存储在节点和关系所在的属性上**。**属性是键值对表示的数据**。
+
+在图形理论中使用圆表示一个节点，并且可以向里面添加键值对形式的数据。
+
+![image-20210823165518215](assest/image-20210823165518215.png)
 
 ### 1.1.3 节点关系表达
 
+#### 简单关系表达
+
+![image-20210823165618784](assest/image-20210823165618784.png)
+
+此处两个节点之间创建关系名称“跟随”。意味着Profile1跟随Profile2。
+
+#### 复杂关系表达
+
+![image-20210823165747624](assest/image-20210823165747624.png)
+
+这里节点用关系连接。关系是单向或双向的。
+
+- 从ABC和XYZ的关系是单向关系。
+- 从ABC到PQR的关系是双向关系。
+
 ### 1.1.4 属性图模型规则
+
+![image-20210823171344075](assest/image-20210823171344075.png)
+
+- 图表示节点，关系和属性中的数据
+
+- 节点和关系都包含属性
+
+- 关系连接节点
+
+- 属性是键值对
+
+- 节点用源泉表示，关系用方向键表示
+
+- 关系具有方向：单向和双向
+
+- 每个关系包含 “开始节点”或“从节点” 和 “到节点”或“结束节点”
+
+  
 
 ## 1.2 知识图谱和图库
 
-### 1.2.1 知识图谱和图库
+### 1.2.1 知识图谱
+
+一种基于图的数据结构，由节点（Node）和边（Edge）组成。其中节点即实体，由一个全局唯一的ID标示，边就是厝用于连接两个节点。通俗地讲。知识图谱就是把所有不同种类地信息（Heterogeneous Information）连接在一起而得到的一个关系网络。知识图谱提供了从“关系”的角度去分析问题的能力。
 
 ### 1.2.2 图数据库
 
+图数据库（Graph database）指的是以图形数据结构的形式来存储和查询数据的数据库。
+
+知识图谱中，知识的组织形式采用的就是图结构，所以非常适合用图库进行存储。
+
 ### 1.2.3 图形数据库优势
+
+优势总结
+
+- 性能上，对长程关系的查询速度快
+- 擅于发现隐藏的关系，例如通过判断图上两点之间有没有走的同的路径，就可以发现事物之间的关联
 
 ## 1.3 Neo4j基础
 
 ### 1.3.1 什么是Neo4j
 
+Neo4j是一个开源的，无schema的，基于java开发的图形数据库，它将结构化数据存储在图中而不是表中。它是一个嵌入式的，基于磁盘的、具备完全的事务特性的Java持久化引擎，程序数据是在一个面向对象的，灵活的网络结构下，而不是严格、静态的表中，但是可以享受具备完全的事务特性、企业级和数据库的所有好处。
+
+https://db-engines.com/en/ranking
+
 ### 1.3.2 Neo4j模块构建
 
+#### Neo4j主要构建块
+
+- 节点
+- 属性
+- 关系
+- 标签
+- 数据浏览器
+
+#### 节点
+
+节点是图标的基本单位。它包含具有键值对的属性
+
+#### 属性
+
+属性是用来描述图节点和关系的键值对
+
+key=值
+
+其中key是一个字符串
+
+值可以通过使用任何Neo4j数据类型来表示
+
+#### 关系
+
+关系是图形数据库的另一个主要构建。它连接两个节点，如下：
+
+![image-20210823190418413](assest/image-20210823190418413.png)
+
+这里Emp和Dept是两个不同的节点。“WORKS_FOR”是Emp和Dept节点之间的关系。因为它表示从Empt到Dept的箭头标记，每个关系包含一个起始节点和一个结束节点。
+
+向节点一样，关系也可以包含属性作为键值对。
+
+#### 标签
+
+Label将一个公共名称与一组节点或关系想关联。**节点或关系可以包含一个或多个标签**。可以为现有节点或关系创建新标签。可以从现有节点或关系中删除现有标签。
+
+注：Neo4j将数据存储在节点或关系的属性中。
+
 ### 1.3.3 Neo4j的主要应用场景
+
+社交媒体和社交网络
+
+推荐阴影和产品推荐系统
+
+身份和访问管理
+
+金融反欺诈多维关联分析场景
 
 ### 1.3.4 Neo4j环境搭建
 
 #### Neo4j环境Linux下搭建
 
+1.上传安装包或下载安装包
+
+wget https://neo4j.com/artifact.php?name=neo4j-community-3.5.17-unix.tar.gz
+
+2.解压
+
+tar -xvf neo4j-community-3.5.17.tar
+
+3.修改配置文件 neo4j.conf
+
+主要是修改    允许远程访问的地址    把对应的注释打开即可
+
+dbms.connectors.default_listen_address=0.0.0.0
+
+4.开放对应访问端口 7474和7687
+
+```
+ﬁrewall-cmd --zone=public --add-port=7474/tcp --permanent 
+ﬁrewall-cmd --zone=public --add-port=7687/tcp --permanent 
+systemctl reload ﬁrewalld
+```
+
+5.启动
+
+./bin/neo4j start
+
+6.使用浏览器，访问服务器上的neo4j
+
+http://ip:7474
+
+默认的账号是neo4j 密码 neo4j，这里第一次登录的话需要修改密码。
+
 
 
 ### 1.3.5 Neo4j数据浏览器 
 
+#### 数据浏览器访问
+
+http://ip:7474
+
 ![image-20210822000149809](assest/image-20210822000149809.png)
+
+Neo4j数据浏览器用于执行CQL命令并查看输出
+
+create(cc:CreditCard)
+
+match(cc:CreditCard) return cc
 
 ![image-20210822000956521](assest/image-20210822000956521.png)
 
@@ -54,11 +203,55 @@ Neo4j是一个NoSQL的图形数据库
 
 ## 2.1 CQL简介
 
+CQL代表Cypher查询语言。像关系型数据库具有查询语言SQL，Neo4j使CQL作为查询语言。
 
+Neo4j CQL
+
+- Neo4j图形数据库的查询语言
+- 一种声明性模式匹配查询语言
+- 遵循SQL语法
+- 语法简单人性化，可读格式
+
+常用Neo4j CQL命令/条款
+
+| CQL命令/条      | 作用                         |
+| --------------- | ---------------------------- |
+| CREATE创建      | 创建节点，关系和属性         |
+| match匹配       | 检索有挂节点，关系和属性数据 |
+| return返回      | 返回查询结果                 |
+| where条件       | 提供条件过滤检索match数据    |
+| delete删除      | 删除节点或关系               |
+| remove移除      | 删除节点或关系的属性         |
+| set 设置        | 添加或更新标签               |
+| order by        | 对结果排序                   |
+| skip limit 分页 | 分页                         |
+| distinct 排重   | 排重                         |
 
 
 
 ## 2.2 CREATE
+
+```
+CREATE (
+  <node-name>:<label-name>   
+  [{
+     <property1-name>:<property1-Value>
+     ........
+     <propertyn-name>:<propertyn-Value>   
+   }]
+)
+```
+
+语法说明：
+
+| 语法元素                                 | 描述                                             |
+| ---------------------------------------- | ------------------------------------------------ |
+| < node-name >                            | 将要创建的节点名称。                             |
+| < label-name >                           | 一个节点标签名称                                 |
+| < property1-name>...< propertyn- name>   | 属性是键值对。  定义将分配给创建节点的属性的名称 |
+| < property1-value>...< propertyn- value> | 属性是键值对。  定义将分配给创建节点的属性的值   |
+
+举例：
 
 ```
 CREATE (person:Person)
@@ -77,6 +270,24 @@ CREATE (person:Person {cid:3,name:"庆帝",age:49,gender:0,character:"A",money:8
 ## 2.3 MATCH RETURN 命令语法
 
 ```
+MATCH (
+  <node-name>:<label-name> 
+  )
+RETURN
+  <node-name>.<property1-name>,
+  ...
+  <node-name>.<propertyn-name>
+```
+
+| 语法元素                       | 描述                         |
+| ------------------------------ | ---------------------------- |
+| < node-name>                   | 它是我们将要创建的节点名称。 |
+| < label-name>                  | 它是一个节点标签名称         |
+| < node-name>.< propertyn-name> | 返回节点的属性值             |
+
+举例：
+
+```
 MATCH (person:Person) return  person
 MATCH (person:Person) return person.name,person.age
 ```
@@ -92,13 +303,31 @@ MATCH (person:Person) return person.name,person.age
 - 使用现有节点创建没有属性的关系
 
   ```
-  
+  MATCH (<node1-name>:<node1-label-name>),(<node2-name>:<node2-label-name>)
+  CREATE  
+  (<node1-name>)-[<relationship-name>:<relationship-label-name>]->(<node2- name>)
+  RETURN 相应的内容
   ```
 
+  语法说明：
+
+  | 语法元素                   | 描述                                    |
+  | -------------------------- | --------------------------------------- |
+  | MATCH,CREATE,RETURN        | 他们是Neo4J CQL关键字。                 |
+  | < noode1-name>             | 它用于创建关系的“From Node”的名称       |
+  | < node1-label-name>        | 它用于创建关系的“From Node”的标签名称。 |
+  | < node2-name>              | 它用于创建关系的“To Node”的名称。       |
+  | < node2-label-name>        | 它用于创建关系的“To Node”的标签名称。   |
+  | < relationship-name>       | 这是一个关系的名称。                    |
+  | < relationship-label-name> | 它是一个关系的标签名称。                |
+
+  
+
   ```
+  创建关系
   match(person1:Person {name:"范闲"}),(person2:Person{name:"林婉儿"}) 
   create(person1)-[r:Couple]->(person2)
-  
+  查询关系
   match p=(p1:Person{name:"范闲"})-[r:Couple]->(:Person) return p
   
   match (p1:Person{name:"范闲"})-[r:Couple]-(p2:Person) return p1,p2
@@ -108,16 +337,41 @@ MATCH (person:Person) return person.name,person.age
 - 使用现有节点创建有属性的关系
 
   ```
-  match(person1:Person {name:"范闲"}),(person2:Person{name:"林婉儿"}) create(person1)-[r:Couple{mary_date:"12/12/2014",price:55000}]->(person2) return r
+  MATCH (<node1-label-name>:<node1-name>),(<node2-label-name>:<node2-name>) 
+  CREATE  
+  (<node1-label-name>)-[<relationship-label-name>:<relationship-name> {<define-properties-list>}]->(<node2-label-name>)
+  RETURN <relationship-label-name>
+其中<define-properties-list>  是分配给新创建关系的属性（名称- 值对）的列表。 
+  {
+    <property1-name>:<property1-value>,   
+    <property2-name>:<property2-value>,
+    ...
+    <propertyn-name>:<propertyn-value> 
+   }
+  ```
+  
   
   
   ```
-
+  match(person1:Person {name:"范闲"}),(person2:Person{name:"林婉儿"}) 
+  create(person1)-[r:Couple{mary_date:"12/12/2014",price:55000}]->(person2) 
+  return r
+  ```
+  
   
 
 ![image-20210822111818674](assest/image-20210822111818674.png)
 
 - 使用新节点创建没有属性的关系
+
+  ```
+  CREATE  
+    (<node1-label-name>:<node1-name>)
+    -[<relationship-label-name>:<relationship-name>]->
+    (<node1-label-name>:<node1-name>)
+  ```
+
+  
 
   ```
   create(person1:Person {cid:4,name:"长公主",age:49,gender:1,character:"A",money:5000}) 
@@ -132,37 +386,47 @@ MATCH (person:Person) return person.name,person.age
 - 使用新节点创建有属性的关系
 
   ```
+  CREATE  
+  (<node1-label-name>:<node1-name>{<define-properties-list>})
+  -[<relationship-label-name>:<relationship-name>{<define-properties-list>}]->
+  (<node1-label-name>:<node1-name>{<define-properties-list>})
+  ```
+  
+
+  
+  ```
   create (person1:Person {cid:9,name:"靖王世子",age:23,gender:0,character:"A",money:3000})
   -[r:Friend {date:"11-02-2000"}]->
   (person2:Person {cid:8,name:"二皇子",age:24,gender:0,character:"B",money:6000})
   
   match p = (:Person {name:"靖王世子"})-[r:Friend]-(:Person) return r.date
   ```
-
+  
   
 
 
 
 关系和节点的属性可以使用的类型
 
-|      |      |      |
-| ---- | ---- | ---- |
-|      |      |      |
-|      |      |      |
-|      |      |      |
-|      |      |      |
-|      |      |      |
-|      |      |      |
-|      |      |      |
-|      |      |      |
-|      |      |      |
+| CQL数据类型 | 作用                              |
+| ----------- | --------------------------------- |
+| boolean     | 它用于表示布尔文字：true, false。 |
+| byte        | 它用来表示8位整数。               |
+| short       | 它用于表示16位整数。              |
+| int         | 它用于表示32位整数。              |
+| long        | 它用于表示64位整数。              |
+| float       | 浮点数用于表示32位浮点数。        |
+| double      | Double用于表示64位浮点数。        |
+| char        | Char用于表示16位字符。            |
+| String      | 字符串用于表示字符串。            |
 
 
 
 ## 2.5 CREATE 创建多个标签
 
 ```
-
+CREATE (<node-name>:<label-name1>:<label-name2>.....:<label-namen>)
+如:
 CREATE (person:Person:Beauty:Picture {cid:20,name:"小美女"})
 
 match(p:Person{cid:20}) return p
@@ -185,6 +449,14 @@ match(p:Person) where p.money>1000 return p
 
 MATCH (person:Person) WHERE person.name = '范闲' OR person.name = '靖王世子' RETURN person
 ```
+
+比较运算符
+
+| 布尔运算符 | 描述 |
+| ---------- | ---- |
+| AND        | 与   |
+| OR         | 或   |
+| NOT        | 非   |
 
 
 
@@ -230,6 +502,9 @@ match(p:Person) where p.cid=20 set p.name="小美女",p.age=25,p.salary=20000
 
 
 ## 2.9 ORDER BY 子句
+
+“ORDER BY”子句，对MATCH查询返回的结果进行排序。 我们可以按升序或降序对行进行排序。
+默认情况下，它按升序对行进行排序。 如果我们要按降序对它们进行排序，我们需要使用DESC子句。
 
 ```
 match(p:Person) return ID(p),p.name,p.age order by p.age desc
