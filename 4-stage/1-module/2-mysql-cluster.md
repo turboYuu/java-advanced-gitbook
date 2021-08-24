@@ -974,7 +974,7 @@ mysqldump -uroot -p smart-admin-dev d_patent_infos_enhance > d_patent_infos_enha
 **导入备份**
 
 ```
-在选中的数据库中执行 
+在选中的数据库中执行 （没有的话，要先创建库，在导入备份数据）
 mysql> source /root/tools/dev.sql
 ```
 
