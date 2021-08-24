@@ -1070,6 +1070,8 @@ public class Neo4jServerMain2 {
 
 ## 5.3 SpringBoot整合Neo4j
 
+https://gitee.com/turboYuu/mongo-db-4.3/tree/master/lab/springboot_neo4j_demo
+
 ### 1.导入jar
 
 ```xml
