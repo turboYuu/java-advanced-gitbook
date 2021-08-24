@@ -843,6 +843,22 @@ RETURN count(n.name) + count(r);
 
 ### 4.2.3 查看执行计划 进行索引优化
 
+Cypher查询计划程序将每个查询转换为执行计划。执行计划告诉Neo4j在执行查询时要执行哪些操作。
+
+对执行计划的生成，Neo4j使用的都是基于成本的优化器（Cost Based Optimizer，CBO），用于制定精确的执行过程。可以采用如下两种不同的方式了解其北部的工作机制：
+
+**EXPLAIN**：是解释机制，加入该关键字的Cypher语句可以预览执行过程，但并不实际执行，所以也不会产生任何后果。
+
+**PROFILE**：则是画像机制，查询中使用该关键字，不仅能够看到执行计划的详细内容，也可以看到查询的执行结果。
+
+> 关注指标：
+>
+> estimated rows：需要被扫描行数的预估值
+>
+> dbhints：实际运行结果的命中绩效
+>
+> 两个值越小越好
+
 ![image-20210822144930380](assest/image-20210822144930380.png)
 
 ![image-20210822144917296](assest/image-20210822144917296.png)
@@ -868,31 +884,469 @@ name创建索引 `create index on:Person(name)`
 - 嵌入式数据库
 - 服务器模式（通过REST的访问）
 
+它是由应用程序的性质（neo4j是独立服务器，还是和程序在一起），性能，监控和数据安全性来决定架构选择。
+
 ### 5.1.2 An embedded database（嵌入式数据库）
 
+嵌入式Neo4j数据库是性能的最佳选择。通过指定数据存储的路径以编程方式访问嵌入式数据库。
+
+选择的原因：
+
+- 使用java作为项目的编程语言
+- 应用程序是独立的
+- 程序追求很高的性能
+
 ### 5.1.3 Neo4j Server（服务器模式）
+
+Neo4j Server是相互操作性，安全性和监控的最佳选择。实际上，REST接口允许所有现代平台和编程语言与它进行相互操作。此外，作为独立应用程序，它比嵌入式配置更安全（客户端中潜在的故障不会影响服务器），并且更易于监控。如果选择这种模式，应用程序将充当Neo4j服务器的客户端。要连接到Neo4j服务器，可以使用任何编程语言的REST访问数据库。
 
 ## 5.2 Java客户端操作Neo4j
 
 ### 5.2.1 嵌入式模式
 
+https://gitee.com/turboYuu/mongo-db-4.3/tree/master/lab/embedded_neo4j_demo
+
+```xml
+<dependency>
+    <groupId>org.neo4j</groupId>
+    <artifactId>neo4j</artifactId>
+    <version>3.5.5</version>
+</dependency>
+```
+
+```java
+package com.turbo;
+
+import org.neo4j.graphdb.GraphDatabaseService;
+import org.neo4j.graphdb.Label;
+import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.Transaction;
+import org.neo4j.graphdb.factory.GraphDatabaseFactory;
+
+import java.io.File;
+
+public class EmbeddedNeo4jAdd {
+    private static final File databaseDirectory = new File("target/graph.db");
+    public static void main(String[] args) {
+        // 创建数据库服务对象
+        GraphDatabaseService graphDatabaseService = new GraphDatabaseFactory().
+        	newEmbeddedDatabase(databaseDirectory);
+        System.out.println("database load!");
+        // 获取事务 开启事务
+        Transaction tx = graphDatabaseService.beginTx();
+        Node n1 = graphDatabaseService.createNode();
+        n1.setProperty("name","张三");
+        n1.setProperty("character","A");
+        n1.setProperty("money",50000);
+        n1.addLabel(new Label() {
+            public String name() {
+                return "Person";
+            }
+        });
+        
+        //定义CQL
+        String cql = "create(p:Person {name:'李四',character:'B',money:45000})";
+        graphDatabaseService.execute(cql);
+        tx.success();
+        tx.close();
+        System.out.println("Database shutdown");
+        graphDatabaseService.shutdown();
+    }
+}
+
+```
+
+```java
+package com.turbo;
+
+import org.neo4j.graphdb.*;
+import org.neo4j.graphdb.factory.GraphDatabaseFactory;
+
+import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
+
+public class EmbeddedNeo4jQueryAll {
+    private static final File databaseDirectory = new File("target/graph.db");
+    public static void main(String[] args) {
+        // 创建数据库服务对象
+        GraphDatabaseService graphDatabaseService = new GraphDatabaseFactory().
+        	newEmbeddedDatabase(databaseDirectory);
+        System.out.println("database load query!");
+
+        String cql = "match(p:Person) where p.money < $money return p";
+        Map<String,Object> parameters = new HashMap<String, Object>();
+        parameters.put("money",60000);
+        // 获取事务 开启事务
+        Transaction tx = graphDatabaseService.beginTx();
+        Result result = graphDatabaseService.execute(cql, parameters);
+        while (result.hasNext()){
+            Map<String, Object> row = result.next();
+            System.out.println(row);
+            for (String key:result.columns()){
+                Node nd = (Node) row.get(key);
+                System.out.printf("%s=%s:%s%n",key,nd.getProperty("name"),nd.getProperty("money"));
+            }
+        }
+        tx.success();
+        tx.close();
+        System.out.println("Database shutdown");
+        graphDatabaseService.shutdown();
+    }
+}
+
+```
+
+
+
 ### 5.2.2 服务器模式
+
+https://gitee.com/turboYuu/mongo-db-4.3/tree/master/lab/server_neo4j_demo
+
+```xml
+<dependency>
+    <groupId>org.neo4j</groupId>
+    <artifactId>neo4j-ogm-bolt-driver</artifactId>
+    <version>3.2.10</version>
+</dependency>
+```
+
+```java
+package com.turbo;
+
+import org.neo4j.driver.*;
+
+import static org.neo4j.driver.Values.parameters;
+
+public class Neo4jServerMain {
+    public static void main(String[] args) {
+        Driver driver = GraphDatabase.driver("bolt://192.168.31.139:7687",
+                AuthTokens.basic("neo4j","123456"));
+        //获取会话对象
+        Session session = driver.session();
+        String cql = "match(p:Person) where p.money > $money " +
+                "return p.name as name,p.money as money " +
+                "order by p.money ";
+        Result result = session.run(cql, parameters("money", 2000));
+        while (result.hasNext()){
+            Record record = result.next();
+            System.out.println(record.get("name").asString()+","+record.get("money").asDouble());
+        }
+        System.out.println(result);
+        session.close();
+        driver.close();
+
+    }
+}
+```
+
+```java
+package com.turbo;
+
+import org.neo4j.driver.*;
+
+import static org.neo4j.driver.Values.parameters;
+
+public class Neo4jServerMain2 {
+    public static void main(String[] args) {
+        Driver driver = GraphDatabase.driver("bolt://192.168.31.139:7687",
+                AuthTokens.basic("neo4j","123456"));
+        //获取会话对象
+        Session session = driver.session();
+        String cql = "match p=((person:Person{name:$startName})-[*1..3]-(person2:Person{name:$endName})) return p";
+        Result result = session.run(cql, parameters("startName", "王启年","endName","九品射手燕小乙"));
+        while (result.hasNext()){
+            Record record = result.next();
+            System.out.println(record.get("p"));
+        }
+        session.close();
+        driver.close();
+    }
+}
+
+```
+
+
 
 ## 5.3 SpringBoot整合Neo4j
 
 ### 1.导入jar
 
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.turbo</groupId>
+    <artifactId>springboot_neo4j_demo</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.2.9.RELEASE</version>
+    </parent>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF- 8</project.reporting.outputEncoding>
+        <java.version>1.11</java.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-neo4j</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.neo4j</groupId>
+            <artifactId>neo4j-ogm-bolt-driver</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
+```
+
 ### 2.建立实体类
+
+```java
+package com.turbo.bean;
+
+import lombok.Data;
+import org.neo4j.ogm.annotation.*;
+
+import java.util.Set;
+
+@Data
+@NodeEntity
+public class Person {
+    @Id
+    @GeneratedValue
+    private Long id;
+
+    @Property("cid")
+    private int pid;
+
+    private String name;
+
+    private String character;
+
+    private double money;
+
+    private int age;
+
+    private String description;
+
+    @Relationship(type = "Friends",direction = Relationship.INCOMING)
+    private Set<Person> friendPerson;
+
+    @Override
+    public String toString() {
+        return "Person{" +
+                "id=" + id +
+                ", pid=" + pid +
+                ", name='" + name + '\'' +
+                ", character='" + character + '\'' +
+                ", money=" + money +
+                ", age=" + age +
+                ", description='" + description + '\'' +
+                ", friendPerson=" + friendPerson +
+                '}';
+    }
+
+    public Person() {
+    }
+
+    public Person(Long id, int pid, String name, String character, double money, int age, String description, Set<Person> friendPerson) {
+        this.id = id;
+        this.pid = pid;
+        this.name = name;
+        this.character = character;
+        this.money = money;
+        this.age = age;
+        this.description = description;
+        this.friendPerson = friendPerson;
+    }
+}
+
+```
+
+
 
 ### 3.数据持久化类
 
+```java
+package com.turbo.repository;
+
+import com.turbo.bean.Person;
+import org.springframework.data.neo4j.annotation.Query;
+import org.springframework.data.neo4j.repository.Neo4jRepository;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface PeronRepository extends Neo4jRepository<Person,Long> {
+
+    /**
+     * 查询money大于指定值的Person列表
+     */
+    //@Query("match(p:Person) where p.money>{0} return p ")
+    @Query("match(p:Person) where p.money>{money} return p ")
+    List<Person> personList(@Param("money") double money);
+
+    /**
+     * 查询最短路径
+     */
+    @Query("match p=shortestPath((person:Person{name:{startName}})-[*1..4]-(person2:Person{name:{endName}})) return p")
+    List<Person> shortestPath(String startName,String endName);
+
+    /**
+     * 关系处理 前端 d3.js展示
+     */
+
+    /**
+     * 多深度节点
+     */
+    @Query("match p=(person:Person{name:{name}})-[*1..2]-(nb:Person) return p")
+    List<Person> personListDeep(String name);
+
+}
+
+```
+
+
+
 ### 4.配置文件 application.yml
+
+```yaml
+spring:
+  data:
+    neo4j:
+      username: neo4j
+      password: 123456
+      uri: bolt://192.168.31.139:7687
+      #
+      #uri: http://192.168.211.133:7474      
+      #uri: file:///target/graph.db
+```
+
+![image-20210824141922984](assest/image-20210824141922984.png)
 
 ### 5.编写服务类
 
+```java
+package com.turbo.service;
+
+import com.turbo.bean.Person;
+import com.turbo.repository.PeronRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import java.util.ArrayList;
+import java.util.List;
+
+@Service("personService")
+public class Neo4jPersonService {
+
+    @Autowired
+    private PeronRepository peronRepository;
+
+    public List<Person> getAll(){
+        List<Person> datas = new ArrayList<>();
+        peronRepository.findAll().forEach(person ->datas.add(person));
+        return datas;
+    }
+
+    public Person save(Person person){
+        return peronRepository.save(person);
+    }
+
+    public List<Person> personList(double money){
+        return peronRepository.personList(money);
+
+    }
+
+    public List<Person> shortestPath(String startName,String endName){
+        return peronRepository.shortestPath(startName,endName);
+    }
+
+    public List<Person> personListDeep(String name){
+        return peronRepository.personListDeep(name);
+    }
+
+}
+```
+
+
+
 ### 6.编写测试类
 
-d3.js https://d3js.org/
+```java
+package com.turbo;
+
+import com.turbo.bean.Person;
+import com.turbo.service.Neo4jPersonService;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ApplicationContext;
+
+import java.lang.invoke.VarHandle;
+import java.util.List;
+
+@SpringBootApplication
+public class Neo4jBootAppMain {
+
+    public static void main(String[] args) {
+        ApplicationContext applicationContext = SpringApplication.run(Neo4jBootAppMain.class,args);
+        Neo4jPersonService personService = applicationContext.getBean("personService", Neo4jPersonService.class);
+
+        Person person = new Person();
+        person.setName("testboot");
+        person.setMoney(123455.33);
+        person.setCharacter("A");
+        person.setAge(24);
+        Person person1 = personService.save(person);
+        System.out.println(person1);
+        System.out.println(personService.getAll());
+
+        List<Person> personList = personService.personList(1000);
+        System.out.println(personList);
+
+
+        List<Person> personList1 = personService.shortestPath("王启年", "九品射手燕小乙");
+        System.out.println(personList1);
+
+        List<Person> personList2 = personService.personListDeep("范闲");
+        for(Person p:personList2){
+            System.out.println(p);
+        }
+
+    }
+}
+
+```
+
+
+
+# 扩展
+
+图形属性前端展示，d3.js https://d3js.org/
 
 
 
