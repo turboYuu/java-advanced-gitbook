@@ -321,10 +321,8 @@ MATCH (person:Person) return person.name,person.age
   | < relationship-name>       | 这是一个关系的名称。                    |
   | < relationship-label-name> | 它是一个关系的标签名称。                |
 
-  
-
   ```
-  创建关系
+创建关系
   match(person1:Person {name:"范闲"}),(person2:Person{name:"林婉儿"}) 
   create(person1)-[r:Couple]->(person2)
   查询关系
@@ -333,7 +331,7 @@ MATCH (person:Person) return person.name,person.age
   match (p1:Person{name:"范闲"})-[r:Couple]-(p2:Person) return p1,p2
   match (p1:Person{name:"范闲"})-[r:Couple]-(p2:Person) return r
   ```
-
+  
 - 使用现有节点创建有属性的关系
 
   ```
@@ -389,15 +387,15 @@ MATCH (person:Person) return person.name,person.age
   (<node1-label-name>:<node1-name>{<define-properties-list>})
   ```
   
-```
+  ```
   create (person1:Person {cid:9,name:"靖王世子",age:23,gender:0,character:"A",money:3000})
   -[r:Friend {date:"11-02-2000"}]->
   (person2:Person {cid:8,name:"二皇子",age:24,gender:0,character:"B",money:6000})
-  
+    
   match p = (:Person {name:"靖王世子"})-[r:Friend]-(:Person) return r.date
   ```
   
-  
+    
 
 
 
@@ -509,6 +507,10 @@ match(p:Person) return ID(p),p.name,p.age order by p.age desc
 
 ## 2.10 SKIP 和 Limit
 
+Neo4j CQL已提供“SKIP”子句来过滤或限制查询返回的行数。 它修整了CQL查询结果集顶部的结果。
+
+Neo4j CQL已提供“LIMIT”子句来过滤或限制查询返回的行数。 它修剪CQL查询结果集底部的结果。
+
 ```
 match(p:Person) return ID(p),p.name,p.age order by p.age desc skip 4 limit 2
 ```
@@ -516,6 +518,8 @@ match(p:Person) return ID(p),p.name,p.age order by p.age desc skip 4 limit 2
 
 
 ## 2.11 DISTINCT 排重
+
+这个函数的用法就像SQL中的distinct关键字，返回的是所有不同值。
 
 ```
 match(p:Person) return distinct(p.character)
@@ -527,20 +531,14 @@ match(p:Person) return distinct(p.character)
 
 ## 3.1 CQL函数
 
-|      |      |
-| ---- | ---- |
-|      |      |
-|      |      |
-|      |      |
-|      |      |
-
-```
-
-```
-
-
-
 ### 3.1.1 字符串函数
+
+| 功能      | 描述                       |
+| --------- | -------------------------- |
+| upper     | 将所有字母更改为大写字母。 |
+| lower     | 将所有字母改为小写字母。   |
+| substring | 获取给定String的子字符串。 |
+| replace   | 替换一个字符串的子字符串。 |
 
 ```
 match(p:Person) return lower(p.character),p.name
@@ -552,6 +550,14 @@ match(p:Person) return lower(p.character),p.name,substring(p.name,2),replace(p.n
 
 ### 3.1.2 聚合函数
 
+| 聚集功能 | 描述                                  |
+| -------- | ------------------------------------- |
+| count    | 返回match命令返回的行数               |
+| max      | 从MATCH命令返回的一组行返回最大值。   |
+| min      | 返回由MATCH命令返回的一组行的最小值。 |
+| sum      | 返回由MATCH命令返回的所有行的求和值。 |
+| avg      | 返回由MATCH命令返回的所有行的平均值。 |
+
 ```
 MATCH (p:Person) RETURN MAX(p.money),MIN(p.money),AVG(p.money),SUM(p.money),COUNT(1)
 ```
@@ -560,13 +566,26 @@ MATCH (p:Person) RETURN MAX(p.money),MIN(p.money),AVG(p.money),SUM(p.money),COUN
 
 ### 3.1.3 关系函数
 
+| 功能      | 描述               |
+| --------- | ------------------ |
+| STARTNODE | 得到关系的开始节点 |
+| ENDNODE   | 得到关系的结束节点 |
+| ID        | 得到关系的ID       |
+| TYPE      | 得到关系的TYPE     |
+
 ```
-match p = (:Person {name:"林婉儿"})-[r:Couple]-(:Person) RETURN STARTNODE(r),ENDNODE(r),ID(r),TYPE(r)
+match p = (:Person {name:"林婉儿"})-[r:Couple]-(:Person) 
+RETURN STARTNODE(r),ENDNODE(r),ID(r),TYPE(r)
 ```
 
 ![image-20210822131019583](assest/image-20210822131019583.png)
 
-### 3.1.4 shortestpath函数返回最短的path
+### 3.1.4 `shortestpath`函数返回最短的path
+
+```
+MATCH p=shortestPath((node1)-[*]-(node2)) 
+return length(p),nodes(p)
+```
 
 求出关系中最短的关系 
 
@@ -589,6 +608,8 @@ MATCH p=((person:Person {name:"王启年"})-[*]-(person2:Person {name:"九品射
 
 ### 3.2.1 使用with关键字
 
+查询三层关系如下：with可以将前面查询结果作为后面的查询条件
+
 ```
 match (na:Person)-[re]->(nb:Person) where na.name="范闲"  WITH na,re,nb match (nb:Person)- [re2]->(nc:Person) return na,re,nb,re2,nc
 
@@ -604,25 +625,37 @@ match (na:Person)-[re]-(nb:Person) where na.name="林婉儿"  WITH na,re,nb matc
 ```
 match (na:Person{name:"范闲"})-[re]->(nb:Person)-[re2]->(nc:Person) return na,re,nb,re2,nc
 
-
+为了方便，可以将查询结构赋给变量，然后返回
+match data=(na:Person{name:"范闲"})-[re]->(nb:Person)-[re2]->(nc:Person) return data
 ```
 
+![image-20210824112255423](assest/image-20210824112255423.png)
+
 ### 3.2.3 使用深度运算符
+
+实现多深度关系节点查询时，上面的方式比较繁琐
+
+可变数量的关系->节点可以使用-[:TYPE*minHops..maxHops]-
 
 ```
 match data=(na:Person{name:"范闲"})-[*1..2]-(nb:Person) return data
 ```
 
-
+![image-20210824112525774](assest/image-20210824112525774.png)
 
 
 
 ## 3.3 事务
 
+为了保证数据的完整性和良好的事务行为，Neo4j也支持ACID.
 
+注意：
 
 ```
-
+1.所有对Neo4j数据库的数据蟹盖操作都必须封装在事务里。
+2.默认的isolation level是READ_COMMITTED。
+3.死锁保护已经内置到核心事务管理。（Neo4j会在死锁发生前检测死锁并抛出异常。在异常抛出之前，事务会被标志为回滚。当事务结束后，事务会释放它所持有的锁，该事务的锁所引起的死锁也就解除，其他事务可以继续执行。当用户需要时，抛出异常的事务可以尝试重新执行）
+4.除特别说明，Neo4j的API操作都是线程安全的，Neo4j数据库的操作也就没有必要使用外部的同步方法。
 ```
 
 
@@ -631,15 +664,19 @@ match data=(na:Person{name:"范闲"})-[*1..2]-(nb:Person) return data
 
 ### 3.4.1 简介
 
+Neo4j CQL支持节点或关系属性上的索引，以提高应用程序的性能。
 
+可以为具有相同标签名称的属性上创建索引。
+
+可以在MATCH或WHERE等运算符上使用这些索引列来改进CQL 的执行。
 
 ### 3.4.2 创建单一索引
 
 ```
+create INDEX ON:Label(property)
+如：
 create index on:Person(name)
 ```
-
-
 
 ### 3.4.3 创建复合索引
 
@@ -647,11 +684,16 @@ create index on:Person(name)
 create index on:Person(age,gender)
 ```
 
-
-
 ### 3.4.4 全文模式索引
 
+全文索引将标记索引字符串值，因此它可以匹配字符串中任何位置的术语。索引字符串如何被标记化并分解为属于，取决于配置全文模式索引的分析器。索引是通过属性来创建，便于快速查找节点或者关系。
+
+创建和配置全文模式索引
+
+使用db.index.fulltext.createNodeIndex和db.index.fulltext.createRelationshipIndex创建全文模式索引。在创建索引时，每个索引必须指定一个唯一的名称，用于在查询或删除索引时引用相关的特定索引。然后，全文模式索引分别应用于标签列表或关系型列表，分别用于节点和关系索引，然后应用于属性名称列表。
+
 ```
+call db.index.fulltext.createNodeIndex("索引名",[Label,Label],[属性,属性])
 
 call db.index.fulltext.createNodeIndex("nameAndDescription",["Person"],["name", "description"])
 ```
@@ -665,14 +707,31 @@ call db.index.fulltext.queryNodes("nameAndDescription", "范闲") YIELD node, sc
 ### 3.4.5 查看和删除索引
 
 ```
-call db.indexes
+call db.indexes 或者 :scheme
 
 drop index on:Person(name)
 ```
 
-
+![image-20210824125332780](assest/image-20210824125332780.png)
 
 ## 3.5 约束
+
+### 3.5.1 唯一性约束
+
+**作用**
+
+- 避免重复记录
+- 强制执行数据完整性规则
+
+**创建唯一性约束**
+
+```
+CREATE CONSTRAINT ON (变量:<label_name>) ASSERT 变量.<property_name> IS UNIQUE
+实例：
+CREATE CONSTRAINT ON (person:Person) ASSERT person.name IS UNIQUE
+```
+
+
 
 ![image-20210822140431784](assest/image-20210822140431784.png)
 
@@ -682,15 +741,35 @@ drop index on:Person(name)
 
 ![image-20210822140719644](assest/image-20210822140719644.png)
 
+**删除唯一性索引**
+
+```
+DROP CONSTRAINT on (person:Person) ASSERT person.name IS UNIQUE
+```
+
+### 3.5.2 属性存在约束（企业版中可用）
+
+```
+CREATE CONSTRAINT ON (p:Person) ASSERT exists(p.name)
+```
+
+### 3.5.3 查看约束
+
+```
+call db.constraints
+:schema
+```
+
+
+
 # 第四部分 Neo4j之Admin管理员操作
 
 社区版只支持冷备份
 
 ```
+删除全部数据
 match(n) match(n)-[r]-() delete n,r
 ```
-
-
 
 ## 4.1 Neo4j-数据库备份和恢复
 
@@ -744,10 +823,13 @@ vi /etc/security/limits.conf
 ### 4.2.1 增加啊服务器内存和调整neo4j配置文件
 
 ```
-
+# java heap初始值
+dbms.memory.heap.initial_size=1g
+#java heap最大值，一般不要超过可用物理内存的80%
+dbms.memory.heap.max_size=16g
+# pagecache 大小，官方建议为：(总内存-dbms.memory.heap.max_size)/2
+dbms.memory.pagecache.size=2g
 ```
-
-
 
 ### 4.2.2 neo4j刚启动数据是冷的 需要预热
 
