@@ -1,5 +1,3 @@
-# Neo4j
-
 Neo4j是一个NoSQL的图形数据库
 
 # 第一部分 图和Neo4j
