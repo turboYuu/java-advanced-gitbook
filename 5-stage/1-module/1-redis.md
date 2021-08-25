@@ -985,6 +985,73 @@ OK
 
 
 
+```
+127.0.0.1:6379> subscribe ch1  ch2
+Reading messages... (press Ctrl-C to quit)
+1) "subscribe"
+2) "ch1"
+3) (integer) 1
+1) "subscribe"
+2) "ch2"
+3) (integer) 2
+```
+
+
+
+```
+127.0.0.1:6379> publish ch1 hello
+(integer) 1
+127.0.0.1:6379> publish ch2 hello
+(integer) 1
+
+```
+
+
+
+```
+1) "message"
+2) "ch1"
+3) "hello"
+1) "message"
+2) "ch2"
+3) "hello"
+```
+
+
+
+
+
+```
+127.0.0.1:6379> unsubscribe ch1
+1) "unsubscribe"
+2) "ch1"
+3) (integer) 0
+
+```
+
+
+
+```
+127.0.0.1:6379> psubscribe ch*
+Reading messages... (press Ctrl-C to quit)
+1) "psubscribe"
+2) "ch*"
+3) (integer) 1
+
+```
+
+
+
+```
+127.0.0.1:6379> punsubscribe ch*
+1) "punsubscribe"
+2) "ch*"
+3) (integer) 0
+
+```
+
+
+
 ### 2.1.2 发布订阅的机制
 
 
@@ -992,6 +1059,23 @@ OK
 ### 2.1.3 使用场景 哨兵模式、Redisson框架使用
 
 ## 2.2 事务
+
+```
+127.0.0.1:6379> multi
+OK
+127.0.0.1:6379> set name:3 hongloum
+QUEUED
+127.0.0.1:6379> get name:3
+QUEUED
+127.0.0.1:6379> exec
+1) OK
+2) "hongloum"
+
+```
+
+
+
+watch key key的版本（内容变了），在执行exec，就清空队列，执行失败了，watch在multi之前
 
 ### 2.2.1 ACID回顾
 
@@ -1017,17 +1101,117 @@ OK
 
 ### 2.3.4 EVAL命令
 
+![image-20210825212424112](assest/image-20210825212424112.png)
+
 ### 2.3.5 EVALSHA命令
+
+```
+127.0.0.1:6379> eval "return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}" 2 key1 key2 first second
+1) "key1"
+2) "key2"
+3) "first"
+4) "second"
+127.0.0.1:6379> eval "return redis.call('set',KEYS[1],ARGV[1])" 1 n1 zhaoyun
+OK
+127.0.0.1:6379> get n1
+"zhaoyun"
+
+```
+
+
 
 ### 2.3.6 SCRIPT命令
 
+```
+127.0.0.1:6379> script load "return redis.call('set',KEYS[1],ARGV[1])"
+"c686f316aaf1eb01d5a4de1b0b63cd233010e63d"
+127.0.0.1:6379> evalsha c686f316aaf1eb01d5a4de1b0b63cd233010e63d 1 n1 diaochan
+OK
+127.0.0.1:6379> get n1
+"diaochan"
+127.0.0.1:6379> evalsha c686f316aaf1eb01d5a4de1b0b63cd233010e63d 1 n2 diaochan222
+OK
+127.0.0.1:6379> get n2
+"diaochan222"
+```
+
+
+
 ### 2.3.7 脚本管理命令实现
 
+
+
+```
+./redis-cli -h 127.0.0.1 -p 6379 --eval test.lua name:6 , caocao
+```
+
+
+
+![image-20210825213414165](assest/image-20210825213414165.png)
+
+
+
+![image-20210825213817168](assest/image-20210825213817168.png)
+
 ### 2.3.8 脚本复制
+
+
+
+```
+127.0.0.1:6379> eval "redis.call('set',KEYS[1],ARGV[1]);redis.call('set',KEYS[2],ARGV[2])" 2 n1 n2 zhaoyun1 zhaoyun2
+(nil)
+127.0.0.1:6379> get n1
+"zhaoyun1"
+127.0.0.1:6379> get n2
+"zhaoyun2"
+
+```
+
+
+
+```
+eval "redis.replicate_commands();redis.call('set',KEYS[1],ARGV[1]);redis.call('set',KEYS[2],ARGV[2])" 2 n1 n2 zhaoyun11 zhaoyun22
+```
+
+
+
+![image-20210825215005831](assest/image-20210825215005831.png)
 
 ## 2.4 慢查询日志
 
 ### 2.4.1 慢查询日志
+
+```
+127.0.0.1:6379> config set slowlog-log-slower-than 0
+OK
+127.0.0.1:6379> config set slowlog-max-len 2
+OK
+127.0.0.1:6379> set name:001 zhaoyun
+OK
+127.0.0.1:6379> set name:002 zhangfei
+OK
+127.0.0.1:6379> get name:002
+"zhangfei"
+127.0.0.1:6379> slowlog get
+1) 1) (integer) 4
+   2) (integer) 1629900110
+   3) (integer) 3
+   4) 1) "get"
+      2) "name:002"
+   5) "127.0.0.1:41814"
+   6) ""
+2) 1) (integer) 3
+   2) (integer) 1629900104
+   3) (integer) 4
+   4) 1) "set"
+      2) "name:002"
+      3) "zhangfei"
+   5) "127.0.0.1:41814"
+   6) ""
+
+```
+
+
 
 ### 2.4.2 慢查询记录的保存
 
@@ -1039,6 +1223,26 @@ OK
 
 ## 2.5 监视器
 
+```
+127.0.0.1:6379> monitor
+OK
+1629901076.929002 [0 127.0.0.1:41728] "set" "name:10" "zhaoyun"
+1629901089.119393 [0 127.0.0.1:41728] "get" "name:10"
+
+```
+
+
+
+```
+127.0.0.1:6379> set name:10 zhaoyun
+OK
+127.0.0.1:6379> get name:10
+"zhaoyun"
+
+```
+
+
+
 ### 2.5.1 实现监视器
 
 ### 2.5.2 想监视器发送命令信息
@@ -1046,6 +1250,15 @@ OK
 ### 2.5.3 Redis监控平台
 
 # 第三部分 Redis核心原理
+
+
+
+```
+# appendfsync always
+appendfsync everysec
+# appendfsync no
+
+```
 
 
 
