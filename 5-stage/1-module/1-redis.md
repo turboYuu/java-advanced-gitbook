@@ -1135,7 +1135,7 @@ Redisson是一个分布式锁框架，在Redisson分布式锁释放的时候，�
 
 
 
-```
+```shell
 127.0.0.1:6379> multi
 OK
 127.0.0.1:6379> set name:3 hongloum
@@ -1145,7 +1145,6 @@ QUEUED
 127.0.0.1:6379> exec
 1) OK
 2) "hongloum"
-
 ```
 
 
@@ -1392,21 +1391,35 @@ OpenRestry通过Lua脚本扩展nginx功能，可提供负载均衡、请求路�
 
 通过执行redis的eval命令，可以运行一段lua脚本
 
-```
+```shell
 EVAL script numkeys key [key ...] arg [arg ...]
 ```
 
 命令说明：
 
-- script参数：是一段Lua脚本程序，它会被运行在Redis服务器上下文中，这段脚本不必（也不应该）定义为一个Lua函数。
-- numkeys参数：用于执行键名参数的个数。
-- key[key...]参数：
+- **script参数**：是一段Lua脚本程序，它会被运行在Redis服务器上下文中，这段脚本不必（也不应该）定义为一个Lua函数。
+- **numkeys参数**：用于执行键名参数的个数。
+- **key[key...]参数**：从EVAL的第三个参数开始算起，使用numkeys个键（key），表示在脚本中所用到的那些Redis键（key），这些键名参数可以在lua中通过全局变量KEYS数组，用1为基址的形式访问（KEY[1]，KEY[2]，依次类推）。
+- **arg[arg...]参数**：可以在Lua中通过全局变量ARGV数组访问，访问形式和KEYS变量类似（ARGV[1], ARGV[2], 诸如此类）。
+
+```shell
+eval "return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}" 2 key1 key2 first second
+```
 
 ![image-20210825212424112](assest/image-20210825212424112.png)
 
-#### EVALSHA命令
+#### lua脚本中调用Redis命令
 
-```
+- redis.call()
+  - 返回值就是redis命令执行的返回值
+  - 如果出错，则返回错误信息，不继续执行
+- redis.pcall()
+  - 返回值就是redis命令执行的返回值
+  - 如果出错，则记录错误信息，继续执行
+- 注意：
+  - 在脚本中，使用return语句返回值返回给客户端，如果没有return，则返回nil
+
+```shell
 127.0.0.1:6379> eval "return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}" 2 key1 key2 first second
 1) "key1"
 2) "key2"
@@ -1416,65 +1429,124 @@ EVAL script numkeys key [key ...] arg [arg ...]
 OK
 127.0.0.1:6379> get n1
 "zhaoyun"
-
 ```
 
 
+
+#### EVALSHA命令
+
+EVAL命令要求在每次执行脚本的时候都发送依次脚本主体（script body）。
+
+Redis有一个内部缓存机制，因为它不会每次都重新编译脚本，不过付出无谓的带宽来传送脚本主体并不是最佳选择。
+
+Redis实现了EVALSHA命令，它的作用和EVAL一样，都用于对脚本求值，但它接受的第一个参数不是脚本，而是脚本的SHA1校验和（SUM）。
 
 ### 2.3.6 SCRIPT命令
 
-```
-127.0.0.1:6379> script load "return redis.call('set',KEYS[1],ARGV[1])"
-"c686f316aaf1eb01d5a4de1b0b63cd233010e63d"
-127.0.0.1:6379> evalsha c686f316aaf1eb01d5a4de1b0b63cd233010e63d 1 n1 diaochan
-OK
-127.0.0.1:6379> get n1
-"diaochan"
-127.0.0.1:6379> evalsha c686f316aaf1eb01d5a4de1b0b63cd233010e63d 1 n2 diaochan222
-OK
-127.0.0.1:6379> get n2
-"diaochan222"
-```
+- SCRIPT FLUSH：清除所有脚本缓存
 
+- SCRIPT EXISTS：根据给定的脚本校验和，检查指定的脚本是否存在于脚本缓存
 
+- SCRIPT LOAD：将一个脚本装入脚本缓存，返回SHA1摘要，但并不立即运行它
+
+  ```shell
+  127.0.0.1:6379> script load "return redis.call('set',KEYS[1],ARGV[1])"
+  "c686f316aaf1eb01d5a4de1b0b63cd233010e63d"
+  127.0.0.1:6379> evalsha c686f316aaf1eb01d5a4de1b0b63cd233010e63d 1 n1 diaochan
+  OK
+  127.0.0.1:6379> get n1
+  "diaochan"
+  127.0.0.1:6379> evalsha c686f316aaf1eb01d5a4de1b0b63cd233010e63d 1 n2 diaochan222
+  OK
+  127.0.0.1:6379> get n2
+  "diaochan222"
+  ```
+
+- SCRIPT KILL：杀死当前正在运行的脚本
 
 ### 2.3.7 脚本管理命令实现
 
+使用redis-cli直接执行lua。
 
+编辑test.lua
 
+```shell
+return redis.call('set',KEYS[1],ARGV[1])
 ```
+
+```shell
+#执行lua脚本，注意key和value中间的逗号，两边有空格
 ./redis-cli -h 127.0.0.1 -p 6379 --eval test.lua name:6 , caocao
 ```
 
-
-
 ![image-20210825213414165](assest/image-20210825213414165.png)
 
+编辑list.lua
 
+```shell
+local key=KEYS[1]
+local list=redis.call("lrange",key,0,-1); 
+return list;
+```
+
+运行list.lua
+
+```shell
+./redis-cli --eval list.lua list
+```
 
 ![image-20210825213817168](assest/image-20210825213817168.png)
 
+**利用Redis整合Lua，主要是为了性能以及事务的原子性**。因为Redis提供的事务功能太差。
+
 ### 2.3.8 脚本复制
 
+Redis传播Lua脚本，在使用主从模式和开启AOF持久化的前提下：
 
+当执行lua脚本时，Redis服务器有两种模式：脚本传播模式和命令传播模式。
 
-```
+#### 2.3.8.1 脚本传播模式
+
+脚本传播模式是Redis复制脚本时默认使用的模式。Redis会将被执行的脚本及其参数复制到AOF文件以及服务器里面。
+
+执行以下命令：
+
+```shell
 127.0.0.1:6379> eval "redis.call('set',KEYS[1],ARGV[1]);redis.call('set',KEYS[2],ARGV[2])" 2 n1 n2 zhaoyun1 zhaoyun2
 (nil)
 127.0.0.1:6379> get n1
 "zhaoyun1"
 127.0.0.1:6379> get n2
 "zhaoyun2"
-
 ```
 
+那么主服务器将向从服务器发送完全相同的eval命令：
 
-
+```shell
+eval "redis.call('set',KEYS[1],ARGV[1]);redis.call('set',KEYS[2],ARGV[2])" 2 n1 n2 zhaoyun1 zhaoyun2
 ```
+
+注意：在这一模式下执行的脚本不能有时间、内部状态，随机函数（spop）等。执行相同的脚本以及参数必须产生相同的效果。在Redis5，也是处于同一事务中。
+
+#### 2.3.8.2 命令传播模式
+
+处于命令传播模式的主服务器会将执行的脚本产生的所有写命令用事务包裹起来，然后将事务复制到AOF文件以及从服务器里面。
+
+因为命令传播模式复制的是写命令而不是脚本本身，所以即使脚本本身包含时间，内部状态、随机函数等，主服务器给所有从服务器复制的写命令仍然是相同的。
+
+为了开启命令传播模式，用户在使用脚本执行任何写操作之前，需要先在脚本里面调用以下函数：
+
+```shell
+redis.replicate_commands()
+```
+
+redis.replicate_commands()只对调用该函数的脚本有效：在使用命令传播模式执行完当前脚本后，服务器将自动切换回默认的脚本传播模式。
+
+举例：
+
+```shell
 eval "redis.replicate_commands();redis.call('set',KEYS[1],ARGV[1]);redis.call('set',KEYS[2],ARGV[2])" 2 n1 n2 zhaoyun11 zhaoyun22
 ```
-
-
 
 ![image-20210825215005831](assest/image-20210825215005831.png)
 
@@ -1955,11 +2027,34 @@ root      2011  1562  0 19:32 pts/0    00:00:00 grep --color=auto redis
 
 ### 5.3.1 分区的意义
 
+- 性能的提升
+
+  单机Redis的网络IO能力和计算是有限的，
+
+- 存储能力的横向扩展
+
 ### 5.3.2 分区的方式
+
+#### 5.3.2.1 范围分区
+
+#### 5.3.2.2 hash分区
 
 ### 5.3.3 client端分区
 
+#### 5.3.3.1 部署方案
 
+![image-20210829155920247](assest/image-20210829155920247.png)
+
+#### 5.3.3.2 客户端选择算法
+
+##### hash
+
+##### 一致性hash
+
+#### 5.3.3.3 缺点
+
+- 复杂度高
+- 不易扩展
 
 ### 5.3.4 proxy端分区
 
@@ -2440,7 +2535,17 @@ OK
 
 ##### 故障检测
 
-集群中的每个节点都会定期的（每秒）向集群中的其他节点发送PING消息
+集群中的每个节点都会定期的（每秒）向集群中的其他节点发送PING消息。
+
+如果在一定时间内（cluster-node-timeout），发送的节点A没有收到节点B的pong相应，则A将B标识为pfail。
+
+A在后续发送ping时，会带上B的pfail信息，通知其他节点。如果B被标记为pfail的个数大于集群主节点个数的一半（N/2+1）时，B会被标记为fail，A向整个集群广播，该节点已经下线。
+
+其他节点收到广播，标记B为fail。
+
+**从节点选择**
+
+
 
 ##### 变更通知
 
