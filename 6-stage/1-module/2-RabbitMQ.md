@@ -276,6 +276,41 @@ Setting permissions for user "root" in vhost "/" ...
 
 ## 1.3 RabbitMQ常用操作命令
 
+
+
+![image-20210831230535830](assest/image-20210831230535830.png)
+
+erlang port mapper daemon 端口管理，负责通信
+
+```shell
+# 前台启动Erlang VM和RabbitMQ
+rabbitmq-server
+
+# 后台启动
+rabbitmq-server -detache
+
+# 停止RabbitMQ和Erlang VM
+rabbitmqctl stop
+
+#查看所有队列
+rabbitmqctl list_queues
+systemctl start rabbitmq-server
+
+# 查看所有虚拟主机
+rabbitmqctl list_vhosts
+rabbitmqctl list_vhosts --formatter pretty_table
+
+# 在Erlang VM运行的情况下启动/关闭RabbitMQ应用
+rabbitmqctl start_app
+rabbitmqctl stop_app
+```
+
+
+
+
+
+
+
 ## 1.4 RabbitMQ工作流程详解
 
 ## 1.5 RabbitMQ工作模式详解
