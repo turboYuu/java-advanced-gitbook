@@ -207,6 +207,8 @@ rabbitmq-plugins enable rabbitmq_management
 
 ![image-20210831002639888](assest/image-20210831002639888.png)
 
+![image-20210901143623608](assest/image-20210901143623608.png)
+
 5.开启RabbitMQ
 
 ```shell
@@ -303,9 +305,149 @@ rabbitmqctl list_vhosts --formatter pretty_table
 # 在Erlang VM运行的情况下启动/关闭RabbitMQ应用
 rabbitmqctl start_app
 rabbitmqctl stop_app
+
+#查看节点状态
+rabbitmqctl status
+```
+
+```shell
+[root@localhost plugins]# pwd
+/usr/lib/rabbitmq/lib/rabbitmq_server-3.8.5/plugins 	#rabbit插件地址
+
+#查看启动插件和关联启动插件
+[root@localhost plugins]# rabbitmq-plugins list --implicitly-enabled 
+Listing plugins with pattern ".*" ...
+ Configured: E = explicitly enabled; e = implicitly enabled
+ | Status: * = running on rabbit@localhost
+ |/
+[E*] rabbitmq_management       3.8.5
+[e*] rabbitmq_management_agent 3.8.5
+[e*] rabbitmq_web_dispatch     3.8.5
+
+# 查看插件 使用正则
+[root@localhost plugins]# rabbitmq-plugins list "discovery"
+Listing plugins with pattern "discovery" ...
+ Configured: E = explicitly enabled; e = implicitly enabled
+ | Status: * = running on rabbit@localhost
+ |/
+[  ] rabbitmq_peer_discovery_aws    3.8.5
+[  ] rabbitmq_peer_discovery_common 3.8.5
+[  ] rabbitmq_peer_discovery_consul 3.8.5
+[  ] rabbitmq_peer_discovery_etcd   3.8.5
+[  ] rabbitmq_peer_discovery_k8s    3.8.5
+[root@localhost plugins]# rabbitmq-plugins list "examples$"
+Listing plugins with pattern "examples$" ...
+ Configured: E = explicitly enabled; e = implicitly enabled
+ | Status: * = running on rabbit@localhost
+ |/
+[  ] rabbitmq_web_mqtt_examples  3.8.5
+[  ] rabbitmq_web_stomp_examples 3.8.5
+
+# 启用插件
+rabbitmqctl-plugins enable <plugin-name>
+# 停用插件
+rabbitmqctl-plugins disable <plugin-name>
+```
+
+![image-20210901145447113](assest/image-20210901145447113.png)
+
+```shell
+# 添加用户
+[root@localhost plugins]# rabbitmqctl add_user zhangsan 123456
+Adding user "zhangsan" ...
+
+# 添加用户标签
+[root@localhost plugins]# rabbitmqctl set_user_tags zhangsan administrator
+Setting tags for user "zhangsan" to [administrator] ...
+
+# 设置用户权限
+[root@localhost plugins]# rabbitmqctl set_permissions --vhost / zhangsan "^$" ".*" ".*"
+Setting permissions for user "zhangsan" in vhost "/" ...
+
+# 列出用户权限
+[root@localhost plugins]# rabbitmqctl list_user_permissions zhangsan
+Listing permissions for user "zhangsan" ...
+vhost	configure	write	read
+/	^$	.*	.*
+
+#清空用户权限
+[root@localhost plugins]# rabbitmqctl clear_permissions zhangsan
+Clearing permissions for user "zhangsan" in vhost "/" ...
+
+[root@localhost plugins]# rabbitmqctl list_user_permissions zhangsan
+Listing permissions for user "zhangsan" ...
+
+# 列出虚拟机上的权限
+[root@localhost plugins]# rabbitmqctl list_permissions
+Listing permissions for vhost "/" ...
+user	configure	write	read
+root	.*	.*	.*
+guest	.*	.*	.*
+
+# 清除用户标签
+[root@localhost plugins]# rabbitmqctl set_user_tags zhangsan ""
+Setting tags for user "zhangsan" to [] ...
+
+# 列出用户
+[root@localhost plugins]# rabbitmqctl list_users
+Listing users ...
+user	tags
+guest	[administrator]
+zhangsan	[]
+root	[administrator]
+
+# 删除用户
+[root@localhost plugins]# rabbitmqctl delete_user zhangsan
+Deleting user "zhangsan" ...
+
+# 列出用户
+[root@localhost plugins]# rabbitmqctl list_users
+Listing users ...
+user	tags
+guest	[administrator]
+root	[administrator]
+
+# 修改密码
+[root@localhost plugins]# rabbitmqctl change_password root 111111
+Changing password for user "root" ...
+
 ```
 
 
+
+```shell
+# 创建虚拟主机
+[root@localhost plugins]# rabbitmqctl add_vhost vh1
+Adding vhost "vh1" ...
+
+# 列出所有虚拟主机
+[root@localhost plugins]# rabbitmqctl list_vhosts
+Listing vhosts ...
+name
+vh1
+/
+
+# 删除虚拟主机
+[root@localhost plugins]# rabbitmqctl delete_vhost vh1
+Deleting vhost "vh1" ...
+[root@localhost plugins]# rabbitmqctl list_vhosts
+Listing vhosts ...
+name
+/
+
+
+[root@localhost plugins]# rabbitmqctl stop_app
+Stopping rabbit application on node rabbit@localhost ...
+# 移除所有数据之前，要在rabbitmqctl stop_app之后
+[root@localhost plugins]# rabbitmqctl reset
+Resetting node rabbit@localhost ...
+[root@localhost plugins]# rabbitmqctl start_app
+Starting node rabbit@localhost ...
+[root@localhost plugins]# rabbitmqctl list_vhosts
+Listing vhosts ...
+name
+/
+```
 
 
 
