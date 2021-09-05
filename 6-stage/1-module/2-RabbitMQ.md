@@ -278,7 +278,9 @@ Setting permissions for user "root" in vhost "/" ...
 
 ## 1.3 RabbitMQ常用操作命令
 
+查看rabbitmq手册 `man rabbitmq-server`，如果配置了配置文件，在`rabbitmqctl status`时会看到。
 
+![image-20210905181539755](assest/image-20210905181539755.png)
 
 ![image-20210831230535830](assest/image-20210831230535830.png)
 
@@ -289,7 +291,7 @@ erlang port mapper daemon 端口管理，负责通信
 rabbitmq-server
 
 # 后台启动
-rabbitmq-server -detache
+rabbitmq-server -detached
 
 # 停止RabbitMQ和Erlang VM
 rabbitmqctl stop
@@ -308,6 +310,11 @@ rabbitmqctl stop_app
 
 #查看节点状态
 rabbitmqctl status
+
+Interface: [::], port: 25672, protocol: clustering, purpose: inter-node and CLI tool communication
+Interface: [::], port: 5672, protocol: amqp, purpose: AMQP 0-9-1 and AMQP 1.0
+Interface: [::], port: 15672, protocol: http, purpose: HTTP API
+
 ```
 
 ```shell
@@ -451,18 +458,246 @@ name
 
 
 
-
-
 ## 1.4 RabbitMQ工作流程详解
+
+###  1.4.1 生产者发送消息的流程
+
+1.生产者连接RabbitMQ，建立TCP连接（Connection），开启通道（Channel）
+
+2.生产者声明一个Exchange（交换器），并设置相关属性，比如交换器类型，是否持久化等
+
+3.生产者声明一个队列并设置相关属性，比如是否排他、是否持久化、是否自动删除等
+
+4.生产者通过`bindingkey`（绑定key）将交换器和队列绑定（`binding`）起来
+
+5.生产者发送消息至RabbitMQ Broker，其中包含`routingKey`（路由键）、交换器等信息
+
+6.相应的交换器根据接受到的`routingkey`查找相匹配的队列。
+
+7.如果找到，则将从生产者发送过来的信息存入相应的队列中。
+
+8.如果没有找到，则根据生产者配置的属性选择丢弃还是回退给生产者
+
+9.关闭信道
+
+10.关闭连接
+
+### 1.4.2 消费者接受消息的过程
+
+1.消费者连接到RabbitMQ Broker，建立一个连接（Connection），开启一个信道（Channel）。
+
+2.消费者向RabbitMQ Broker请求消费相应队列中的消息，可能会设置相应的回调函数，以及做一些准备工作。
+
+3.等待RabbitMQ Broker回应并投递相应队列种的消息，消费者接收消息。
+
+4.消费者确认（ack）接收到的消息。
+
+5.RabbitMQ从队列中删除相应已经被确认的消息。
+
+6.关闭信道。
+
+7.关闭连接。
+
+### 1.4.3 案例
+
+![image-20210903111444636](assest/image-20210903111444636.png)
+
+
+
+一对一简单模式，生产者直接发送消息给RabbitMQ，另一端消费。未定义和指定Exchange的情况下，使用的是AMQP default这个内置的Exchange。
+
+https://gitee.com/turboYuu/rabbit-mq-6-1/tree/master/lab/rabbit-demo/demo_02_rabbitmq
+
+### 1.4.4 Connection和Channel关系
+
+
 
 ## 1.5 RabbitMQ工作模式详解
 
+1.5.1 Work Queue
+
+
+
+1.5.2 发布订阅模式
+
+```
+rabbitmqctl list_exchanges --formatter pretty_table
+```
+
+![image-20210904141917484](assest/image-20210904141917484.png)
+
+
+
+```
+rabbitmqctl list_bindings --formatter pretty_table
+```
+
+![image-20210904142106438](assest/image-20210904142106438.png)
+
+
+
+生成的临时队列名称为：amq.gen-2_X5vNhI6_ZihUJ3taFpYQ
+
+
+
+默认交换器
+
+
+
+### 1.5.3 路由模式
+
+
+
+### 1.5.4 direct交换器
+
+
+
+### 1.5.5 主题模式
+
+
+
+![image-20210904162608763](assest/image-20210904162608763.png)
+
 ## 1.6 Spring整合RabbitMQ
+
+### 1.6.1 基于配置文件的整合
+
+
+
+### 1.6.2 基于注解的整合
 
 ## 1.7 SpringBoot整合RabbitMQ
 
+
+
+
+
 # 2 RabbitMQ高级特性解析
+
+```
+[root@node1 /]# cat /usr/local/bin/resetrabbit 
+#!/bin/bash
+rabbitmqctl stop_app
+rabbitmqctl reset
+rabbitmqctl start_app
+rabbitmqctl add_user root 123456
+rabbitmqctl set_user_tags root administrator
+rabbitmqctl set_permissions --vhost / root ".*" ".*" ".*"
+```
+
+
+
+## 2.1 消息可靠性
+
+### 2.1.1 异常捕获机制
+
+### 2.1.2 AMQP/RabbitMQ的事务机制
+
+### 2.1.3 发送端确认机制
+
+### 2.1.4 持久化存储机制
+
+![image-20210905162445181](assest/image-20210905162445181.png)
+
+![image-20210905162947803](assest/image-20210905162947803.png)
+
+### 2.1.5 Consumer ACK
+
+### 2.1.6 消费端限流
+
+### 2.1.7 消费可靠性保障
+
+### 2.1.8 消费幂等性处理
+
+
+
+## 2.2 可靠性分析
+
+开启Firehose命令
+
+```shell
+rabbitmqctl trace_on [-p vhost]
+```
+
+其中[-p vhost]是可选参数，用来指定虚拟主机vhost。
+
+对应的关闭命令
+
+```
+rabbitmqctl trace_off [-p vhost]
+```
+
+![image-20210905191733551](assest/image-20210905191733551.png)
+
+
+
+![image-20210905195549407](assest/image-20210905195549407.png)
+
+![image-20210905200437481](assest/image-20210905200437481.png)
+
+![image-20210905200502404](assest/image-20210905200502404.png)
+
+
+
+## 2.3 TTL机制
+
+
+
+```
+rabbitmqctl set_policy q.ttl ".*" '{"message-ttl":20000}' --apply-to queues
+rabbitmqctl set_policy q.ttl ".*" '{"message-ttl":20000,"expires":10000}' --apply-to queues
+```
+
+![image-20210905204823473](assest/image-20210905204823473.png)
+
+![image-20210905204648123](assest/image-20210905204648123.png)
+
+## 2.4 死信队列
+
+
+
+## 2.5 延迟队列
+
+
 
 # 3 RabbitMQ集群与运维
 
+## 3.1 集群方案原理
+
+## 3.2 单机多实例部署
+
+## 3.3 集群管理
+
+## 3.4 RabbitMQ镜像集群配置
+
+## 3.5 负载均衡-HAProxy
+
+## 3.6 监控
+
+
+
 # 4 RabbitMQ源码剖析
+
+## 4.1 队列
+
+## 4.2 交换器
+
+## 4.3 持久化
+
+
+
+### 4.3.1 消息入队分析
+
+### 4.3.2 消息出队源码分析
+
+## 4.4 启动过程
+
+## 4.5 消息的发送
+
+## 4.6 消息的消费
+
+### 4.6.1 两种方式：推拉
+
+### 4.6.2 拉消息的代码实现
+
+### 4.6.3 推消息的代码实现
