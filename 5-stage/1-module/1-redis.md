@@ -1125,9 +1125,9 @@ struct redisServer {
 
 ### 2.1.3 使用场景 哨兵模式、Redisson框架使用
 
-在Redis哨兵模式中，哨兵通过发布与订阅的方式与Redis主服务器和Redis从服务器进行通信。
+在**Redis哨兵模式**中，哨兵通过发布与订阅的方式与Redis主服务器和Redis从服务器进行通信。
 
-Redisson是一个分布式锁框架，在Redisson分布式锁释放的时候，是使用发布与订阅的方式通知的。
+**Redisson是一个分布式锁框架**，在Redisson分布式锁释放的时候，是使用发布与订阅的方式通知的。
 
 ## 2.2 事务
 
@@ -1229,7 +1229,7 @@ OK
 
 ### 2.2.4 事务机制
 
-#### 事务的执行
+#### 2.2.4.1 事务的执行
 
 1.事务开始
 
@@ -1286,7 +1286,7 @@ typedef struct multiCmd{    
 
 
 
-#### Watch的执行
+#### 2.2.4.2 Watch的执行
 
 使用WATCH命令监视数据库键
 
@@ -1313,7 +1313,7 @@ typedef struct redisDb{
 
 
 
-#### Redis的弱事务性
+#### 2.2.4.3 Redis的弱事务性
 
 - Redis语法错误
 
@@ -1548,13 +1548,70 @@ redis.replicate_commands()只对调用该函数的脚本有效：在使用命令
 eval "redis.replicate_commands();redis.call('set',KEYS[1],ARGV[1]);redis.call('set',KEYS[2],ARGV[2])" 2 n1 n2 zhaoyun11 zhaoyun22
 ```
 
+那么主服务器从服务器复制以下命令：
+
+```
+EXEC 
+*1
+$5
+MULTI 
+*3
+$3
+set
+$2
+n1
+$9
+zhaoyun11 
+*3
+$3
+set
+$2
+n2
+$9
+zhaoyun22 
+*1
+$4
+EXEC
+```
+
+
+
 ![image-20210825215005831](assest/image-20210825215005831.png)
+
+### 2.3.9 管道（pipline），事务和脚本（lua）三者的区别
+
+三者都可以批量执行命令
+
+管道无原子性，命令都是独立的，属于无状态的操作
+
+事务和脚本是有原子性的，其区别在于脚本可借助于Lua语言可在服务器端存储的便利性定制和简化操作。
+
+脚本的原子性要强于事务，脚本执行期间，另外的客户端其他任何脚本或者命令都无法执行，脚本的执行时间应该尽量短，不能太耗时。
 
 ## 2.4 慢查询日志
 
 ### 2.4.1 慢查询日志
 
+在Redis.conf中可以配置和慢查询日志相关的选项：
+
+```shell
+#执行时间超过多少微秒的命令请求会被记录到日志上 0 :全记录 <0 不记录 
+slowlog-log-slower-than 10000
+#slowlog-max-len 存储慢查询日志条数 
+slowlog-max-len 128
 ```
+
+Redis使用列表存储慢查询日志，采用队列方式（FIFO）
+
+config set的方式可以临时设置，redis重启后无效
+
+> config set slowlog-log-slower-than 微秒
+>
+> config set slowlog-max-len 条数
+>
+> 查看日志 slowlog get [n]
+
+```shell
 127.0.0.1:6379> config set slowlog-log-slower-than 0
 OK
 127.0.0.1:6379> config set slowlog-max-len 2
@@ -1566,10 +1623,10 @@ OK
 127.0.0.1:6379> get name:002
 "zhangfei"
 127.0.0.1:6379> slowlog get
-1) 1) (integer) 4
-   2) (integer) 1629900110
-   3) (integer) 3
-   4) 1) "get"
+1) 1) (integer) 4				#日志的唯一标识符
+   2) (integer) 1629900110		#命令执行时间的UNIX时间戳
+   3) (integer) 3				#命令执行的时长（微秒）
+   4) 1) "get"					#执行命令及参数
       2) "name:002"
    5) "127.0.0.1:41814"
    6) ""
@@ -1581,22 +1638,159 @@ OK
       3) "zhangfei"
    5) "127.0.0.1:41814"
    6) ""
-
 ```
-
-
 
 ### 2.4.2 慢查询记录的保存
 
+在redisServer中保存和慢查询日志相关的信息
+
+```c
+struct redisServer {    
+	// ...
+   
+   	// 下一条慢查询日志的     ID
+   	long long slowlog_entry_id;
+   	
+   	// 保存了所有慢查询日志的链表         FIFO    
+   	list *slowlog;  
+   	
+   	// 服务器配置     slowlog-log-slower-than 选项的值    
+   	long long slowlog_log_slower_than;
+   	
+   	// 服务器配置     slowlog-max-len 选项的值    
+   	unsigned long slowlog_max_len;
+   	// ... 
+};
+```
+
+`lowlog`链表保存了服务器中的所有慢查询日志，链表中的每个节点都保存了一个`slowlogEntry`结构，每个`slowlogEntry`结构代表一条慢查询日志。
+
+```c
+typedef struct slowlogEntry {    
+	// 唯一标识符
+   	long long id;
+   	
+   	// 命令执行时的时间，格式为UNIX 时间戳    
+   	time_t time;
+   	
+   	// 执行命令消耗的时间，以微秒为单位    
+   	long long duration;
+   	
+   	// 命令与命令参数
+   	robj **argv;
+   	
+   	// 命令与命令参数的数量    
+   	int argc;
+   	
+} slowlogEntry;
+```
+
 ### 2.4.3 慢查询日志的阅览和删除
+
+初始化日志列表
+
+```c
+void slowlogInit(void) {
+   server.slowlog = listCreate();    /* 创建一个list列表*/    
+   server.slowlog_entry_id = 0;      /* 日志ID从0开始*/
+   listSetFreeMethod(server.slowlog,slowlogFreeEntry);  /* 指定慢查询日志list空间 的释放方法*/
+}
+```
+
+获取慢查询日志记录 slowlog get [n]
+
+```c
+def SLOWLOG_GET(number=None):
+   	# 用户没有给定     number 参数
+   	# 那么打印服务器包含的全部慢查询日志    
+   	if number is None:
+		number = SLOWLOG_LEN()   
+        
+	# 遍历服务器中的慢查询日志
+   	for log in redisServer.slowlog:
+		if number <= 0:
+			# 打印的日志数量已经足够，跳出循环
+           	break        
+		else:
+			# 继续打印，将计数器的值减一            
+			number -= 1
+		# 打印日志
+		printLog(log)
+```
+
+查看日志数量 slowlog len
+
+```c
+def SLOWLOG_LEN():
+	# slowlog 链表的长度就是慢查询日志的条目数量    
+	return len(redisServer.slowlog)
+```
+
+清除日志 slowlog reset
+
+```c
+def SLOWLOG_RESET():
+	# 遍历服务器中的所有慢查询日志
+   	for log in redisServer.slowlog:        
+   		# 删除日志
+       	deleteLog(log)
+```
+
+
 
 ### 2.4.4 添加日志实现
 
+在每次执行命令的之前和之后，程序都会记录微秒格式的当前UNIX时间戳，这两个时间戳之间的差就是服务器执行命令所耗费的时长，服务器会将这个时长作为参数之一传给`slowlogPushEntryIfNeeded`函数，而`slowlogPushEntryIfNeeded`函数则负责检查是否需要为这次执行的命令创建慢查询日志。
+
+```c
+// 记录执行命令前的时间
+before = unixtime_now_in_us() 
+
+//执行命令
+execute_command(argv, argc, client) 
+    
+//记录执行命令后的时间
+after = unixtime_now_in_us() 
+    
+// 检查是否需要创建新的慢查询日志
+slowlogPushEntryIfNeeded(argv, argc, before-after)
+
+void slowlogPushEntryIfNeeded(robj **argv, int argc, long long duration) {
+	if (server.slowlog_log_slower_than < 0) return; /* Slowlog disabled */ /* 负 数表示禁用 */
+	if (duration >= server.slowlog_log_slower_than) /* 如果执行时间 > 指定阈值*/   
+		/* 创建一个slowlogEntry对象,添加到列表首部*/
+        listAddNodeHead(server.slowlog,slowlogCreateEntry(argv,argc,duration));
+    
+    /* 如果列表长度>指定长度 */
+	while (listLength(server.slowlog) > server.slowlog_max_len) 
+		listDelNode(server.slowlog,listLast(server.slowlog));  /* 移除列表尾部元素 */
+}
+```
+
+`slowlogPushEntryIfNeeded`函数的作用有两个：
+
+- 检查命令的执行时长是否超过`slowlog-log-slower-than`选项所设置的时间，如果是的话，就为命令创建一个新的日志，并将新日志添加到`slowlog`链表的表头。
+- 检查慢日志的长度是否超过`slowlog-max-len`选项所设置的长度，如果是，将多出来的日志从`slowlog`链表中删除。
+
 ### 2.4.5 慢查询定位和处理
+
+使用slowlog get可以获得执行较慢的redis命令，针对该命令可以进行优化：
+
+1.尽量使用短key，对于vlaue有些也可精简，能使用int就使用int.
+
+
 
 ## 2.5 监视器
 
-```
+Redis酷虎点通过执行monitor命令可以将自己编程一个监视器，实时的接受并打印出服务器当前处理的命令请求的相关信息。
+
+此时，其他客户端向服务器发送一条命令请求时，服务器除了会处理这条命令请求之外，还会将这条命令请求的信息发送给所有的监视器。
+
+![image-20210901111854870](assest/image-20210901111854870.png)
+
+Redis 客户端1
+
+```shell
 127.0.0.1:6379> monitor
 OK
 1629901076.929002 [0 127.0.0.1:41728] "set" "name:10" "zhaoyun"
@@ -1604,7 +1798,7 @@ OK
 
 ```
 
-
+Redis 客户端2
 
 ```
 127.0.0.1:6379> set name:10 zhaoyun
@@ -1618,6 +1812,8 @@ OK
 
 ### 2.5.1 实现监视器
 
+
+
 ### 2.5.2 想监视器发送命令信息
 
 ### 2.5.3 Redis监控平台
@@ -1628,15 +1824,90 @@ OK
 
 ### 3.1.1 为什么要持久化
 
+Redis是内存数据库，宕机后数据会消失。
+
+Redis重启后快速恢复数据，要提供持久化机制
+
+Redis持久化是为了快速的恢复数据而不是为了存储数据
+
+Redis有两种持久化方式：RDB和AOF
+
+注意：Redis持久化不保证数据的完整性。
+
+数量较小，不易改变，比如：字典库（xml、Table）
+
+通过info命令可以查看关于持久化的信息
+
+```shell
+# Persistence
+loading:0
+rdb_changes_since_last_save:2
+rdb_bgsave_in_progress:0
+rdb_last_save_time:1630474564
+rdb_last_bgsave_status:ok
+rdb_last_bgsave_time_sec:-1
+rdb_current_bgsave_time_sec:-1
+rdb_last_cow_size:0
+aof_enabled:1
+aof_rewrite_in_progress:0
+aof_rewrite_scheduled:0
+aof_last_rewrite_time_sec:-1
+aof_current_rewrite_time_sec:-1
+aof_last_bgrewrite_status:ok
+aof_last_write_status:ok
+aof_last_cow_size:0
+aof_current_size:208
+aof_base_size:208
+aof_pending_rewrite:0
+aof_buffer_length:0
+aof_rewrite_buffer_length:0
+aof_pending_bio_fsync:0
+aof_delayed_fsync:0
+```
+
+
+
 ### 3.1.2 RDB
+
+RDB（Redis DataBase），是Redis默认的存储方式，RDB方式是通过快照（`snapshotting`）完成的。只是这一刻的数据，不关注过程。
 
 #### 3.1.2.1 触发快照的方式
 
+- 复合自定义配置的快照规则
+- 执行save或者bgsave命令
+- 执行flushall命令
+- 执行主从复制操作（第一次）
+
 #### 3.1.2.2 配置参数定期执行
+
+在redis.conf中配置：save，多少秒内数据变了多少
+
+```shell
+#   save "" #不使用RDB存储，不能主从
+
+save 900 1		#表示15分钟（900秒）内至少1个键被更改则进行快照
+save 300 10		#表示5分钟（300秒）内至少10个键被更改则进行快照
+save 60 10000	#表示1分钟内至少10000个键被修改进行快照
+```
+
+漏斗设计 提供性能
 
 #### 3.1.2.3 命令显示触发
 
+在客户端输入bgsave命令。
+
+```
+127.0.0.1:6379> bgsave
+Background saving started
+```
+
+
+
 ### 3.1.3 RDB执行流程（原理）
+
+![image-20210901142106077](assest/image-20210901142106077.png)
+
+
 
 ### 3.1.4 RDB文件结构
 
@@ -1945,7 +2216,7 @@ sentinel down-after-milliseconds mymaster 3000
 
 
 
-Redis-Sentinel1 127.0.0.1 26380
+Redis-Sentinel2 127.0.0.1 26380
 
 ```shell
 #1.安装redis-sentinel2
@@ -1955,11 +2226,7 @@ cp -r /var/redis-ms/redis-sentinel1/* /var/redis-ms/redis-sentinel2
 
 ```
 
-
-
-
-
-Redis-Sentinel1 127.0.0.1 26381
+Redis-Sentinel3 127.0.0.1 26381
 
 ```shell
 #1.安装redis-sentinel3
