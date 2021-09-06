@@ -284,7 +284,7 @@ Setting permissions for user "root" in vhost "/" ...
 
 ![image-20210831230535830](assest/image-20210831230535830.png)
 
-erlang port mapper daemon 端口管理，负责通信
+erlang port mapper daemon 端口管理，负责通信 epmd 4369 端口号
 
 ```shell
 # 前台启动Erlang VM和RabbitMQ
@@ -658,13 +658,75 @@ rabbitmqctl set_policy q.ttl ".*" '{"message-ttl":20000,"expires":10000}' --appl
 
 ## 2.5 延迟队列
 
+https://github.com/rabbitmq/rabbitmq-delayed-message-exchange/releases/tag/v3.8.0
 
+![image-20210906110719127](assest/image-20210906110719127.png)
+
+
+
+![image-20210906112214539](assest/image-20210906112214539.png)
+
+
+
+![image-20210906112439362](assest/image-20210906112439362.png)
+
+```
+rabbitmq-plugins enable rabbitmq_delayed_message_exchange
+```
+
+![image-20210906112542811](assest/image-20210906112542811.png)
+
+![image-20210906112901506](assest/image-20210906112901506.png)
 
 # 3 RabbitMQ集群与运维
 
 ## 3.1 集群方案原理
 
+### 3.1.1 业界实践
+
+### 3.1.2 常用负载均衡算法
+
+### 3.1.3 网络中的而经典问题
+
+### 3.1.4 rabbitMQ分布式架构模式
+
+#### 主备模式
+
+#### Shovel铲子模式
+
+#### RabbitMQ集群
+
+##### 镜像队列模式
+
+##### Federation联邦模式
+
 ## 3.2 单机多实例部署
+
+此处在单机版本基础上，也就是一台Linux虚拟机上启动多个RabbitMQ实例，部署集群。
+
+1 在单个Linux虚拟机上运行多个RabbitMQ实例
+
+- 多个RabbitMQ使用的端口号不能冲突
+- 多个RabbitMQ使用的磁盘存储路径不能冲突
+- 多个RabbitMQ的配置文件不能冲突
+
+在单个Linux虚拟机上运行多个RabbitMQ实例，涉及到RabbitMQ虚拟主机的名称不能重复，每个RabbitMQ使用的端口号不能重复。
+
+`PABBITMQ_NODE_PORT`用于设置RabbitMQ的服务发现，对外发布的其他端口在这个端口基础上计算得来。
+
+| 端口号     | 说明                                                         |
+| ---------- | ------------------------------------------------------------ |
+| 4369       | empd，RabbitMQ节点和CLI工具使用的对等发现服务                |
+| 5672、5671 | 分别为不带TLS和带TLS的AMQP 0-9-1和1.0客户端使用              |
+| 25672      | 用于节点键=间和CLI工具通信（Erlang分发服务端口），并从动态范围分配（默认情况下为单个端口，计算为AMQP端口+20000）。一般这些端口不应暴露出去。 |
+|            |                                                              |
+|            |                                                              |
+|            |                                                              |
+|            |                                                              |
+|            |                                                              |
+|            |                                                              |
+
+
 
 ## 3.3 集群管理
 
