@@ -26,4 +26,5 @@
     * [模块一 开源消息中间件RabbitMQ](6-stage/1-module/README.md)
         * [第一部分 消息中间件概述](6-stage/1-module/1-MQ-Overview.md)
         * [第二部分 RabbitMQ](6-stage/1-module/2-RabbitMQ.md)
+            * [RabbitMQ+镜像队列+HAProxy实现负载均衡的集群](6-stage/1-module/2-1-RabbitMQ-mirror-HAProxy.md)
 
