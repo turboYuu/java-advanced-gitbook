@@ -1561,6 +1561,8 @@ public class PublisherConfirmsProducer3 {
 - Queue的持久化，通过定义时设置durable参数为true，保证Queue相关的元数据不丢失
 - 消息的持久化，通过将消息的投递模式（BasicProperties中的deliveryMode属性）设置为2，即可实现消息的持久化，保证消息自身不丢失。
 
+代码：https://gitee.com/turboYuu/rabbit-mq-6-1/tree/master/lab/rabbit-demo/demo_21_persistent
+
 
 
 ![image-20210908200738596](assest/image-20210908200738596.png)
@@ -1656,15 +1658,133 @@ spring.rabbitmq.listener.simple.acknowledge-mode=manual
 
 从多个角度介绍Qos与限流，防止悲剧发生：
 
-1 RabbitMQ可以对**内存和磁盘使用量**设置阈值，**当到达阈值后，生产者将被阻塞（block）**，直到对应指标恢复正常。全局上可以防止超大流量，消息积压等导致的Broker被压垮。当内存受限或磁盘可用空间受限的时候，服务器都会暂时阻止连接，服务器将暂停从发布消息的已连接客户端的套接字读取数据。连心跳监视也将被禁用。所有网络连接将在rabbitmqctl和管理插件中显示为“以阻止”，这意味着它们已发布，现在已暂停。兼容的客户端被阻止时将收到通知。
+1. RabbitMQ可以对**内存和磁盘使用量**设置阈值，**当到达阈值后，生产者将被阻塞（block）**，直到对应指标恢复正常。全局上可以防止超大流量，消息积压等导致的Broker被压垮。当内存受限或磁盘可用空间受限的时候，服务器都会暂时阻止连接，服务器将暂停从发布消息的已连接客户端的套接字读取数据。连心跳监视也将被禁用。所有网络连接将在rabbitmqctl和管理插件中显示为“以阻止”，这意味着它们已发布，现在已暂停。兼容的客户端被阻止时将收到通知。
 
 在/etc/rabbitmq/rabbitmq.conf中配置磁盘可用空间大小：
 
 ![image-20210908213635781](assest/image-20210908213635781.png)![image-20210908213646907](assest/image-20210908213646907.png)
 
-2 RabbitMQ还默认提供了一种基于credit flow的流控机制，面向
+2. RabbitMQ还默认提供了一种基于credit flow的流控机制，面向每一个连接进行流控。当单个队列达到最大流速时，或者多个队列达到总流速时，都会触发流控。触发单个连接的流控可能是因为connection、channel、queue的某一个过程处于flow状态，这些状态都可以从监控平台看到。
+
+![image-20210909113244741](assest/image-20210909113244741.png)
+
+![image-20210909113333368](assest/image-20210909113333368.png)
+
+![image-20210909113436778](assest/image-20210909113436778.png)
+
+![image-20210909113530675](assest/image-20210909113530675.png)
+
+![image-20210909113627283](assest/image-20210909113627283.png)
+
+3. RabbitMQ中有一种QoS保证机制，可以限制Channel上接收的未被Ack的消息数量，如果超过这个数量限制，RabbitMQ将不会再往消费端推送消息。这是一种流控手段，可以防止大量消息瞬时从Broker送达消费端造成消息端巨大压力（甚至压垮消费端）。比较值得注意的是QoS机制仅对消费端推模式有效，对拉模式无效。而且不支持NONE Ack模式。执行`channel.basicConsume`方法之前通过`channel.basicQoS`方法可以设置该数量。消息的发送是异步的，消息的确认也是异步的。再消费者消费慢的时候，可以设置QoS的prefetchCount，它表示broker在向消费者发送消息的时候，一旦发送了prefetchCount个消息而没有一个消息确认的时候，就停止发送。消费者确认一个，broker就发送一个。换句话说，消费者确认多少，broker就发送多少，消费者等待处理的个数永远限制在prefetchCount个。
+
+   如果对于每个消息都发送确认，增加了网络流量，此时可以批量确认消息。如果设置了multiple为true，消费者在确认的时候，比如id是8的消息确认了，则在8之前的所有消息都确认了。
+
+   代码：https://gitee.com/turboYuu/rabbit-mq-6-1/tree/master/lab/rabbit-demo/demo_23_consumerQos
+
+   ```java
+   package com.turbo.rabbitmq.demo;
+   
+   import com.rabbitmq.client.*;
+   import java.io.IOException;
+   
+   public class MyConsumer {
+   
+       public static void main(String[] args) throws Exception {
+           ConnectionFactory factory = new ConnectionFactory();
+           factory.setUri("amqp://root:123456/node1:5672/%2f");
+           Connection connection = factory.newConnection();
+           Channel channel = connection.createChannel();
+   
+           channel.queueDeclare("queue.qos",false,false,false,null);
+           /**
+            * 使用basic做限流 ，进队消息推送模式生效。
+            */
+           // 表示Qos是10个消息，最多有10个消息等待确认
+           channel.basicQos(10);
+           // 表示最多10个消息等待确认。
+           // 如果global为true表示只要使用当前的channel的consumer,该设置都生效
+           // false表示 仅限于当前consumer
+           channel.basicQos(10,false);
+           // 第一个参数表示未确认消息的大小，没有实现，不用管。
+           channel.basicQos(1000,10,false);
+   
+           channel.basicConsume("queue.qos",false,new DefaultConsumer(channel){
+               @Override
+               public void handleDelivery(String consumerTag,
+                                          Envelope envelope,
+                                          AMQP.BasicProperties properties,
+                                          byte[] body) throws IOException {
+                   // some code going on
+                   // 可以批量确认消息，减少每个消息都发送确认带来的网络流量负载。
+                   channel.basicAck(envelope.getDeliveryTag(),true);
+               }
+           });
+           channel.close();
+           connection.close();
+       }
+   }
+   ```
+
+   
+
+生产者往往希望自己生产的消息能快速投递出去，而当消息投递太快且超过了下游的消费速度时就容易出现消息积压/堆积，所以，从上游来讲应该在生产段应用程序中也加入限流，应急开关等控制手段，避免超过Broker端的极限承受能力或者压垮下游消费者。
+
+希望下游消费者能尽快消费完信息，而且还要防止瞬时大量消息压垮消费端（推模式），希望消费端处理速度时最快的，最稳定而亲还相对均匀。
+
+**提升下游应用的吞吐量和缩短消费过程的耗时**，优化主要以下几种方式：
+
+1. 优化应用程序的性能，缩短响应时间
+2. 增加消费节点实例（成本增加，而且底层数据库操作这些也可能是瓶颈）
+3. 调整并发消费的线程数（线程数并非越大越好，需要大量压测调优至合理值）
+
+![image-20210909131745069](assest/image-20210909131745069.png)
+
+```java
+@Bean
+public RabbitListenerContainerFactory rabbitListenerContainerFactory(ConnectionFactory connectionFactory) {
+	// SimpleRabbitListenerContainerFactory发现消息中有content_type有text 就会默认将其
+	// 转换为String类型的，没有content_type都按byte[]类型        
+	SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
+	factory.setConnectionFactory(connectionFactory);	// 设置并发线程数
+	factory.setConcurrentConsumers(10);					// 设置最大并发线程数
+	factory.setMaxConcurrentConsumers(20);        
+    return factory;
+}
+```
+
+
 
 ### 2.1.7 消费可靠性保障
+
+在讲高级特性的时候都会涉及到
+
+1. 消息传输保障
+2. 各种限流，应急手段
+3. 业务层面的一些容错、补偿、异常重试等手段
+
+**消息可靠传输**一般是业务系统接入消息中间件时**首要考虑的问题**，一般消息中间件的消息传出保障分为三个层次：
+
+1. At most once：最多一次。消息可能会丢失，但绝**不会重复**传输，**基本不会使用**。
+2. At Least once：最少一次。消息绝不会丢失，但**可能会重复**传输
+3. Exactly once：恰好一次，每条消息肯定被**传输一次且仅传输一次**
+
+RabbitMQ其中“最多一次”和“最少一次”。
+
+
+
+其中**“最少一次”**投递需要考虑以下这几个方面的内容：
+
+1. 消费生产者需要开启事务机制或者publisher confirm机制，已确保消息可以可靠得传输到RabbitMQ中。
+2. 消息生产者需要配合使用`mandatory`参数或者备份交换器来保证消息能够从交换器路由到队列中，进而能够保证保存下来而不会被丢弃。
+3. 消息和队列都需进行持久化处理，以确保RabbitMQ服务器在遇到异常情况时不会造成消息丢失
+4. 消费者在消费的同时需要将autoAck设置为false，然后通过手动确认的方式去确认已经正确消费的消息，以避免在消费端引起不必要的消息丢失。
+
+**“恰好一次”是RabbitMQ目前无法保障**的
+
+考虑到这样一种情况，消费者在消费完一条消息之后向RabbitMQ发送确认Basic.Ack命令，此时由于网络断开或者其他原因造成RabbitMQ并没有收到这个确认命令，那么RabbitMQ不会将此条消息标记删除。在重新建立连接之后，消费还是会消费到这一条消息，这就造成了重复消费。
+
+在考虑一种情况，生产者在使用publisher confirm机制的时候，发送完一条消息等待RabbitMQ返回确认通知，此时网络断开，生产者捕获到异常情况，为了确保消息的可靠性选择重新发送，这样RabbitMQ中就有两条同样的消息，在消费的时候消费者就会重复消息。
 
 ### 2.1.8 消费幂等性处理
 
