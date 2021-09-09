@@ -1662,7 +1662,7 @@ spring.rabbitmq.listener.simple.acknowledge-mode=manual
 
 ![image-20210908213635781](assest/image-20210908213635781.png)![image-20210908213646907](assest/image-20210908213646907.png)
 
-
+2 RabbitMQ还默认提供了一种基于credit flow的流控机制，面向
 
 ### 2.1.7 消费可靠性保障
 

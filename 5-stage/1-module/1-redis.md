@@ -2826,5 +2826,5 @@ A在后续发送ping时，会带上B的pfail信息，通知其他节点。如果
 
 
 
-
+![image-20210819211544295](file://D:/file/leaveDev/github_work/java-advanced-gitbook/4-stage/3-module/assest/image-20210819211544295.png?lastModify=1630999528)
 
