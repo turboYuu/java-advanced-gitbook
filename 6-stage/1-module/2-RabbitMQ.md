@@ -1,4 +1,4 @@
-	第二部分 RabbitMQ
+第二部分 RabbitMQ
 
 # 1 RabbitMQ架构与实战
 
