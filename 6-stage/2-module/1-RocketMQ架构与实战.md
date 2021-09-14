@@ -77,9 +77,9 @@ https://www.apache.org/dyn/closer.cgi?path=rocketmq/4.5.1/rocketmq-all-4.5.1-bin
 
    输入mq,tab有提示，说明RocketMQ安装成功。
 
-   ![image-20210910142958724](assest/image-20210910142958724.png)
+![image-20210910142958724](assest/image-20210910142958724.png)
 
-   4.启动前要修改脚本，因为RocketMQ是用JDK8编译开发的，而现在使用JDK11。
+4. 启动前要修改脚本，因为RocketMQ是用JDK8编译开发的，而现在使用JDK11。
 
    vim /opt/rocket/bin/runserver.sh
 
@@ -87,9 +87,7 @@ https://www.apache.org/dyn/closer.cgi?path=rocketmq/4.5.1/rocketmq-all-4.5.1-bin
 
    vim /opt/rocket/bin/tools.sh
 
-
-
-
+   
 
 **修改vim /opt/rocket/bin/runserver.sh**
 
