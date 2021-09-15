@@ -333,11 +333,30 @@ nohup sh $ROCKET_HOME/bin/mqbroker -n node1:9876 -c $ROCKET_HOME/conf/2m-2s-sync
 
 ### 3.2.2 具体操作
 
+```shell
+[root@node4 ~]# mqadmin clusterList -n node1:9876 -i 1 -m
+[root@node4 ~]# mqadmin clusterRT -a 5 -s 1048576 -c DefaultCluster -p true -i 2 -n node1:9876
+
+```
+
+
+
 ## 3.3 Broker相关
 
 ### 3.3.1 命令列表
 
 ### 3.3.2 具体列表
+
+```shell
+[root@node4 ~]# mqadmin brokerStatus -b node1:10911
+[root@node4 ~]# mqadmin brokerStatus -n node1:9876 -b node2:10911
+
+[root@node4 ~]# mqadmin getBrokerConfig -n node1:9876 -b node3:10911
+[root@node4 ~]# mqadmin cleanUnusedTopic -n node1:9876 -b node1:10911 -c DefaultCluster
+[root@node4 ~]# mqadmin sendMsgStatus -n node1:9876 -b broker-b -s 128 -c 5
+```
+
+
 
 ## 3.4 消息相关
 
@@ -345,11 +364,61 @@ nohup sh $ROCKET_HOME/bin/mqbroker -n node1:9876 -c $ROCKET_HOME/conf/2m-2s-sync
 
 ### 3.4.2 具体列表
 
+```
+[root@node4 ~]# mqadmin sendMessage -n node1:9876 -t tp_demo_01 -p 'hello turbo' -c 'test' -k 'key1'
+C0A81F680DD4277050DC4778236D0000
+```
+
+![image-20210914210501978](assest/image-20210914210501978.png)
+
+```shell
+[root@node4 ~]# mqadmin queryMsgByUniqueKey -n node1:9876 -t tp_demo_01 -i C0A81F680DD4277050DC4778236D0000
+```
+
+![image-20210914211011800](assest/image-20210914211011800.png)
+
+
+
+![image-20210914211442902](assest/image-20210914211442902.png)
+
+
+
+```shell
+[root@node4 ~]# mqadmin queryMsgByKey -n node1:9876 -t tp_demo_01 -k key1
+```
+
+![image-20210914211734018](assest/image-20210914211734018.png)
+
+
+
+```shell
+[root@node4 ~]# mqadmin checkMsgSendRT -n node1:9876 -t tp_demo_01 -a 5 -s 128
+```
+
+![image-20210914212021152](assest/image-20210914212021152.png)
+
+
+
+```shell
+[root@node4 ~]# mqadmin consumeMessage -n node1:9876 -c 5 -t tp_demo_01 -o 0 -i 0 -b broker-a
+[root@node4 ~]# mqadmin printMsg -n node1:9876 -t tp_demo_01 -s '*' -d true
+```
+
+
+
 ## 3.5 消费者，消费组相关
 
 ### 3.5.1 命令列表
 
 ### 3.5.2 具体列表
+
+```
+[root@node4 ~]# mqadmin consumerStatus -n node1:9876 -g mygrp_consumer -s
+```
+
+![image-20210914215433848](assest/image-20210914215433848.png)
+
+![image-20210914215625934](assest/image-20210914215625934.png)
 
 ## 3.6 连接相关
 
@@ -357,11 +426,36 @@ nohup sh $ROCKET_HOME/bin/mqbroker -n node1:9876 -c $ROCKET_HOME/conf/2m-2s-sync
 
 ### 3.6.2 具体列表
 
+```
+[root@node4 ~]# mqadmin producerConnection -g mygrp -t tp_demo_01 -n node1:9876
+```
+
+
+
+![image-20210914220357680](assest/image-20210914220357680.png)
+
+
+
+```
+[root@node4 ~]# mqadmin consumerConnection -g mygrp_consumer -n node1:9876
+```
+
+
+
+![image-20210914220615029](assest/image-20210914220615029.png)
+
 ## 3.7 Nameserver相关
 
 ### 3.7.1 命令列表
 
 ### 3.7.2 具体列表
+
+```shell
+[root@node4 ~]# mqadmin getNamesrvConfig -n node1:9876
+[root@node4 ~]# mqadmin updateNamesrvConfig -n node1:9876 -k serverWorkerThreads -v 10
+```
+
+![image-20210915103841999](assest/image-20210915103841999.png)
 
 ## 3.8 其他
 
