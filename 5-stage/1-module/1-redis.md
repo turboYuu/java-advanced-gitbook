@@ -38,28 +38,28 @@
 
 1.安装c语言需要的GCC环境
 
-```
+```shell
 yum install -y gcc-c++
 yum install -y wget
 ```
 
 2.下载并解压解压Redis源码压缩包
 
-```
+```shell
 wget http://download.redis.io/releases/redis-5.0.5.tar.gz 
 tar -zxf redis-5.0.5.tar.gz  
 ```
 
 3.编译Redis源码，进入redis-5.0.5目录，执行编译命令
 
-```
+```shell
 cd redis-5.0.5/src 
 make 
 ```
 
 4.安装Redis，需要通过PREFIX指定安装路径
 
-```
+```shell
 mkdir /usr/redis -p
 make install PREFIX=/usr/redis  
 ```
@@ -70,7 +70,7 @@ make install PREFIX=/usr/redis  
 
 - 启动命令：`redis-server`，直接运行`./bin/redis-server`将以前端模式启动
 
-  ```
+  ```shell
   ./bin/redis-server
   ```
 
