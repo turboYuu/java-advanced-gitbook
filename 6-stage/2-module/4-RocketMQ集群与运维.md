@@ -74,7 +74,7 @@
    exit
    ```
 
-2.0.2 RocketMQ的安装
+### 2.0.2 RocketMQ的安装
 
 1. JDK11.0.5
 
