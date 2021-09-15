@@ -11,7 +11,11 @@ mysql主从搭建和双主搭建涉及到的服务器
 
 ## 1.1mysql安装
 
-1.wget下载rpm
+https://downloads.mysql.com/archives/community/
+
+![image-20210914182805380](assest/image-20210914182805380.png)
+
+1. wget下载rpm
 
 ```shell
 wget https://downloads.mysql.com/archives/get/p/23/file/mysql-5.7.28-1.el7.x86_64.rpm-bundle.tar
