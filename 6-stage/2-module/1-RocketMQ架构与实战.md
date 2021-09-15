@@ -68,8 +68,8 @@ https://www.apache.org/dyn/closer.cgi?path=rocketmq/4.5.1/rocketmq-all-4.5.1-bin
    export JAVA_HOME=/usr/java/jdk-11.0.5
    export PATH=$PATH:$JAVA_HOME/bin
    
-   export ROCKET_HOME=/opt/rocket
-   export PATH=$PATH:$ROCKET_HOME/bin
+   export ROCKETMQ_HOME=/opt/rocket
+   export PATH=$PATH:$ROCKETMQ_HOME/bin
    
    #生效环境变量
    . /etc/profile

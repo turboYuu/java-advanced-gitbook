@@ -86,7 +86,7 @@
    bin/tools.sh
    ```
 
-   具体参考第一部分中的RocketMQ安装和启动
+   具体参考第一部分中的RocketMQ安装和启动，注意环境变量名称为**ROCKETMQ_HOME**。
 
 ## 2.1 单Master模式
 
@@ -98,7 +98,7 @@
 
 ```shell
 ### 首先启动NameServer
-nohup sh /opt/rocket/bin/mqnamesrv &
+nohup sh mqnamesrv &
 
 ### 检查Name server是否启动成功
 tail -f ~/logs/rocketmqlogs/namesrv.log
@@ -115,7 +115,7 @@ jps
 ### 2.1.2 启动Broker
 
 ```shell
-nohup sh /opt/rocket/bin/mqbroker -n localhost:9876 &
+nohup sh mqbroker -n localhost:9876 &
 
 ### 检查broker是否启动成功，如果看到broker的下面的语句标识启动成功
 tail -f ~/logs/rocketmqlogs/broker.log
@@ -143,7 +143,7 @@ The broker[node1, 192.168.31.101:10911] boot success
 
 ```shell
 ### 首先在node1 上 启动NameServer
-nohup sh /opt/rocket/bin/mqnamesrv &
+nohup sh mqnamesrv &
 
 ### 检查Name server是否启动成功
 tail -f ~/logs/rocketmqlogs/namesrv.log
@@ -157,10 +157,10 @@ tail -f ~/logs/rocketmqlogs/namesrv.log
 
 ```shell
 ### 启动第一个(node2)broker。注意这里的配置文件的位置
-nohup sh /opt/rocket/bin/mqbroker -n node1:9876 -c $ROCKET_HOME/conf/2m-noslave/broker-a.properties &
+nohup sh mqbroker -n node1:9876 -c $ROCKETMQ_HOME/conf/2m-noslave/broker-a.properties &
 
 ### 在第二台服务器(node3)上启动另一个broker
-nohup sh /opt/rocket/bin/mqbroker -n node1:9876 -c $ROCKET_HOME/conf/2m-noslave/broker-b.properties &
+nohup sh mqbroker -n node1:9876 -c $ROCKETMQ_HOME/conf/2m-noslave/broker-b.properties &
 
 ...
 ```
@@ -186,7 +186,7 @@ nohup sh /opt/rocket/bin/mqbroker -n node1:9876 -c $ROCKET_HOME/conf/2m-noslave/
 
 ```shell
 ### 首先在node1 上 启动NameServer
-nohup sh $ROCKET_HOME/bin/mqnamesrv &
+nohup sh mqnamesrv &
 
 ### 检查Name server是否启动成功
 tail -f ~/logs/rocketmqlogs/namesrv.log
@@ -200,16 +200,16 @@ tail -f ~/logs/rocketmqlogs/namesrv.log
 
 ```shell
 ### 启动第一个(node1)broker:broker-a。注意这里的配置文件的位置
-nohup sh $ROCKET_HOME/bin/mqbroker -n node1:9876 -c $ROCKET_HOME/conf/2m-2s-async/broker-a.properties &
+nohup sh mqbroker -n node1:9876 -c $ROCKETMQ_HOME/conf/2m-2s-async/broker-a.properties &
 
 ### 在第二台服务器(node2)上启动另一个broker:broker-b
-nohup sh $ROCKET_HOME/bin/mqbroker -n node1:9876 -c $ROCKET_HOME/conf/2m-2s-async/broker-b.properties &
+nohup sh mqbroker -n node1:9876 -c $ROCKETMQ_HOME/conf/2m-2s-async/broker-b.properties &
 
 ### 在另一台服务器(node3)上启动broker-a的slave
-nohup sh $ROCKET_HOME/bin/mqbroker -n node1:9876 -c $ROCKET_HOME/conf/2m-2s-async/broker-a-s.properties &
+nohup sh mqbroker -n node1:9876 -c $ROCKETMQ_HOME/conf/2m-2s-async/broker-a-s.properties &
 
 ### 在另一台服务器(node4)上启动broker-b的slave
-nohup sh $ROCKET_HOME/bin/mqbroker -n node1:9876 -c $ROCKET_HOME/conf/2m-2s-async/broker-b-s.properties &
+nohup sh mqbroker -n node1:9876 -c $ROCKETMQ_HOME/conf/2m-2s-async/broker-b-s.properties &
 ```
 
 以上启动的是2M-2S-Async模式，双主双从，主从异步复制模式
@@ -237,7 +237,7 @@ nohup sh $ROCKET_HOME/bin/mqbroker -n node1:9876 -c $ROCKET_HOME/conf/2m-2s-asyn
 
 ```shell
 ### 首先在node1 上 启动NameServer
-nohup sh $ROCKET_HOME/bin/mqnamesrv &
+nohup sh mqnamesrv &
 
 ### 检查Name server是否启动成功
 tail -f ~/logs/rocketmqlogs/namesrv.log
@@ -251,16 +251,16 @@ tail -f ~/logs/rocketmqlogs/namesrv.log
 
 ```shell
 ### 启动第一个(node1)broker:broker-a。注意这里的配置文件的位置
-nohup sh $ROCKET_HOME/bin/mqbroker -n node1:9876 -c $ROCKET_HOME/conf/2m-2s-sync/broker-a.properties &
+nohup sh mqbroker -n node1:9876 -c $ROCKETMQ_HOME/conf/2m-2s-sync/broker-a.properties &
 
 ### 在第二台服务器(node2)上启动另一个broker:broker-b
-nohup sh $ROCKET_HOME/bin/mqbroker -n node1:9876 -c $ROCKET_HOME/conf/2m-2s-sync/broker-b.properties &
+nohup sh mqbroker -n node1:9876 -c $ROCKETMQ_HOME/conf/2m-2s-sync/broker-b.properties &
 
 ### 在另一台服务器(node3)上启动broker-a的slave
-nohup sh $ROCKET_HOME/bin/mqbroker -n node1:9876 -c $ROCKET_HOME/conf/2m-2s-sync/broker-a-s.properties &
+nohup sh mqbroker -n node1:9876 -c $ROCKETMQ_HOME/conf/2m-2s-sync/broker-a-s.properties &
 
 ### 在另一台服务器(node4)上启动broker-b的slave
-nohup sh $ROCKET_HOME/bin/mqbroker -n node1:9876 -c $ROCKET_HOME/conf/2m-2s-sync/broker-b-s.properties &
+nohup sh mqbroker -n node1:9876 -c $ROCKETMQ_HOME/conf/2m-2s-sync/broker-b-s.properties &
 ```
 
 上述配置中，通过相同的brokerName不同的brokerId将Master和Slave组合为一组。Master的brokerId必须是0，Slave的brokerId必须大于0，且不能相同。
@@ -274,11 +274,11 @@ nohup sh $ROCKET_HOME/bin/mqbroker -n node1:9876 -c $ROCKET_HOME/conf/2m-2s-sync
 启动集群 2M-2S-SYNC
 
 ```shell
-[root@node1 ~]# nohup sh $ROCKET_HOME/bin/mqnamesrv &
-[root@node1 ~]# nohup sh $ROCKET_HOME/bin/mqbroker -n node1:9876 -c $ROCKET_HOME/conf/2m-2s-sync/broker-a.properties &
-[root@node2 ~]# nohup sh $ROCKET_HOME/bin/mqbroker -n node1:9876 -c $ROCKET_HOME/conf/2m-2s-sync/broker-a-s.properties &
-[root@node3 ~]# nohup sh $ROCKET_HOME/bin/mqbroker -n node1:9876 -c $ROCKET_HOME/conf/2m-2s-sync/broker-b.properties &
-[root@node4 ~]# nohup sh $ROCKET_HOME/bin/mqbroker -n node1:9876 -c $ROCKET_HOME/conf/2m-2s-sync/broker-b-s.properties &
+[root@node1 ~]# nohup sh mqnamesrv &
+[root@node1 ~]# nohup sh mqbroker -n node1:9876 -c $ROCKETMQ_HOME/conf/2m-2s-sync/broker-a.properties &
+[root@node2 ~]# nohup sh mqbroker -n node1:9876 -c $ROCKETMQ_HOME/conf/2m-2s-sync/broker-a-s.properties &
+[root@node3 ~]# nohup sh mqbroker -n node1:9876 -c $ROCKETMQ_HOME/conf/2m-2s-sync/broker-b.properties &
+[root@node4 ~]# nohup sh mqbroker -n node1:9876 -c $ROCKETMQ_HOME/conf/2m-2s-sync/broker-b-s.properties &
 ```
 
 
@@ -466,6 +466,8 @@ C0A81F680DD4277050DC4778236D0000
 # 4 运维常见问题
 
 ## 4.1 RocketMQ的mqadmin命令报错问题
+
+问题描述：
 
 ## 4.2 RocketMQ生产端和消费端版本不一致导致不能正常消费的问题
 
