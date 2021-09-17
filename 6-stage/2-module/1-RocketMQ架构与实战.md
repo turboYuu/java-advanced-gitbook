@@ -18,8 +18,13 @@ RocketMQ的角色介绍
 - Consumer：消息接收者
 - Broker：暂存和传输消息
 - NameServer：管理Broker
-- Topic：区分消息的种类，一个发送者可以发送消息给一个或多个Topic；一个消费的接收者可以订阅一个或多额Topic消息
+- Topic：区分消息的种类，一个发送者可以发送消息给一个或多个Topic；一个消费的接收者可以订阅一个或多个Topic消息
 - MessageQueue：相当于Topic的分区；用于并行发送和接收消息
+
+![image-20210916103132231](assest/image-20210916103132231.png)
+
+- NameServer是一个几乎无状态节点，可集群部署，节点之间无任何信息同步。
+- Broker部署相对复杂，Broker分为Master与Slave，一个Master可以对应多个Slave，但是一个Slave只能对应一个Master，Master与Slave的对应关系通过指定<span style='background-color:yellow'>**相同的BrokerName**</span>，<span style='background-color:yellow'>**不同的BrokerId**</span>来定义，BrokerId为0表示Master，非0表示Slave。Master也可以部署多个。每个Broker与NameServer集群中的所有节点建立长连接，定时注册Topic信息到所有NameServer。注意：当前RocketMQ版本在部署架构上支持1Master多Slave，但是只有BrokerId=1的从服务器才会参与消息的读负载。
 
 # 4 RocketMQ特性
 
@@ -75,7 +80,7 @@ https://www.apache.org/dyn/closer.cgi?path=rocketmq/4.5.1/rocketmq-all-4.5.1-bin
    . /etc/profile
    ```
 
-   输入mq,tab有提示，说明RocketMQ安装成功。
+   输入mq，tab有提示，说明RocketMQ安装成功。
 
 ![image-20210910142958724](assest/image-20210910142958724.png)
 
