@@ -34,7 +34,7 @@ RocketMQ的角色介绍
 
 1. 启动NameServer，NameServer起来后监听端口，等待Broker、Producer、Consumer连接上，相当于一个路由控制中心。
 2. Broker启动，跟所有的NameServer保持长连接，定时发送心跳包，心跳包中包含当前Broker信息（IP+端口号）以及存储所有Topic信息。注册成功后，NameServer集群中就有Topic跟Broker的映射关系。
-3. 收发消息前，先创建Topic，创建Topic时需要指定Topic要存储在那些Broker上，也可以在发送消息时自动创建Topic。
+3. 收发消息前，先创建Topic，创建Topic时需要指定Topic要存储在那些Broker上，也**可以在发送消息时自动创建Topic**。
 4. Producer发送消息，启动时先跟NameServer集群中的其中一台建立长连接，并从NameServer中获取当前发送的Topic存在哪些Broker上，轮询从队列中选择一个队列，然后与队列所在的Broker建立长连接从而向Broker发消息。
 5. Consumer跟Producer类似，跟其中一台NameServer建立长连接，获取当前订阅Topic存在哪些Broker上，然后直接跟Broker建立连接通道，开始消费消息。
 
@@ -192,27 +192,27 @@ ConsumerGroup由对各Consumer实例构成。
 
 消息消费者，负责消费消息，一般是后台系统负责异步消费。
 
-## 6.4 PushConsumer
+### 6.3.1 PushConsumer
 
 Consumer消费的一种类型，该模式下Broker收到数据后会主动推动给消费端。应用通常向Consumer对象注册一个Listener接口，一旦收到消息，Consumer对象立刻回调Listener接口方法。该消费模式一般实时性较高。
 
-## 6.5 PullConsumer
+### 6.3.2 PullConsumer
 
 Consumer消费的一种类型，应用通常主动调用Consumer的拉消息方法从Broker服务器拉取消息，主动权由应用控制。一旦获取了批量消息，应用就会启动消费过程。
 
-## 6.6 ProducerGroup
+## 6.4 ProducerGroup
 
 同一类Producer的集合，这类Producer发送同一类消息且发送逻辑一致，如果发送的是事务消息且原始生产者在发送之后奔溃，则Broker服务器会联系同一生产组的其他生产者实例以提交或回溯消息。
 
-## 6.7 ConsumerGroup
+## 6.5 ConsumerGroup
 
 同一类Consumer的集合，这类Consumer通常消费同一类消息且消费逻辑一致。消费者组使得在消息消费方面，实现负载均衡和容错目标变得变得非常容易。要注意的是，消费组的消费实例必须订阅完全相同放入Topic。RocketMQ支持两种消费模式：集群消费（Clustering）和广播消费（Broadcasting）。
 
-## 6.8 Broker
+## 6.6 Broker
 
 消息中转角色，负责存储消息，转发消息，一般也成为Server。在JMS规范中成为Provider。
 
-## 6.9 广播消费
+## 6.7 广播消费
 
 一条消息被多个Consumer消费，即使这些Consumer属于同一个Consumer Group，消息也会被每个Consumer都消费一次，广播消费中的Consumer Group概念可以认为在消息划分方面无意义。
 
@@ -220,25 +220,29 @@ Consumer消费的一种类型，应用通常主动调用Consumer的拉消息方�
 
 在JMS规范中，相当于JMS Topic（publish/subscribe）模型
 
-## 6.10 集群消费
+## 6.8 集群消费
 
 一个Consumer Group中的Consumer实例**平均分摊消费消息**。例如某个Topic有9条消息，其中一个Consumer Group有3个实例（可能是三个进程，或者3台机器），那每个实例之消费其中3条消息。
 
-## 6.11 顺序消费
+## 6.9 顺序消费
 
 消费消息的顺序要同发送消息的顺序一致，在RocketMQ中主要指的是局部顺序，即一类消费为满足顺序性，必须Producer单线程顺序发送，且发送到同一个队列，这样Consumer就可以按照Producer发送的顺序去消费消息。
 
-## 6.12 普通顺序消费
+### 6.9.1 普通顺序消费
 
+顺序消费的一种，正常情况下可以保证完全的顺序消息，但是一旦发生通信异常，Broker重启，由于队列总数发生变化，哈希取模后定位的队列发生变化，产生短暂的消息顺序不一致。如果业务能容忍在集群异常情况（如某个Broker宕机或者重启）下，消息短暂的乱序，使用普通顺序方式比较合适。
 
+### 6.9.2 严格顺序消费
 
-## 6.13 严格顺序消费
+顺序消费的一种，无论正常异常情况都能保证顺序，但是牺牲了分布式Failover特性，即Broker集群中只要一台机器不可用，则整个集群都不可用，服务可用性大大降低。如果服务器部署为同步双写模式，次缺陷可通过备机自动切换为主避免，不过仍然会存在几分钟的服务不可用。（依赖同步双写，主备自动切换，自动切换功能目前还未实现）。
 
-## 6.14 MessageQueue
+## 6.10 MessageQueue
 
-## 6.15 标签（Tag）
+在RocketMQ中，所有消息队列都是持久化的，长度无限的数据结构，所谓长度无限是指队列中的每个存储单元都是定长，访问其中的存储单元使用offset来访问，offset为java long类型，64位，理论上在100年内不会溢出，所以认为长度无限，另外队列中只保存最近几天的数据，之前的数据会按照过期来删除。也可以认为Message Queue是一个长度无限的数据，offset就是下标。
 
+## 6.11 标签（Tag）
 
+为消息设置的标签，用于同一主题下区分不同类型的消息。来自同一业务单元的消息，可以根据不同业务目的在同一主题下这只不同标签。标签能够有效地保持代码地清晰度和连贯性，并优化RocketMQ提供地查询系统。消费者可以根据Tag实现对不同子主题地不同消费逻辑，实现更好地扩展性。
 
 
 
@@ -549,11 +553,13 @@ sh bin/tools.sh org.apache.rocketmq.example.quickstart.Producer
 
 ![image-20210909213030624](assest/image-20210909213030624.png)
 
-# 9 RocketMQ相关API使用
-
 使用前记得关闭linux的防火墙。
 
+# 9 RocketMQ相关API使用
 
+代码：https://gitee.com/turboYuu/rocket-mq-6-2/tree/master/lab/rocket-demo/demo_01_producer_consumer
+
+![image-20210917212354193](assest/image-20210917212354193.png)
 
 ```
 SendResult [
@@ -571,4 +577,10 @@ SendResult [
 
 ## 10.1 消息生产者
 
+代码：https://gitee.com/turboYuu/rocket-mq-6-2/tree/master/lab/rocket-demo/demo_02_springboot_rocketmq_producer
+
+
+
 ## 10.2 消息消费者
+
+代码：https://gitee.com/turboYuu/rocket-mq-6-2/tree/master/lab/rocket-demo/demo_03_springboot_rocketmq_consumer
