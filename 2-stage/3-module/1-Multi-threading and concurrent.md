@@ -173,21 +173,21 @@ wait() {    
 ```java
 public void enqueue() {
    	synchronized(queue) {
-       	while (queue.full()) {            
+       	while (queue.full()) {
        		queue.wait();
        	}
 	    //... 数据入列
-       	queue.notify();  // 通知消费者，队列中有数据了。  
+       	queue.notify();  // 通知消费者，队列中有数据了。
 	}
 }
 
 public void dequeue() {
    	synchronized(queue) {
-       	while (queue.empty()) {            
+       	while (queue.empty()) {
        		queue.wait();
      	}
        	// 数据出队列
-       	queue.notify(); // 通知生产者，队列中有空间了，可以继续放数据了。  
+       	queue.notify(); // 通知生产者，队列中有空间了，可以继续放数据了。
 	}
 }
 ```
