@@ -109,18 +109,18 @@ https://gitee.com/turboYuu/concurrent-programming-2-3/blob/master/lab/turbo-conc
 
 ```java
 class MyClass1 {
-	private Object obj1 = new Object();    
+	private Object obj1 = new Object();
     public void method1() {
     	synchronized(obj1) {            
     		//...
-    		obj1.wait();            
+    		obj1.wait();
     		//...
     	}  
     }
    	public void method2() {        
    		synchronized(obj1) {            
    			//...
-			obj1.notify();            
+			obj1.notify();
 			//...
      	}  
      }
@@ -159,8 +159,8 @@ wait()内部的伪代码：
 ```java
 wait() {    
 	// 释放锁
-   	// 阻塞，等待被其他线程notify    
-   	// 重新获取锁
+	// 阻塞，等待被其他线程notify    
+	// 重新获取锁
 }
 ```
 
