@@ -2,6 +2,44 @@
 
 # 1 消息发送
 
+生产者向队列里写入消息，不同的业务场景需要生产者采用不同的写入策略。比如同步发送、异步发送、Oneway发送、延迟发送、发送事务消息等。默认使用的是DefaultMQProducer类，发送消息要经过五个步骤：
+
+> 1. 设置producer的GroupName。
+> 2. 设置InstanceName，当一个Jvm需要启动多个Producer的时候，设置不同的InstanceName来区分，不设置的话系统使用默认名称"DEFAULT"。
+> 3. 设置发送失败重试次数，当网络出现异常的时候，这个次数影响消息的重复投递次数。像保证不丢失消息，可以设置多重试几次。
+> 4. 设置NameServer地址。
+> 5. 组装消息并发送。
+
+消息发送返回状态（SendResult#SendStatus）有如下四种：
+
+每个状态进行说明：
+
+- **SEND_OK**
+
+  消息发送成功。要注意的是消息发送成功也不意味着它是可靠的。要确保不会丢失任何消息，，还应启用同步Master服务器或同步刷盘，即SYNC_MASTER或SYNC_FLUSH。
+
+- **FLUSH_DISK_TIMEOUT**
+
+  消息发送成功但是服务器刷盘超时。此时消息已经进入服务器队列（内存），只有服务器宕机，消息才会丢失。消息存储配置参数中可以设置刷盘方式和同步刷盘时间长度。
+
+  如果Broker服务器设置了刷盘方式为同步刷盘，即FlushDiskType=**SYNC_FLUSH**（默认为异步刷盘方式），当Broker服务器为在同步刷盘时间内（**默认5s**）完成刷盘，则将返回该状态——刷盘超时。
+
+- **FLUSH_SLAVE_TIMEOUT**
+
+  消息发送成功，但是服务器同步到Slave超时。此时消息已经进入服务器队列，只有服务器宕机，消息才会丢失。
+
+  如果Broker服务器的角色是同步Master，即SYNC_MASTER（默认是异步Master即ASYNC_MASTER），并且从Broker服务器未在同步刷盘时间（默认5s）内完成与主服务器的同步，则将返回该状态——数据同步到Slave服务器超时。
+
+- **SLAVE_NOT_AVAILABLE**
+
+  消息发送成功，但此时Slave不可用。
+
+  如果Broker服务器角色是同步Master，即**SYNC_MASTER**（默认是ASYNC_MASTER），但是没有配置slave broker服务器，则将返回该状态——无slave服务器可用。
+
+![image-20210913193804194](assest/image-20210913193804194.png)
+
+
+
 # 2 消息消费
 
 # 3 消息存储
