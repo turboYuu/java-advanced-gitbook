@@ -18,7 +18,29 @@
 
 ## 3.1 核心数据结构
 
+```java
+public class ThreadPoolExecutor extends AbstractExecutorService {    
+	//...
+	private final AtomicInteger ctl = new AtomicInteger(ctlOf(RUNNING, 0));    
+	// 存放任务的阻塞队列
+   	private final BlockingQueue<Runnable> workQueue;    
+   	// 对线程池内部各种变量进行互斥访问控制
+   	private final ReentrantLock mainLock = new ReentrantLock();    
+   	// 线程集合
+   	private final HashSet<Worker> workers = new HashSet<Worker>();    
+   	//...
+}
+```
+
+
+
 ## 3.2 核心配置参数解释
+
+![image-20210921200342643](assest/image-20210921200342643.png)
+
+上面各个参数：
+
+
 
 ## 3.3 线程池的优雅关闭
 
