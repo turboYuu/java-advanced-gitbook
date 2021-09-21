@@ -13,6 +13,7 @@
         * [任务一 并发编程](2-stage/3-module/1-task/README.md)
             * [第一部分 多线程和并发设计原理](2-stage/3-module/1-task/1-Multi-threading and concurrent.md)
             * [第二部分 JUC](2-stage/3-module/1-task/2-JUC.md)
+            * [第三部分 线程池与Future](2-stage/3-module/1-task/3-线程池与Future.md)
 * [第三阶段 分布式架构设计&微服务深入剖析](3-stage/README.md)
 * [第四阶段 大型分布式存储系统架构进阶](4-stage/README.md)
     * [模块一 MySQL海量数据存储与优化（上）](4-stage/1-module/1-mysql.md)
