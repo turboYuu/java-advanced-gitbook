@@ -44,11 +44,134 @@ public class ThreadPoolExecutor extends AbstractExecutorService {    
 
 ## 3.3 线程池的优雅关闭
 
+![image-20210923133944932](assest/image-20210923133944932.png)
+
 ## 3.4 任务的提交过程分析
+
+提交任务的方法如下：
+
+```
+
+```
+
+
 
 ## 3.5 任务的执行过程分析
 
 ## 3.6 线程池的4中拒绝策略
+
+在execute(Runnable command)的最后，调用reject(command)执行拒绝策略，代码如下：
+
+![image-20210923105445356](assest/image-20210923105445356.png)
+
+![image-20210923105550124](assest/image-20210923105550124.png)
+
+handler就是可以设置的拒绝策略管理器：
+
+![image-20210923105639572](assest/image-20210923105639572.png)
+
+RejectedExecutionHandler是一个接口，定义了四种实现，分别对应四种不同放入拒绝策略，默认是：`AbortPolicy`
+
+![image-20210923110451253](assest/image-20210923110451253.png)
+
+ThreadPoolExecutor类中默认的实现是：
+
+![image-20210923112531561](assest/image-20210923112531561.png)
+
+![image-20210923112624544](assest/image-20210923112624544.png)
+
+四种策略的实现代码如下：
+
+### 3.6.1 策略一 CallerRunsPolicy
+
+调用者直接在自己的线程里执行，线程池不处理。
+
+![image-20210923113121884](assest/image-20210923113121884.png)
+
+### 3.6.2 策略二
+
+线程池抛异常：AbortPolicy
+
+![image-20210923113321852](assest/image-20210923113321852.png)
+
+### 3.6.3 策略三
+
+线程池直接丢任务，神不知鬼不觉：
+
+![image-20210923113437460](assest/image-20210923113437460.png)
+
+### 3.6.4 策略四
+
+![image-20210923113533985](assest/image-20210923113533985.png)
+
+
+
+
+
+示例程序：
+
+```java
+package com.turbo.concurrent.demo;
+
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+
+public class ThreadPoolExecutorDemo {
+
+    public static void main(String[] args) {
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(
+                3,
+                5,
+                1,
+                TimeUnit.SECONDS,
+                new ArrayBlockingQueue<>(3),
+                //new ThreadPoolExecutor.AbortPolicy()
+                //new ThreadPoolExecutor.CallerRunsPolicy()
+                //new ThreadPoolExecutor.DiscardPolicy()
+                new ThreadPoolExecutor.CallerRunsPolicy());
+
+
+        for (int i = 0; i < 20; i++) {
+            int finali = i;
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    System.out.println(Thread.currentThread().getId() + "["+finali+"] - 开始");
+                    try {
+                        Thread.sleep(5000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    System.out.println(Thread.currentThread().getId() + "["+finali+"] - 结束");
+                }
+            });
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+        executor.shutdown();
+        boolean flag = true;
+
+        try {
+            do {
+                flag = executor.awaitTermination(1,TimeUnit.SECONDS);
+
+            }while (false);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        System.out.println("线程池关闭成功...");
+        System.out.println(Thread.currentThread().getId());
+    }
+}
+```
+
+
 
 # 4 Executors工具类
 
@@ -76,9 +199,30 @@ public class ThreadPoolExecutor extends AbstractExecutorService {    
 
 ## 6.5 四种任务原型
 
+| 四种任务原型 | 无参数                                            | 有参数                                     |
+| ------------ | ------------------------------------------------- | ------------------------------------------ |
+| 无返回值     | Runnable接口<br>对应的提交方法：runAsync，thenRun | Consumer接口<br>对应的提交方法：thenAccept |
+| 有返回值     | Supplier接口：<br>对应的提交方法：supplierAsync   | Function接口<br>对应的提交方法：thenApply  |
+
+
+
 ## 6.6. CompletionStage接口
 
 ## 6.7 CompletableFuture内部原理
+
+
+
+![image-20210923172826831](assest/image-20210923172826831.png)
+
+![image-20210923181138791](assest/image-20210923181138791.png)
+
+![image-20210923181903255](assest/image-20210923181903255.png)
+
+
+
+
+
+
 
 ## 6.8 任务的网状执行：有向无环图
 
