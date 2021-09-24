@@ -79,11 +79,136 @@ public class Main {
 
    Java程序结束执行过程的情形：
 
-   - 程序执行Runtime类的exit()方法
+   - 程序执行Runtime类的exit()方法，而且用户有权限指向该方法。
+   - 应用程序的所有非守护线程均已结束执行，**无论是否有正在运行的守护线程**。
+   
+   守护线程通常用在作为垃圾收集器或缓存管理器的应用程序中，执行辅助任务。在线程start之前调用，isDaemon方法检查线程是否为守护线程，也可使用setDaemon()方法将某个线程设置为守护线程。
+   
+5. java.lang.Thread.State类中定义线程的状态如下：
+
+   - NEW：Thread对象已经创建，但是还没有开始执行。
+   - RUNNABLE：Thread对象正在Java虚拟机中运行。
+   - BLOCKED：Thread对象正在等待锁定。
+   - WAITING：Thread对象正在等待另一个线程的动作。
+   - TIMED_WAITING：Thread对象正在等待另一个线程的操作，但是有时间限制。
+   - TERMINATED：Thread对象已经完成了执行。
+
+   getState()方法获取Thread对象的状态，在给定时间内，线程只能处于一个状态。这些状态是JVM使用的状态，不能映射到操作系统的线程状态。
+
+   线程状态的源码：
+
+![image-20210924161132795](assest/image-20210924161132795.png)
 
 ### 1.1.3 Thread类和Runnable接口
 
+Runnable接口只定义了一种方法：run()方法。这是每个线程的主方法。当执行start()方法启动新线程时，它将调用run()方法。
+
+Thread类其他常用方法：
+
+- 获取和设置Thread对象信息的方法
+  - getId()：返回Thread对象的标识符。该标识符是在线程创建时分配的一个正整数，在线程的整个声明周期中是唯一且无法改变的。
+  - getName()/setName()：这两个方法允许获取或设置Thread对象的名称，这个名称是一个String对象，也可以在Thread类的构造函数中设置。
+  - getPriority()/setPriority()：获取或设置Thread对象的优先级。
+  - isDaemon()/setDaemon()：这两种方法获取或建立Thread对象的守护条件。
+  - getState()：返回Thread对象的状态。
+- interrupt()：中断目标线程，给目标线程发送一个中断信号，线程被打上中断标记。
+- interrupted()：判断目标线程是否被中断，但是将清除线程中断标记。
+- isInterrupted()：判断目标线程是否被中断，不会清除中断标记。
+- sleep(long ms)：该方法将线程的执行暂停ms时间。
+- join()：暂停线程执行，直到调用该方法的线程执行结束为止。可以使用该方法等待另一个Thread对象结束。
+- setUncaughtExceptionHandler()：当线程执行出现未校验异常时，该方法用于建立未校验异常的控制器。
+- currentThread()：Thread类的静态方法，返回实际执行该代码的Thread对象。
+
+
+
+join示例程序：
+
+```java
+package com.turbo.concurrent.demo;
+
+public class MyThread extends Thread {
+    @Override
+    public void run() {
+        for (int i = 0; i < 10; i++) {
+            System.out.println("新线程-"+i);
+        }
+    }
+}
+```
+
+```java
+package com.turbo.concurrent.demo;
+
+public class Main {
+
+    public static void main(String[] args) throws InterruptedException {
+        MyThread myThread = new MyThread();
+        myThread.start();
+        myThread.join();
+        System.out.println("main线程执行结束");
+    }
+}
+```
+
+
+
 ### 1.1.4 Callable
+
+Callable接口是一个与Runnable接口非常相似的接口。Callable接口的主要特征如下：
+
+- 接口，有简单类型参数，与call()方法的返回类型相对应。
+- 声明了call()方法，执行器运行任务时，该方法会被执行器执行。它必须返回声明中指定类型的对象。
+- call()方法可以抛出一种检验异常。可以实现自己的执行器并重载afterExecute()方法来处理这些异常。
+
+```java
+package com.turbo.concurrent.demo;
+
+import java.util.concurrent.*;
+
+public class Main2 {
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+        MyCallable myCallable = new MyCallable();
+
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(
+                5,
+                5,
+                1,
+                TimeUnit.SECONDS,
+                new ArrayBlockingQueue<>(10)
+        ) {
+            @Override
+            protected void afterExecute(Runnable r, Throwable t) {
+                // 在call方法执行过程中有错误，可以在此处进行处理
+//                super.afterExecute(r, t);
+                System.out.println("任务执行完毕"+t);
+            }
+        };
+
+        final Future<String> future = executor.submit(myCallable);
+        final String result = future.get();
+        System.out.println(result);
+        executor.shutdown();
+
+    }
+}
+```
+
+```java
+package com.turbo.concurrent.demo;
+
+import java.util.concurrent.Callable;
+
+public class MyCallable implements Callable<String> {
+
+    @Override
+    public String call() throws Exception {
+        Thread.sleep(5000);
+        return "call方法的返回值";
+    }
+}
+```
+
+
 
 ## 1.2 synchronized关键字
 
@@ -223,7 +348,7 @@ synchronized关键字可以加在任何对象的实例方法上，任何对象�
 
 ### 1.3.3 为什么wait()的时候必须释放锁
 
-当线程A进入synchronized(obj1)中之后，也就是对obj1上了锁。此时，调用wait()进入阻塞状态，一致不能退出synchronized代码块；那么，线程B永远无法进入synchronized(obj1)同步块中，永远没机会调用notify()，发生死锁。
+当线程A进入synchronized(obj1)中之后，也就是对obj1上了锁。此时，调用wait()进入阻塞状态，一直不能退出synchronized代码块；那么，线程B永远无法进入synchronized(obj1)同步块中，永远没机会调用notify()，发生死锁。
 
 这就涉及到一个关键的问题：在wait()的内部，会先释放锁obj1，然后进入阻塞状态，之后，它被另外一个线程调用notify()唤醒，重新获取锁。其次，wait()调用完成后，执行后面的业务逻辑代码，然后退出synchronized，再次释放锁。
 
@@ -271,13 +396,156 @@ public void dequeue() {
 
 ### 1.4.1 Interrupted异常
 
+什么情况下抛出Interrupted异常
+
+只有声明了会抛出InterruptedException的函数才会抛出异常
+
+```java
+public static native void sleep(long millis) throws InterruptedException {...}
+public final void wait() throws InterruptedException {...}
+public final void join() throws InterruptedException {...}
+```
+
 ### 1.4.2 轻量级阻塞与重量级阻塞
+
+能够被中断的阻塞成为轻量级阻塞，对应的线程状态是WAITING或者TIMED_WAITING；二项synchronized这种不能被中断的阻塞成为重量级阻塞，对应的状态是BLOCKED。如图所示：调用不同的方法后，一个线程的状态迁移过程。
+
+![image-20210924175048549](assest/image-20210924175048549.png)
+
+初始线程处于NEW状态，调用start()开始执行后，进入RUNNING或者READY状态。如果没有调用任何阻塞函数，线程只会在RUNING和RAEADY之间切换，也就是系统的时间片调度。这两种状态的切换是操作系统完成的，除非手动调用yield()函数，放弃对CPU的占用。
+
+一旦调用了图中任何阻塞函数，线程就会进入WAITING或者TIMED_WAITING状态，两者的区别只是前者为无限期阻塞，后者则传入了一个时间参数，阻塞一个有限的时间。如果使用了synchronized关键字或者synchronized块，则会进入BLOCKED状态。
+
+不太常见的阻塞/唤醒函数，LockSupport.park()/unpark()。这对函数非常关键，Concurrent包中Lock的实现即依赖这一对操作原语。
+
+因此thread.interrupted()的精确含义是”唤醒轻量级阻塞“，而不是字面意思”中断一个线程“。
+
+
+
+**thread.isInterrupted()与thread.interrupted()的区别**
+
+因为thread.interrupted()相当于给线程发送一个唤醒的信号，所以如果线程此时恰好处于WAITING或者TIMED_WAITING，就会抛出一个InterruptedException，并且线程被唤醒。如果线程此时并没有被阻塞，则线程什么都不会做。但在后续，线程可以判断自己是否收到过其他线程发来的中断信号，然后做一些对应的处理。
+
+这两个方法都是线程用来判断自己是否收到过中断信号，前者是实例方法，后者是静态方法。二者的区别在于，前者只是读取中断状态，不修改状态；后者不仅读取中断状态，还会重置中断标志位。
+
+```java
+package com.turbo.concurrent.demo;
+
+public class Main {
+    public static void main(String[] args) throws InterruptedException {
+        MyThread myThread = new MyThread();
+        myThread.start();
+        Thread.sleep(10);
+        myThread.interrupt();
+        Thread.sleep(7);
+        System.out.println("main中断状态检查-1：" + myThread.isInterrupted());
+        System.out.println("main中断状态检查-2：" + myThread.isInterrupted());
+    }
+}
+```
+
+```java
+package com.turbo.concurrent.demo;
+
+public class MyThread extends Thread {
+    @Override
+    public void run() {
+        int i = 0;
+        while (true) {
+            boolean interrupted = isInterrupted();
+            System.out.println("中断标记：" + interrupted);
+            ++i;
+            if (i > 200) {
+                // 检查并重置中断标志。
+                boolean interrupted1 = Thread.interrupted();
+                System.out.println("重置中断状态：" + interrupted1);
+                interrupted1 = Thread.interrupted();
+                System.out.println("重置中断状态：" + interrupted1);
+                interrupted = isInterrupted();
+                System.out.println("中断标记：" + interrupted);
+                break;
+            }
+        }
+    }
+}
+
+```
+
+
 
 ## 1.5 线程的优雅关闭
 
 ### 1.5.1 stop与destory函数
 
+线程是”一段运行中的代码“，一个运行中的方法。运行到一半的线程能否强制杀死？
+
+不能。在Java中，有stop()、destory()等方法，但是这些方法官方明确不建议使用。原因很简单，如果强制杀死线程，则线程中所使用的资源无法正常关闭。
+
+因此，一个线程一旦运行起来，不要强行关闭，合理的做法是让其运行完（也就是执行完毕），干净的释放掉所有资源，然后退出。如果是一个不断循环的线程，就需要用到**线程间的通信机制**，让主线程通知其退出。
+
 ### 1.5.2 守护线程
+
+daemon线程和非daemon线程的对比：
+
+```java
+package com.turbo.concurrent.demo;
+
+public class Main {
+    public static void main(String[] args) {
+        MyDaemonThread myDaemonThread = new MyDaemonThread();
+        // 将当前线程设置为daemon线程：守护线程
+        myDaemonThread.setDaemon(true);
+        myDaemonThread.start();
+        // 启动非daemon线程，当非daemon线程结束，不管daemon线程是否结束，都结束JVM进程
+        new MyThread().start();
+    }
+}
+```
+
+```java
+package com.turbo.concurrent.demo;
+
+public class MyDaemonThread extends Thread {
+    @Override
+    public void run() {
+        while (true){
+            System.out.println(Thread.currentThread().getName());
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
+```
+
+```java
+package com.turbo.concurrent.demo;
+
+public class MyThread extends Thread {
+
+    @Override
+    public void run() {
+        for (int i = 0; i < 10; i++) {
+            System.out.println("非Daemon线程");
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
+```
+
+对于上面的程序，在thread.start()前面加一行代码thread.setDaemon(true)。当main(...)函数退出后，线程thread就会退出，整个进程也会退出。
+
+当在一个JVM进程里面开多个线程时，这些线程被分为两类：守护线程和非守护线程。默认都是非守护线程。
+
+在Java中有一个规定：当所有的非守护线程退出后，整个JVMi昵称就会退出。意思就是守护线程”不算作数“，守护线程不影响整个JVM进程的退出。
+
+
 
 ### 1.5.3 设置标志位
 
