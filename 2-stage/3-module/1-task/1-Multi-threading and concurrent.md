@@ -761,7 +761,58 @@ Store Buffer的延迟写入是重排序的一种，成为内存重排序（Memor
 
 ### 4.1.3 内存屏障
 
+为了禁止编译器重排序和CPU重排序，在编译器和CPU层面都有对应的指令，也就是**内存屏障**（Memory Barrier）。这也正是JMM和happen-before规则的底层实现原理。
+
+编译器的内存屏障，只是为了告诉百年一起不要对执行进行重排序。当编译完成之后，这种内存屏障就消失，CPU并不会感知到编译器中内存屏障的存在。
+
+而CPU的内存屏障是CPU提供的指令，可以由开发者显示调用。
+
+内存屏障是很底层的概念，对于Java开发者来说，一般用**volatile**关键字就足够了，但从JDK8开始，Java在Unsafe类中提供了三个内存屏障函数，如下：
+
+```java
+public final class Unsafe {    
+	// ...
+   	public native void loadFence();
+   	public native void storeFence();
+   	public native void fullFence();    
+   	// ...
+}
+```
+
+在理论层面，可以把基本的CPU内存屏障分成四种：
+
+1. LoadLoad：禁止读和读的重排序
+2. StroeStore：禁止写和写的重排序
+3. LoadStore：禁止读和写的重排序
+4. StoreLoad：禁止写和读的重排序
+
+Unsafe中的方法：
+
+1. loadFence = LoadLoad+LoadStore
+2. storeFence=StoreStore+LoadStore
+3. fullFence=loadFence+storeFence+StoreLoad
+
 ### 4.1.4 as-if-serial语义
+
+重排序的原则是什么？什么场景下可以重排序，什么场景下不能重排序？
+
+1. **单线程程序的重排序规则**
+
+   无论什么语言，站在编译器和CPU的角度来说，不管怎么重排序，单线程程序的执行结果不能改变，这就是单线程程序的重排序规则。
+
+   即只要操作之间没有数据依赖性，编译器和CPU都可以任意重排序，因为执行结果不会改变，代码看起来就是串行从头到尾，这也就是as-if-serial语义。
+
+   对于单线程程序来说，编译器和CPU可能做了重排序，但开发者感知不到，也不存在内存可见性问题。
+
+2. 多线程程序的重排序规则
+
+   对于多线程程序，线程之间的数据依赖性太复杂，编译器和CPU没有办法完全理解这种依赖性，并据此做出最合理的优化。
+
+   编译器和CPU只能保证每个线程的**as-if-serial**语义。
+
+   线程之间的数据依赖和相互影响，需要编译器和CPU的上层来确定。
+
+   上层要告知编译器和CPU在多线程场景下什么时候可以重排序，什么时候不能重排序。
 
 ### 4.1.5 happen-before是什么
 
