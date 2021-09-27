@@ -567,24 +567,24 @@ public ConcurrentLinkedQueue() {
 代码如下：
 
 ```java
-	public boolean offer(E e) {
-        final Node<E> newNode = new Node<E>(Objects.requireNonNull(e));
+public boolean offer(E e) {
+	final Node<E> newNode = new Node<E>(Objects.requireNonNull(e));
 
-        for (Node<E> t = tail, p = t;;) {
-            Node<E> q = p.next;
-            if (q == null) {
-                if (NEXT.compareAndSet(p, null, newNode)) {
-                    if (p != t) // hop two nodes at a time; failure is OK
-                        TAIL.weakCompareAndSet(this, t, newNode);
-                    return true;
-                }
+    for (Node<E> t = tail, p = t;;) {
+        Node<E> q = p.next;
+        if (q == null) {
+            if (NEXT.compareAndSet(p, null, newNode)) {
+                if (p != t) // hop two nodes at a time; failure is OK
+                    TAIL.weakCompareAndSet(this, t, newNode);
+                return true;
             }
-            else if (p == q)
-                p = (t != (t = tail)) ? t : head;
-            else
-                p = (p != t && t != (t = tail)) ? t : q;
         }
+        else if (p == q)
+            p = (t != (t = tail)) ? t : head;
+        else
+            p = (p != t && t != (t = tail)) ? t : q;
     }
+}
 ```
 
 ![image-20210927210313970](assest/image-20210927210313970.png)
