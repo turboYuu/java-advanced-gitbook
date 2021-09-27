@@ -133,15 +133,303 @@ LinkBlockingQueue和ArrayBlockingQueue的差异：
 
 ### 5.1.3 PriorityBlockingQueue
 
+队列通常是先进先出的，而PriorityQueue是按照元素的优先级从小到大出队列。因此，PriorityQueue中的2个元素之间需要比较大小，并实现Comparable接口。
+
+
+
+其核心数据结构如下：
+
+```java
+public class PriorityBlockingQueue<E> extends AbstractQueue<E> 
+		implements BlockingQueue<E>, java.io.Serializable {
+		
+   	//...
+   	// 用数组实现的二插小根堆
+   	private transient Object[] queue;
+   	private transient int size;
+   	private transient Comparator<? super E> comparator;    
+   	
+   	// 1个锁+一个条件，没有非满条件
+   	private final ReentrantLock lock;    
+   	private final Condition notEmpty;    
+   	//...
+}
+```
+
+其构造方法如下，如果不指定初始大小，内部会设定一个默认值11，当元素个数超过这个大小后，会自动扩容。
+
+![image-20210927133243954](assest/image-20210927133243954.png)
+
+
+
+put方法：
+
+![image-20210927133411321](assest/image-20210927133411321.png)
+
+![image-20210927134118679](assest/image-20210927134118679.png)
+
+
+
+take方法：
+
+![image-20210927134336216](assest/image-20210927134336216.png)
+
+![image-20210927134739716](assest/image-20210927134739716.png)
+
+从上面可以看出，在阻塞的实现方面，和ArrayBlockingQueue的机制相似，主要区别是用数组实现了一个二叉堆，从而实现按优先级从小到大出队列。另一个区别是没有notFull条件，当元素个数超出数组长度时，执行扩容操作。
+
 ### 5.1.4 DelayQueue
+
+DelayQueue 延迟队列，是一个按照延迟时间从小到大出队列的PriorityQueue。所谓延迟时间，就是“未来将要执行的时间”减去“当前时间”。为此，放入DelayQueue中的元素，必须实现Delayed接口，如下：
+
+![image-20210927135610705](assest/image-20210927135610705.png)
+
+![image-20210927135644945](assest/image-20210927135644945.png)
+
+关于接口：
+
+1. 如果getDelay返回值小于等于0，则说明该元素到期，需要从队列中拿出来执行。
+2. 该接口首先继承了Comparable接口，所以要实现该接口，必须实现Comparable接口。具体就是，基于getDelay()的返回值比较两个元素的大小。
+
+下面看一下DelayQueue的核心数据结构。
+
+```java
+public class DelayQueue<E extends Delayed> extends AbstractQueue<E> 
+		implements BlockingQueue<E> {
+		
+   	// ...
+   	// 一把锁和一个非空条件
+   	private final transient ReentrantLock lock = new ReentrantLock();    
+   	private final Condition available = lock.newCondition();
+   	// 优先级队列
+   	private final PriorityQueue<E> q = new PriorityQueue<E>(); 
+   	// ...
+}
+```
+
+下面介绍put/take的实现，先从take说起，因为这样更能看出DelayQueue特性。
+
+**take方法：**
+
+![image-20210927141101250](assest/image-20210927141101250.png)
+
+关于take()方法：
+
+1. 不同于一般的阻塞队列，只在队列为空的时候，才阻塞。如果堆顶元素的延迟时间没到，也会阻塞。
+2. 在上面的代码中使用了一个优化技术，用一个Thread leader变量记录了等待堆顶元素的第一个线程，为什么这样做？通过getDelay(...)可以知道堆顶元素何时到期，不必无限等待，可以使用condition.awaitNanos()等待一个有限时间；只有当发现还有其他线程也在等待堆顶元素（leader != NULL）时，才需要无限期等待。
+
+**put的实现：**
+
+![image-20210927143023061](assest/image-20210927143023061.png)
+
+![image-20210927143329470](assest/image-20210927143329470.png)
+
+注意：不是每放入一个元素，都需要通知等待的线程。放入的元素，如果其延迟时间大于当前堆顶的元素延迟时间，就没有必要通知等待的线程；只有当延迟时间是最小的，在堆顶时，才有必要通知等待的线程，也就是上面代码中的`if (q.peek() == e) {`部分。
 
 ### 5.1.5 SynchronousQueue
 
+SynchronousQueue是一种特殊的BlockingQueue，它本身没有容量。先调用put(...)，线程会阻塞；直到另外一个线程调用了take()，连个线程才同时解锁，反之亦然。对于多个线程而言，例如3个线程，调用3次put(...)，3个线程都会阻塞；直到另外的线程调用3次take()，6个线程才同时解锁，反之亦然。
+
+
+
+SynchronousQueue的实现，构造方法：
+
+![image-20210927144531529](assest/image-20210927144531529.png)
+
+和锁一样，也有公平和非公平模式。如果是公平模式，则用TransferQueue实现；如果是非公平模式，则用TransferStack实现。这两个类分别是什么？先看一下put/take的实现。
+
+![image-20210927144812507](assest/image-20210927144812507.png)
+
+![image-20210927144845606](assest/image-20210927144845606.png)
+
+可以看到，put/take都调用了transfer(...)接口。而TransferQueue和TransferStack分别实现了这个接口。该接口在SynchronousQueue内部，如下。如果是put(...)，则第一个参数就是对应的元素；如果是take(...)，则第一个参数为null，后面两个参数分别为是否设置超时和对应的超时时间。
+
+![image-20210927145739165](assest/image-20210927145739165.png)
+
+
+
+接下来看一下什么是公平模式和非公平模式。假设3个线程分别调用了put(...)，3个线程会进入阻塞状态，直到其他线程调用3次take()，和3个put() 一一配对。
+
+如果是**公平模式（队列模式）**，则第一个调用put(...)的线程1会在队列头部，第1个到来的take()线程和它进行配对，遵循先到先匹配的原则，所以是公平的；如果是**非公平模式（栈模式）**，则第3个调用put(...)的线程3会在栈顶，第1个到来的take()线程和它进行配对，遵行的是后到先配对的原则，所以是非公平的。
+
+![image-20210927151008392](assest/image-20210927151008392.png)
+
+TransferQueue和TransferStack的实现。
+
+**1.TransferQueue：**
+
+```java
+public class SynchronousQueue<E> extends AbstractQueue<E> 
+		implements BlockingQueue<E>, java.io.Serializable {
+		
+	// ...
+   	static final class TransferQueue<E> extends Transferer<E> {        
+   		static final class QNode {
+			volatile QNode next;
+           	volatile Object item;
+           	volatile Thread waiter;            
+           	final boolean isData;            
+           	//...
+     	}
+       	transient volatile QNode head;        
+       	transient volatile QNode tail;        
+       	// ...
+	} 
+}
+```
+
+从上面的代码可以看出，TransferQueue是一个基于单向链表而实现的队列，通过head和tail 2指针记录头部和尾部。初始的时候，head和tail会指向一个空节点，构造方法：
+
+![image-20210927152025381](assest/image-20210927152025381.png)
+
+> 阶段(a)：队列是一个空的节点，head/tail都指向这个空节点。
+>
+> 阶段(b)：3个线程分别调用put，生成3个QNode，进入队列。
+>
+> 阶段(c)：来了一个线程调用take，会和队列头部的第一个QNode进行配对。
+>
+> 阶段(d)：第1个QNode出队列。
+
+
+
+![image-20210927152406268](assest/image-20210927152406268.png)
+
+这里有一个关键点：put节点和take节点节点一旦相遇，就会配对出队列，所以在队列中不可能同时存在put节点和take节点，要么全是put节点，要么全是take节点。
+
+TransferQueue的代码实现：
+
+![image-20210927153627629](assest/image-20210927153627629.png)
+
+![image-20210927154245207](assest/image-20210927154245207.png)
+
+![image-20210927154556764](assest/image-20210927154556764.png)
+
+
+
+整个for循环有两个大的if-else分支，如果当前线程和队列中的元素是同一模式（都是put节点或者take节点），则与当前线程对应的节点被加入队列尾部并且阻塞；如果不是同一种模式，则选取队列头部的第1个元素进行配对。
+
+这里的配对就是m.casltem(x, e)，把自己的item x换成对方的item e，如果CAS操作成功，则配对成功。如果是put节点，则isData=true，item != null；如果是take节点，则isData = false，item = null。如果CAS操作不成功，则isData和item之间将不一致，也就是isData != (x != null)，通过这个条件可以判断节点是否已经被匹配过了。
+
+
+
+**2.TransferStack：**
+
+TransferStack的定义如下，首先，它也是一个单向链表。不同于队列，只需要head指针就能实现入栈和出栈操作。
+
+```java
+static final class TransferStack extends Transferer {
+   	static final int REQUEST = 0;
+   	static final int DATA = 1;
+   	static final int FULFILLING = 2;
+   	static final class SNode {
+       	volatile SNode next;     // 单向链表
+       	volatile SNode match;    // 配对的节点
+       	volatile Thread waiter;  // 对应的阻塞线程        
+       	Object item;
+       	int mode;                // 三种模式        
+       	//...
+ 	}
+   	volatile SNode head; 
+}
+```
+
+链表中的节点有三种状态，REQUEST对应take节点，DATA对应put节点，二者配对之后，会生成一个FULLFILLING节点，入栈，然后FULLING节点和被配对的节点一起出栈。
+
+> 阶段(a)：head指向NULL。不同于TransferQueue，这里没有空的头节点。
+>
+> 阶段(b)：3个线程调用3次put，依次入栈。
+>
+> 阶段(c)：线程4调用take，和栈顶的第一个元素配对，生成FULLFILLING节点，入栈。
+>
+> 阶段(d)：栈顶的2个元素同时出栈。
+
+![image-20210927164448155](assest/image-20210927164448155.png)
+
+具体代码实现：
+
+![image-20210927165753844](assest/image-20210927165753844.png)
+
+![image-20210927170315483](assest/image-20210927170315483.png)
+
+
+
 ## 5.2 BlockingDeque
+
+BlockingQueue定义了一个阻塞的双端队列接口，如下：
+
+```java
+public interface BlockingDeque<E> extends BlockingQueue<E>, Deque<E> {    
+	void putFirst(E e) throws InterruptedException;
+   	void putLast(E e) throws InterruptedException;    
+   	E takeFirst() throws InterruptedException;
+   	E takeLast() throws InterruptedException;    
+   	// ...
+}
+```
+
+该接口继承了BlockingQueue接口，同时增加了对应的双端队列操作接口。该接口只有一个实现，就是LinkedBlockingDeque。
+
+核心数据结构如下：是一个双向链表。
+
+```java
+public class LinkedBlockingDeque<E> extends AbstractQueue<E> 
+		implements BlockingDeque<E>, java.io.Serializable {
+   
+   	static final class Node<E> {        
+   		E item;
+       	Node<E> prev;  // 双向链表的Node        
+       	Node<E> next;Node(E x) {            
+       		item = x;      
+		}
+	}
+	
+   	transient Node<E> first;  // 队列的头和尾    
+   	transient Node<E> last;
+   	private transient int count; // 元素个数    
+   	private final int capacity;  // 容量    
+   	
+   	// 一把锁+两个条件
+   	final ReentrantLock lock = new ReentrantLock();
+   	private final Condition notEmpty = lock.netCondition();    
+   	private final Condition notFull = lock.newCondition();    
+   	// ...
+}
+```
+
+对应的实现原理，和LinkedBlockingQueue基本一样，只是LinkedBlockingQueue是单向链表，而LinkedBlockingDeque是双向链表。
+
+take/put：
+
+![image-20210927171439946](assest/image-20210927171439946.png)
+
+![image-20210927171514668](assest/image-20210927171514668.png)
 
 ## 5.3 CopyOnWrite
 
+CopyOnWrite指在“写”的时候，不直接“写”源数据，而是把数据拷贝一份进行修改，在通过悲观锁或者乐观锁的方式写回。
+
+拷贝一份再修改，是为了在“读”的时候不加锁。
+
 ### 5.3.1 CopyOnWriteArrayList
+
+和ArrayList一样，CopyOnWriteArrayList的核心数据结构也是一个数组，代码如下：
+
+```java
+public class CopyOnWriteArrayList<E> 
+		implements List<E>, RandomAccess, Cloneable, java.io.Serializable {
+   
+   	// ...
+   	private volatile transient Object[] array; 
+}
+```
+
+下面是CopyOnWriteArrayList的几个“读”方法：
+
+```
+
+```
+
+
 
 ### 5.3.2 CopyOnWriteArraySet
 
