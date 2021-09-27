@@ -584,6 +584,7 @@ public ConcurrentLinkedQueue() {
             else
                 p = (p != t && t != (t = tail)) ? t : q;
         }
+    }
 ```
 
 ![image-20210927210313970](assest/image-20210927210313970.png)
