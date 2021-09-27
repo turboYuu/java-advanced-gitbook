@@ -822,24 +822,233 @@ java内存模型（JMM）是一套规范，在多线程中，一方面，要让�
 
 **关于happen-before:**
 
+如果A happen-before B，意味着A的执行结果必须对B可见，也就是保证跨线程的内存可见性。A happen before B不代表A一定在B之间执行，因为，对于多线程程序而言，两个操作的执行顺序是不确定的。happen-before只确保A在B之前执行，则A的执行结果必须对B可见。定义了内存可见性的约束，也就定义了一系列重排序的约束。
 
+基于happen-before的这种描述方法，JMM对开发者做出了一些列承诺：
+
+1. 单线程的每个操作，happen-before对应线程中任意后续操作（也就是as-if-serial语义保证）。
+2. 对volatile变量的写入，happen-before对应后续对这个变量的读取。
+3. 对synchronized的解锁，happen-before对应后续对这个锁的加锁。
+
+......
+
+JMM对编译器和CPU来说，volatile变量不能重排序；非volatile变量可以任意重排序。
 
 ### 4.1.6 happen-before的传递性
+
+除了这些基本的happen-before规则，happen-before还具有**传递性**，即若A happen-before B，B happen-before C，则A happen-before C。
+
+如果一个变量不是volatile变量，当一个线程读取，一个线程写入时可能有问题。那在多线程中，要么加锁，要么必须包所有变量都声明为volatile变量？这是不可能的，因为happen-before的传递性。
+
+```java
+class A {
+   	private int a = 0;
+   	private volatile int c = 0;    
+   	public void set() {
+		a = 5; // 操作1        
+       	c = 1; // 操作2  
+	}
+   	public int get() {
+       	int d = c; // 操作3        
+       	return a; // 操作4  
+	}
+}
+```
+
+假设线程A先调用了set，设置a=5；之后线程B调用了get，返回值一定是a=5。为什么？
+
+操作1和操作2是在同一个线程内存中执行的，操作1 happen-before 操作2，同理，操作3 happen-before 操作4.又因为c是volatile变量，对c的写入 happen-before 对c的读取，所以操作2 happen-before 操作3。利用happen-before的传递性，就得到：
+
+操作1 happen-before 操作2 happen-before 操作3 happen-before 操作4。
+
+所以操作1的结果，一定对操作4可见。
+
+
+
+```java
+class A {
+   	private int a = 0;    
+   	private int c = 0;
+   	public synchronized void set() {        
+   		a = 5; // 操作1
+       	c = 1; // 操作2  
+	}
+   	public synchronized int get() {        
+   		return a;
+ 	} 
+}
+```
+
+假设线程A先调用set，之后线程B调用了get，返回值也一定是a=5。与volatile一样，synchronized同样具有happen-before语义，伪代码：
+
+```
+线程A：
+	加锁;   // 操作1 
+	a = 5; // 操作2 
+	c = 1; // 操作3 
+	解锁;   // 操作4
+线程B：
+	加锁;   // 操作5 
+	读取a; // 操作6 
+	解锁;   // 操作7
+```
+
+根据synchronized的happen-before语义，操作4 happen-before操作5，结合传递性，最终会得到：
+
+操作1 happen-before 操作2 ... happen-before 操作7。所以a，c都不是volatile变量，但仍然有内存可见性。
 
 ## 4.2 volatile关键字
 
 ### 4.2.1 64位写入的原子性（Half Write）
 
+如，对于一个long型变量的赋值和取值操作而言，在多线程场景下，线程A调用set(100)，线程B调用get()，在某些场景下，返回值可能不是100。
+
+```java
+public class MyClass {
+	private long a = 0;
+   	// 线程A调用set(100)
+   	public void set(long a) {        
+   		this.a = a;
+ 	}
+   	
+   	// 线程B调用get()，返回值一定是100吗？    
+   	public long get() {
+       	return this.a;  
+	}
+}
+```
+
+因为JVM的规范并没有要求64位的long或double的写入是原子的。在32位的机器上，一个64位的变量的写入可能被拆分位两个32位的写操作来执行。这样一来，读线程就可能读到“一般的值”。解决办法也简单，在long前面加上volatile关键字。
+
 ### 4.2.2 重排序：DCL问题
+
+单线程模式的线程安全的写法不止一种，常用写法为DCL（Double Checking Locking），如下所示：
+
+```java
+public class Singleton {
+   	private static Singleton instance;
+   	public static Singleton getInstance() {        
+   		if (instance == null) {
+           	synchronized(Singleton.class) {                
+           		if (instance == null) {
+                   	// 此处代码有问题
+                   	instance = new Singleton();          
+				}
+			}      
+		}
+       	return instance;  
+	}
+}
+```
+
+上述的`instance = new Singleton();`代码有问题：其底层会分为三个操作：
+
+1. 分配一块内存。
+2. 在内存上初始化成员变量。
+3. 把instance引用指向内存。
+
+在这三个操作中，操作2和操作3可能重排序，即先把instance指向内存，再初始化成员变量，因为二者并没有先后的依赖关系。此时，另一个线程可能拿到一个未完全初始化的对象。这时，直接访问里面的成员变量，就可能出错。这就是典型的“构造方法溢出”问题。
+
+解决办法也简单，就是未instance变量加上volatile修饰。
+
+**volatile的三个作用：64位写入的原子性，内存可见性，禁止重排序。**
 
 ### 4.2.3 volatile实现原理
 
+由于不同的CPU架构的缓存体系不一样，重排序的策略不一样，所提供的内存屏障指令也就有差异。
+
+这里只探讨为了实现volatile关键字的语义的一种参考做法：
+
+1. 在volatile写操作的前面插入一个StoreStore屏障，保证volatile写操作不会和之前的写操作重排序。
+2. 在volatile写操作的后面插入一个StoreLoad屏障。保证volatile写操作不会和之后的读操作重排序。
+3. 在volatile读操作的后面插入一个LoadLoad屏障 + LoadStore屏障。保证volatile读操作不会和之后的读操作、写操作重排序。
+
+集体到x86平台上，其实不会有LoadLoad、LoadStore和StoreStore重排序，只有StoreLoad一种重排序（内存屏障），也就是只需要在volatile写操作后面加上StoreLoad屏障。
+
 ### 4.2.4 JSR-133对volatile语义的增强
+
+在JSR-133之前的就内存模型中，一个64位long/double型变量的读/写操作可以被拆分为两个32位的读/写操作来执行。从JSR-133内存模型开始（即从JDK5开始），仅仅只允许把一个64位long/double型变量的**写操作拆分**为两个32位的写操作来执行，任意的读操作的在JSR-133中都**必须具有原子性**（即任意读操作必须要在单个读事务中执行）。
+
+这也生体现了Java对happen-before规则的严格遵守。
 
 ## 4.3 final关键字
 
 ### 4.3.1 构造方法的溢出
 
+考虑下面的代码：
+
+```java
+public class MyClass {
+   	private int num1;
+   	private int num2;
+   	private static MyClass myClass;
+   	public MyClass() {        
+   		num1 = 1;
+       	num2 = 2;  
+	}
+   
+   	/**
+     * 线程A先执行write()      
+     */
+   	public static void write() {        
+   		myClass = new MyClass();  
+	}
+	
+   	/**
+     * 线程B接着执行write()      
+     */
+   	public static void read() {
+       	if (myClass != null) {
+           	int num3 = myClass.num1;
+           	int num4 = myClass.num2;      
+		}
+ 	}
+}
+```
+
+num3、num4不一定等于1、2。和DCL的例子类似，也就是构造方法溢出问题。
+
+myClass = new MyClass()这行代码，分解成三个操作：
+
+1. 分配一块内存；
+2. 在内存上初始化i=1，j=2；
+3. 把myClass指向这块内存。
+
+操作2和操作3可能重排序，因此线程B可能看到未正确初始化的值。对于构造方法溢出，就是一个对象的构造并不是“原子的”，当一个线程正在构造对象时，另一个线程却可以读到未构造号的“一半对象”。
+
 ### 4.3.2 final的happen-before语义
 
+要解决这个问题，不止一种方法。
+
+方法1：num1，num2加上volatile关键字。
+
+方法2：为read/write方法都加上synchronized关键字。
+
+如果num1，num2只需要初始化一次，还可以使用final关键字。之所以能解决问题，是因为同volatile一样，final关键字也有相应的happen-before语义：
+
+1. 对final域的写（构造方法内部），happen-before于后续对final域所在对象的读。
+2. 对final域所在对象的读，happen-before于后续对final域的读。
+
+通过这种happen-before语义的限定，保证了final域的赋值，一定在构造方法之前完成，不会出现另外一个线程读取到了对象，但对象里面的变量却还没有初始化的情形，避免出现构造方法溢出的问题。
+
 ### 4.3.3 happen-before规则总结
+
+1. 单线程中的每个操作，happen-before于该线程中任意后续操作。
+2. 对volatile变量的写，happen-before于后续对这个变量的读。
+3. 对synchronized的解锁，happen-before于后续对这个锁的加锁。
+4. 对final变量的写，happen-before于final域对象的读，happen-before于后续对final变量的读。
+
+四个规则 和 happen-before的传递性，就构成了JMM对开发者的整个承若，在这个承诺以外的部分，程序都可能被重排序，都需要开发者小心处理内存可见性问题。
+
+![image-20210927001415438](assest/image-20210927001415438.png)
+
+
+
+
+
+
+
+
+
+
+
