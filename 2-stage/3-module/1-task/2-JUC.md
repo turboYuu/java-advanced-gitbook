@@ -568,7 +568,7 @@ public ConcurrentLinkedQueue() {
 
 ```java
 public boolean offer(E e) {
-	final Node<E> newNode = new Node<E>(Objects.requireNonNull(e));
+    final Node<E> newNode = new Node<E>(Objects.requireNonNull(e));
 
     for (Node<E> t = tail, p = t;;) {
         Node<E> q = p.next;
