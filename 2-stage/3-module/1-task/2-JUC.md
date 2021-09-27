@@ -1,5 +1,7 @@
 第二部分 JUC
 
+Java并发编程核心在于java.util.concurrent包，而JUC当中的大多数同步器实现都是围绕着共同的基础行为，比如等待队列，条件队列、独占获取、共享获取等。而这个行为的抽象就是基于AbstractQueuedSynchronizer，简称AQS，AQS定义了一套多线程访问共享资源的同步框架，是一个依赖状态（<font color='red'>**state**</font>）的同步器。
+
 # 5 并发容器
 
 ## 5.1 BlockingQueue
@@ -425,15 +427,170 @@ public class CopyOnWriteArrayList<E>
 
 下面是CopyOnWriteArrayList的几个“读”方法：
 
+```java
+	final Object[] getArray() {        
+		return array;
+	}
+	//
+	public E get(int index) {
+		return elementAt(getArray(), index);  
+	}
+   	public boolean isEmpty() {        
+   		return size() == 0;  
+	}
+   	public boolean contains(Object o) {        
+   		return indexOf(o) >= 0;
+ 	}
+   	public int indexOf(Object o) {        
+   		Object[] es = getArray();
+       	return indexOfRange(o, es, 0, es.length);  
+	}
+   	private static int indexOfRange(Object o, Object[] es, int from, int to){        
+   		if (o == null) {
+           	for (int i = from; i < to; i++)                
+           		if (es[i] == null)
+                   	return i;        
+		} else {
+           	for (int i = from; i < to; i++)                
+           		if (o.equals(es[i]))
+                   	return i;      
+		}
+       	return -1;  
+	}
 ```
 
+这些“读”方法都没有加锁，如何保证"线程安全"？答案在”写“方法中。
+
+```java
+public class CopyOnWriteArrayList<E>
+   		implements List<E>, RandomAccess, Cloneable, java.io.Serializable {    
+   	
+   	// 锁对象
+   	final transient Object lock = new Object();  
+    
+   	public boolean add(E e) {
+       	synchronized (lock) { // 同步锁对象            
+       		Object[] es = getArray();
+           	int len = es.length;
+           	es = Arrays.copyOf(es, len + 1); // CopyOnWrite，写的时候，先拷贝一 份之前的数组。
+           	es[len] = e;            
+           	setArray(es);            
+           	return true;      
+		}
+ 	}
+ 	
+   	public void add(int index, E element) {        
+   		synchronized (lock) { // 同步锁对象            
+   			Object[] es = getArray();
+           	int len = es.length;
+           	if (index > len || index < 0)
+           		throw new IndexOutOfBoundsException(outOfBounds(index, len));
+           	Object[] newElements;
+           	int numMoved = len - index;            
+           	if (numMoved == 0){
+               	newElements = Arrays.copyOf(es, len + 1);            
+			} else {
+               	newElements = new Object[len + 1];
+               	System.arraycopy(es, 0, newElements, 0, index); // CopyOnWrite，写的时候，先拷贝一份之前的数组。
+               	System.arraycopy(es, index, newElements, index + 1, numMoved);
+       		}
+           	newElements[index] = element;
+           	setArray(newElements); // 把新数组赋值给老数组      
+		}
+	} 
+}
 ```
 
-
+其他”写“方法，例如remove和add类似。
 
 ### 5.3.2 CopyOnWriteArraySet
 
-## 5.4 ConcurrentLinkQueue/Deque
+CopyOnWriteArraySet就是用Array实现的一个Set，保证所有元素都不重复。其内部是封装的一个CopyOnWriteArrayList。
+
+```java
+public class CopyOnWriteArraySet<E> extends AbstractSet<E> 
+		implements java.io.Serializable {
+   	// 新封装的CopyOnWriteArrayList
+	private final CopyOnWriteArrayList<E> al;
+	public CopyOnWriteArraySet() {
+		al = new CopyOnWriteArrayList<E>();  
+	}
+   	public boolean add(E e) {
+       	return al.addIfAbsent(e); // 不重复的加进去  
+	}
+}
+```
+
+
+
+## 5.4 ConcurrentLinkedQueue/Deque
+
+AQS（AbstractQueuedSynchronizer）内部的阻塞队列实现原理：基于双向链表，通过对head/tail进行CAS操作，实现入队和出队。
+
+ConcurrentLinkedQueue的实现原理和AQS内部的阻塞队列类似：同样是基于CAS，同样是通过head/tail指针记录队列头部和尾部，但是有稍许差别。
+
+首先，它是一个单向链表，定义：
+
+```java
+public class ConcurrentLinkedQueue<E> extends AbstractQueue<E> 
+		implements Queue<E>, java.io.Serializable {
+	
+	private static class Node<E> {        
+		volatile E item;
+       	volatile Node<E> next;        
+       	//...
+ 	}
+   	private transient volatile Node<E> head;    
+   	private transient volatile Node<E> tail;    
+   	//...
+}
+```
+
+其次，在AQS的阻塞队列中，每次入队后，tail一定会后移一个位置；每次出队，head一定后移一个位置，保证head指向队列头部，tail指向链表尾部。
+
+但在ConcurrentLinkedQueue中，head/tail的更新可能落后于节点的入队和出队，因为它不是直接对head/tail指针进行CAS操作的，而是对Node中的item进行操作。分析如下：
+
+**1.初始化**
+
+初始的时候，`head`和`tail`都指向一个`null`节点，对应代码如下：
+
+```java
+public ConcurrentLinkedQueue() {
+	head = tail = new Node<E>();
+}
+```
+
+![image-20210927205638192](assest/image-20210927205638192.png)
+
+**2.入队列**
+
+代码如下：
+
+```java
+	public boolean offer(E e) {
+        final Node<E> newNode = new Node<E>(Objects.requireNonNull(e));
+
+        for (Node<E> t = tail, p = t;;) {
+            Node<E> q = p.next;
+            if (q == null) {
+                if (NEXT.compareAndSet(p, null, newNode)) {
+                    if (p != t) // hop two nodes at a time; failure is OK
+                        TAIL.weakCompareAndSet(this, t, newNode);
+                    return true;
+                }
+            }
+            else if (p == q)
+                p = (t != (t = tail)) ? t : head;
+            else
+                p = (p != t && t != (t = tail)) ? t : q;
+        }
+```
+
+![image-20210927210313970](assest/image-20210927210313970.png)
+
+上面的入队，其实是每次在队尾追加2个节点时，才移动一次tail节点，如下：
+
+
 
 ## 5.5 ConcurrentHashMap
 
