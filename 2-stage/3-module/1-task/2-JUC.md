@@ -591,9 +591,482 @@ public boolean offer(E e) {
 
 上面的入队，其实是每次在队尾追加2个节点时，才移动一次tail节点，如下：
 
+初始化的时候，队列中有1个节点item1，tail指向该节点，假设线程1要入队item2节点：
+
+step1：p=tail, q=p.next=null
+
+step2：对p的next执行CAS操作，追加item2，成功后，p=tail。所以上面的casTail方法不会执行，直接返回。此时tail指针没有变化。
+
+![image-20210928142848219](assest/image-20210928142848219.png)
+
+之后，假设线程2要入队item3节点，如下：
+
+step3：p=tail，q=p.next
+
+step4：q != null，因此不会入队新节点。p，q都后移一位。
+
+step5：q = null ，对p的next执行CAS操作，入队item3节点。
+
+step6：p != t，满足条件，执行上面的casTail操作，tail后移2个位置，到达队列尾部。
+
+![image-20210928143455076](assest/image-20210928143455076.png)
+
+最后总结以下入队列的两个关键点：
+
+1. 即使tail指针没有移动，只要对p的next指针成功进行CAS操作，就算成功入队列。
+2. 只有当 p != tail 的时候，才会后移tail指针。也就是说，每连续追加2个节点，才后移1次tail指针。即使CAS失败也没关系，可以由下1个线程来移动tail指针。
+
+
+
+**3.出队列**
+
+上面说了入队列后，tail指针不变化，那是否会出现入队列之后，要出队列却没有元素可出的情况？
+
+![image-20210928144418379](assest/image-20210928144418379.png)
+
+出队列的代码和入队列类似，也有p、q两个指针，整个变化过程如下：，假设初始的时候head指向空节点，队列中有item1、item2、item3三个节点。
+
+step1：p = head，q = p.next，p != q
+
+step2：后移p指针，使得p=q
+
+step3：出队列。关键点：此处并没有直接删除item1节点，只是把该节点的item通过CAS操作置为了NULL。
+
+step4：p != head，此时队列中有了2个NULL节点，再次前移1次head指针，对其执行updateHead操作。
+
+
+
+![image-20210928150007987](assest/image-20210928150007987.png)
+
+最后总结一下出队列的关键点：
+
+1. 出队列的判断并非观察tail指针的位置，而是依赖于head指针后续的节点是否为NULL这一条件。
+2. 只要对节点的item执行CAS操作，置为NULL成功，则出队列成功，即使head指针没有成功移动，也可以下1个线程继续完成。
+
+
+
+**4.队列判空**
+
+因为head/tail并不是精确地指向队列头部和尾部，所以不能简单地通过比较head/tail指针来判断队列是否为空，而是需要从head指针开始遍历，找到第一个不为NULL的节点，如果找到，则队列不为空；如果找不到，则队列为空。代码如下：
+
+![image-20210928151750417](assest/image-20210928151750417.png)
+
+![image-20210928152104656](assest/image-20210928152104656.png)
+
 
 
 ## 5.5 ConcurrentHashMap
+
+HashMap通常的实现方式是“**数组+链表**”，这种方式被称为“拉链法”。ConcurrentHashMap在这个基本原理之上进行了各种优化。
+
+首先是所有数据都放在一个大的HashMap中；其次是**引入了红黑树**。
+
+![image-20210928152653371](assest/image-20210928152653371.png)
+
+如果头节点是Node类型，则尾随它的就是一个普通的链表；如果头节点是TreeNode类型，它的后面就是一个红黑树，TreeNode是Node的子类。
+
+链表和红黑树之间可以相互转换：初始的时候是链表，当链表中的元素超过某个阈值时，把链表转换成红黑树；反之，当红黑树中的元素个数小于某个阈值时，在转换为链表。
+
+为什么要做这种设计？
+
+1. 使用红黑树，当一个槽里有很多元素时，其查询和更新速度会比链表快很多，Hash冲突的问题由此得到较好的解决。
+2. 加锁的粒度，并非整个ConcurrentHashMap，而是对每个头节点分别加锁，即并发度，就是Node数组的长度，初始长度为16。
+3. 并发扩容，这是难度最大的。当一个线程要扩容Node数组的时候，其他线程还要读写，因此处理过程很复杂，
+
+上述对比可以总结出：这种设计一方面降低了Hash冲突，另一方面也提升了并发度。
+
+
+
+下面从构造方法开始，一步步深入分析其实现过程：
+
+**1.构造方法分析**
+
+![image-20210928154358999](assest/image-20210928154358999.png)
+
+![image-20210928154433430](assest/image-20210928154433430.png)
+
+在上面的代码中，变量cap就是Node数组的长度，保持2的整数次方。tableSizeFor(...)方法是根据传入的初始容量，计算出一个合适的数组长度。具体而言：1.5倍的初始容量+1，再往上取最接近的2的整数次方，作为数组长度cap的初始值。
+
+这里的sizeCtl，其含义是用于控制在初始化或者并发扩容时候的线程数，只不过其初始值设置成cap。
+
+
+
+**2.初始化**
+
+在上面的构造方法里只计算了数组的初始大小，并没有对数组进行初始化。当多个线程都往里面放入元素的时候，再进行初始化。这就存在一个问题：多个线程重复初始化。那看一下是如何处理的。
+
+```java
+private final Node<K,V>[] initTable() {
+    Node<K,V>[] tab; int sc;
+    while ((tab = table) == null || tab.length == 0) {
+        if ((sc = sizeCtl) < 0)
+            Thread.yield(); // 自旋等待
+        else if (U.compareAndSetInt(this, SIZECTL, sc, -1)) { //重点：将sizeCtl设置为-1
+            try {
+                if ((tab = table) == null || tab.length == 0) {
+                    int n = (sc > 0) ? sc : DEFAULT_CAPACITY;
+                    @SuppressWarnings("unchecked")
+                    Node<K,V>[] nt = (Node<K,V>[])new Node<?,?>[n]; // 初始化
+                    table = tab = nt;
+                    // sizeCtl不是数组长度，因此初始化成功后，就不再等于数组长度
+                    // 而是n-(n>>>2)=0.75n，表示下一次扩容的阈值：n-n/4
+                    sc = n - (n >>> 2);
+                }
+            } finally {
+                sizeCtl = sc;// 设置sizeCtl的值为sc。
+            }
+            break;
+        }
+    }
+    return tab;
+}
+```
+
+通过上面的代码可以看到，uoge线程的竞争是通过对sizeCtl进行CAS操作实现的。如果某个线程成功地把sizeCtl设置为-1，它就拥有了初始化的权利，进入初始化的代码模块，等到初始化完成，再把sizeCtl设置回去；其他线程则一直执行while循环，自旋等待，直到数组不为null，即当初始化结束时，退出整个方法。
+
+因为初始化的工作量很小，所以此处选择的策略是让其他线程一直等待，而没有帮助其初始化。
+
+
+
+**3.put(...)实现分析**
+
+![image-20210928162417972](assest/image-20210928162417972.png)
+
+```java
+final V putVal(K key, V value, boolean onlyIfAbsent) {
+    if (key == null || value == null) throw new NullPointerException();
+    int hash = spread(key.hashCode());
+    int binCount = 0;
+    for (Node<K,V>[] tab = table;;) {
+        Node<K,V> f; int n, i, fh; K fk; V fv;
+        // 分支1：整个数组初始化
+        if (tab == null || (n = tab.length) == 0)
+            tab = initTable();
+        // 分支2：第i个元素初始化
+        else if ((f = tabAt(tab, i = (n - 1) & hash)) == null) {
+            if (casTabAt(tab, i, null, new Node<K,V>(hash, key, value)))
+                break;                   // no lock when adding to empty bin
+        }
+        // 分支3：扩容
+        else if ((fh = f.hash) == MOVED)
+            tab = helpTransfer(tab, f);
+        else if (onlyIfAbsent // check first node without acquiring lock
+                 && fh == hash
+                 && ((fk = f.key) == key || (fk != null && key.equals(fk)))
+                 && (fv = f.val) != null)
+            return fv;
+        // 分支4：放入元素
+        else {
+            V oldVal = null;
+            // 重点：加锁
+            synchronized (f) {
+                // 链表
+                if (tabAt(tab, i) == f) {
+                    if (fh >= 0) {
+                        binCount = 1;
+                        for (Node<K,V> e = f;; ++binCount) {
+                            K ek;
+                            if (e.hash == hash &&
+                                ((ek = e.key) == key ||
+                                 (ek != null && key.equals(ek)))) {
+                                oldVal = e.val;
+                                if (!onlyIfAbsent)
+                                    e.val = value;
+                                break;
+                            }
+                            Node<K,V> pred = e;
+                            if ((e = e.next) == null) {
+                                pred.next = new Node<K,V>(hash, key, value);
+                                break;
+                            }
+                        }
+                    }
+                    else if (f instanceof TreeBin) { // 红黑树
+                        Node<K,V> p;
+                        binCount = 2;
+                        if ((p = ((TreeBin<K,V>)f).putTreeVal(hash, key,
+                                                       value)) != null) {
+                            oldVal = p.val;
+                            if (!onlyIfAbsent)
+                                p.val = value;
+                        }
+                    }
+                    else if (f instanceof ReservationNode)
+                        throw new IllegalStateException("Recursive update");
+                }
+            }
+            // 如果是链表，上面的binCount会一直累加
+            if (binCount != 0) {
+                if (binCount >= TREEIFY_THRESHOLD)
+                    treeifyBin(tab, i); // 超出阈值，转换为红黑树
+                if (oldVal != null)
+                    return oldVal;
+                break;
+            }
+        }
+    }
+    addCount(1L, binCount);//总元素个数累加1
+    return null;
+}
+```
+
+上面的for循环有4个大的分支：
+
+第一个分支，是整个数组的初始化，
+
+第二个分支，是所在的槽为空，说明该元素是该槽的第一个元素，直接新建一个头节点，然后返回；
+
+第三个分支，说明该槽正在进行扩容，帮助其扩容；
+
+第四个分支，即使把元素放入槽内，槽内可能是一个链表，也可能是一棵红黑树，通过头节点的类型可以判断是哪一种。第四个分支是包裹在synchronized(f)里面的，f对应的数组下标位置的头节点，意味着每个数组元素有一把锁，并发度等于数组的长度。
+
+上面的binCount表示链表的元素个数，当这个数目超过TREEIFY_THRESHOLD=8时，把链表转换成红黑树，也就是treeifyBin(tab, i)方法。但在这个方法内部，不一定需要进行红黑树转换，可能只做扩容操作，所以接下来从扩容说起。
+
+
+
+**4.扩容**
+
+扩容的实现是最复杂的，下面从treeifyBin(Node<K,V>[] tab, int index)说起。
+
+```java
+private final void treeifyBin(Node<K,V>[] tab, int index) {
+    Node<K,V> b; int n;
+    if (tab != null) {
+        if ((n = tab.length) < MIN_TREEIFY_CAPACITY)
+            // 数组长度小于阈值64,不做红黑树，直接扩容
+            tryPresize(n << 1);
+        else if ((b = tabAt(tab, index)) != null && b.hash >= 0) {
+            // 链表转换为红黑树
+            synchronized (b) {
+                if (tabAt(tab, index) == b) {
+                    TreeNode<K,V> hd = null, tl = null;
+                    // 遍历链表，初始化红黑树
+                    for (Node<K,V> e = b; e != null; e = e.next) {
+                        TreeNode<K,V> p =
+                            new TreeNode<K,V>(e.hash, e.key, e.val,
+                                              null, null);
+                        if ((p.prev = tl) == null)
+                            hd = p;
+                        else
+                            tl.next = p;
+                        tl = p;
+                    }
+                    setTabAt(tab, index, new TreeBin<K,V>(hd));
+                }
+            }
+        }
+    }
+}
+```
+
+在上面的代码中，MIN_TREEIFY_CAPACITY=64，意味着当数组长度没有超过64的时候，数组的每个节点里都是链表，只会扩容，不会转换为红黑树。只有当数组长度大于等于64时，才考虑把链表转换为红黑树。
+
+![image-20210928165801647](assest/image-20210928165801647.png)
+
+在tryPresize(int size)内部调用了一个核心方法transfer(Node<K,V>[] tab, Node<K,V>[] nextTab)，先从这个方法分析说起。
+
+```java
+private final void tryPresize(int size) {
+    int c = (size >= (MAXIMUM_CAPACITY >>> 1)) ? MAXIMUM_CAPACITY :
+        tableSizeFor(size + (size >>> 1) + 1);
+    int sc;
+    while ((sc = sizeCtl) >= 0) {
+        Node<K,V>[] tab = table; int n;
+        if (tab == null || (n = tab.length) == 0) {
+            n = (sc > c) ? sc : c;
+            if (U.compareAndSetInt(this, SIZECTL, sc, -1)) {
+                try {
+                    if (table == tab) {
+                        @SuppressWarnings("unchecked")
+                        Node<K,V>[] nt = (Node<K,V>[])new Node<?,?>[n];
+                        table = nt;
+                        sc = n - (n >>> 2);
+                    }
+                } finally {
+                    sizeCtl = sc;
+                }
+            }
+        }
+        else if (c <= sc || n >= MAXIMUM_CAPACITY)
+            break;
+        else if (tab == table) {
+            int rs = resizeStamp(n);
+            if (U.compareAndSetInt(this, SIZECTL, sc,
+                                    (rs << RESIZE_STAMP_SHIFT) + 2))
+                transfer(tab, null);
+        }
+    }
+}
+```
+
+
+
+
+
+```java
+private final void transfer(Node<K,V>[] tab, Node<K,V>[] nextTab) {
+    int n = tab.length, stride;
+    if ((stride = (NCPU > 1) ? (n >>> 3) / NCPU : n) < MIN_TRANSFER_STRIDE)
+        stride = MIN_TRANSFER_STRIDE; // 计算步长
+    if (nextTab == null) {            // 初始化新的HashMap
+        try {
+            @SuppressWarnings("unchecked")
+            Node<K,V>[] nt = (Node<K,V>[])new Node<?,?>[n << 1];// 扩容两倍
+            nextTab = nt;
+        } catch (Throwable ex) {      // try to cope with OOME
+            sizeCtl = Integer.MAX_VALUE;
+            return;
+        }
+        nextTable = nextTab;
+        // 初始化的transferIndex=旧HashMap的数组长度
+        transferIndex = n;
+    }
+    int nextn = nextTab.length;
+    ForwardingNode<K,V> fwd = new ForwardingNode<K,V>(nextTab);
+    boolean advance = true;
+    boolean finishing = false; // to ensure sweep before committing nextTab
+    // 此处，i为遍历下标，bound为边界
+    // 如果成功获取下一个任务，则i=nextIndex-1
+    // bound=nextIndex-stride
+    // 如果获取步到，则i=0,bound=0
+    for (int i = 0, bound = 0;;) {
+        Node<K,V> f; int fh;
+        // advance表示从i=transferIndex-1遍历到bound位置的过程中，是否一直继续
+        while (advance) {
+            int nextIndex, nextBound;
+            // 以下是那个分支中的advance都是false，表示如果三个分支都不执行，才可以一直while循环
+            // 目的在于当对transferIndex执行CAS操作不成功的时候，需要自旋，以期获取一个stride的迁移任务
+            if (--i >= bound || finishing)
+                // 对数组遍历，通过这里的--i进行。如果成功执行了--i，就不需要继续while循环了，因为advance只能进一步
+                advance = false;
+            else if ((nextIndex = transferIndex) <= 0) {
+                // transferIndex <= 0，整个HashMap完成
+                i = -1;
+                advance = false;
+            }
+            // 对transferIndex执行CAS操作，即为当前线程分配1个stride。
+            // CAS操作成功，线程成功获取到一个stride的迁移任务
+            // CAS操作不成功，线程没有抢到任务，会继续执行while循环，自旋
+            else if (U.compareAndSetInt
+                     (this, TRANSFERINDEX, nextIndex,
+                      nextBound = (nextIndex > stride ?
+                                   nextIndex - stride : 0))) {
+                bound = nextBound;
+                i = nextIndex - 1;
+                advance = false;
+            }
+        }
+        // i越界，整个HashMap遍历完成
+        if (i < 0 || i >= n || i + n >= nextn) {
+            int sc;
+            // finishing表示整个HashMap扩容完成
+            if (finishing) {
+                nextTable = null;
+                // 将nextTab赋值给当前table
+                table = nextTab;
+                sizeCtl = (n << 1) - (n >>> 1);
+                return;
+            }
+            if (U.compareAndSetInt(this, SIZECTL, sc = sizeCtl, sc - 1)) {
+                if ((sc - 2) != resizeStamp(n) << RESIZE_STAMP_SHIFT)
+                    return;
+                finishing = advance = true;
+                i = n; // recheck before commit
+            }
+        }
+        // tab[i]迁移完毕，赋值一个ForwardingNode
+        else if ((f = tabAt(tab, i)) == null)
+            advance = casTabAt(tab, i, null, fwd);
+        // tab[i]的位置已经在迁移过程中
+        else if ((fh = f.hash) == MOVED)
+            advance = true; // already processed
+        else {
+            // 对tab[i]进行迁移操作，tab[i]可能是一个链表或者红黑树
+            synchronized (f) {
+                if (tabAt(tab, i) == f) {
+                    Node<K,V> ln, hn;
+                    // 链表
+                    if (fh >= 0) {
+                        int runBit = fh & n;
+                        Node<K,V> lastRun = f;
+                        for (Node<K,V> p = f.next; p != null; p = p.next) {
+                            int b = p.hash & n;
+                            if (b != runBit) {
+                                runBit = b;
+                                // 表示lastRun之后的所有元素，hash值都是一样的
+                                // 记录下这个最后的位置
+                                lastRun = p;
+                            }
+                        }
+                        if (runBit == 0) {
+                            // 链表迁移的优化做法
+                            ln = lastRun;
+                            hn = null;
+                        }
+                        else {
+                            hn = lastRun;
+                            ln = null;
+                        }
+                        for (Node<K,V> p = f; p != lastRun; p = p.next) {
+                            int ph = p.hash; K pk = p.key; V pv = p.val;
+                            if ((ph & n) == 0)
+                                ln = new Node<K,V>(ph, pk, pv, ln);
+                            else
+                                hn = new Node<K,V>(ph, pk, pv, hn);
+                        }
+                        setTabAt(nextTab, i, ln);
+                        setTabAt(nextTab, i + n, hn);
+                        setTabAt(tab, i, fwd);
+                        advance = true;
+                    }
+                    // 红黑树，迁移做法和链表类似
+                    else if (f instanceof TreeBin) {
+                        TreeBin<K,V> t = (TreeBin<K,V>)f;
+                        TreeNode<K,V> lo = null, loTail = null;
+                        TreeNode<K,V> hi = null, hiTail = null;
+                        int lc = 0, hc = 0;
+                        for (Node<K,V> e = t.first; e != null; e = e.next) {
+                            int h = e.hash;
+                            TreeNode<K,V> p = new TreeNode<K,V>
+                                (h, e.key, e.val, null, null);
+                            if ((h & n) == 0) {
+                                if ((p.prev = loTail) == null)
+                                    lo = p;
+                                else
+                                    loTail.next = p;
+                                loTail = p;
+                                ++lc;
+                            }
+                            else {
+                                if ((p.prev = hiTail) == null)
+                                    hi = p;
+                                else
+                                    hiTail.next = p;
+                                hiTail = p;
+                                ++hc;
+                            }
+                        }
+                        ln = (lc <= UNTREEIFY_THRESHOLD) ? untreeify(lo) :
+                        (hc != 0) ? new TreeBin<K,V>(lo) : t;
+                        hn = (hc <= UNTREEIFY_THRESHOLD) ? untreeify(hi) :
+                        (lc != 0) ? new TreeBin<K,V>(hi) : t;
+                        setTabAt(nextTab, i, ln);
+                        setTabAt(nextTab, i + n, hn);
+                        setTabAt(tab, i, fwd);
+                        advance = true;
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+该方法非常复杂，下面一步步分析：
+
+1. 扩容的基本原理如下图，首先建一个新的HashMap，其数组长度是旧数组长度的2倍，然后把旧的元素逐个迁移过来，第一个参数tab
+
+
 
 ## 5.6 ConcurrentSkipListMap/Set
 

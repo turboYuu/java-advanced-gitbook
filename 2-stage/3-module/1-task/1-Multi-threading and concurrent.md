@@ -408,7 +408,7 @@ public final void join() throws InterruptedException {...}
 
 ### 1.4.2 轻量级阻塞与重量级阻塞
 
-能够被中断的阻塞成为轻量级阻塞，对应的线程状态是WAITING或者TIMED_WAITING；二项synchronized这种不能被中断的阻塞成为重量级阻塞，对应的状态是BLOCKED。如图所示：调用不同的方法后，一个线程的状态迁移过程。
+能够被中断的阻塞成为轻量级阻塞，对应的线程状态是WAITING或者TIMED_WAITING；而像synchronized这种不能被中断的阻塞成为重量级阻塞，对应的状态是BLOCKED。如图所示：调用不同的方法后，一个线程的状态迁移过程。
 
 ![image-20210924175048549](assest/image-20210924175048549.png)
 
