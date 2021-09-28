@@ -679,7 +679,7 @@ HashMap通常的实现方式是“**数组+链表**”，这种方式被称为�
 
 下面从构造方法开始，一步步深入分析其实现过程：
 
-**1.构造方法分析**
+### 5.5.1 构造方法分析
 
 ![image-20210928154358999](assest/image-20210928154358999.png)
 
@@ -691,7 +691,7 @@ HashMap通常的实现方式是“**数组+链表**”，这种方式被称为�
 
 
 
-**2.初始化**
+### 5.5.2 初始化
 
 在上面的构造方法里只计算了数组的初始大小，并没有对数组进行初始化。当多个线程都往里面放入元素的时候，再进行初始化。这就存在一个问题：多个线程重复初始化。那看一下是如何处理的。
 
@@ -728,7 +728,7 @@ private final Node<K,V>[] initTable() {
 
 
 
-**3.put(...)实现分析**
+### 5.5.3 put(...)实现分析
 
 ![image-20210928162417972](assest/image-20210928162417972.png)
 
@@ -824,7 +824,7 @@ final V putVal(K key, V value, boolean onlyIfAbsent) {
 
 
 
-**4.扩容**
+### 5.5.4 扩容
 
 扩容的实现是最复杂的，下面从treeifyBin(Node<K,V>[] tab, int index)说起。
 
@@ -1079,6 +1079,68 @@ private final void transfer(Node<K,V>[] tab, Node<K,V>[] nextTab) {
    因为transferIndex会被多个线程并发修改，每次减stride，所以需要通过CAS进行操作，如下面代码所示：
 
    ![image-20210928191203351](assest/image-20210928191203351.png)
+   
+   ![image-20210928224939498](assest/image-20210928224939498.png)
+   
+3. 在扩容未完成之前，有的数字下标对应的槽已经迁移到了新的HashMap里面，有的还在旧的HashMap里面。这个时候，所有调用get(k，v)的线程还是会访问旧HashMap，怎么处理呢？
+
+   下图为扩容过程中的转发示意图：当Node[0]已经迁移成功，而其他Node还在迁移过程中时，如果有线程要读取Node[0]的数据，就会访问失败。为此，新建一个ForwardingNode，即转发节点，在这个节点里面记录的是新的ConcurrentHashMap的引用。这样，当线程访问ForwardingNode之后，会去查询新的ConcurrentHashMap。
+
+4. 因为数组的长度`tab.length`是2的整数次方，每次扩容又是2倍。而Hash函数是hashCode%tab.length，等价于<br>hashCode&(tab.length-1)。这意味着：处于第i个位置的元素，在新的Hash表的数组中一定处于第i个或者第i+n个位置。如下图所示。举个例子：假设数组长度是8，扩容之后是16：<br>若hashCode = 5，5%8=0，扩容后，5%16=0，位置保持不变；<br>若hashCode = 24，24%8=0，扩容后，24%16=8，后移8个位置；<br>若hashCode = 25，25%8=1，扩容后，25%16=9，后移8个位置；<br>若hashCode = 39，39%8=7，扩容后，39%16=7，位置保持不变；<br>
+
+   ![image-20210928230334903](assest/image-20210928230334903.png)
+
+   正因为有这样的规律，所以如下有代码：
+
+   ![image-20210928232657677](assest/image-20210928232657677.png)
+
+   也就是把tab[i]位置的链表或红黑树重新组装成两部分，一部分链接到nextTab[i]的位置，一部分链接到nextTab[i+n]的位置，如下图所示。然后把tab[i]的位置指向一个ForwardingNode节点。
+
+   同时，当tab[i]后面是链表时，使用类似于JDK 7中在扩容时的优化方法，从lastRun往后的所有节点，不需要依次拷贝，而是直接链接到新的链表头部。从lastRum往前的所有节点，需要依次拷贝。
+
+   了解了核心的迁移函数transfer(tab, nextTab)，在回头看tryPresize(int size)函数。这个函数的输入的是整个Hash表的元素个数，在函数里面，根据需要对整个Hash表进行扩容。想要看明白这个函数，需要透彻的理解sizeCtl变量，下面这段注释摘自源码。
+
+   ![image-20210928234425117](assest/image-20210928234425117.png)
+
+   当sizeCtl=-1，表示整个HashMap正在初始化；<br>当sizeCtl=某个其他复数时，表示多个线程在对HashMap做并发扩容；<br>当sizeCtl=cap，tab=null，表示未初始化之前的初始化容量（如上面的构造函数所示）；<br>扩容成功之后，sizeCtl存储的是下一次要扩容的阈值，即上面初始化代码中的 n-(n>>>2)=0.75n。
+
+   所以，sizeCtl变量在Hash表处于不同状态时，表达不同的含义。明白了这个道理，再来看上面的tryPresize(int size)函数。
+
+   ```
+   private final void tryPresize(int size) {
+       int c = (size >= (MAXIMUM_CAPACITY >>> 1)) ? MAXIMUM_CAPACITY :
+           tableSizeFor(size + (size >>> 1) + 1);
+       int sc;
+       while ((sc = sizeCtl) >= 0) {
+           Node<K,V>[] tab = table; int n;
+           if (tab == null || (n = tab.length) == 0) {
+               n = (sc > c) ? sc : c;
+               if (U.compareAndSetInt(this, SIZECTL, sc, -1)) {
+                   try {
+                       if (table == tab) {
+                           @SuppressWarnings("unchecked")
+                           Node<K,V>[] nt = (Node<K,V>[])new Node<?,?>[n];
+                           table = nt;
+                           sc = n - (n >>> 2);
+                       }
+                   } finally {
+                       sizeCtl = sc;
+                   }
+               }
+           }
+           else if (c <= sc || n >= MAXIMUM_CAPACITY)
+               break;
+           else if (tab == table) {
+               int rs = resizeStamp(n);
+               if (U.compareAndSetInt(this, SIZECTL, sc,
+                                       (rs << RESIZE_STAMP_SHIFT) + 2))
+                   transfer(tab, null);
+           }
+       }
+   }
+   ```
+
+   tryPresize(int size) 是根据期望的元素个数对整个Hash表进行扩容，核心是调用transfer函数。在第一次扩容的时候，sizeCtl会被设置成一个很大的负数U.compareAndSwapInt(this，SIZECTL，sc，(rs < < RESIZE_STAMP_SHIFT)+2)；之后每一个线程扩容的时候，sizeCtl就加1，U.compareAndSwapInt(this，SIZECTL，sc，sc+1)，带扩容完成之后，sizeCtl减1。
 
 
 
