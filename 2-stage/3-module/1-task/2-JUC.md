@@ -1533,7 +1533,7 @@ permits – 要获取的许可数
 semaphore.acquire(3);
 ```
 
-代码：https://gitee.com/turboYuu/concurrent-programming-2-3/tree/master/lab/turbo-concurrent-programming/demo-09-semaphore/src/com/turbo/concurrent/demo
+代码：https://gitee.com/turboYuu/concurrent-programming-2-3/tree/master/lab/turbo-concurrent-programming/demo-09-semaphore
 
 ```java
 package com.turbo.concurrent.demo;
@@ -1688,29 +1688,828 @@ public abstract class VarHandle {    
 
 ### 6.2.1 CountDownLatch使用场景
 
+假设一个主线程要等待5个worker线程执行完才能退出，可以使用CountDownLatch来实现：
+
+代码：https://gitee.com/turboYuu/concurrent-programming-2-3/tree/master/lab/turbo-concurrent-programming/demo-10-CountDownLatch
+
+```java
+package com.turbo.concurrent.demo;
+
+import java.util.Random;
+import java.util.concurrent.CountDownLatch;
+
+public class MyThread extends Thread {
+    private final CountDownLatch latch;
+    private final Random random = new Random();
+
+    public MyThread(String name,CountDownLatch latch){
+        super(name);
+        this.latch = latch;
+    }
+
+    @Override
+    public void run() {
+        try {
+            Thread.sleep(random.nextInt(2000));
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.println(Thread.currentThread().getName()+"执行完毕.");
+        // latch计数减一
+        latch.countDown();
+    }
+}
+```
+
+```java
+package com.turbo.concurrent.demo;
+
+import java.util.concurrent.CountDownLatch;
+
+public class Main {
+    public static void main(String[] args) throws InterruptedException {
+
+        CountDownLatch latch = new CountDownLatch(5);
+
+        for (int i = 0; i < 5; i++) {
+            new MyThread("线程"+(i+1),latch).start();
+        }
+        // main线程等待
+        latch.await();
+        System.out.println("main线程执行结束");
+    }
+}
+```
+
+下图为CountDownLatch相关类的继承层次，CountDownLatch原理和Semaphore原理类似，同样是基于AQS，不过没有公平和非公平之分。
+
+![image-20210929180305876](assest/image-20210929180305876.png)
+
+
+
 ### 6.2.2 await()实现分析
 
+如下所示，await()调用的是AQS的模板方法，CountDownLatch.Sync重新实现了tryAcquireShared方法：
+
+```java
+public void await() throws InterruptedException {
+    // AQS的模板方法
+    sync.acquireSharedInterruptibly(1);
+}
+
+public final void acquireSharedInterruptibly(int arg)
+            throws InterruptedException {
+    if (Thread.interrupted())
+        throw new InterruptedException();
+    // 被CountDownLatch.Sync实现   
+    if (tryAcquireShared(arg) < 0)
+        doAcquireSharedInterruptibly(arg);
+}
+
+protected int tryAcquireShared(int acquires) {
+    return (getState() == 0) ? 1 : -1;
+}
+```
+
+从tryAcquireShared(...)方法的实现看，只要state != 0，调用await()方法的线程便会被放入AQS的阻塞队列，进入阻塞状态。
+
+
+
 ### 6.2.3 countDown()实现分析
+
+```java
+public void countDown() {
+    sync.releaseShared(1);
+}
+
+// AQS的模板方法
+public final boolean releaseShared(int arg) {
+    // 有CountDownLatch.Sync实现
+    if (tryReleaseShared(arg)) {
+        doReleaseShared();
+        return true;
+    }
+    return false;
+}
+
+
+    protected boolean tryReleaseShared(int releases) {
+        // Decrement count; signal when transition to zero
+        for (;;) {
+            int c = getState();
+            if (c == 0)
+                return false;
+            int nextc = c - 1;
+            if (compareAndSetState(c, nextc))
+                return nextc == 0;
+        }
+    }
+```
+
+countDown()调用的AQS的模板方法releaseShared()，里面的tryReleaseShared(...)由CountDownLatch.Sync实现。从上面代码看，只有state=0，tryReleaseShared(...)才会返回true，然后doReleaseShared(...)，一次性唤醒队列中所有阻塞的线程。
+
+总结：由于基于AQS阻塞队列来实现的，所以可以让多个线程都阻塞在state=0条件上，通过countDown()一直减state，减到0后一次性唤醒所有线程。
 
 ## 6.3 CyclicBarrier
 
 ### 6.3.1 CyclicBarrier使用场景
 
+```java
+CyclicBarrier barrier = new CyclicBarrier(5); 
+barrier.await();
+```
+
+该类用于协调多个线程同步执行操作的场合。
+
+代码：https://gitee.com/turboYuu/concurrent-programming-2-3/tree/master/lab/turbo-concurrent-programming/demo-11-CyclicBarrier
+
+```java
+package com.turbo.concurrent.demo;
+
+import java.util.Random;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
+
+public class MyThread extends Thread {
+
+    private final CyclicBarrier barrier;
+    private final Random random = new Random();
+
+    MyThread(String name,CyclicBarrier barrier){
+        super(name);
+        this.barrier = barrier;
+    }
+
+    @Override
+    public void run() {
+
+        try {
+            System.out.println(Thread.currentThread().getName()+" - 向公司出发");
+            Thread.sleep(random.nextInt(5000));
+            System.out.println(Thread.currentThread().getName()+" - 已经到达公司");
+            // 等待其他线程该阶段结束
+            barrier.await();
+
+            System.out.println(Thread.currentThread().getName()+" - 开始笔试");
+            Thread.sleep(random.nextInt(5000));
+            System.out.println(Thread.currentThread().getName()+" - 笔试结束");
+            // 等待其他线程该阶段结束
+            barrier.await();
+
+            System.out.println(Thread.currentThread().getName()+" - 开始面试");
+            Thread.sleep(random.nextInt(5000));
+            System.out.println(Thread.currentThread().getName()+" - 面试结束");
+
+
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (BrokenBarrierException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+```
+
+```java
+package com.turbo.concurrent.demo;
+
+import java.util.concurrent.CyclicBarrier;
+
+public class Main {
+
+    public static void main(String[] args) {
+        CyclicBarrier cyclicBarrier = new CyclicBarrier(5, new Runnable() {
+            @Override
+            public void run() {
+                System.out.println("该阶段结束");
+            }
+        });
+
+        for (int i = 0; i < 5; i++) {
+            new MyThread("线程-"+(i+1),cyclicBarrier).start();
+        }
+
+    }
+}
+```
+
+在整个过程中，有2个同步点：第1个同步点，要等所有应聘者都到达公司，再一起开始笔试；第2 个同步点，要等所有应聘者都结束笔试，之后一起进入面试环节。
+
 ### 6.3.2 CyclicBarrier实现原理
+
+CyclicBarrier基于ReetrantLock+Condition实现。
+
+```java
+public class CyclicBarrier {
+    private final ReentrantLock lock = new ReentrantLock();    
+    // 用于线程之间相互唤醒
+    private final Condition trip = lock.newCondition();    
+    
+    // 线程总数
+    private final int parties;
+    private int count;
+    private Generation generation = new Generation();    
+    // ...
+}
+```
+
+下面详细介绍CyclicBarrier的实现原理，先看构造方法：
+
+```java
+public CyclicBarrier(int parties, Runnable barrierAction) {
+    if (parties <= 0) throw new IllegalArgumentException();
+    // 参与方数量
+    this.parties = parties;
+    this.count = parties;
+    // 当所有线程被唤醒，执行barrierCommand表示Runnable
+    this.barrierCommand = barrierAction;
+}
+```
+
+接下来看一下await()方法的实现过程：
+
+```java
+public int await() throws InterruptedException, BrokenBarrierException {
+    try {
+        return dowait(false, 0L);
+    } catch (TimeoutException toe) {
+        throw new Error(toe); // cannot happen
+    }
+}
+
+private int dowait(boolean timed, long nanos)
+        throws InterruptedException, BrokenBarrierException,
+               TimeoutException {
+    final ReentrantLock lock = this.lock;
+    lock.lock();
+    try {
+        final Generation g = generation;
+
+        if (g.broken)
+            throw new BrokenBarrierException();
+        // 响应中断
+        if (Thread.interrupted()) {
+            // 唤醒所有阻塞的线程
+            breakBarrier();
+            throw new InterruptedException();
+        }
+
+        // 每个线程调用一次await()，count都要减1
+        int index = --count;
+        // 当count减到0时，此线程唤醒其他所有线程
+        if (index == 0) {  // tripped
+            boolean ranAction = false;
+            try {
+                final Runnable command = barrierCommand;
+                if (command != null)
+                    command.run();
+                ranAction = true;
+                nextGeneration();
+                return 0;
+            } finally {
+                if (!ranAction)
+                    breakBarrier();
+            }
+        }
+
+        // loop until tripped, broken, interrupted, or timed out
+        for (;;) {
+            try {
+                if (!timed)
+                    trip.await();
+                else if (nanos > 0L)
+                    nanos = trip.awaitNanos(nanos);
+            } catch (InterruptedException ie) {
+                if (g == generation && ! g.broken) {
+                    breakBarrier();
+                    throw ie;
+                } else {
+                    // We're about to finish waiting even if we had not
+                    // been interrupted, so this interrupt is deemed to
+                    // "belong" to subsequent execution.
+                    Thread.currentThread().interrupt();
+                }
+            }
+
+            if (g.broken)
+                throw new BrokenBarrierException();
+
+            if (g != generation)
+                return index;
+
+            if (timed && nanos <= 0L) {
+                breakBarrier();
+                throw new TimeoutException();
+            }
+        }
+    } finally {
+        lock.unlock();
+    }
+}
+
+private void breakBarrier() {
+    generation.broken = true;
+    count = parties;
+    trip.signalAll();
+}
+
+private void nextGeneration() {
+    // signal completion of last generation
+    trip.signalAll();
+    // set up next generation
+    count = parties;
+    generation = new Generation();
+}
+```
+
+上面方法的说明;
+
+1. CyclicBarrier是可以被重用的。以上应聘场景为例，来了10个线程，这10个线程互相等待，到期后一起被唤醒，各自执行接下来的逻辑。然后，这10个线程继续互相等待，到齐后再一起被唤醒。每一轮被称为一个Generation，就是一次同步点。
+2. CyclicBarrier会响应中断。10个线程没有到齐，如果有线程收到中断信号，所有阻塞的线程也会被唤醒，就是上面的breakBarrier()方法。然后count被重置为初始值（parties），重新开始。
+3. 上面的回调方法，barrierAction只会被第10个线程执行1次（在唤醒其他9个线程之前），而不是10个线程每个都执行1次。
 
 ## 6.4 Exchanger
 
 ### 6.4.1 使用场景
 
+Exchanger用于线程之间交换数据，其使用代码很简单，是一个exchange(...)方法，使用示例如下：
+
+```java
+package com.turbo.concurrent.demo;
+
+import java.util.Random;
+import java.util.concurrent.Exchanger;
+
+public class Main {
+    private static final Random random = new Random();
+
+    public static void main(String[] args) {
+        // 建一个多线程共用的exchange对象
+        // 把exchange对象传给3个线程对象。每个线程在自己的run方法中调用exchange，把自己的数据作为参数
+        // 传递进去，返回值是另外一个线程调用exchange传进去的参数
+        Exchanger<String> exchanger = new Exchanger<>();
+
+        new Thread("线程1"){
+            @Override
+            public void run() {
+                while (true){
+                    try {
+                        final String otherData = exchanger.exchange("交换数据1");
+                        System.out.println(Thread.currentThread().getName() + "得到 <==" +otherData);
+                        Thread.sleep(random.nextInt(2000));
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+
+                }
+            }
+        }.start();
+
+        new Thread("线程2"){
+            @Override
+            public void run() {
+                while (true){
+                    try {
+                        final String otherData = exchanger.exchange("交换数据2");
+                        System.out.println(Thread.currentThread().getName() + "得到 <==" +otherData);
+                        Thread.sleep(random.nextInt(2000));
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }.start();
+
+        new Thread("线程3"){
+            @Override
+            public void run() {
+                while (true){
+                    try {
+                        final String otherData = exchanger.exchange("交换数据3");
+                        System.out.println(Thread.currentThread().getName() + "得到 <==" +otherData);
+                        Thread.sleep(random.nextInt(2000));
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }.start();
+    }
+}
+```
+
+在上面的例子中，3个线程并发的调用exchange(...)，会凉凉交互数据，如1/2、1/3、2/3。
+
 ### 6.4.2 实现原理
 
+Exchanger的核心机制和Lock一样，也是CAS+park/unpark。
+
+首先，在Exchanger内部，有两个内部类：Participant和Node，代码如下：
+
+```java
+// 添加了Contended注解，表示伪共享与缓存填充
+@jdk.internal.vm.annotation.Contended static final class Node {
+    int index;              // Arena index
+    int bound;              // Last recorded value of Exchanger.bound
+    int collides;           // 本次绑定中，CAS操作失败次数
+    int hash;               // 自旋伪随机
+    Object item;            // 本线程要交换的数据
+    volatile Object match;  // 对方线程交换来的数据
+    // 当前线程
+    volatile Thread parked; // 当前线程阻塞的时候设置该属性，不阻塞为null
+}
+    
+static final class Participant extends ThreadLocal<Node> {
+    public Node initialValue() { return new Node(); }
+}
+```
+
+每个线程在调用exchange(...)方法交换数据的时候，会先创建一个Node对象。
+
+这个Node对象就是对该线程的包装，里面包含了3个重要字段：第一个是该线程要交换的数据，第二个是对方线程交换来的数据，最会一个是该线程本身。
+
+一个Node只能支持2个线程之间交换数据，要实现多个线程并行的交换数据，需要多个Node，因此Exchanger里面定义了Node数组：
+
+![image-20210929201758971](assest/image-20210929201758971.png)
+
 ### 6.4.3 exchange(V x)实现分析
+
+明白了大致思路，下面来看exchange(V x)方法的详细实现：
+
+![image-20210929201925826](assest/image-20210929201925826.png)
+
+上面方法中，如果arena不是null，表示启用了arena方式交换数据。如果arena不是null，并且线程被中断，则抛异常。
+
+如果arena不是null，并且arenaExchange的返回值为null，则抛异常。对方线程交换来的null值是封装为NULL_ITEM对象的，而不是null。
+
+如果slotExchange的返回值是null，并且线程被中断，则抛异常。
+
+如果slotExchange的返回值是null，并且arenaExchange的返回值是null，则抛异常。
+
+
+
+slotExchange的实现：
+
+```java
+/**
+     * Exchange function used until arenas enabled. See above for explanation.
+     * 如果不启用arena，则使用该方法进行线程间数据交换
+     * @param item 需要交换的数据
+     * @param timed 是否计时等待，true表示是计时等待
+     * @param ns 如果计时等待，该值表示最大等待的时长
+     * @return 对方线程交换来的数据；如果等待超时或线程中断，或者启用了arena，则返回null
+     */
+private final Object slotExchange(Object item, boolean timed, long ns) {
+        // participant在初始化的时候这只初始值为new Node()
+        // 获取本线程要交换的数据节点
+        Node p = participant.get();
+        // 获取当先线程
+        Thread t = Thread.currentThread();
+        // 如果线程被中断，则返回null
+        if (t.isInterrupted()) // preserve interrupt status so caller can recheck
+            return null;
+
+        for (Node q;;) {
+            // 如果slot非空，表明有其他线程在等待该线程交换数据
+            if ((q = slot) != null) {
+                // CAS操作，将当前线程的slot由slot设置为null
+                // 如果操作成功，则执行if中的语句
+                if (SLOT.compareAndSet(this, q, null)) {
+                    // 获取对方线程交换来的数据
+                    Object v = q.item;
+                    // 设置要交换的数据
+                    q.match = item;
+                    // 获取q中阻塞的线程对象
+                    Thread w = q.parked;
+                    if (w != null)
+                        // 如果对方阻塞的线程非空，则唤醒阻塞的线程
+                        LockSupport.unpark(w);
+                    return v;
+                }
+                // create arena on contention, but continue until slot null
+                // 创建arena用于处理多个线程需要交换数据的场合，防止slot冲突
+                if (NCPU > 1 && bound == 0 &&
+                    BOUND.compareAndSet(this, 0, SEQ))
+                    arena = new Node[(FULL + 2) << ASHIFT];
+            }
+            // 如果arena不是null，需要调用者调用arenaExchange方法接着获取对方线程交换来的数据
+            else if (arena != null)
+                return null; // caller must reroute to arenaExchange
+            else {
+                // 如果slot为null，表示对方没有线程等待该线程交换数据
+                // 设置要交换的本方数据
+                p.item = item;
+                // 设置当前线程要交换的数据到slot
+                // CAS操作，如果设置失败，则进入下一轮for循环
+                if (SLOT.compareAndSet(this, null, p))
+                    break;
+                p.item = null;
+            }
+        }
+
+        // await release
+        // 没有对方线程等待交换数据，将当前线程要交换的数据放到slot中，是一个Node对象
+        // 然后阻塞，等待唤醒
+        int h = p.hash;
+        // 如果是计时等待交换，则计算超时时间；否则设置为0
+        long end = timed ? System.nanoTime() + ns : 0L;
+        // 如果CPU核心数大于1，则使用SPINS数，自旋；否则为1，没有必要自旋。
+        int spins = (NCPU > 1) ? SPINS : 1;
+        Object v;
+        while ((v = p.match) == null) {
+            if (spins > 0) {
+                h ^= h << 1; h ^= h >>> 3; h ^= h << 10;
+                if (h == 0)
+                    h = SPINS | (int)t.getId();
+                else if (h < 0 && (--spins & ((SPINS >>> 1) - 1)) == 0)
+                    Thread.yield();
+            }
+            else if (slot != p)
+                spins = SPINS;
+            else if (!t.isInterrupted() && arena == null &&
+                     (!timed || (ns = end - System.nanoTime()) > 0L)) {
+                p.parked = t;
+                if (slot == p) {
+                    if (ns == 0L)
+                        LockSupport.park(this);
+                    else
+                        LockSupport.parkNanos(this, ns);
+                }
+                p.parked = null;
+            }
+            else if (SLOT.compareAndSet(this, p, null)) {
+                v = timed && ns <= 0L && !t.isInterrupted() ? TIMED_OUT : null;
+                break;
+            }
+        }
+        MATCH.setRelease(p, null);
+        p.item = null;
+        p.hash = h;
+        return v;
+    }
+```
+
+
+
+arenaExchange的实现：
+
+```java
+/**
+     * Exchange function when arenas enabled. See above for explanation.
+     * 当启用arenas时，使用该方法进行线程间的数据交换
+     * @param item 本线程要交换的非null数据
+     * @param timed 如果需要计时等待，则设置为true
+     * @param ns 表示计时等待的最大时长
+     * @return 对方线程交换来的数据。如果线程被中断，或者等待超时，则返回null
+     */
+private final Object arenaExchange(Object item, boolean timed, long ns) {
+        Node[] a = arena;
+        int alen = a.length;
+        Node p = participant.get();
+        for (int i = p.index;;) {                      // access slot at i
+            int b, m, c;
+            int j = (i << ASHIFT) + ((1 << ASHIFT) - 1);
+            if (j < 0 || j >= alen)
+                j = alen - 1;
+            Node q = (Node)AA.getAcquire(a, j);
+            if (q != null && AA.compareAndSet(a, j, q, null)) {
+                Object v = q.item;                     // release
+                q.match = item;
+                Thread w = q.parked;
+                if (w != null)
+                    LockSupport.unpark(w);
+                return v;
+            }
+            else if (i <= (m = (b = bound) & MMASK) && q == null) {
+                p.item = item;                         // offer
+                if (AA.compareAndSet(a, j, null, p)) {
+                    long end = (timed && m == 0) ? System.nanoTime() + ns : 0L;
+                    Thread t = Thread.currentThread(); // wait
+                    for (int h = p.hash, spins = SPINS;;) {
+                        Object v = p.match;
+                        if (v != null) {
+                            MATCH.setRelease(p, null);
+                            p.item = null;             // clear for next use
+                            p.hash = h;
+                            return v;
+                        }
+                        else if (spins > 0) {
+                            h ^= h << 1; h ^= h >>> 3; h ^= h << 10; // xorshift
+                            if (h == 0)                // initialize hash
+                                h = SPINS | (int)t.getId();
+                            else if (h < 0 &&          // approx 50% true
+                                     (--spins & ((SPINS >>> 1) - 1)) == 0)
+                                Thread.yield();        // two yields per wait
+                        }
+                        else if (AA.getAcquire(a, j) != p)
+                            spins = SPINS;       // releaser hasn't set match yet
+                        else if (!t.isInterrupted() && m == 0 &&
+                                 (!timed ||
+                                  (ns = end - System.nanoTime()) > 0L)) {
+                            p.parked = t;              // minimize window
+                            if (AA.getAcquire(a, j) == p) {
+                                if (ns == 0L)
+                                    LockSupport.park(this);
+                                else
+                                    LockSupport.parkNanos(this, ns);
+                            }
+                            p.parked = null;
+                        }
+                        else if (AA.getAcquire(a, j) == p &&
+                                 AA.compareAndSet(a, j, p, null)) {
+                            if (m != 0)                // try to shrink
+                                BOUND.compareAndSet(this, b, b + SEQ - 1);
+                            p.item = null;
+                            p.hash = h;
+                            i = p.index >>>= 1;        // descend
+                            if (Thread.interrupted())
+                                return null;
+                            if (timed && m == 0 && ns <= 0L)
+                                return TIMED_OUT;
+                            break;                     // expired; restart
+                        }
+                    }
+                }
+                else
+                    p.item = null;                     // clear offer
+            }
+            else {
+                if (p.bound != b) {                    // stale; reset
+                    p.bound = b;
+                    p.collides = 0;
+                    i = (i != m || m == 0) ? m : m - 1;
+                }
+                else if ((c = p.collides) < m || m == FULL ||
+                         !BOUND.compareAndSet(this, b, b + SEQ + 1)) {
+                    p.collides = c + 1;
+                    i = (i == 0) ? m : i - 1;          // cyclically traverse
+                }
+                else
+                    i = m + 1;                         // grow
+                p.index = i;
+            }
+        }
+    }
+```
+
+
+
+
+
+
 
 ## 6.5 Phaser
 
 ### 6.5.1 用Phaser替代CyclicBarrier和CountDownLatch
 
+从JDK7开始，新增了一个同步工具类Phaser，其功能比CyclicBarrier和CountDownLatch更加强大。
+
+> **1.用Phaser替代CountDownLatch**
+
+在CountDownLatch中，主要是2个方法：await()和countDown()。在Phaser中，与之对应的方法是awaitAdvance(int n)和arrive()。
+
+```java
+package com.turbo.concurrent.demo;
+
+import java.nio.file.attribute.UserPrincipal;
+import java.time.Year;
+import java.util.Random;
+import java.util.concurrent.Phaser;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+
+public class Main {
+    public static void main(String[] args) {
+
+        Phaser phaser = new Phaser(5);
+        for (int i = 0; i < 5; i++) {
+            new Thread("线程-"+(i+1)){
+                private final Random random = new Random();
+
+                @Override
+                public void run() {
+                    System.out.println(getName()+" - 开始运行");
+                    try {
+                        Thread.sleep(random.nextInt(1000));
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    System.out.println(getName() + " - 运行结束");
+                    phaser.arrive();
+                }
+            }.start();
+        }
+        System.out.println("线程启动完毕");
+        System.out.println(phaser.getPhase());
+        phaser.awaitAdvance(0);
+        System.out.println("线程运行结束");
+    }
+}
+```
+
+
+
+> **2.用Phaser代替CyclicBarrier**
+
+```java
+package com.turbo.concurrent.demo;
+
+import java.util.concurrent.Phaser;
+
+public class Main1 {
+    public static void main(String[] args) {
+
+        Phaser phaser = new Phaser(5);
+        for (int i = 0; i < 5; i++) {
+            new MyThread("线程-"+(i+1),phaser).start();
+        }
+        phaser.awaitAdvance(0);
+        System.out.println("线程运行结束");
+    }
+}
+```
+
+```java
+package com.turbo.concurrent.demo;
+
+import java.util.Random;
+import java.util.concurrent.Phaser;
+
+public class MyThread extends Thread {
+
+    private final Phaser phaser;
+    private final Random random = new Random();
+
+    MyThread(String name,Phaser phaser){
+        super(name);
+        this.phaser = phaser;
+    }
+
+    @Override
+    public void run() {
+        System.out.println(getName() + " - 开始向公司出发");
+        slowly();
+        System.out.println(getName() + " - 已经到达公司");
+        // 到达同步点，等待其他线程
+        phaser.arriveAndAwaitAdvance();
+
+        System.out.println(getName() + " - 开始笔试");
+        slowly();
+        System.out.println(getName() + " - 笔记结束");
+        // 到达同步点，等待其他线程
+        phaser.arriveAndAwaitAdvance();
+
+
+        System.out.println(getName() + " - 开始面试");
+        slowly();
+        System.out.println(getName() + " - 面试结束");
+    }
+
+    private void slowly() {
+        try {
+            Thread.sleep(random.nextInt(1000));
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+arriveAndAwaitAdvance()就是arrive()与awaitAdvance(int)的组合，表示“我自己已到达这个同步点，同时要等待所有人都到达这个同步点，然后再一起前行”。
+
 ### 6.5.2 Phaser新特性
+
+> 特性1：动态调整线程个数
+
+CyclicBarrier所要同步的线程个数是在构造方法中指定的，之后不能修改。而Phaser可以再运行期间动态的调整要同步的线程个数。Phaser提供了下面这些方法来增加、减少所要同步的线程个数。
+
+```
+register() // 注册一个
+bulkRegister(int parties) // 注册多个
+arriveAndDeregister() // 解除注册
+```
+
+
+
+> **特性2：层次Phaser**
+
+多个Phaser可以组成如下图所示的树状结构，可以通过在构造方法中传入父Phaser来实现。
+
+```java
+public Phaser(Phaser parent, int parties) {
+	//...
+}
+```
+
+![image-20210929212119819](assest/image-20210929212119819.png)
+
+先简单看一下Phaser内部关于树状结构的存储，如下所示：
+
+![image-20210929212205153](assest/image-20210929212205153.png)
+
+可以发现，在Phaser的内部结构中，每个Phaser记录了自己的父节点，但没有记录自己的子节点列表。所以，每个Phaser知道自己的父节点是谁，但父节点并不知道自己有多少子节点，对父节点的操作，是通过子节点来实现的。
+
+
 
 ### 6.5.3 state变量解析
 
