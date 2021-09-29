@@ -820,7 +820,7 @@ final V putVal(K key, V value, boolean onlyIfAbsent) {
 
 第四个分支，即使把元素放入槽内，槽内可能是一个链表，也可能是一棵红黑树，通过头节点的类型可以判断是哪一种。第四个分支是包裹在synchronized(f)里面的，f对应的数组下标位置的头节点，意味着每个数组元素有一把锁，并发度等于数组的长度。
 
-上面的binCount表示链表的元素个数，当这个数目超过TREEIFY_THRESHOLD=8时，把链表转换成红黑树，也就是treeifyBin(tab, i)方法。但在这个方法内部，不一定需要进行红黑树转换，可能只做扩容操作，所以接下来从扩容说起。
+上面的binCount表示链表的元素个数，**当这个数目超过TREEIFY_THRESHOLD=8时，把链表转换成红黑树**，也就是treeifyBin(tab, i)方法。但在这个方法内部，不一定需要进行红黑树转换，可能只做扩容操作，所以接下来从扩容说起。
 
 
 
@@ -859,7 +859,7 @@ private final void treeifyBin(Node<K,V>[] tab, int index) {
 }
 ```
 
-在上面的代码中，MIN_TREEIFY_CAPACITY=64，意味着当数组长度没有超过64的时候，数组的每个节点里都是链表，只会扩容，不会转换为红黑树。只有当数组长度大于等于64时，才考虑把链表转换为红黑树。
+在上面的代码中，MIN_TREEIFY_CAPACITY=64，意味着当数组长度没有超过64的时候，数组的每个节点里都是链表，只会扩容，不会转换为红黑树。只有当数组长度大于等于64时，才考虑把链表转换为红黑树。也就是，**链表长度大于等于8的时候，进行扩容，当数组长度大于等于64的时候，链表开始转换为红黑树。**
 
 ![image-20210928165801647](assest/image-20210928165801647.png)
 
@@ -1064,7 +1064,7 @@ private final void transfer(Node<K,V>[] tab, Node<K,V>[] nextTab) {
 
 该方法非常复杂，下面一步步分析：
 
-1. 扩容的基本原理如下图，首先建一个新的HashMap，其数组长度是旧数组长度的2倍，然后把旧的元素逐个迁移过来，第一个参数tab是扩容之前的HashMap，第二个参数nextTab是扩容后的HashMap。当nextTab=null的时候，方法最初会对nextTab进行初始化。这里有一个关键点要说明：该方法会被多个线程调用，所以每个线程只是扩容旧的HashMap部分，这就涉及如何任务的问题。
+1. 扩容的基本原理如下图，首先建一个新的HashMap，其数组长度是旧数组长度的2倍，然后把旧的元素逐个迁移过来，第一个参数tab是扩容之前的HashMap，第二个参数nextTab是扩容后的HashMap。当nextTab=null的时候，方法最初会对nextTab进行初始化。这里有一个关键点要说明：该方法会被多个线程调用，所以每个线程只是扩容旧的HashMap部分，这就涉及如何划分任务的问题。
 
    ![image-20210928180120551](assest/image-20210928180120551.png)
 
@@ -1094,7 +1094,7 @@ private final void transfer(Node<K,V>[] tab, Node<K,V>[] nextTab) {
 
    ![image-20210928232657677](assest/image-20210928232657677.png)
 
-   也就是把tab[i]位置的链表或红黑树重新组装成两部分，一部分链接到nextTab[i]的位置，一部分链接到nextTab[i+n]的位置，如下图所示。然后把tab[i]的位置指向一个ForwardingNode节点。
+   也就是把tab[i]位置的链表或红黑树重新组装成两部分，一部分链接到nextTab[i]的位置，一部分链接到nextTab[i+n]的位置，如上图所示。然后把tab[i]的位置指向一个ForwardingNode节点。
 
    同时，当tab[i]后面是链表时，使用类似于JDK 7中在扩容时的优化方法，从lastRun往后的所有节点，不需要依次拷贝，而是直接链接到新的链表头部。从lastRum往前的所有节点，需要依次拷贝。
 
@@ -1106,7 +1106,7 @@ private final void transfer(Node<K,V>[] tab, Node<K,V>[] nextTab) {
 
    所以，sizeCtl变量在Hash表处于不同状态时，表达不同的含义。明白了这个道理，再来看上面的tryPresize(int size)函数。
 
-   ```
+   ```java
    private final void tryPresize(int size) {
        int c = (size >= (MAXIMUM_CAPACITY >>> 1)) ? MAXIMUM_CAPACITY :
            tableSizeFor(size + (size >>> 1) + 1);
@@ -1140,19 +1140,549 @@ private final void transfer(Node<K,V>[] tab, Node<K,V>[] nextTab) {
    }
    ```
 
-   tryPresize(int size) 是根据期望的元素个数对整个Hash表进行扩容，核心是调用transfer函数。在第一次扩容的时候，sizeCtl会被设置成一个很大的负数U.compareAndSwapInt(this，SIZECTL，sc，(rs < < RESIZE_STAMP_SHIFT)+2)；之后每一个线程扩容的时候，sizeCtl就加1，U.compareAndSwapInt(this，SIZECTL，sc，sc+1)，带扩容完成之后，sizeCtl减1。
+   tryPresize(int size) 是根据期望的元素个数对整个Hash表进行扩容，核心是调用transfer函数。在第一次扩容的时候，sizeCtl会被设置成一个很大的负数U.compareAndSwapInt(this，SIZECTL，sc，(rs < < RESIZE_STAMP_SHIFT)+2)；之后每一个线程扩容的时候，sizeCtl就加1，U.compareAndSwapInt(this，SIZECTL，sc，sc+1)，待扩容完成之后，sizeCtl减1。
 
 
 
 ## 5.6 ConcurrentSkipListMap/Set
 
+ConcurrentHashMap是一种key无序的HashMap，ConcurrentSkipListMap则是key有序的，实现了NavigableMap接口，此接口又继承了SortedMap接口。
+
 ### 5.6.1 ConcurrentSkipListMap
 
+> **1.为什么要使用SkipList实现Map？**
+
+在Java的util包中，有一个非线程安全的HashMap，也就是TreeMap，是key有序的，基于红黑树实现。
+
+而在Concurrent包中，提供的key有序的HashMap，就是ConcurrentSkipListMap，是基于SkipList（跳查表）来实现的。这里为什么不用红黑树，而用跳查表来实现呢？
+
+借用Doug Lea原话：
+
+```
+The reason is that there are no known efficient lock0free insertion and deletion algorithms for search trees.
+```
+
+也就是目前计算机领域还未找到一种高效的，作用在树上的、无锁的、增加和删除节点的办法。
+
+那为什么SkipList可以无锁地实现节点地增加、删除呢？这要从无锁链表地实现说起。
+
+> **2.无锁链表**
+
+在AQS中，用到无锁队列，其实也是链表。究竟二者区别在哪？
+
+前面地无锁队列、栈，都只是在队头，队尾进行CAS操作，通常不会有问题。如果在链表中间进行插入或删除操作，按照通常地CAS做法，就会出现问题！
+
+关于这个问题，Doug Lea的论文中有清晰的论述，此处引用如下：
+
+操作1：在节点10后面插入节点20。如下：，首先把节点20的next指针指向节点30，然后对节点10的next指针执行CAS操作，使其执行节点20即可。
+
+![image-20210929150801507](assest/image-20210929150801507.png)
+
+操作2：删除节点10。如下图所示，只需要把头节点的next指针，进行CAS操作到节点30即可。
+
+![image-20210929150958046](assest/image-20210929150958046.png)
+
+但是，如果两个线程同时操作，一个删除节点10，一个要在节点10后面插入节点20。并且这两个操作都各自是CAS的，此时就会出现问题。如下所示，删除节点10，会同时把新插入的节点20也删除掉，这个问题超出了CAS的解决范围。
+
+![image-20210929151402480](assest/image-20210929151402480.png)
+
+为什么会出现这个问题呢？
+
+究其原因：在删除节点10的时候，实际受到操作的是节点10的前驱，也就是头节点。节点10本身没有任何变化。因此，再往节点10后插入节点20的线程，并不知道节点10已经被删除了！
+
+针对这个问题，在论文中提出如下的解决办法，如下图所示，把节点10删除分为两步：
+
+- 第一步，把节点10的next指针，mark成删除，即软删除；
+- 第二步，找机会，物理删除。
+
+做标记之后，当线程再往节点10后面插入节点20的时候，便可以先进性判断，节点10是否已经被删除，从而避免在一个删除的节点10后面插入节点20。**这个解决方法有一个关键点：“把节点10的next指针指向20（插入操作）”和“判断节点10本身是否已经删除（判断操作）”，必须是原子的，必须在1个CAS操作里面完成！**
+
+
+
+具体的实现有两个办法：
+
+- 办法一：AtomicMarkableReference
+
+  保证每个next是AtomicMarkableReference类型。但这个办法不够高效，Doug Lea在ConcurrentSkipListMap的实现中用了另一种办法。
+
+- 办法二：Mark节点
+
+  我们的目的是标记节点10已经删除，也就是标记它的next字段。那么可以新造一个marker节点，使节点10的next指针执行该marker节点。这样，当向节点10的后面插入节点20的时候，就可以在插入的同时判断节点10的next指针是否指向了一个Marker节点，这两个操作可以在一个CAS操作里面完成。
+
+> **3.跳查表**
+
+解决了无锁链表的插入或删除问题，也就解决了跳查表的一个关键问题。因为跳查表就是多层链表叠起来的。
+
+下面先看一下跳查表的数据结构。
+
+![image-20210929154246102](assest/image-20210929154246102.png)
+
+上图中的Node就是跳查表的底层节点类型。所有的<K, V>对都是由这个单向链表串起来的。
+
+上面的Index层的节点：
+
+![image-20210929154922893](assest/image-20210929154922893.png)
+
+上图中的node属性不存储实际数据，指向Node节点。
+
+down属性：每个Index节点，必须有一个指针，指向其下一个Level对应的节点。
+
+right属性：Index也组成单向链表。
+
+整个ConcurrentSkipListMap就只需要记录顶层的head节点即可：
+
+```java
+public class ConcurrentSkipListMap<K,V> extends AbstractMap<K,V>
+        implements ConcurrentNavigableMap<K,V>, Cloneable, Serializable {    
+    // ...
+    private transient Index<K,V> head;    
+    // ...
+}
+```
+
+![image-20210929160454896](assest/image-20210929160454896.png)
+
+下面详细分析如何从跳查表上查找、插入和删除元素。
+
+> **3.1 put 实现分析**
+
+![image-20210929160718749](assest/image-20210929160718749.png)
+
+```java
+private V doPut(K key, V value, boolean onlyIfAbsent) {
+    if (key == null)
+        throw new NullPointerException();
+    Comparator<? super K> cmp = comparator;
+    for (;;) {
+        Index<K,V> h; Node<K,V> b;
+        VarHandle.acquireFence();
+        int levels = 0;                    // number of levels descended
+        if ((h = head) == null) {          // 初始化
+            Node<K,V> base = new Node<K,V>(null, null, null);
+            h = new Index<K,V>(base, null, null);
+            b = (HEAD.compareAndSet(this, null, h)) ? base : null;
+        }
+        else {
+            for (Index<K,V> q = h, r, d;;) { // count while descending
+                while ((r = q.right) != null) {
+                    Node<K,V> p; K k;
+                    if ((p = r.node) == null || (k = p.key) == null ||
+                        p.val == null)
+                        RIGHT.compareAndSet(q, r, r.right);
+                    else if (cpr(cmp, key, k) > 0)
+                        q = r;
+                    else
+                        break;
+                }
+                if ((d = q.down) != null) {
+                    ++levels;
+                    q = d;
+                }
+                else {
+                    b = q.node;
+                    break;
+                }
+            }
+        }
+        if (b != null) {
+            Node<K,V> z = null;              // new node, if inserted
+            for (;;) {                       // find insertion point
+                Node<K,V> n, p; K k; V v; int c;
+                if ((n = b.next) == null) {
+                    if (b.key == null)       // if empty, type check key now
+                        cpr(cmp, key, key);
+                    c = -1;
+                }
+                else if ((k = n.key) == null)
+                    break;                   // can't append; restart
+                else if ((v = n.val) == null) {
+                    unlinkNode(b, n);
+                    c = 1;
+                }
+                else if ((c = cpr(cmp, key, k)) > 0)
+                    b = n;
+                else if (c == 0 &&
+                         (onlyIfAbsent || VAL.compareAndSet(n, v, value)))
+                    return v;
+
+                if (c < 0 &&
+                    NEXT.compareAndSet(b, n,
+                                       p = new Node<K,V>(key, value, n))) {
+                    z = p;
+                    break;
+                }
+            }
+
+            if (z != null) {
+                int lr = ThreadLocalRandom.nextSecondarySeed();
+                if ((lr & 0x3) == 0) {       // add indices with 1/4 prob
+                    int hr = ThreadLocalRandom.nextSecondarySeed();
+                    long rnd = ((long)hr << 32) | ((long)lr & 0xffffffffL);
+                    int skips = levels;      // levels to descend before add
+                    Index<K,V> x = null;
+                    for (;;) {               // create at most 62 indices
+                        x = new Index<K,V>(z, x, null);
+                        if (rnd >= 0L || --skips < 0)
+                            break;
+                        else
+                            rnd <<= 1;
+                    }
+                    if (addIndices(h, skips, x, cmp) && skips < 0 &&
+                        head == h) {         // try to add new level
+                        Index<K,V> hx = new Index<K,V>(z, x, null);
+                        Index<K,V> nh = new Index<K,V>(h.node, h, hx);
+                        HEAD.compareAndSet(this, h, nh);
+                    }
+                    if (z.val == null)       // deleted while adding indices
+                        findPredecessor(key, cmp); // clean
+                }
+                addCount(1L);
+                return null;
+            }
+        }
+    }
+}
+```
+
+在底层，节点按照从小到大的顺序排列，上面的index层间隔地串在一起，因为从小到大排列。查找地时候，从顶层index开始，自左往右，自上而下，形成图示地遍历曲线。假设要查找地元素是32，遍历过程如下：
+
+```
+先遍历第2层Index，发现在21后面；
+从21下降到第一层index，发现在21和35之间；
+从21下降到底层，从21往后遍历，最终发现在29和35之间
+```
+
+在整个查找过程中，范围不断缩小，最终定位到底层的两个元素之间。
+
+![image-20210929161900532](assest/image-20210929161900532.png)
+
+关于上面的put(...)方法，有一个关键点需要说明：在通过findPredecessor找到了待插入的元素在[b, n]之间后，并不能马上插入。因为其他线程也在操作这个链表，b、n都有可能被删除，所以在插入之前执行了一系列的检查逻辑，而这正是无锁链表的复杂之处。
+
+
+
+> **3.2 remove(...)分析**
+
+![image-20210929163018682](assest/image-20210929163018682.png)
+
+```java
+// 若找到了(key, value)就删除，并返回value；找不到就返回null
+final V doRemove(Object key, Object value) {
+    if (key == null)
+        throw new NullPointerException();
+    Comparator<? super K> cmp = comparator;
+    V result = null;
+    Node<K,V> b;
+    outer: while ((b = findPredecessor(key, cmp)) != null &&
+                  result == null) {
+        for (;;) {
+            Node<K,V> n; K k; V v; int c;
+            if ((n = b.next) == null)
+                break outer;
+            else if ((k = n.key) == null)
+                break;
+            else if ((v = n.val) == null)
+                unlinkNode(b, n);
+            else if ((c = cpr(cmp, key, k)) > 0)
+                b = n;
+            else if (c < 0)
+                break outer;
+            else if (value != null && !value.equals(v))
+                break outer;
+            else if (VAL.compareAndSet(n, v, null)) {
+                result = v;
+                unlinkNode(b, n);
+                break; // loop to clean up
+            }
+        }
+    }
+    if (result != null) {
+        tryReduceLevel();
+        addCount(-1L);
+    }
+    return result;
+}
+```
+
+上面的删除方法和插入方法瑞吉非常类似，因为无论是插入，还是删除，都要先找到元素的前驱，也就是定位到元素所在的区间[b, n]。在定位之后，执行下面几个步骤：
+
+```
+1.如果发现b、n已经被删除了，则执行对应的删除清理逻辑；
+2.否则，如果没有找到待删除的(k,v)，返回null；
+3.如果找到了待删除的元素，也就是节点n，则把n的value置为null，同时在n的后面加上marker节点，同时检查是否需要降低Index的层次。
+```
+
+
+
+> **3.3 get分析**
+
+![image-20210929165039342](assest/image-20210929165039342.png)
+
+```java
+private V doGet(Object key) {
+    Index<K,V> q;
+    VarHandle.acquireFence();
+    if (key == null)
+        throw new NullPointerException();
+    Comparator<? super K> cmp = comparator;
+    V result = null;
+    if ((q = head) != null) {
+        outer: for (Index<K,V> r, d;;) {
+            while ((r = q.right) != null) {
+                Node<K,V> p; K k; V v; int c;
+                if ((p = r.node) == null || (k = p.key) == null ||
+                    (v = p.val) == null)
+                    RIGHT.compareAndSet(q, r, r.right);
+                else if ((c = cpr(cmp, key, k)) > 0)
+                    q = r;
+                else if (c == 0) {
+                    result = v;
+                    break outer;
+                }
+                else
+                    break;
+            }
+            if ((d = q.down) != null)
+                q = d;
+            else {
+                Node<K,V> b, n;
+                if ((b = q.node) != null) {
+                    while ((n = b.next) != null) {
+                        V v; int c;
+                        K k = n.key;
+                        if ((v = n.val) == null || k == null ||
+                            (c = cpr(cmp, key, k)) > 0)
+                            b = n;
+                        else {
+                            if (c == 0)
+                                result = v;
+                            break;
+                        }
+                    }
+                }
+                break;
+            }
+        }
+    }
+    return result;
+}
+```
+
+无论是插入、删除、还是查找，都有相似的逻辑，都需要先定位到元素位置[b, n]，然后判断b、n是否已经被删除，如果是，则需要执行相应的清理逻辑。这也正是无锁链表复杂的地方。
+
 ### 5.6.2 ConcurrentSkipListSet
+
+如下代码所示，ConcurrentSkipListSet只是对ConcurrentSkipListMap的简单封装。
+
+```java
+public class ConcurrentSkipListSet<E> extends AbstractSet<E>
+        implements NavigableSet<E>, Cloneable, java.io.Serializable {    
+    
+    // 封装了一个ConcurrentSkipListMap
+    private final ConcurrentNavigableMap<E,Object> m;    
+    public ConcurrentSkipListSet() {
+        m = new ConcurrentSkipListMap<E,Object>();  
+    }
+    public boolean add(E e) {
+        return m.putIfAbsent(e, Boolean.TRUE) == null;  
+    }
+    // ... 
+}
+```
+
+
 
 # 6 同步工具
 
 ## 6.1 Semaphore
+
+Semaphore也就是信号量，提供了资源数量的并发访问控制，其使用代码很简单，如下所示：
+
+```java
+// 一开始有5份共享资源。第二个参数表示是否是公平 
+// 公平锁排队，非公平锁竞争
+Semaphore myResources = new Semaphore(5, true);
+
+// 工作线程每获取一份资源，就在该对象上记下来
+// 在获取的时候是按照公平的方式还是非公平的方式，就要看上一行代码的第二个参数了。 
+// 一般非公平抢占效率较高。
+myResources.acquire();
+
+// 工作线程每归还一份资源，就在该对象上记下来 
+// 此时资源可以被其他线程使用
+myResources.release(); 
+
+/*
+释放指定数目的许可，并将它们归还给信标。 可用许可数加上该指定数目。
+如果线程需要获取N个许可，在有N个许可可用之前，该线程阻塞。
+如果线程获取了N个许可，还有可用的许可，则依次将这些许可赋予等待获取许可的其他线程。 
+*/
+semaphore.release(2); 
+
+/*
+从信标获取指定数目的许可。如果可用许可数目不够，则线程阻塞，直到被中断。 
+该方法效果与循环相同，
+for (int i = 0; i < permits; i++) acquire(); 
+只不过该方法是原子操作。
+
+如果可用许可数不够，则当前线程阻塞，直到：（二选一）
+1. 如果其他线程释放了许可，并且可用的许可数满足当前线程的请求数字；
+2. 其他线程中断了当前线程。
+
+permits – 要获取的许可数 
+*/
+semaphore.acquire(3);
+```
+
+代码：https://gitee.com/turboYuu/concurrent-programming-2-3/tree/master/lab/turbo-concurrent-programming/demo-09-semaphore/src/com/turbo/concurrent/demo
+
+```java
+package com.turbo.concurrent.demo;
+
+import java.util.Random;
+import java.util.concurrent.Semaphore;
+
+public class MyThread extends Thread {
+
+    private final Semaphore semaphore;
+    private final Random random = new Random();
+
+    public MyThread(String name,Semaphore semaphore){
+        super(name);
+        this.semaphore = semaphore;
+    }
+
+    @Override
+    public void run() {
+        try {
+            // 获取信标：抢座
+            semaphore.acquire();
+            // 抢到之后开始写作业
+            System.out.println(Thread.currentThread().getName()+"-抢到了座位，开始写作业。");
+            Thread.sleep(random.nextInt(1000));
+            System.out.println(Thread.currentThread().getName()+"-作业写完，腾出座位。");
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        // 释放信标：腾出座位
+        semaphore.release();
+    }
+}
+```
+
+```java
+package com.turbo.concurrent.demo;
+
+import java.util.concurrent.Semaphore;
+
+public class Main {
+
+    public static void main(String[] args) {
+        Semaphore semaphore = new Semaphore(1);
+        for (int i = 0; i < 5; i++) {
+            new MyThread("学生-"+(i+1),semaphore).start();
+        }
+    }
+}
+```
+
+如下图所示，假设有n个线程来获取Semaphore里面的10份资源（n > 10），n个线程中只有10个线程能够获取到，其他线程都会阻塞。直到有线程释放了资源，其他线程才能获取到。
+
+![image-20210929172355355](assest/image-20210929172355355.png)
+
+当初始化的资源个数为1时，Semaphore退化为排他锁，正因为如此，Semaphore的实现原理和锁类似，是基于AQS，有公平和非公平之分。Semaphore相关类的继承体系如下：
+
+![image-20210929173344831](assest/image-20210929173344831.png)
+
+```java
+public void acquire() throws InterruptedException {
+    sync.acquireSharedInterruptibly(1);
+}
+    
+public void release() {
+    sync.releaseShared(1);
+}
+```
+
+由于Semaphore和锁的实现原理基本相同。资源总数即state的初始值，在acquire里对state变量进行CAS减操作，减到0后，线程阻塞；在release里面对变量进行CAS操作。
+
+```java
+public abstract class AbstractQueuedSynchronizer
+    extends AbstractOwnableSynchronizer
+    implements java.io.Serializable {
+    
+    public final void acquireSharedInterruptibly(int arg)
+            throws InterruptedException {
+        if (Thread.interrupted())
+            throw new InterruptedException();
+        if (tryAcquireShared(arg) < 0)
+            doAcquireSharedInterruptibly(arg);
+    }
+    
+    public final boolean releaseShared(int arg) {
+        if (tryReleaseShared(arg)) {
+            doReleaseShared();
+            return true;
+        }
+        return false;
+    }
+}
+```
+
+```java
+public class Semaphore {
+
+    abstract static class Sync extends AbstractQueuedSynchronizer {
+        protected final boolean tryReleaseShared(int releases) {
+            for (;;) {
+                int current = getState();
+                int next = current + releases;
+                if (next < current) // overflow
+                    throw new Error("Maximum permit count exceeded");
+                if (compareAndSetState(current, next))
+                    return true;
+            }
+        }
+    }
+
+    static final class FairSync extends Sync {
+        private static final long serialVersionUID = 2014338818796000944L;
+
+        FairSync(int permits) {
+            super(permits);
+        }
+
+        protected int tryAcquireShared(int acquires) {
+            for (;;) {
+                if (hasQueuedPredecessors())
+                    return -1;
+                int available = getState();
+                int remaining = available - acquires;
+                if (remaining < 0 ||
+                    compareAndSetState(available, remaining))
+                    return remaining;
+            }
+        }
+    }
+}
+```
+
+
+
+```java
+package java.lang.invoke;
+public abstract class VarHandle {    
+    // ...
+    // CAS，原子操作
+    public final native
+    @MethodHandle.PolymorphicSignature    
+    @HotSpotIntrinsicCandidate
+    boolean compareAndSet(Object... args);    
+    // ...
+}
+```
+
+
 
 ## 6.2 CountDownLatch
 
