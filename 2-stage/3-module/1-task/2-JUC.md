@@ -2479,7 +2479,7 @@ arriveAndAwaitAdvance()就是arrive()与awaitAdvance(int)的组合，表示“�
 
 ### 6.5.2 Phaser新特性
 
-> 特性1：动态调整线程个数
+> **特性1：动态调整线程个数**
 
 CyclicBarrier所要同步的线程个数是在构造方法中指定的，之后不能修改。而Phaser可以再运行期间动态的调整要同步的线程个数。Phaser提供了下面这些方法来增加、减少所要同步的线程个数。
 
@@ -2511,13 +2511,291 @@ public Phaser(Phaser parent, int parties) {
 
 
 
+树状的Phaser怎么使用？
+
+```java
+Phaser root = new Phaser(2);
+Phaser c1 = new Phaser(root, 3);
+Phaser c2 = new Phaser(root, 2);
+Phaser c3 = new Phaser(c1, 0);
+```
+
+![image-20210930104446238](assest/image-20210930104446238.png)
+
+本来root有两个参与者，然后为其加入了两个子Phaser(c1, c2)，每个子Phaser会算作1个参与者，root的参与者就变成2+2=4个。c1本来有3个参与者，为其加入了一个子Phaser c3，参与者数量编程3+1=4个。c3的参与者初始为0.后续可以通过调用register()方法加入。
+
+会与树状Phaser上的每个检点来说，可以当作一个独立的Phaser来看待，其运作机制和一个单独的Phaser是一样的。
+
+父Phaser并不用感知子Phaser的存在，当子Phaser中注册的参与者数量大于0时，会把自己向父节点注册；当子Phaser中注册的参与者数量等于0时，会自动向父节点解除注册。父Phaser把子Phaser当作一个正常参与的线程。
+
+
+
 ### 6.5.3 state变量解析
+
+Phaser没有基于AQS来实现，但具备AQS的核心特性：state变量、CAS操作、阻塞队列。先从state变量说起。
+
+![image-20210930111510262](assest/image-20210930111510262.png)
+
+这个64位的state变量被拆成4部分，下图为state变量各部分：
+
+![image-20210930111629413](assest/image-20210930111629413.png)
+
+最高位0表示未同步，1表示同步完成，初始最高位为0。
+
+
+
+Phaser提供了一些列的成员方法来从state中获取上图中的几个数字，如下所示：
+
+![image-20210930132731835](assest/image-20210930132731835.png)
+
+![image-20210930132804864](assest/image-20210930132804864.png)
+
+![image-20210930132945007](assest/image-20210930132945007.png)
+
+![image-20210930133040305](assest/image-20210930133040305.png)
+
+![image-20210930133258180](assest/image-20210930133258180.png)
+
+![image-20210930133331933](assest/image-20210930133331933.png)
+
+![image-20210930133440429](assest/image-20210930133440429.png)
+
+![image-20210930133549109](assest/image-20210930133549109.png)
+
+![image-20210930133616164](assest/image-20210930133616164.png)
+
+
+
+下面看一下state变量再狗仔方法中是如何被赋值的。
+
+```java
+public Phaser(Phaser parent, int parties) {
+    if (parties >>> PARTIES_SHIFT != 0)
+        // 如果parties数超出了最大个数（2的16次方），抛异常
+        throw new IllegalArgumentException("Illegal number of parties");
+    // 初始化轮数为0
+    int phase = 0;
+    this.parent = parent;
+    if (parent != null) {
+        final Phaser root = parent.root;
+        // 父节点个根节点就是自己的根节点
+        this.root = root;
+        // 父节点的evenQ就是自己的evenQ
+        this.evenQ = root.evenQ;
+        // 父节点的oddQ就是自己的oddQ
+        this.oddQ = root.oddQ;
+        // 如果参与者不是0，则向附加点注册自己
+        if (parties != 0)
+            phase = parent.doRegister(1);
+    }
+    else {
+        // 如果父节点为null,则自己就是root节点
+        this.root = this;
+        // 创建奇数节点
+        this.evenQ = new AtomicReference<QNode>();
+        // 创建偶数节点
+        this.oddQ = new AtomicReference<QNode>();
+    }
+    this.state = (parties == 0) ? (long)EMPTY :
+        ((long)phase << PHASE_SHIFT) |     // 位或操作，赋值state。最高位为0，表示同步未完成
+        ((long)parties << PARTIES_SHIFT) |
+        ((long)parties);
+}
+```
+
+
+
+![image-20210930135702271](assest/image-20210930135702271.png)
+
+![image-20210930135736986](assest/image-20210930135736986.png)
+
+![image-20210930135805065](assest/image-20210930135805065.png)
+
+当parties=0时，state被赋予一个EMPTY常量，常量为1；
+
+当parties != 0时，把phaser值左移32位；把parties左移16位；然后parties也作为最低的16位，3个值做或操作，赋值给state。
 
 ### 6.5.4 阻塞与唤醒（Treiber Stack）
 
+基于上述的state变量，对其进行CAS操作，并进行相应的阻塞与唤醒。如下图所示，右边的主线程会调用awaitAdvance()进行阻塞；左边的arrive()会对state进行CAS的雷减操作，当未到达的线程数减到0，唤醒右边阻塞的主线程。
+
+![image-20210930140506906](assest/image-20210930140506906.png)
+
+​	在这里，阻塞使用的是一个称为Treiber Stack的数据结构，而不是AQS的双向链表。Treiber Stack是一个无锁的栈，他是一个单向链表，出栈、入栈都在链表头部，所以只需要一个head指针，而不需要tail指针，如下：
+
+![image-20210930141012636](assest/image-20210930141012636.png)
+
+![image-20210930141155614](assest/image-20210930141155614.png)
+
+
+
+为了减少并发冲突，这里定义了2个链表，也就是2个Treiber Stack。当phaser为奇数轮的时候，阻塞线程放在oddQ里面；当phaser为偶数轮的时候，阻塞线程放在evenQ里面。代码如下：
+
+![image-20210930141637044](assest/image-20210930141637044.png)
+
 ### 6.5.5. arrive()方法分析
 
+arrive()方法是如何对state变量进行操作，又是如何唤醒线程的。
+
+![image-20210930141900045](assest/image-20210930141900045.png)
+
+![image-20210930141930676](assest/image-20210930141930676.png)
+
+![image-20210930142018395](assest/image-20210930142018395.png)
+
+![image-20210930142114484](assest/image-20210930142114484.png)
+
+
+
+arrive()和arriveAndDeregister()内部调用的都是doArrive(boolean)方法。
+
+区别在于前者只是把“未达到线程数”减1；后者则把“未到达线程数”和“下一轮的总线程数”都减1。doArrive(boolean)方法的实现。
+
+```java
+private int doArrive(int adjust) {
+    final Phaser root = this.root;
+    for (;;) {
+        long s = (root == this) ? state : reconcileState();
+        int phase = (int)(s >>> PHASE_SHIFT);
+        if (phase < 0)
+            return phase;
+        int counts = (int)s;
+        // 获取未到达线程数
+        int unarrived = (counts == EMPTY) ? 0 : (counts & UNARRIVED_MASK);
+        // 如果未到达线程数小于等于0，抛异常。
+        if (unarrived <= 0)
+            throw new IllegalStateException(badArrive(s));
+        // CAS操作，将state的值减去adjust
+        if (STATE.compareAndSet(this, s, s-=adjust)) {
+            // 如果未达到线程为1
+            if (unarrived == 1) {
+                long n = s & PARTIES_MASK;  // base of next state
+                int nextUnarrived = (int)n >>> PARTIES_SHIFT;
+                if (root == this) {
+                    if (onAdvance(phase, nextUnarrived))
+                        n |= TERMINATION_BIT;
+                    else if (nextUnarrived == 0)
+                        n |= EMPTY;
+                    else
+                        n |= nextUnarrived;
+                    int nextPhase = (phase + 1) & MAX_PHASE;
+                    n |= (long)nextPhase << PHASE_SHIFT;
+                    STATE.compareAndSet(this, s, n);
+                    releaseWaiters(phase);
+                }
+                // 如果下一轮的未到达线程数为0
+                else if (nextUnarrived == 0) { // propagate deregistration
+                    phase = parent.doArrive(ONE_DEREGISTER);
+                    STATE.compareAndSet(this, s, s | EMPTY);
+                }
+                else
+                    // 否则调用父节点doArrive方法，传递参数1，表示当前节点已完成
+                    phase = parent.doArrive(ONE_ARRIVAL);
+            }
+            return phase;
+        }
+    }
+}
+```
+
+关于方面的方法，有以下几点说明：
+
+> 1.定义了2个常量
+
+当deregister = false 时，只有最低的16位需要减1，adj=ONE_ARRIVAL；当deregister=true时，低32位中的2个16位都需要减1，adj=ONE_ARRIVAL|ONE_PARTY。
+
+![image-20210930145448670](assest/image-20210930145448670.png)
+
+> 2.把未到达线程数减1。
+
+减了之后，如果还未到0，什么都不做，直接返回。如果到0，会做2件事：第一，重置state，把state的未到达线程个数重置到总的注册的线程数中，同时phase加1；第2，唤醒队列中的线程。
+
+唤醒方法：
+
+![image-20210930150002827](assest/image-20210930150002827.png)
+
+遍历整个栈，只要栈当中节点的phase不等于当前Phaser的phase，说明该节点不是当前轮的，而是前一轮的，应该被释放并唤醒。
+
 ### 6.5.6 awaitAdvance()方法分析
+
+![image-20210930150342317](assest/image-20210930150342317.png)
+
+下面的while循环中有4个分支：
+
+初始的时候，node==null，进入第一个分支进行自旋，自旋次数满足之后，会新建一个QNode节点；
+
+之后执行第3、第4个分支，分别把该节点入栈并阻塞。
+
+```java
+private int internalAwaitAdvance(int phase, QNode node) {
+    // assert root == this;
+    releaseWaiters(phase-1);          // ensure old queue clean
+    boolean queued = false;           // true when node is enqueued
+    int lastUnarrived = 0;            // to increase spins upon change
+    int spins = SPINS_PER_ARRIVAL;
+    long s;
+    int p;
+    while ((p = (int)((s = state) >>> PHASE_SHIFT)) == phase) {
+        if (node == null) {           // 不可中断模式的自旋
+           int unarrived = (int)s & UNARRIVED_MASK;
+            if (unarrived != lastUnarrived &&
+                (lastUnarrived = unarrived) < NCPU)
+                spins += SPINS_PER_ARRIVAL;
+            boolean interrupted = Thread.interrupted();
+            if (interrupted || --spins < 0) { // 自旋结束，建一个节点，之后进入阻塞
+                node = new QNode(this, phase, false, false, 0L);
+                node.wasInterrupted = interrupted;
+            }
+            else
+                Thread.onSpinWait();
+        }
+        else if (node.isReleasable()) // 从阻塞唤醒，退出while循环
+            break;
+        else if (!queued) {           // push onto queue
+            AtomicReference<QNode> head = (phase & 1) == 0 ? evenQ : oddQ;
+            QNode q = node.next = head.get();
+            if ((q == null || q.phase == phase) &&
+                (int)(state >>> PHASE_SHIFT) == phase) // avoid stale enq
+                queued = head.compareAndSet(q, node);  // 节点入栈
+        }
+        else {
+            try {
+                ForkJoinPool.managedBlock(node);  // 调用node.block()阻塞
+            } catch (InterruptedException cantHappen) {
+                node.wasInterrupted = true;
+            }
+        }
+    }
+
+    if (node != null) {
+        if (node.thread != null)
+            node.thread = null;       // avoid need for unpark()
+        if (node.wasInterrupted && !node.interruptible)
+            Thread.currentThread().interrupt();
+        if (p == phase && (p = (int)(state >>> PHASE_SHIFT)) == phase)
+            return abortWait(phase); // possibly clean up on abort
+    }
+    releaseWaiters(phase);
+    return p;
+}
+```
+
+这里调用了ForkJoinPool.managedBlock(ManagedBlocker blocker)方法，目的是把node对应的线程阻塞。ManagedBlocker时ForkJoinPool里面的一个接口，定义如下：
+
+```java
+public static interface ManagedBlocker {
+    boolean block() throws InterruptedException;
+    boolean isReleasable();
+}
+```
+
+QNode实现了该接口，实现原理还是park()，如下所示。之所以没有直接使用park()/unpark()来实现阻塞、唤醒，而是封装了ManagedBlocker这一层，主要是处于使用上的方便考虑。一方面是park()可能被中断唤醒，另一方面是带超时时间的park()，把这二者都封装在一起。
+
+![image-20210930152927670](assest/image-20210930152927670.png)
+
+![image-20210930153017168](assest/image-20210930153017168.png)
+
+理解了arrive()和awaitAdvance()，arriveAndAwaitAdvance()就是二者的一个组合版本。
 
 # 7 Atomic类
 
