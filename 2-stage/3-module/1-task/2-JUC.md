@@ -2621,15 +2621,15 @@ public Phaser(Phaser parent, int parties) {
 
 ![image-20210930140506906](assest/image-20210930140506906.png)
 
-​	在这里，阻塞使用的是一个称为Treiber Stack的数据结构，而不是AQS的双向链表。Treiber Stack是一个无锁的栈，他是一个单向链表，出栈、入栈都在链表头部，所以只需要一个head指针，而不需要tail指针，如下：
+在这里，阻塞使用的是一个称为Treiber Stack的数据结构，而不是AQS的双向链表。Treiber Stack是一个无锁的栈，他是一个单向链表，出栈、入栈都在链表头部，所以只需要一个head指针，而不需要tail指针，如下：
 
 ![image-20210930141012636](assest/image-20210930141012636.png)
 
-![image-20210930141155614](assest/image-20210930141155614.png)
+![image-20210930155330690](assest/image-20210930155330690.png)
 
 
 
-为了减少并发冲突，这里定义了2个链表，也就是2个Treiber Stack。当phaser为奇数轮的时候，阻塞线程放在oddQ里面；当phaser为偶数轮的时候，阻塞线程放在evenQ里面。代码如下：
+为了减少并发冲突，这里定义了2个链表，也就是2个Treiber Stack。当phase为奇数轮的时候，阻塞线程放在oddQ里面；当phase为偶数轮的时候，阻塞线程放在evenQ里面。代码如下：
 
 ![image-20210930141637044](assest/image-20210930141637044.png)
 
