@@ -2793,7 +2793,7 @@ QNode实现了该接口，实现原理还是park()，如下所示。之所以没
 
 ![image-20210930152927670](assest/image-20210930152927670.png)
 
-![image-20210930153017168](assest/image-20210930153017168.png)
+![image-20210930153436247](assest/image-20210930153436247.png)
 
 理解了arrive()和awaitAdvance()，arriveAndAwaitAdvance()就是二者的一个组合版本。
 
