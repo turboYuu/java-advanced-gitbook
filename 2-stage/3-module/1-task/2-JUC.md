@@ -2801,9 +2801,220 @@ QNode实现了该接口，实现原理还是park()，如下所示。之所以没
 
 ## 7.1 AtomicInteger和AtomicLong
 
+对于一个整数的加键操作，要保证线程安全，需要加锁，也就是加synchronized关键字。
+
+```java
+public class MyClass {    
+    private int count = 0;
+    public void synchronized increment() {        
+        count++;
+    }
+    public void synchronized decrement() {        
+        count--;
+    }
+}
+```
+
+但有了Concurrent包的Atomic相关类之后，synchronized关键字可以用AtomicInteger代替，其性能更好，对应的代码变为：
+
+```java
+public class MyClass {
+    private AtomicInteger count = new AtomicInteger(0);    
+    public void add() {
+        count.getAndIncrement();  
+    }
+    public long minus() {
+        count.getAndDecrement();  
+    }
+}
+```
+
+其对应的源码如下：
+
+![image-20210930163112942](assest/image-20210930163112942.png)
+
+上图中的U是Unsafe的对象：
+
+![image-20210930163401230](assest/image-20210930163401230.png)
+
+AtomicInteger的`getAndIncrement()`方法和`getAndDecrement()`方法都调用了这一个方法：`U.getAndAddInt(...)`方法，该方法基于CAS实现：
+
+![image-20210930163658264](assest/image-20210930163658264.png)
+
+do-while循环直到判断条件返回true为止。该操作称为**自旋**。
+
+![image-20210930163955336](assest/image-20210930163955336.png)
+
+`getAndAddInt`方法具有volatile语义，也就是说对所有线程都是同时可见的。
+
+而`weakCompareAndSetInt`方法的实现：
+
+![image-20210930164238147](assest/image-20210930164238147.png)
+
+调用了`compareAndSetInt`方法，该方法的实现：
+
+![image-20210930164430149](assest/image-20210930164430149.png)
+
+上图中的方法中：
+
+- 第一个参数表示要修改哪个对象的属性值；
+- 第二个参数是该对象属性在内存的偏移量；
+- 第三个参数表示期望值；
+- 第四个参数表示要设置为的目标值。
+
+> 源码简单，重要的是其中的设计思想。
+
+### 7.1.1 悲观锁与乐观锁
+
+对于悲观锁，认为数据发生并发冲突的概率很大，读操作之前就上锁。synchronized关键字，ReentrantLock都是悲观锁的典型。
+
+对于乐观锁，认为数据方生并发冲突的概率小，读操作之前不上锁。等到写操作的时候，再判断数据在此期间是否被其他线程修改了。如果被其他线程修改了，就把数据重新读出来，重复该过程；如果没有被修改，就写回去。判断数据是否被修改，同时写回新值，这两个操作要合成一个原子操作，也就是CAS（Compare And Set）。
+
+> AtomicInteger的实现就是典型的乐观锁。
+
+### 7.1.2 Unsafe 的 CAS详解
+
+Unsafe类是整个Concurrent包的基础，里面所有方法都是native的。具体到上面提到的`compareAndSetInt`方法，即
+
+![image-20210930164238147](assest/image-20210930164238147.png)
+
+要特别说明一下第二个参数，它是一个long型的整形，经常被称为xxxOffset，意思是让某个成员变量在对应的类中内存偏移量（该变量在内存中的位置），表示该成员变量本身。
+
+第二个参数的值为AtomicInteger中的属性VALUE：
+
+![image-20210930170250477](assest/image-20210930170250477.png)
+
+VALUE的值：
+
+![image-20210930170325695](assest/image-20210930170325695.png)
+
+而Unsafe的`objectFieldOffset(...)`方法调用，就是为了找到AtomicInteger类中value属性所在的内存偏移量。
+
+objectFieldOffset方法的实现：
+
+![image-20210930170622387](assest/image-20210930170622387.png)
+
+其中objectFieldOffset1的实现为：
+
+![image-20210930170738164](assest/image-20210930170738164.png)
+
+所有调用CAS的地方，都会先通过这个方法把成员变量转换成一个Offset。以AtomicInteger为例：
+
+![image-20210930170325695](assest/image-20210930170325695.png)
+
+从上面的代码可以看出，无论是Unsafe还是VALUE，都是静态的，也就是类级别的，所有对象公用的。
+
+此时的VALUE就代表value变量本身，后面执行CAS操作的时候，不是直接操作value，而是操作VALUE。
+
+### 7.1.3 自旋与阻塞
+
+当一个线程拿不到锁的时候，有以下两种基本等待策略：
+
+- 策略1：放弃CPU，进入阻塞状态，等待后续被唤醒，再重新被操作系统调度。
+- 策略2：不放弃CPU，空转，不断重试，也就是所谓的“自旋”。
+
+显然，如果是单核CPU，只能用策略1。但对于多CPU或者多核，策略2就很有用了，因为没有线程切换的开销。
+
+**AtomicInteger的实现使用“自旋”策略，如果拿不到锁，就会一直重试**
+
+注意：以上两种策略并不互斥，可以结合使用。如果获取不到锁，先自旋；如果自旋还拿不到锁，在阻塞，synchronized关键字就是这样的实现策略。
+
+
+
+除了AtomicInteger，AtomicLong也是同样的原理。
+
 ## 7.2 AtomicBoolean和AtomicReference
 
+### 7.2.1 为什么需要AtomicBoolean
+
+因为往往要实现下面这种功能：
+
+```java
+if (!flag) {    
+    flag = true;    
+    // ...
+}
+// 或者更清晰一点的： 
+if (flag == false) {
+    flag = true;
+    // ...
+}
+```
+
+也就是要实现compare和set两个操作在一起的原子性，而这也正是CAS提供的功能。上面的代码，就变成：
+
+```java
+if (compareAndSet(false, true)) {    
+    // ...
+}
+```
+
+同样的，AtomicReference也需要同样的功能，对应的方法如下：
+
+![image-20210930173845742](assest/image-20210930173845742.png)
+
+![image-20210930173920419](assest/image-20210930173920419.png)
+
+其中，expect是旧的引用，update为新的引用。
+
+### 7.2.2 如何支持boolean和double类型
+
+在Unsafe类中，只提供了三种类型的CAS操作：int、long、Object（也就是引用类型）。如下所示：
+
+![image-20210930175028596](assest/image-20210930175028596.png)
+
+![image-20210930175159324](assest/image-20210930175159324.png)
+
+![image-20210930175236915](assest/image-20210930175236915.png)
+
+即，在jdk的实现中，这三种CAS操作是由底层实现的，其他类型的CAS操作都要转换为这三种之一进行操作。
+
+其中的参数：
+
+- 第一个参数 是要修改的对象
+- 第二个参数 是对象成员变量在内存中的位置（一个long型的整数）
+- 第三个参数 是该变量的旧值
+- 第四个参数 是该变量的新值。
+
+
+
+AtomicBoolean类型如何支持？
+
+对于用int型来代替的，在入参的时候，将boolean类型转换成int类型；在返回值的时候，将int类型转换成boolean类型。如下所示：
+
+![image-20210930180006196](assest/image-20210930180006196.png)
+
+如果是double类型，又如何支持？
+
+这依赖于double类型提供给的一堆double类型和long类型互转的方法：
+
+![image-20210930180659067](assest/image-20210930180659067.png)
+
+![image-20210930180748254](assest/image-20210930180748254.png)
+
+Unsafe类中的方法实现：
+
+![image-20210930180612179](assest/image-20210930180612179.png)
+
+
+
 ## 7.3 AtomicStampedReference和AtomicMarkableReference
+
+### 7.3.1 ABA问题与解决办法
+
+要解决ABA问题，不仅要比较“值”，还要比较“版本号”，而这正是AtomicStampedReference做的事情，其对应的CAS方法如下：
+
+![image-20210930181344712](assest/image-20210930181344712.png)
+
+之前的CAS只有两个参数，这里的CAS有四个参数，后两个参数就是版本号的旧值和新值。
+
+当expectedReference != 对象当前的reference时，说明该数据肯定被其他线程修改过；
+
+当expectedReference == 对象当前的reference时，再进一步比较expectedStamp是否等于当前对象的版本号，依次判断数据是否被其他线程修改过。
+
+### 7.3.2 为什么没有AtomicStampedInteger或AtomicStampedLong
+
+
 
 ## 7.4 AtomicIntegerFieldUpdater、AtomicLongFieldUpdate和AtomicReferenceFieldUpdater
 
