@@ -2917,9 +2917,7 @@ objectFieldOffset方法的实现：
 
 **AtomicInteger的实现使用“自旋”策略，如果拿不到锁，就会一直重试**
 
-注意：以上两种策略并不互斥，可以结合使用。如果获取不到锁，先自旋；如果自旋还拿不到锁，在阻塞，synchronized关键字就是这样的实现策略。
-
-
+注意：以上两种策略并不互斥，可以结合使用。如果获取不到锁，先自旋；如果自旋还拿不到锁，再阻塞，synchronized关键字就是这样的实现策略。
 
 除了AtomicInteger，AtomicLong也是同样的原理。
 
@@ -3014,13 +3012,289 @@ Unsafe类中的方法实现：
 
 ### 7.3.2 为什么没有AtomicStampedInteger或AtomicStampedLong
 
+因为这里要同时比较数据的“值”和“版本号”，而Integer型或者Long型的CAS没有办法同时比较两个变量。
 
+于是只能把值和版本封装成一个对象，也就是这里面的Pair内部类，然后通过对象引用的CAS来实现。代码如下：
+
+![image-20211001133139182](assest/image-20211001133139182.png)
+
+![image-20211001133409763](assest/image-20211001133409763.png)
+
+当使用的时候，在构造方法里面传入值和版本号两个参数，应用程序对版本号进行累加操作，然后调用上面的CAS。如下：
+
+![image-20211001134819896](assest/image-20211001134819896.png)
+
+### 7.3.3 AtomicMarkableReference
+
+AtomicMarkableReference与AtomicStampedReference原理类似，只是Pair里面的版本号是boolean类型，不是整型的累加变量。如下：
+
+![image-20211001140223856](assest/image-20211001140223856.png)
+
+因为是boolean类型，只能有true、false两个版本号，所以并不能完全避免ABA问题，只是降低ABA发生的概率。
 
 ## 7.4 AtomicIntegerFieldUpdater、AtomicLongFieldUpdate和AtomicReferenceFieldUpdater
 
+### 7.4.1 为什么需要AtomicXXXFieldUpdater
+
+如果一个类是自己编写的，则可以在编写的时候把变量定义为Atomic类型。但如果是一个已经有的类，在不能更改源代码的情况下，要想实现对其他成员变量的原子操作，就需要AtomicIntegerFieldUpdater、AtomicLongFieldUpdater和AtomicReferenceFieldUpdater。
+
+通过AtomicIntegerFieldUpdater理解它们的实现原理。
+
+AtomicIntegerFieldUpdater是一个抽象类。
+
+首先，其构造方法是protected，不能直接构造其对象，必须通过它提供的的一个静态方法来创建，如下：
+
+![image-20211001141410036](assest/image-20211001141410036.png)
+
+方法`newUpdater`用于创建AtomicIntegerFieldUpdater类对象：
+
+![image-20211001141554700](assest/image-20211001141554700.png)
+
+newUpdater(...)静态方法传入的是要修改的类（不是对象）和对象的成员变量的名字，内部通过反射拿到这个类的成员变量，然后包装成一个AtomicIntegerFieldUpdater。所以，这个对象表示的是**类**的某个成员。而不是对象的成员变量。
+
+若要修改某个对象的成员变量的值，再传入相应的对象，如下：
+
+![image-20211001142042219](assest/image-20211001142042219.png)
+
+![image-20211001142141957](assest/image-20211001142141957.png)
+
+accessCheck方法的作用是检查该obj是不是tclass类型，如果不是，则拒绝修改，抛出异常。
+
+从代码上看，其CAS原理和AtomicInteger是一样的，底层都调用了Unsafe的compareAndSetInt(...)方法。
+
+### 7.4.2 限制条件
+
+要想使用AtomicIntegerFieldUpdater修改成员变量，成员变量必须是volatile的int类型（不能是Integer包装类），该限制从其构造方法中可以看到：
+
+![image-20211001142745273](assest/image-20211001142745273.png)
+
+至于AtomicLongFieldUpdater、AtomicReferenceFieldUpdater，也有类似的限制条件。其底层的CAS原理，也和AtomicLong、AtomicReference一样。
+
 ## 7.5 AtomicIntegerArray、AtomicLongArray和AtomicReferenceArray
 
+Concurrent包提供了AtomicIntegerArray、AtomicLongArray、AtomicReferenceArray三个数组元素的原子操作。注意，这里并不是说对整个数组的操作是原子的，而是针对数组中一个元素的原子操作而言。
+
+### 7.5.1 使用方式
+
+以AtomicIntegerArray为例，其使用方式如下：
+
+![image-20211001143843588](assest/image-20211001143843588.png)
+
+相比于AtomicInteger的getAndIncrement()方法，这里只是多了一个传入参数：数组的下标**i**。
+
+其他方法与此类似，相比于AtomicInteger的各种加减法，也都是多一个下标**i**，如下所示。
+
+![image-20211001144300388](assest/image-20211001144300388.png)
+
+![image-20211001144324436](assest/image-20211001144324436.png)
+
+![image-20211001144401946](assest/image-20211001144401946.png)
+
+![image-20211001144505576](assest/image-20211001144505576.png)
+
+### 7.5.2 实现原理
+
+其底层的CAS方法直接调用VarHandle中的native的getAndAdd方法，如下：
+
+![image-20211001144709219](assest/image-20211001144709219.png)
+
+![image-20211001144734089](assest/image-20211001144734089.png)
+
+明白了AtomicIntegerArray的实现原理，另外两个数组的原子类实现原理与之类似。
+
+
+
 ## 7.6 Striped64与LongAdder
+
+从JDK 8开始，针对Long型的原子操作，Java又提供了LongAdder、LongAccumulator；针对Double类型，Java提供了DoubleAdder、DoubleAccumulator。Striped64相关的类的继承层次如下：
+
+![image-20211001151812639](assest/image-20211001151812639.png)
+
+### 7.6.1 LongAdder原理
+
+AtomicLong内部是一个volatile long型变量，由多个线程对这个变量进行CAS操作。多个线程同时对一个变量进行CAS操作，在高并发的场景下仍不够快，如果再提高性能，该怎么做？
+
+把一个变量拆分成多份，变为多个变量，有些类似于ConcurrentHashMap的分段锁的例子。如下图所示，把一个Long型拆成一个base变量外加多个Cell，每个Cell包装一个Long型变量。当多个线程并发累加的时候，如果并发度低，就直接加到base变量上；如果并发度高，冲突大，平摊到这些Cell上。在最后取值的时候，再把base和这些Cell求sum运算。
+
+![image-20211001152751820](assest/image-20211001152751820.png)
+
+以LongAdder的sum()方法为例，如下所示。
+
+![image-20211001152910541](assest/image-20211001152910541.png)
+
+由于无论是long，还是double，都是64位的。但因为没有double型的CAS操作，所以是通过把double型转换为long型来实现的。所以，上面的base和cell[]变量，是位于基类Striped64当中的。英文Striped意为“条带”，也就是分片。
+
+```java
+abstract class Striped64 extends Number {    
+    transient volatile Cell[] cells;
+    transient volatile long base;
+    @jdk.internal.vm.annotation.Contended static final class Cell {        
+        // ...
+        volatile long value;
+        Cell(long x) { value = x; }        
+        // ...
+    }
+}
+```
+
+### 7.6.2 最终一致性
+
+在sum求和方法中，并没有对cells[]数组加锁。也就是说，一边有线程对其执行求和操作，一边还有线程修改数组里的值，也就是最终一致性，而不是强一致性。这类似于ConcurrentHashMap中的clear()方法，一边执行清空操作，一边还有线程放入数据，clear()方法调用完毕后再读取，hash map里面可能还有元素。因此，LongAdder适合高并发的统计场景，而不适合要对某个Long型变量进行严格同步的场景。
+
+### 7.6.3 伪共享与缓存行填充
+
+在Cell类中的定义中，用了一个独特的注解@jdk.internal.vm.annotation.Contended，这是JDK 8 之后才有的，背后涉及一个很重要的优化原理：伪共享与缓存行填充。
+
+![image-20211001154621802](assest/image-20211001154621802.png)
+
+每个CPU都有自己的缓存。缓存与主板进行数据交换的基本单位叫Cache Line（缓存行）。在64位x86架构中，缓存行是64字节，也就是8个Long型的大小。这也意味着当缓存失效，要刷新到主内存的时候，最少要刷新64字节。
+
+如下图所示，主内存中有变量X、Y、Z（假设每个变量都是一个Long型），被CPU1和CPU2分别读入自己的缓存，放在了同一行Cache Line里面。当CPU1修改了X变量，它要失效整行Cache Line，也就是往总线上发消息，通知CPU2对应的Cache Line失效。由于Cache Line是数据交换的基本单位，无法只失效X，要失效就会失效整行的Cache Line，这会导致Y、Z变量的缓存也失效。
+
+![image-20211001172015623](assest/image-20211001172015623.png)
+
+虽然只修改了X变量，本应该只失效X变量的缓存，但Y、Z变量也随之失效。Y、Z变量的数据没有修改，本应该很好地被CPU1和CPU2共享，却没做到，这就是所谓地“伪共享问题”。
+
+问题的原因是，Y、Z和变量X处在同一行Cache Line里面。要解决这个问题，需要用到所谓的“缓存行填充”，分别再X、Y、Z后面加上7个无用的Long型，填充整个缓存行，让X、Y、Z处在三行不同的缓存行中，如下图所示：
+
+![image-20211001174309564](assest/image-20211001174309564.png)
+
+声明一个@jdk.internal.vm.annotation.Contended即可实现缓存行的填充。之所以这个地方要用缓存行填充，是为了不让Cell[]数组中相邻元素落到同一个缓存行里。
+
+### 7.6.4 LongAdder核心实现
+
+下面来看LongAdder最核心的累加方法add(long x)，自增、自减操作都是通过调用该方法实现的。
+
+![image-20211001174652271](assest/image-20211001174652271.png)
+
+![image-20211001174818224](assest/image-20211001174818224.png)
+
+当一个线程调用add(x)的时候，首先会尝试使用caseBase把x加到base变量上。如果不成功，则再用c.cas(...)方式尝试把x加到Cell数组的某个元素上。如果还不成功。最后在调用longAccumulate(...)方法。
+
+**注意**：Cell[]数组的大小始终是2的整数次方，在运行中会不断扩容，每次扩容都是增长2倍。上面代码中的`cs[getProbe() & m]`其实就是对数组的大小取模。因为m=cs.length-1，getProbe()为该线程生成一个随机数，用该随机数对数组长度取模。因为数组长度是2的整数次方，所以可以用&操作来优化取模运算。
+
+对于以恶线程来说，它并不在意到底是把x累加到base上，还是累加到Cell[]数组上，只要累加成功就可以。因此，这里使用随机数来实现Cell的长度取模。
+
+如果两次尝试都不成功，则调用longAccumulate(...)方法，该方法在Striped64里面，LongAccumulator也会用到，如下所示。
+
+```java
+final void longAccumulate(long x, LongBinaryOperator fn,
+                              boolean wasUncontended) {
+    int h;
+    if ((h = getProbe()) == 0) {
+        ThreadLocalRandom.current(); // force initialization
+        h = getProbe();
+        wasUncontended = true;
+    }
+    // true表示最后一个slot非空
+    boolean collide = false;                // True if last slot nonempty
+    done: for (;;) {
+        Cell[] cs; Cell c; int n; long v;
+        // 如果cells不是null,且cells长度大于0
+        if ((cs = cells) != null && (n = cs.length) > 0) {
+            // cells最大下标对随机数取模，得到新下标。
+            if ((c = cs[(n - 1) & h]) == null) {
+                // 自旋锁标识，用于创建cells或扩容cells
+                if (cellsBusy == 0) {       // 尝试添加新的Cell
+                    Cell r = new Cell(x);   // Optimistically create
+                    // 如果cellsBusy为0，则CAS操作cellBusy为1，获取锁
+                    if (cellsBusy == 0 && casCellsBusy()) {
+                        try {               // 获取锁之后，再次检查
+                            Cell[] rs; int m, j;
+                            if ((rs = cells) != null &&
+                                (m = rs.length) > 0 &&
+                                rs[j = (m - 1) & h] == null) {
+                                // 赋值成功，返回
+                                rs[j] = r;
+                                break done;
+                            }
+                        } finally {
+                            // 重置标志位，释放锁
+                            cellsBusy = 0;
+                        }
+                        continue;           // 如果Slot非空，则进入下一次循环
+                    }
+                }
+                collide = false;
+            }
+            else if (!wasUncontended)       // CAS操作失败
+                wasUncontended = true;      // rehash之后续
+            else if (c.cas(v = c.value,
+                           (fn == null) ? v + x : fn.applyAsLong(v, x)))
+                break;
+            else if (n >= NCPU || cells != cs)
+                collide = false;            // At max size or stale
+            else if (!collide)
+                collide = true;
+            else if (cellsBusy == 0 && casCellsBusy()) {
+                try {
+                    if (cells == cs)        // 扩容，每次都是上次的两倍长度
+                        cells = Arrays.copyOf(cs, n << 1);
+                } finally {
+                    cellsBusy = 0;
+                }
+                collide = false;
+                continue;                   // Retry with expanded table
+            }
+            h = advanceProbe(h);
+        }
+        else if (cellsBusy == 0 && cells == cs && casCellsBusy()) {
+            try {                           // Initialize table
+                if (cells == cs) {
+                    Cell[] rs = new Cell[2];
+                    rs[h & 1] = new Cell(x);
+                    cells = rs;
+                    break done;
+                }
+            } finally {
+                cellsBusy = 0;
+            }
+        }
+        // Fall back on using base
+        else if (casBase(v = base,
+                         (fn == null) ? v + x : fn.applyAsLong(v, x)))
+            break done;
+    }
+}
+```
+
+
+
+### 7.6.5 LongAccumulator
+
+LongAccumulator的原理和LongAdder类似，只是**功能强大**，下面为两者构造方法的对比：
+
+![image-20211001184022573](assest/image-20211001184022573.png)
+
+![image-20211001184038146](assest/image-20211001184038146.png)
+
+LongAdder只能及逆行累加操作，并且初始值默认为0；LongAccumulator可以自己定义一个二元操作符，并且可以传入一个初始值。
+
+![image-20211001184735377](assest/image-20211001184735377.png)
+
+操作符的左值，就是base变量或者Cell[]中元素的当前值；右值，就是add()方法传入的参数x。
+
+
+
+下面LongAccumulator的accumulate(x)方法，与LongAdder(x)方法类似，最后都是调用Striped64的longAccumulate(...)方法。唯一的差别就是LongAdder的add(x)方法调用的是caseBase(b, b+x)，这里调用的是caseBase(b, r)，其中r=function.applyAsLong(b=base,x)。
+
+![image-20211001185602167](assest/image-20211001185602167.png)
+
+
+
+
+
+### 7.6.6 DoubleAdder与DoubleAccumulator
+
+DoubleAdder其实也是用long型实现的，因为没有double类型的CAS方法。下面是DoubleAdder的add(x)方法，和LongAdder的add(x)方法基本一样，只是多了long和double类型的相互转换。
+
+![image-20211001192906176](assest/image-20211001192906176.png)
+
+其中的关键Double.doubleToRawLongBits(Double.longBitsToDouble(v) + x)，在读出来的时候，把long类型转换成double类型，然后进行累加，累加的结果再转换成long类型，通过CAS写回
+
+doubleAccumulate也是Striped64的成员方法，和longAccumulate类似，也是多了long类型和double类型的相互转换。
+
+DoubleAccumulator和DoubleAdder的关系，与LongAccumulator和LongAdder的关系类似，只是多了一个二元操作符。
 
 # 8 Lock与Condition
 
