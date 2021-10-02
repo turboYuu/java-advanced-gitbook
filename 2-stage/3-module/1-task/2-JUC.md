@@ -3366,7 +3366,7 @@ public ReentrantLock(boolean fair) {
 
 什么叫公平锁和非公平锁？
 
-公平即排队，非公平即竞争。默认设置的是非共公平锁，是为了提高效率，减少线程切换。
+公平即排队，非公平即竞争。**默认设置的是非共公平锁，是为了提高效率，减少线程切换。**
 
 
 
@@ -3378,8 +3378,10 @@ Sync的父类AbstractQueuedSynchronizer经常被称作**队列同步器**（**AQ
 
 1. 需要一个state变量，标记该锁的状态。state变量至少有两个值：0、1。对state变量的操作，使用CAS保证线程安全。
 2. 需要记录当前是哪个线程持有锁。
-3. 需要底层支持对一个线程进行阻塞或唤醒操作。
-4. 需要有一个队列维护所有阻塞的线程，这个队列也必须是线程安全的无锁队列，也需要使用CAS。
+3. 需要底层支持对一个线程进行**阻塞**或**唤醒**操作。
+4. 需要有一个**队列**维护所有阻塞的线程，这个队列也必须是线程安全的无锁队列，也需要使用CAS。
+
+
 
 针对**要素1和2**，在上面两个类中有对应的体现：
 
@@ -3398,7 +3400,7 @@ AbstractOwnableSynchronizer implements java.io.Serializable {
 
 state取值可以是0，1，还可以大于1，就是为了支持锁的可重入性。例如，同样一个线程，调用5次lock，state会变成5；然后调用5次unlock，state减为0.
 
-当state=0，没有线程持有锁，exclusiveOwnerThread=null；<br>当state=1，有一个线程持有锁，exclusiveOwnerThread=该线程；<br>当state>0，说明有线程重入了该锁。
+当state=0，没有线程持有锁，exclusiveOwnerThread=null；<br>当state=1，有一个线程持有锁，exclusiveOwnerThread=该线程；<br>当state>0，说明该线程(exclusiveOwnerThread)重入了该锁。
 
 对于**要素3**，Unsafe类提供了阻塞或唤醒线程的一堆操作原语，也就是park/unpark。
 
@@ -3424,7 +3426,7 @@ public class LockSupport {    
 
 unpark(Thread thread)，它实现了一个线程对另外一个线程的"精准唤醒"。notify也只是唤醒某一个线程，但无法执行指定唤醒哪个线程。
 
-针对要素4，在AQS中利用双向链表和CAS实现了一个阻塞队列。如下所示：
+针对**要素4**，在AQS中利用双向链表和CAS实现了一个阻塞队列。如下所示：
 
 ```java
 public abstract class AbstractQueuedSynchronizer {    
@@ -3487,7 +3489,7 @@ public abstract class AbstractQueuedSynchronizer {    
 
 ![image-20211002124732186](assest/image-20211002124732186.png)
 
-当acquireQueued(...)返回true时，会调用selfInterrupt()，自己给自己发送中断信号，也就是自己把自己的中断标志位设为true。之所以要这么做，是因为自己在阻塞期间，收到其他线程中断信号没有计时响应，现在要进行补偿。这样一来，如果该线程在lock代码块内部有调用sleep()之类的阻塞方法，就可以抛出异常，响应该中断信号。
+当acquireQueued(...)返回true时，会调用selfInterrupt()，自己给自己发送中断信号，也就是自己把自己的中断标志位设为true。之所以要这么做，是因为自己在阻塞期间，收到其他线程中断信号没有及时响应，现在要进行补偿。这样一来，如果该线程在lock代码块内部有调用sleep()之类的阻塞方法，就可以抛出异常，响应该中断信号。
 
 阻塞就发生在下面这个方法中：
 
@@ -3556,29 +3558,613 @@ tryLock()实现基于调用非公平锁的tryAcquire(...)，对state进行CAS操
 
 ## 8.2 读写锁
 
+和互斥锁相比，读写锁（ReentrantReadWriteLock）就是读线程和读线程之间不互斥。
+
+读读不互斥、读写互斥、写写互斥
+
 ### 8.2.1 类继承层次
+
+ReadWriteLock是一个接口，内部由两个Lock接口组成。
+
+![image-20211002145907499](assest/image-20211002145907499.png)
+
+![image-20211002145934190](assest/image-20211002145934190.png)
+
+ReentrantReadWriteLock实现了该接口，使用方式如下：
+
+```java
+ReadWriteLock readWriteLock = new ReentrantReadWriteLock(); 
+Lock readLock = readWriteLock.readLock();
+readLock.lock(); 
+// 进行读取操作 
+readLock.unlock();
+
+Lock writeLock = readWriteLock.writeLock(); 
+writeLock.lock();
+// 进行写操作 
+writeLock.unlock();
+```
+
+也就是说，当使用ReadWriteLock的时候，并不是直接使用，而是获得其内部的读锁和写锁，然后分别调用lock/unlock。
 
 ### 8.2.2 读写锁实现的基本原理
 
+从表面来看，ReadLock和WriteLock是两把锁，实际上它只是同一把锁的两个视图而已。什么叫两个视图呢？可以理解为一把锁，线程分为两类：读线程和写线程。读线程和写线程之间不互斥（可以同时拿到这把锁），读线程之间不互斥、写线程之间互斥。
+
+从下面的构造方法也可以看出，readerLock和writerLock实际公用同一个sync对象。sync对象同互斥锁一样，分为非公平锁和公平两种策略，并继承自AQS。
+
+![image-20211002151412082](assest/image-20211002151412082.png)
+
+同互斥锁一样，读写锁也是用state变量表示锁状态的。只是state变量在这里的含义和互斥锁完全不同。在内部类Sync中，对state变量进行重新定义，如下所示：
+
+```java
+abstract static class Sync extends AbstractQueuedSynchronizer {    
+    // ...
+    static final int SHARED_SHIFT   = 16;
+    static final int SHARED_UNIT    = (1 << SHARED_SHIFT);
+    static final int MAX_COUNT      = (1 << SHARED_SHIFT) - 1;
+    static final int EXCLUSIVE_MASK = (1 << SHARED_SHIFT) - 1;    
+    // 持有读锁的线程的重入次数
+    static int sharedCount(int c)    { return c >>> SHARED_SHIFT; }    
+    // 持有写锁的线程的重入次数
+    static int exclusiveCount(int c) { return c & EXCLUSIVE_MASK; }    
+    // ...
+}
+```
+
+也就是把state变量拆成两半，**低16位，用来记录写锁**。但同一时间既然只能有一个线程写，为什么还需要16位呢？还是因为一个写线程可能多次重入。例如，低16位的值等于5，表示一个写线程重入了5次。
+
+**高16位，用来记录"读"锁**，例如，高16位的值等于5，既可以表示5个线程都拿到了该锁；也可以表示一个读线程重入了5次。
+
+> 为什么要把一个int类型变量拆成两半，而不是用两个int型变量分别表示读锁和写锁的状态呢？
+>
+> 这时因为无法用一次CAS同时操作两个int变量，所以用来一个int型的高16位和低16位分别表示读锁和写锁的状态。
+
+当state = 0时，说明既没有线程持有读锁，也没有线程持有写锁；当state != 0时，要么有线程持有读锁，要么有线程持有写锁，两者不能同时成立，因为读和写互斥。这时再进一步通过sharedCount(state)和exclusiveCount(state)判断到底时读线程还是写线程持有了该锁。
+
+
+
 ### 8.2.3 AQS的两对模板方法
+
+下面介绍在ReentrantReadWriteLock的两个内部类ReadLock和WriteLock中，是如何使用state变量的。
+
+```java
+public static class ReadLock implements Lock, java.io.Serializable {    
+    // ...
+    public void lock() {
+        sync.acquireShared(1);  
+    }
+    public void unlock() {
+        sync.releaseShared(1);  
+    }
+    // ... 
+}
+public static class WriteLock implements Lock, java.io.Serializable {    
+    // ...
+    public void lock() {        
+        sync.acquire(1);  
+    }
+    public void unlock() {        
+        sync.release(1);  
+    }
+    // ... 
+}
+```
+
+acquire/release、acquireShared/releaseShared是AQS里面的两对模板方法。互斥锁和读写锁的写锁都是基于acquire/release模板方法来实现的。读写锁的读锁是基于acquireShared/releaseShared这对模板方法来实现的。这两对模板方法的代码如下：
+
+```java
+public abstract class AbstractQueuedSynchronizer 
+    extends AbstractOwnableSynchronizer implements java.io.Serializable {    
+    // ...
+    public final void acquire(int arg) {
+        if (!tryAcquire(arg) &&                 // tryAcquire方法由多个Sync子类实现
+            acquireQueued(addWaiter(Node.EXCLUSIVE), arg))            
+            selfInterrupt();
+    }
+    public final void acquireShared(int arg) {
+        if (tryAcquireShared(arg) < 0) // tryAcquireShared方法由多个Sync子类实现
+            doAcquireShared(arg);
+    }
+    
+    public final boolean release(int arg) {
+        if (tryRelease(arg)) {  // tryRelease方法由多个Sync子类实现            
+            Node h = head;
+            if (h != null && h.waitStatus != 0)                
+                unparkSuccessor(h);
+            return true;      
+        }
+        return false;  
+    }
+    
+    public final boolean releaseShared(int arg) {
+        if (tryReleaseShared(arg)) {  // tryReleaseShared方法由多个Sync子类实现
+            doReleaseShared();
+            return true;     
+        }
+        return false;  
+    }
+    // ...
+}
+```
+
+将读/写、公平/非公平进行排列组合，就有4种组合。如下，上面的两个方法都是在Sync种实现的。Sync种的两个方法又是模板方法，在NonfairSync和FairSync种分别有实现。最终的对应关系如下：
+
+1. 读锁的公平实现：Sync.tryAcquireShared() + FairSync 中的两个重写的子方法。
+2. 读锁的非公平实现：Sync.tryAcquireShared() + NonfairSync中的两个重写的子方法。
+3. 写锁的公平实现：Sync.tryAcquire() + FairSync中的两个重写的子方法。
+4. 写锁的非公平实现：Sync.tryAcquire() + NonfairSync中的两个重写的子方法。
+
+![image-20211002162403294](assest/image-20211002162403294.png)
+
+```java
+/**
+ * Nonfair version of Sync
+ */
+static final class NonfairSync extends Sync {
+    private static final long serialVersionUID = -8159625535654395037L;
+    // 写线程枪锁的时候是否应该阻塞
+    final boolean writerShouldBlock() {
+        // 写线程在抢锁之前永远不被阻塞，非公平锁
+        return false; // writers can always barge
+    }
+    // 读线程抢锁的时候是否应该阻塞
+    final boolean readerShouldBlock() {
+        // 读线程抢锁的时候，当队列中第一个元素是写线程的时候要阻塞
+        return apparentlyFirstQueuedIsExclusive();
+    }
+}
+
+/**
+ * Fair version of Sync
+ */
+static final class FairSync extends Sync {
+    private static final long serialVersionUID = -2274990926593161451L;
+    // 写线程抢锁的时候是否应该阻塞
+    final boolean writerShouldBlock() {
+        // 写线程在抢锁之前，如果队列中有其他线程在排队，则阻塞。公平锁
+        return hasQueuedPredecessors();
+    }
+    // 读线程抢锁的时候是否应该阻塞
+    final boolean readerShouldBlock() {
+        // 读线程在抢锁之前，如果队列中有其他线程在排队，阻塞。公平锁
+        return hasQueuedPredecessors();
+    }
+}
+```
+
+对于公平，比较容易理解，不论是读锁，还是写锁，只要队列中有其他线程在排队（排队等读锁，或者排队等写锁），就不能直接区抢锁，要排在队列尾部。
+
+对于非公平，读锁和写锁的实现策略稍有差异。
+
+写锁能抢锁，前提是state=0，只有在没有其他线程持有读锁或写锁的情况下，它才有机会去抢锁。或者state != 0，但哪个持有写锁的线程是自己，再次重入。写线程是非公平的，即writerShouldBlock()方法一直返回false。
+
+对于读线程，假设当前线程被读线程持有，然后其他读线程还非公平地一直去抢，可能导致写线程永远拿不到锁，所以对于读线程的非公平，要做一些"约束"。当发现队列的第一个元素是写线程的时候，读线程也要阻塞，不能直接去抢。即偏向写线程。
 
 ### 8.2.4 WriteLock公平vs非公共平实现
 
+写锁是排他锁，实现策略类似于互斥锁。
+
+#### 8.2.4.1 tryLock()/lock()实现分析
+
+![image-20211002165705673](assest/image-20211002165705673.png)
+
+![image-20211002170143229](assest/image-20211002170143229.png)
+
+lock()方法：
+
+![image-20211002170305979](assest/image-20211002170305979.png)
+
+![image-20211002170336948](assest/image-20211002170336948.png)
+
+tryLock和lock方法不区分公平/非公平。
+
+
+
+#### 8.2.4.2 unlock()实现分析
+
+![image-20211002170508776](assest/image-20211002170508776.png)
+
+![image-20211002170528971](assest/image-20211002170528971.png)
+
+unlock()方法不区分公平/非公平。
+
 ### 8.2.5 ReadLock公平vs非公平实现
+
+读锁是共享锁，其实现策略和排他锁有很大差异。
+
+#### 8.2.5.1 tryLock()实现分析
+
+![image-20211002170816405](assest/image-20211002170816405.png)
+
+```java
+final boolean tryReadLock() {
+    // 获取当前线程
+    Thread current = Thread.currentThread();
+    for (;;) {
+        // 获取state值
+        int c = getState();
+        // 如果是写线程占用锁或者当前线程不是排他锁，则抢锁失败
+        if (exclusiveCount(c) != 0 &&
+            getExclusiveOwnerThread() != current)
+            return false;
+        // 获取锁state值
+        int r = sharedCount(c);
+        // 如果获取锁的值达到极值，则抛出异常
+        if (r == MAX_COUNT)
+            throw new Error("Maximum lock count exceeded");
+        
+        // 使用CAS设置读线程锁state值
+        if (compareAndSetState(c, c + SHARED_UNIT)) {
+            // 如果r=0，则当前线程就是第一个读线程
+            if (r == 0) {
+                firstReader = current;
+                // 读线程个数为1
+                firstReaderHoldCount = 1;
+            } else if (firstReader == current) {
+                // 如果第一个读线程就是当前线程，表示读线程重入读锁
+                firstReaderHoldCount++;
+            } else {
+                // 如果firstReader不是当前线程，则熊ThreadLocal中获取当前线程的读锁个数，并设置当前线程持有的读锁个数
+                HoldCounter rh = cachedHoldCounter;
+                if (rh == null ||
+                    rh.tid != LockSupport.getThreadId(current))
+                    cachedHoldCounter = rh = readHolds.get();
+                else if (rh.count == 0)
+                    readHolds.set(rh);
+                rh.count++;
+            }
+            return true;
+        }
+    }
+}
+```
+
+
+
+![image-20211002172827442](assest/image-20211002172827442.png)
+
+![image-20211002172847832](assest/image-20211002172847832.png)
+
+#### 8.2.5.2 unlock()实现分析
+
+![image-20211002172920757](assest/image-20211002172920757.png)
+
+![image-20211002172939955](assest/image-20211002172939955.png)
+
+tryReleaseShared()的实现：
+
+```java
+@ReservedStackAccess
+protected final boolean tryReleaseShared(int unused) {    
+    Thread current = Thread.currentThread();
+    // ...
+    for (;;) {
+        int c = getState();
+        int nextc = c - SHARED_UNIT;
+        if (compareAndSetState(c, nextc))
+        // Releasing the read lock has no effect on readers,            
+        // but it may allow waiting writers to proceed if            
+        // both read and write locks are now free.
+        return nextc == 0;  
+    }
+}
+```
+
+因为读锁是共享锁，多个线程会同时持有读锁，所以对读锁的释放不能直接减1，而是需要通过一个for循环 + CAS操作不断重试。这是tryReleaseShared和tryReleased的根本差异所在。
 
 ## 8.3 Condition
 
 ### 8.3.1 Condition与Lock的关系
 
-### 8.3.2 Condition的适用场景
+Condition本身也是一个接口，其功能和wait/notify类似，如下：
+
+```java
+public interface Condition {
+    void await() throws InterruptedException;
+    boolean await(long time, TimeUnit unit) throws InterruptedException;    
+    long awaitNanos(long nanosTimeout) throws InterruptedException;
+    void awaitUninterruptibly();
+    boolean awaitUntil(Date deadline) throws InterruptedException;    
+    void signal();
+    void signalAll(); 
+}
+```
+
+wait()/notify()必须和synchronized一起使用，Condition也必须和Lock一起使用。因此，在Lock的接口中，有一个与Condition相关的接口：
+
+```java
+public interface Lock {    
+    void lock();
+    void lockInterruptibly() throws InterruptedException;    
+    // 所有的Condition都是从Lock中构造出来的
+    Condition newCondition();
+    boolean tryLock();
+    boolean tryLock(long time, TimeUnit unit) throws InterruptedException;    
+    void unlock();
+}
+```
+
+
+
+
+
+### 8.3.2 Condition的使用场景
+
+以ArrayBlockingQueue为例。如下面所示为一个用数组实现的阻塞队列，执行put(...)操作的时候，队列满了，生产者线程被阻塞；执行take()的时候，队列为空，消费者线程被阻塞。
+
+```java
+public class ArrayBlockingQueue<E> extends AbstractQueue<E>        
+        implements BlockingQueue<E>, java.io.Serializable {    
+    //...
+    final Object[] items;
+    int takeIndex;
+    int putIndex;
+    int count;
+    // 一把锁+两个条件
+    final ReentrantLock lock;
+    private final Condition notEmpty;    
+    private final Condition notFull;
+    
+    public ArrayBlockingQueue(int capacity, boolean fair) {        
+        if (capacity <= 0)
+            throw new IllegalArgumentException();        
+        this.items = new Object[capacity];
+        // 构造器中创建一把锁加两个条件
+        lock = new ReentrantLock(fair);        
+        // 构造器中创建一把锁加两个条件
+        notEmpty = lock.newCondition();        
+        // 构造器中创建一把锁加两个条件
+        notFull =  lock.newCondition();  
+    }
+    
+    public void put(E e) throws InterruptedException {        
+        Objects.requireNonNull(e);
+        final ReentrantLock lock = this.lock;        
+        lock.lockInterruptibly();
+        try {
+            while (count == items.length)                
+                // 非满条件阻塞，队列容量已满                
+                notFull.await();
+            enqueue(e);        
+        } finally {
+            lock.unlock();      
+        }
+    }
+    
+    private void enqueue(E e) {
+        // assert lock.isHeldByCurrentThread();        
+        // assert lock.getHoldCount() == 1;
+        // assert items[putIndex] == null;        
+        final Object[] items = this.items;        
+        items[putIndex] = e;
+        if (++putIndex == items.length) putIndex = 0;        
+        count++;
+        // put数据结束，通知消费者非空条件        
+        notEmpty.signal();
+    }
+    
+    public E take() throws InterruptedException {        
+        final ReentrantLock lock = this.lock;
+        lock.lockInterruptibly();        
+        try {
+            while (count == 0)
+                // 阻塞于非空条件，队列元素个数为0，无法消费                
+                notEmpty.await();
+            return dequeue();        
+        } finally {
+            lock.unlock();      
+        }
+    }
+    
+    private E dequeue() {
+        // assert lock.isHeldByCurrentThread();        
+        // assert lock.getHoldCount() == 1;
+        // assert items[takeIndex] != null;        
+        final Object[] items = this.items;        
+        @SuppressWarnings("unchecked")
+        E e = (E) items[takeIndex];        
+        items[takeIndex] = null;
+        if (++takeIndex == items.length) takeIndex = 0;        
+        count--;
+        if (itrs != null)
+            itrs.elementDequeued();
+        // 消费成功，通知非满条件，队列中有空间，可以生产元素了。        
+        notFull.signal();
+        return e;  
+    }
+    // ...
+}
+```
+
+
 
 ### 8.3.3 Condition实现原理
 
+可以发现，Condition的使用很方便，避免了wait/notify的生产者通知生产者，消费者通知消费者的问题。具体实现如下：
+
+由于Condition必须和Lock一起使用，所以Condition的实现也是Lock的一部分。首先查看互斥锁和读写锁中Condition的构造方法
+
+```java
+public class ReentrantLock implements Lock, java.io.Serializable {    
+    // ...
+    public Condition newCondition() {
+        return sync.newCondition();  
+    }
+}
+
+public class ReentrantReadWriteLock implements ReadWriteLock, java.io.Serializable {    
+    // ...
+    private final ReentrantReadWriteLock.ReadLock readerLock;    
+    private final ReentrantReadWriteLock.WriteLock writerLock;    
+    // ...
+    public static class ReadLock implements Lock, java.io.Serializable {        
+        // 读锁不支持Condition
+        public Condition newCondition() {
+            // 抛异常
+            throw new UnsupportedOperationException();      
+        }
+    }
+    
+    public static class WriteLock implements Lock, java.io.Serializable {        
+        // ...
+        public Condition newCondition() {
+            return sync.newCondition(); 
+        }
+        // ...  
+    }
+    // ... 
+}
+```
+
+首先，读写锁中的ReadLock是不支持Condition的，读写锁的写锁和互斥锁都支持Condition。虽然它们各自调用的是自己的内部类Sync，但内部类Sync都继承紫AQS。因此，上面的代码sync.newCondition最终都调用了AQS中的newCondition：
+
+```java
+public abstract class AbstractQueuedSynchronizer 
+        extends AbstractOwnableSynchronizer implements java.io.Serializable {
+        
+    public class ConditionObject implements Condition, java.io.Serializable {
+       // Condition的所有实现，都在ConditionObject类中  
+    }
+}
+
+public class ReentrantLock implements Lock, java.io.Serializable {
+    abstract static class Sync extends AbstractQueuedSynchronizer {   
+        final ConditionObject newCondition() {
+            return new ConditionObject();  
+        }
+    }
+}
+```
+
+每一个Condition对象上面，都阻塞了多个线程。因此，在ConditionObject内部也有一个双向链表组成的队列，如下：
+
+```java
+public class ConditionObject implements Condition, java.io.Serializable {    
+    private transient Node firstWaiter;
+    private transient Node lastWaiter; 
+}
+static final class Node {
+    volatile Node prev;
+    volatile Node next;
+    volatile Thread thread;    
+    Node nextWaiter;
+}
+```
+
+下面看一下在await()/notify()方法中，是如何使用这个队列的。
+
 ### 8.3.4 await()实现分析
+
+![image-20211002192808158](assest/image-20211002192808158.png)
+
+```java
+public final void await() throws InterruptedException {
+    // 刚要执行await()操作，收到中断信号，抛异常
+    if (Thread.interrupted())
+        throw new InterruptedException();
+    // 加入Condition的等待队列
+    Node node = addConditionWaiter();
+    // 阻塞在Condition之前必须先释放锁，否则会死锁
+    int savedState = fullyRelease(node);
+    int interruptMode = 0;
+    while (!isOnSyncQueue(node)) {
+        // 阻塞当前线程
+        LockSupport.park(this);
+        if ((interruptMode = checkInterruptWhileWaiting(node)) != 0)
+            break;
+    }
+    // 重新获取锁
+    if (acquiraeQueued(node, savedState) && interruptMode != THROW_IE)
+        interruptMode = REINTERRUPT;
+    if (node.nextWaiter != null) // clean up if cancelled
+        unlinkCancelledWaiters();
+    if (interruptMode != 0)
+        // 被中断唤醒，抛中断异常
+        reportInterruptAfterWait(interruptMode);
+}
+```
+
+关于await，有几个关键点要说明：
+
+1. 线程调用await()的时候，肯定已经先拿到了锁。所以，在addConditionWaiter()内部，对这个双向链表的操作不需要执行CAS操作，线程是安全的，代码如下：
+
+   ```java
+   private Node addConditionWaiter() {
+       // ...
+       Node t = lastWaiter;
+       // ...
+       Node node = new Node(Node.CONDITION);
+   
+       if (t == null)
+           firstWaiter = node;
+       else
+           t.nextWaiter = node;
+       lastWaiter = node;
+       return node;
+   }
+   ```
+
+2. 在线程执行wait操作之前，必须先释放锁。也就是fullyRelease(node)，否则会发生死锁。这个和wait/notify与synchronized的配合机制一样。
+
+3. 线程从wait中被唤醒后，必须用acquiraeQueued(node, savedState)方法重新拿锁。
+
+4. checkInterruptWhileWaiting(node)代码在park(this)代码之后，是为了检测在park期间是否收到过中断信号。当线程从park中醒来时，有两种可能：
+
+   - 一种是其他线程调用了unpark；
+   - 另一种是收到中断信号。
+
+   这里的await()方法是可以响应中断，所以当发现自己被中断唤醒的，而不是被unpark唤醒时，会直接退出while循环，await()方法也会返回
+
+5. isOnSyncQueue(node)用于判断该Node是否在AQS的同步队列里面。初始的时候，Node值在Condition的队列里，而不在AQS的队列里。但执行notify操作的时候，会放进AQS的同步队列。
 
 ### 8.3.5 awaitUniterruptibly()实现分析
 
+与await()不同，awaitUninterruptibly()不会响应中断，其方法的定义中不会有中断异常抛出，下面分析其实现和await()的区别。
+
+![image-20211002201313863](assest/image-20211002201313863.png)
+
+可以看出，整体代码和await()类似，区别在于收到异常后，不会抛出异常，而是继续执行while循环。
+
 ### 8.3.6 notify()实现分析
+
+```java
+public final void signal() {
+    // 只有持有锁的线程，才有资格调用signal()方法
+    if (!isHeldExclusively())
+        throw new IllegalMonitorStateException();
+    Node first = firstWaiter;
+    if (first != null)
+        // 发起通知
+        doSignal(first);
+}
+
+// 唤醒队列中的第1个线程
+private void doSignal(Node first) {
+    do {
+        if ( (firstWaiter = first.nextWaiter) == null)
+            lastWaiter = null;
+         first.nextWaiter = null;
+    } while (!transferForSignal(first) && (first = firstWaiter) != null);
+}
+        
+final boolean transferForSignal(Node node) {
+    if (!node.compareAndSetWaitStatus(Node.CONDITION, 0))
+        return false;
+	// 先把Node放入互斥锁的同步队列中，再调用unpark方法
+    Node p = enq(node);
+    int ws = p.waitStatus;
+    if (ws > 0 || !p.compareAndSetWaitStatus(ws, Node.SIGNAL))
+        LockSupport.unpark(node.thread);
+    return true;
+}
+```
+
+同await()一样，在调用notify()的时候，必须先拿到锁（否则就会抛出上面的异常），是因为前面执行await()的时候，把锁释放了。
+
+然后从队列中取出firstWaiter，唤醒它。在通过调用unpark唤醒它之前，先用enq(node)方法把这个Node放入AQS的锁对应的阻塞队列中。也正因为如此，才有了await()方法里面的判断条件：while (!isOnSyncQueue(node)) ，这个判断条件满足，说明await线程不是被中断的，而是被unpark唤醒的。
+
+notifyAll()与此类似。
 
 ## 8.4 StampedLock
 

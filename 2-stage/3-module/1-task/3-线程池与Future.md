@@ -1,6 +1,6 @@
 第三部分 线程池与Future
 
-# 1 线程池的实现原理
+# 9 线程池的实现原理
 
 下图所示为线程池的实现原理：调用方不断地向线程池中提交任务；线程池中有一组线程，不断地从队列中取任务，这是一个典型地生产者-消费者模型。
 
@@ -10,13 +10,13 @@
 
 
 
-# 2 线程池的类继承体系
+# 10 线程池的类继承体系
 
 ![image-20210921194814218](assest/image-20210921194814218.png)
 
-# 3 ThreadPoolExecutor
+# 11 ThreadPoolExecutor
 
-## 3.1 核心数据结构
+## 11.1 核心数据结构
 
 ```java
 public class ThreadPoolExecutor extends AbstractExecutorService {    
@@ -34,7 +34,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {    
 
 
 
-## 3.2 核心配置参数解释
+## 11.2 核心配置参数解释
 
 ![image-20210921200342643](assest/image-20210921200342643.png)
 
@@ -42,11 +42,11 @@ public class ThreadPoolExecutor extends AbstractExecutorService {    
 
 
 
-## 3.3 线程池的优雅关闭
+## 11.3 线程池的优雅关闭
 
 ![image-20210923133944932](assest/image-20210923133944932.png)
 
-## 3.4 任务的提交过程分析
+## 11.4 任务的提交过程分析
 
 提交任务的方法如下：
 
@@ -56,9 +56,9 @@ public class ThreadPoolExecutor extends AbstractExecutorService {    
 
 
 
-## 3.5 任务的执行过程分析
+## 11.5 任务的执行过程分析
 
-## 3.6 线程池的4中拒绝策略
+## 11.6 线程池的4中拒绝策略
 
 在execute(Runnable command)的最后，调用reject(command)执行拒绝策略，代码如下：
 
@@ -82,25 +82,25 @@ ThreadPoolExecutor类中默认的实现是：
 
 四种策略的实现代码如下：
 
-### 3.6.1 策略一 CallerRunsPolicy
+### 11.6.1 策略一 CallerRunsPolicy
 
 调用者直接在自己的线程里执行，线程池不处理。
 
 ![image-20210923113121884](assest/image-20210923113121884.png)
 
-### 3.6.2 策略二
+### 11.6.2 策略二
 
 线程池抛异常：AbortPolicy
 
 ![image-20210923113321852](assest/image-20210923113321852.png)
 
-### 3.6.3 策略三
+### 11.6.3 策略三
 
 线程池直接丢任务，神不知鬼不觉：
 
 ![image-20210923113437460](assest/image-20210923113437460.png)
 
-### 3.6.4 策略四
+### 11.6.4 策略四
 
 ![image-20210923113533985](assest/image-20210923113533985.png)
 
@@ -173,31 +173,31 @@ public class ThreadPoolExecutorDemo {
 
 
 
-# 4 Executors工具类
+# 12 Executors工具类
 
-## 4.1 四种对比
+## 12.1 四种对比
 
-## 4.2 最佳实践
+## 12.2 最佳实践
 
-# 5 ScheduledThreadPoolExecutor
+# 13 ScheduledThreadPoolExecutor
 
-## 5.1 延迟执行和周期性执行的原理
+## 13.1 延迟执行和周期性执行的原理
 
-## 5.2 延迟执行
+## 13.2 延迟执行
 
-## 5.3 周期性执行
+## 13.3 周期性执行
 
-# 6 CompletableFuture用法
+# 14 CompletableFuture用法
 
-## 6.1 runAsync与supplyAsync
+## 14.1 runAsync与supplyAsync
 
-## 6.2 thenRun、thenAccept和thenApply
+## 14.2 thenRun、thenAccept和thenApply
 
-## 6.3 thenCompose与thenCombine
+## 14.3 thenCompose与thenCombine
 
-## 6.4 任意个ConpletableFuture的组合
+## 14.4 任意个ConpletableFuture的组合
 
-## 6.5 四种任务原型
+## 14.5 四种任务原型
 
 | 四种任务原型 | 无参数                                            | 有参数                                     |
 | ------------ | ------------------------------------------------- | ------------------------------------------ |
@@ -206,9 +206,9 @@ public class ThreadPoolExecutorDemo {
 
 
 
-## 6.6. CompletionStage接口
+## 14.6. CompletionStage接口
 
-## 6.7 CompletableFuture内部原理
+## 14.7 CompletableFuture内部原理
 
 
 
@@ -224,6 +224,6 @@ public class ThreadPoolExecutorDemo {
 
 
 
-## 6.8 任务的网状执行：有向无环图
+## 14.8 任务的网状执行：有向无环图
 
-## 6.9 allOf内部的计算图分析
+## 14.9 allOf内部的计算图分析
