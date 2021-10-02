@@ -3469,13 +3469,88 @@ public abstract class AbstractQueuedSynchronizer {    
 
 先说addWaiter(...)方法，就是为当前线程生成一个Node，然后把Node放入双向链表的尾部。要注意的时，这只是把Thread对象放入了一个队列中而已，线程本身并未阻塞。
 
+![image-20211002122101906](assest/image-20211002122101906.png)
+
+创建节点，尝试将节点追加到队列尾部。获取tail节点，将tail节点的next设置为当前节点。如果tail不存在，就初始化队列。
+
+在addWaiter(...)方法把Thread对象加入阻塞队列之后的工作就要靠acquireQueued(...)方法完成。线程一旦进入acquireQueued(...)就会被无限期阻塞，即使有其他线程调用interrupt()方法也不能将其唤醒，除非有其他线程释放了锁，并且该线程拿到了锁，才会从acquireQueued(...)返回。
+
+进入acquireQueued(...)，该线程被阻塞。在该方法返回的一刻，就是拿到锁的那一刻，也就是被唤醒的那一刻，此时会删除队列的第一个元素（head指针前移一个节点）。
+
+![image-20211002124139084](assest/image-20211002124139084.png)
+
+首先，acquireQueued(...)方法有一个返回值，表示什么意思？虽然该方法不会中断响应，但它会记录被阻塞期间有没有其他线程向它发送过中断信号。如果有，则该方法返回true；否则，返回false。
+
+基于这个返回值，才有了下面的代码：
+
+![image-20211002124709468](assest/image-20211002124709468.png)
+
+![image-20211002124732186](assest/image-20211002124732186.png)
+
+当acquireQueued(...)返回true时，会调用selfInterrupt()，自己给自己发送中断信号，也就是自己把自己的中断标志位设为true。之所以要这么做，是因为自己在阻塞期间，收到其他线程中断信号没有计时响应，现在要进行补偿。这样一来，如果该线程在lock代码块内部有调用sleep()之类的阻塞方法，就可以抛出异常，响应该中断信号。
+
+阻塞就发生在下面这个方法中：
+
+![image-20211002132219038](assest/image-20211002132219038.png)
+
+线程调用park()方法，自己把自己阻塞起来，直到被其他线程唤醒，该方法返回。
+
+park()返回有两种情况：
+
+1. 其他线程调用了unpark(Thread t)
+2. 其他线程调用了t.interrupt()。这里要注意的是，lock()不能响应中断，但LockSupport.park()会响应中断。
+
+也正因为LockSupport.park()可能被中断唤醒，acquireQueued(...)方法才写了一个for死循环。唤醒之后，如果发现自己排在队列头部，就去拿锁；如果拿不到锁，则再次阻塞自己。不断循环重复此过程，直到拿到锁。
+
+被唤醒之后，通过Thread.interrupted()来判断是否被中断唤醒。如果是情况1，返回fasle；如果是情况2，返回true。
+
 ### 8.1.6 unlock()实现分析
+
+说完了lock，下面分析unlock的实现。unlock不区分公平还是非公平。
+
+![image-20211002133546965](assest/image-20211002133546965.png)
+
+![image-20211002133616178](assest/image-20211002133616178.png)
+
+上图中，当前线程要释放锁，先调用tryRelease(arg)方法，如果返回true，则取出head，让head获取锁。
+
+**对于tryRelease方法**：
+
+![image-20211002133913875](assest/image-20211002133913875.png)
+
+首先计算当前线程释放锁后的state值。
+
+如果当前线程不是排他线程，则抛异常，因为只有获取锁的线程才可以进行释放锁的操作。
+
+此时设置state，没有使用CAS，因为是单线程操作。
+
+**再看unparkSuccessor方法**：
+
+![image-20211002134308645](assest/image-20211002134308645.png)
+
+release()里面做了两件事：tryRelease(...)方法释放锁；unparkSuccessor(...)方法唤醒队列中的后继者。
 
 ### 8.1.7 lockInterruptibly()实现分析
 
+上面的lock不能被中断，这里的lockInterruptibly()可以被中断：
+
+![image-20211002134620147](assest/image-20211002134620147.png)
+
+![image-20211002134715399](assest/image-20211002134715399.png)
+
+这里的acquireInterruptibly(...)也是AQS的模板方法，里面的tryAcquire(...)分别被FairSync和NonfairSync实现。
+
+主要看doAcquireInterruptibly(...)方法：
+
+![image-20211002135134711](assest/image-20211002135134711.png)
+
+当parkAndCheckInterrupt()返回true的时候，说明有其他线程发送中断信号，直接抛出InterruptedException，跳出for循环，整个方法返回。
+
 ### 8.1.8 tryLock()实现分析
 
+![image-20211002135339800](assest/image-20211002135339800.png)
 
+tryLock()实现基于调用非公平锁的tryAcquire(...)，对state进行CAS操作，如果操作成功就拿到锁；如果操作不成功则直接返回false，也不阻塞。
 
 
 
