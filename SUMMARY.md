@@ -11,7 +11,7 @@
 * [第二阶段 分布式架构性能调优](2-stage/README.md)
     * [模块三 并发编程与环境优化](2-stage/3-module/README.md)
         * [任务一 并发编程](2-stage/3-module/1-task/README.md)
-            * [第一部分 多线程和并发设计原理](2-stage/3-module/1-task/1-Multi-threading and concurrent.md)
+            * [第一部分 多线程和并发设计原理](2-stage/3-module/1-task/1-Multi-threading-and-concurrent.md)
             * [第二部分 JUC](2-stage/3-module/1-task/2-JUC.md)
             * [第三部分 线程池与Future](2-stage/3-module/1-task/3-线程池与Future.md)
             * [第四部分 ForkJoinPool](2-stage/3-module/1-task/4-ForkJoinPool.md)
