@@ -428,15 +428,120 @@ private final class Worker extends AbstractQueuedSynchronizer implements Runnabl
 
 ### 11.5.1 shutdown()与任务执行过程综合分析
 
+把任务的执行过程和上面的线程池的关闭过程结合起来进行分析，当调用shutdown()的时候，可能出现以下几种场景：
+
+1. 当调用shutdown()的时候，所有线程都处于空闲状态。
+
+   这意味着任务队列一定是空的。此时，所有线程都会阻塞在getTask()方法的地方。然后，所有线程都会收到interruptIdleWorkers()发来的中断信号，getTask()返回null，所有Worker都会退出while循环，之后执行processWorkerExit。
+
+2. 当调用shutdown的时候，所有线程都处于忙碌状态。
+
+   此时，队列可能是空的，也可能是非空的。interruptIdleWorkers()内部的tryLock调用失败，什么都不会做，所有线程会继续执行自己当前的任务。之后所有线程会执行完队列中的任务，直到队列为空，getTask()才会返回null。之后，就和场景1一样，退出while循环。
+
+3. 当调用shutdown()的时候，部分线程忙碌，部分线程空闲。
+
+   有部分线程空闲，说明队列一定是空的，这些线程肯定阻塞在getTask()方法的地方。空闲的这些线程和场景1一样处理，不空闲的线程会和场景2一样处理。
+
+
+
+下面看一下getTask()方法的内部细节：
+
+```java
+private Runnable getTask() {
+    boolean timedOut = false; // Did the last poll() time out?
+
+    for (;;) {
+        int c = ctl.get();
+
+        // 如果线程池调用了shutdownNow(),返回null
+        // 如果线程池调用了shutdown()，并且任务队列为空，也返回null
+        if (runStateAtLeast(c, SHUTDOWN)
+            && (runStateAtLeast(c, STOP) || workQueue.isEmpty())) {
+            // 工作线程数减1
+            decrementWorkerCount();
+            return null;
+        }
+
+        int wc = workerCountOf(c);
+
+        // Are workers subject to culling?
+        boolean timed = allowCoreThreadTimeOut || wc > corePoolSize;
+
+        if ((wc > maximumPoolSize || (timed && timedOut))
+            && (wc > 1 || workQueue.isEmpty())) {
+            if (compareAndDecrementWorkerCount(c))
+                return null;
+            continue;
+        }
+
+        try {
+            // 如果队列为空，就会阻塞pool或者take，前者有超时时间，后者没有超时时间
+            // 一旦中断。此处抛异常，对应上文场景1
+            Runnable r = timed ?
+                workQueue.poll(keepAliveTime, TimeUnit.NANOSECONDS) :
+                workQueue.take();
+            if (r != null)
+                return r;
+            timedOut = true;
+        } catch (InterruptedException retry) {
+            timedOut = false;
+        }
+    }
+}
+```
+
 
 
 ### 11.5.2 shutdownNow()与任务执行过程综合分析
+
+和上面的shutdown()类似，只是多了一个环节，即清空任务队列。如果一个线程正在执行某个业务代码，即使向它发送中断信号，也没有用，只能等它把代码执行完成。因此，中断空闲线程的中断所有线程的区别并不是很大，除非线程当前刚好阻塞在某个地方。
+
+当一个Worker最终退出的时候，会执行清理工作：
+
+```java
+private void processWorkerExit(Worker w, boolean completedAbruptly) {
+    // 如果线程正常退出，不会执行if语句，这里一般是非正常退出，需要将worker数量减1
+    if (completedAbruptly) // If abrupt, then workerCount wasn't adjusted
+        decrementWorkerCount();
+
+    final ReentrantLock mainLock = this.mainLock;
+    mainLock.lock();
+    try {
+        completedTaskCount += w.completedTasks;
+        // 将自己的worker从集合移除
+        workers.remove(w);
+    } finally {
+        mainLock.unlock();
+    }
+    // 每个线程在结束的时候都会用该方法，看是否可以停止线程池
+    tryTerminate();
+
+    int c = ctl.get();
+    // 如果在线程池退出前，发现线程池还没有关闭
+    if (runStateLessThan(c, STOP)) {
+        if (!completedAbruptly) {
+            int min = allowCoreThreadTimeOut ? 0 : corePoolSize;
+            // 如果线程池中没有其他线程来，并且任务队列非空
+            if (min == 0 && ! workQueue.isEmpty())
+                min = 1;
+            // 如果工作线程数大于min，表示队列中的任务可以由其他线程执行，退出当前线程
+            if (workerCountOf(c) >= min)
+                return; // replacement not needed
+        }
+        // 如果当前线程退出前发现线程池没有结束，任务队列不是空的，也没有其他线程来执行
+        // 就再启动一个线程来处理
+        addWorker(null, false);
+    }
+}
+```
+
+
 
 ## 11.6 线程池的4中拒绝策略
 
 在execute(Runnable command)的最后，调用reject(command)执行拒绝策略，代码如下：
 
-![image-20210923105445356](assest/image-20210923105445356.png)
+![image-20211003195944318](assest/image-20211003195944318.png)
 
 ![image-20210923105550124](assest/image-20210923105550124.png)
 
@@ -444,7 +549,7 @@ handler就是可以设置的拒绝策略管理器：
 
 ![image-20210923105639572](assest/image-20210923105639572.png)
 
-RejectedExecutionHandler是一个接口，定义了四种实现，分别对应四种不同放入拒绝策略，默认是：`AbortPolicy`
+RejectedExecutionHandler是一个接口，定义了四种实现，分别对应四种不同放入拒绝策略，默认是：AbortPolicy。
 
 ![image-20210923110451253](assest/image-20210923110451253.png)
 
@@ -475,6 +580,8 @@ ThreadPoolExecutor类中默认的实现是：
 ![image-20210923113437460](assest/image-20210923113437460.png)
 
 ### 11.6.4 策略四
+
+删除队列中最早的任务，将当前任务入队列：
 
 ![image-20210923113533985](assest/image-20210923113533985.png)
 
@@ -549,11 +656,41 @@ public class ThreadPoolExecutorDemo {
 
 # 12 Executors工具类
 
+concurrent包提供了Executors工具类，利用它可以创建各种 不同类型的线程池。
+
 ## 12.1 四种对比
+
+单线程线程池：
+
+固定数目线程的线程池：
+
+每接收一个请求，就创建一个线程来执行：
+
+单线程具有固定调度功能的线程池：
+
+多线程，有调度公共的线程池：
 
 ## 12.2 最佳实践
 
+不同类型的线程池，其实都是由前面的几个关键配置参数配置而成。
+
+阿里巴巴Java开发手册中，禁止使用Executors创建线程池，并要求开发者直接使用ThreadPoolExecutor或ScheduledThreadPoolExecutor进行创建。这样做是为了强制开发者明确线程池的运行策略，使其对线程池的每个配置参数皆做到心中有数，以规避因使用不当而造成资源耗尽的风险。
+
 # 13 ScheduledThreadPoolExecutor
+
+ScheduledThreadPoolExecutor实现了按时间调度来执行任务：
+
+> 1.延迟执行任务
+
+> 2.周期执行任务
+
+
+
+区别如下：
+
+AtFixdRate：按固定频率执行，与任务本身运行时间无关。但有个前提条件，任务执行时间必须小于间隔时间，例如间隔时间是5s，每5s执行一次任务，任务的执行时间必须小于5s。
+
+WithFixedDelay：按固定间隔执行，与任务半身执行时间有关，例如本身执行时间是10s，间隔2s，则下一次开始执行的时间是12s。
 
 ## 13.1 延迟执行和周期性执行的原理
 
