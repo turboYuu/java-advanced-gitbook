@@ -3376,7 +3376,7 @@ Sync的父类AbstractQueuedSynchronizer经常被称作**队列同步器**（**AQ
 
 此处的锁具备synchronized功能，即可以阻塞一个线程。为了实现一把具有阻塞或唤醒功能的锁，组要几个核心要素：
 
-1. 需要一个state变量，标记该锁的状态。state变量至少有两个值：0、1。对state变量的操作，使用CAS保证线程安全。
+1. 需要一个**state**变量，标记该锁的状态。state变量至少有两个值：0、1。对state变量的操作，使用CAS保证线程安全。
 2. 需要记录当前是哪个线程持有锁。
 3. 需要底层支持对一个线程进行**阻塞**或**唤醒**操作。
 4. 需要有一个**队列**维护所有阻塞的线程，这个队列也必须是线程安全的无锁队列，也需要使用CAS。
@@ -3626,7 +3626,7 @@ abstract static class Sync extends AbstractQueuedSynchronizer {    
 
 ### 8.2.3 AQS的两对模板方法
 
-下面介绍在ReentrantReadWriteLock的两个内部类ReadLock和WriteLock中，是如何使用state变量的。
+下面介绍在ReentrantReadWriteLock的两个内部类ReadLock和WriteLock中，是如何使用**state**变量的。
 
 ```java
 public static class ReadLock implements Lock, java.io.Serializable {    

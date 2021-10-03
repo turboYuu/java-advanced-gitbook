@@ -230,7 +230,7 @@ final void tryTerminate() {
 
 tryTerminate()不会强行终止线程池，只是做了一下检测；当workQueue为空，workCount为0时，先把状态切换到TIDYING，然后调用钩子方法terminated()。当钩子方法执行完成时，把状态从TIDYING改为TERMINATED，接着调用termination.signalAll()，通知前面阻塞在awaitTermination的所有调用者线程。
 
-所以，TIDYING和TERMINATED的区别是在二者之间执行了一个钩子方法terminated()，目前是一个空实现。
+所以，**TIDYING和TERMINATED的区别是在二者之间执行了一个钩子方法terminated()**，目前是一个空实现。
 
 ## 11.4 任务的提交过程分析
 
@@ -349,7 +349,7 @@ private boolean addWorker(Runnable firstTask, boolean core) {
 
 ## 11.5 任务的执行过程分析
 
-在上面的任务提交过程中，可能会开启一个新的Worker，并把任务本身作为firstTask赋给该Worker。但对于一个Worker来说，不是只执行一个任务，而是源源不断地从队列中取出任务执行，这是一个不断循环地过程。
+在上面的任务提交过程中，可能会开启一个新的Worker，并把任务本身作为firstTask赋给该Worker。但对于一个Worker来说，不是只执行一个任务，而是源源不断地从队列中取出任务执行，这是一个不断循环的过程。
 
 下面来看Worker的run()方法的实现过程：
 
