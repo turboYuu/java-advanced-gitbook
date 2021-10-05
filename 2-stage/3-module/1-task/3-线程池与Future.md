@@ -702,9 +702,15 @@ ScheduledThreadPoolExecutor实现了按时间调度来执行任务：
 
 > 1.延迟执行任务
 
+![image-20211005154947163](assest/image-20211005154947163.png)
+
+![image-20211005155009602](assest/image-20211005155009602.png)
+
 > 2.周期执行任务
 
+![image-20211005155052509](assest/image-20211005155052509.png)
 
+![image-20211005155109080](assest/image-20211005155109080.png)
 
 区别如下：
 
@@ -714,30 +720,638 @@ WithFixedDelay：按固定间隔执行，与任务半身执行时间有关，例
 
 ## 13.1 延迟执行和周期性执行的原理
 
+ScheduledThreadPoolExecutor继承了ThreadPoolExecutor，意味着其内部的数据结构和ThreadPoolExecutor是基本一样的，那它是如何实现延迟执行任务和周期性执行任务的呢？
+
+延迟执行任务依靠的是DelayQueue。DelayQueue是BlockingQueue的一种，其实现原理是二叉堆。
+
+而周期性执行任务时执行完一个任务之后，再把该任务扔回到任务队列中，如此就可以对一个任务反复执行。
+
+不过这里并没有没有使用DelayQueue，而是在ScheduledThreadPoolExecutor内部又实现了一个**特定的DelayQueue**。
+
+![image-20211005160203328](assest/image-20211005160203328.png)
+
+其原理和DelayQueue一样，但针对任务的取消了进行了优化。下面主要讲延迟执行和周期性执行的实现过程。
+
 ## 13.2 延迟执行
+
+![image-20211005160357822](assest/image-20211005160357822.png)
+
+传进去的是一个Runnable，外加延迟时间delay。在内部通过decorateTask(...)方法把Runnable包装成一个ScheduledFutureTask对象，而DelaydWorkQueue中存放的正是这种类型的对象，这种类型的对象一定实现了Delayed接口。
+
+![image-20211005161040411](assest/image-20211005161040411.png)
+
+![image-20211005161215485](assest/image-20211005161215485.png)
+
+从上面的代码中可以看出，schedule()方法本身很简单，就是把提交的Runnable任务加上delay时间，转换成ScheduledFutureTask对象，放入DelaydWorkerQueue中。任务的执行过程还是复用ThreadPoolExecutor，延迟的控制是在DelayedWorkerQueue内部完成的。
 
 ## 13.3 周期性执行
 
+![image-20211005161756626](assest/image-20211005161756626.png)
+
+![image-20211005161820301](assest/image-20211005161820301.png)
+
+和schedule(...)方法的框架基本一样，也是包装一个ScheduledFutureTask对象，只是在延迟时间参数之外多了一个周期参数，然后放入DelayedWorkedQueue就结束了。
+
+两个方法的区别在于一个传入的周期是一个负数，另一个传入的周期是一个整数，为什么要这样做呢？
+
+用于生成任务序列号的sequencer，创建ScheduledFutureTask的时候使用：
+
+![image-20211005162323822](assest/image-20211005162323822.png)
+
+```java
+private class ScheduledFutureTask<V>
+            extends FutureTask<V> implements RunnableScheduledFuture<V> {
+
+    private final long sequenceNumber;
+    private volatile long time;
+    private final long period;
+    
+    ScheduledFutureTask(Runnable r, V result, long triggerTime,
+                            long period, long sequenceNumber) {
+        super(r, result);
+        this.time = triggerTime; // 延迟时间
+        this.period = period; // 周期
+        this.sequenceNumber = sequenceNumber;
+    }
+    
+    // 实现Delayed接口
+    public long getDelay(TimeUnit unit) {
+        return unit.convert(time - System.nanoTime(), NANOSECONDS);
+    }
+    
+    // 实现Comparable接口
+    public int compareTo(Delayed other) {
+        if (other == this) // compare zero if same object
+            return 0;
+        if (other instanceof ScheduledFutureTask) {
+            ScheduledFutureTask<?> x = (ScheduledFutureTask<?>)other;
+            long diff = time - x.time;
+            if (diff < 0)
+                return -1;
+            else if (diff > 0)
+                return 1;
+            // 延迟时间相等，进一步比较序列号
+            else if (sequenceNumber < x.sequenceNumber)
+                return -1;
+            else
+                return 1;
+        }
+        long diff = getDelay(NANOSECONDS) - other.getDelay(NANOSECONDS);
+        return (diff < 0) ? -1 : (diff > 0) ? 1 : 0;
+    }
+    
+    // 实现Runnable接口
+    public void run() {
+        if (!canRunInCurrentRunState(this))
+            cancel(false);
+        // 如果不是周期执行，则执行一次
+        else if (!isPeriodic())
+            super.run();
+        // 如果是周期执行，则重新设置下一次运行的时间，重新入队列
+        else if (super.runAndReset()) {
+            setNextRunTime();
+            reExecutePeriodic(outerTask);
+        }
+    }
+    
+    // 下一次执行时间
+    private void setNextRunTime() {
+        long p = period;
+        if (p > 0)
+            time += p;
+        else
+            time = triggerTime(-p);
+    }
+}
+
+// 下一次触发事件
+long triggerTime(long delay) {
+    return System.nanoTime() +
+        ((delay < (Long.MAX_VALUE >> 1)) ? delay : overflowFree(delay));
+}
+
+// 放到队列中，等待下一次执行
+void reExecutePeriodic(RunnableScheduledFuture<?> task) {
+    if (canRunInCurrentRunState(task)) {
+        super.getQueue().add(task);
+        if (canRunInCurrentRunState(task) || !remove(task)) {
+            ensurePrestart();
+            return;
+        }
+    }
+    task.cancel(false);
+}
+```
+
+withFixedDelay和atFixedRate的区别就体现在setNextRunTIme里面。
+
+如果是atFixedRate，period > 0，下一次开始执行时间等于上一次开始开始执行时间+period；
+
+如果是withFixedDelay，period < 0，下一次卡死hi执行时间等于tiggerTime(-p)，为now+(-period)，now即上一次执行的结束时间。
+
+
+
 # 14 CompletableFuture用法
+
+从JDK 8开始，在Concurrent包中提供了一个强大的异步编程工具CompletableFuture。在JDK 8之前，异步编程可以通过线程池和Future来实现，但功能不够强大。
+
+```java
+package com.turbo.concurrent.demo;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+
+public class CompletableFutureDemo {
+
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+        CompletableFuture<String> future = new CompletableFuture();
+
+        new Thread(){
+            @Override
+            public void run() {
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                // 另一个线程执行任务，将结果赋值给future
+                future.complete("hello turbo");
+            }
+        }.start();
+
+        System.out.println("任务已经提交");
+
+        // 阻塞方法
+        final String s = future.get();
+        System.out.println(s);
+    }
+}
+
+```
+
+CompletableFuture实现了Future接口，所以它也具有Future的特性：调用get()方法会阻塞在那，直到结果返回。
+
+另外1个线程调用complete方法完成该Future，则所有阻塞在get()方法的线程都将获得返回结果。
 
 ## 14.1 runAsync与supplyAsync
 
+上面的例子是一个空的任务，下面尝试提交一个真的任务，然后等待结果返回。
+
+**例1：runAsync(Runnable)**
+
+```java
+package com.turbo.concurrent.demo;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+
+public class CompletableFutureDemo2 {
+
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+
+        // 通过异步的方式给future指派任务，future没有返回值
+        CompletableFuture<Void> completableFuture = CompletableFuture.runAsync(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                System.out.println("任务执行完毕");
+            }
+        });
+
+        final Void aVoid = completableFuture.get();
+        System.out.println(aVoid);
+
+    }
+}
+
+```
+
+CompletableFuture.runAsync(...)传入的是一个Runnable接口。
+
+
+
+**例2：supplyAsync(Supplier)**
+
+```java
+package com.turbo.concurrent.demo;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Supplier;
+
+public class CompletableFutureDemo3 {
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+        // 指定future要执行的任务，同时future有返回值
+        CompletableFuture future = CompletableFuture.supplyAsync(new Supplier<String>() {
+
+            @Override
+            public String get() {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                return "hello turbo";
+            }
+        });
+
+        System.out.println("任务已经提交");
+        final Object o = future.get();
+        System.out.println(o);
+    }
+}
+
+```
+
+例子2和例子1的区别在于，例子2的任务有返回值。没有返回值的任务，提交的是Runnable，返回的是CompletableFuture<Void>;有返回值的任务，提交的是Supplier，返回的是CompletableFuture<String>。Supplier和前面的Callable很相似。
+
+通过上面的两个例子可以看出，在基本的用法上，CompletableFuture和Future很相似，都可以提交两类任务，一类是无返回值的，另一类是有返回值的。
+
+![image-20211005224519494](assest/image-20211005224519494.png)
+
+![image-20211005224542629](assest/image-20211005224542629.png)
+
+
+
 ## 14.2 thenRun、thenAccept和thenApply
+
+对于Future，在提交任务之后，只能调用get等结果返回；但对于CompletableFuture，可以在结果上面再加一个callback，当得到结果之后，再接着执行callback。
+
+**例子1：thenRun(Runnable)**
+
+```java
+package com.turbo.concurrent.demo;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Supplier;
+
+public class CompletableFutureDemo4 {
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+
+        CompletableFuture future = CompletableFuture.supplyAsync(new Supplier<String>() {
+            @Override
+            public String get() {
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                return "hello turbo";
+            }
+        }).thenRun(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                System.out.println("任务执行结束后的代码执行");
+            }
+        });
+
+        // 阻塞等待任务执行完成
+        final Object o = future.get();
+        System.out.println(o);
+        System.out.println("执行任务结束");
+    }
+}
+
+```
+
+该案例最后不能获得结果，只会得到一个null。
+
+**例2：thenAccept(Consumer)**
+
+```java
+package com.turbo.concurrent.demo;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+
+public class CompletableFutureDemo5 {
+
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+
+        final CompletableFuture<Void> future = CompletableFuture.supplyAsync(new Supplier<String>() {
+
+            @Override
+            public String get() {
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                return "hello turbo";
+            }
+        }).thenAccept(new Consumer<String>() {
+            @Override
+            public void accept(String s) {
+                // 可以获取上个任务的执行结果，接着处理
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                System.out.println(s.length());
+            }
+        });
+
+        // 阻塞等待任务执行完成
+        final Void aVoid = future.get();
+        System.out.println(aVoid);
+
+    }
+}
+```
+
+上述代码在thenAccept中可以获取任务的执行结果，接着进行处理。
+
+
+
+**例3：thenApply(Function)**
+
+```java
+package com.turbo.concurrent.demo;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+public class CompletableFutureDemo6 {
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+
+        final CompletableFuture<Integer> future = CompletableFuture.supplyAsync(new Supplier<String>() {
+
+            @Override
+            public String get() {
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                System.out.println("返回中间结果");
+                return "hello turbo";
+            }
+        }).thenApply(new Function<String, Integer>() {
+            @Override
+            public Integer apply(String s) {
+                //  接收上个任务的返回值，接着处理，同时将处理结果返回给future
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                System.out.println("获取中间结果，再次计算返回");
+                return s.length();
+            }
+        });
+
+        final Integer i = future.get();
+        System.out.println(i);
+
+    }
+}
+
+```
+
+三个例子都是在任务执行完成之后，接着执行回调，只是回调的形式不同：
+
+1. thenRun后面跟的是一个无参数，无返回值的方法，即Runnable，所以最终的返回值是CompletableFuture<Void>类型。
+2. thenAccept后面跟的是一个有参数，无返回值的方法，称为Consumer，返回值也是CompletableFuture<Void>类型。顾名思义，只进不出，所以称为Consumer；前面的Supplier，是无参数，有返回值，只出不进，和Consumer刚好相反。
+3. thenApply后面跟的是一个有参数，有返回值的方法，称为Function。返回值是 CompletableFuture<Integer>类型。
+
+而参数接收的是前一个任务，即supplyAsync(...)这个任务的返回值。因此这里只能用supplyAsync，不能用runAsync。因为runAsync没有返回值，不能为下一个链式方法传入参数。
+
+![image-20211005224622018](assest/image-20211005224622018.png)
+
+![image-20211005224643439](assest/image-20211005224643439.png)
+
+![image-20211005224705997](assest/image-20211005224705997.png)
+
+
 
 ## 14.3 thenCompose与thenCombine
 
+**例1：thenCompose**
+
+在上面的例子中，thenApply接收的是一个Function，但是这个Function的返回值是一个通常的基本数据类型或一个对象，而不是另外一个CompletableFuture。如果Function的返回值也是一个CompletableFuture,，就会出现嵌套的CompletableFuture。
+
+```java
+final CompletableFuture<CompletableFuture<Integer>> future = CompletableFuture.supplyAsync(new Supplier<String>() {
+
+    @Override
+    public String get() {
+        return "hello turbo";
+    }
+}).thenApply(new Function<String, CompletableFuture<Integer>>() {
+    @Override
+    public CompletableFuture<Integer> apply(String s) {
+        return CompletableFuture.supplyAsync(new Supplier<Integer>() {
+            @Override
+            public Integer get() {
+                return s.length();
+            }
+        });
+    }
+});
+```
+
+如果希望返回一个非嵌套的CompletableFuture，可以使用thenCompose:
+
+```java
+final CompletableFuture<Integer> future = CompletableFuture.supplyAsync(new Supplier<String>() {
+
+            @Override
+            public String get() {
+                return "hello turbo";
+            }
+        }).thenCompose(new Function<String, CompletionStage<Integer>>() {
+            @Override
+            public CompletionStage<Integer> apply(String s) {
+                return CompletableFuture.supplyAsync(new Supplier<Integer>() {
+                    @Override
+                    public Integer get() {
+                        return s.length();
+                    }
+                });
+            }
+        });
+```
+
+下面是thenCompose方法的接口定义：
+
+![image-20211005181947089](assest/image-20211005181947089.png)
+
+CompletableFuture中的实现：
+
+![image-20211005182027156](assest/image-20211005182027156.png)
+
+
+
+从该方法的定义可以看出，它传入的参数是一个Function类型，并且Function的返回值必须是CompletionStage的子类，也就是CompletableFuture类型。
+
+
+
+**例2：thenCombine**
+
+thenCombine方法的接口定义如下，从传入的参数可以看出，它不同于thenCompose。
+
+![image-20211005205651681](assest/image-20211005205651681.png)
+
+第一个参数是CompletableFuture类型，第二个参数是一个方法，并且是一个BiFunction，也就是该方法有2个输入参数，1个返回值。
+
+从该接口的定义可以大致推测，它是要在第二个CompletableFuture完成之后，把2个CompletableFuture的返回值传进去，再额外做一些事情。
+
+```java
+final CompletableFuture<Integer> future = CompletableFuture.supplyAsync(new Supplier<String>() {
+
+            @Override
+            public String get() {
+                return "hello";
+            }
+        }).thenCombine(CompletableFuture.supplyAsync(new Supplier<String>() {
+            @Override
+            public String get() {
+                return "turbo";
+            }
+        }), new BiFunction<String, String, Integer>() {
+            @Override
+            public Integer apply(String s, String s2) {
+                System.out.println("s="+s);
+                System.out.println("s2="+s2);
+                return s.length() + s2.length();
+            }
+        });
+
+        final Integer integer = future.get();
+        System.out.println(integer);
+```
+
+
+
 ## 14.4 任意个ConpletableFuture的组合
 
+上面的thenCompose和thenComine只能组合2个CompletableFuture，而接下来的allOf和anyOf可以组合任意多个CompletableFuture。方法接口定义如下所示：
+
+![image-20211005210906666](assest/image-20211005210906666.png)
+
+![image-20211005210948660](assest/image-20211005210948660.png)
+
+首先，这两个方法都是静态方法，参数是变长的CompletableFuture的集合。其次，allOf和anyOf的区别，前者是“与”，后者是“或”。
+
+allOf的返回值是CompletableFuture<Void>类型，这是因为每个传入的CompletableFuture的返回值都可能不同，所以组合的结果无法用魔种类型来表示的。左行返回Void类型。
+
+anyOf的含义是只要有任意一个CompletableFuture结束，就可以做接下来的事情，而无须项allOf那样，等待所有的CompletableFuture结束。
+
+但由于每个CompletableFuture的返回值都有可能不同，任意一个，意味着无法判断是什么类型，所以anyOf的返回值是CompletableFuture<Object>类型。
+
+
+
+```java
+package com.turbo.concurrent.demo;
+
+import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Supplier;
+
+public class CompletableFutureDemo9 {
+    private static final Random random = new Random();
+    private static volatile int result = 0;
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+        CompletableFuture[] futures = new CompletableFuture[10];
+        for (int i = 0; i < 10; i++) {
+            final CompletableFuture<Void> future = CompletableFuture.runAsync(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Thread.sleep(random.nextInt(1000));
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    result++;
+                }
+            });
+            futures[i] = future;
+        }
+
+//        for (int i = 0; i < 10; i++) {
+//            final Object o = futures[i].get();
+//            System.out.println(result);
+//        }
+//
+//        final CompletableFuture<Void> future = CompletableFuture.allOf(futures).thenRun(new Runnable() {
+//            @Override
+//            public void run() {
+//                System.out.println("计算完成");
+//            }
+//        });
+
+//        CompletableFuture.allOf(futures).get();
+//
+//        future.get();
+//        System.out.println(result);
+
+         CompletableFuture.anyOf(futures).thenRun(new Runnable() {
+            @Override
+            public void run() {
+                System.out.println(result);
+            }
+        }).get();
+    }
+}
+```
+
+
+
 ## 14.5 四种任务原型
+
+通过上面的例子可以总结出，提交给CompletableFuture执行的任务有四种类型：Runnable、Consumer、Supplier、Function。下面是这四种任务原型的对比。
 
 | 四种任务原型 | 无参数                                            | 有参数                                     |
 | ------------ | ------------------------------------------------- | ------------------------------------------ |
 | 无返回值     | Runnable接口<br>对应的提交方法：runAsync，thenRun | Consumer接口<br>对应的提交方法：thenAccept |
 | 有返回值     | Supplier接口：<br>对应的提交方法：supplierAsync   | Function接口<br>对应的提交方法：thenApply  |
 
+runAsync与supplierAsync是CompletableFuture的静态方法；而thenAccept、thenAsync、thenApply是CompletableFuture的成员方法。
 
+因为初始的时候没有CompletableFuture对象，也没有参数可传，所提提交的只能是Runnable或者Supplier，只能是静态方法；
+
+通过静态方法生成CompletableFuture对象之后，便可以链式地提交其他任务了，这个时候就可以提交Runnable、Consumer、Function，且都是成员方法。
 
 ## 14.6. CompletionStage接口
+
+CompletableFuture不仅实现了Future接口，还实现了CompletionStage接口。
+
+![image-20211005225240487](assest/image-20211005225240487.png)
+
+CompletionStage接口定义的正是前面地各种链式方法，组合方法，如下：
+
+```java
+package java.util.concurrent;
+public interface CompletionStage<T> {    
+    //
+    public CompletionStage<Void> thenRun(Runnable action);
+    public CompletionStage<Void> thenAccept(Consumer<? super T> action);
+    public <U> CompletionStage<U> thenApply(Function<? super T,? extends U> fn);
+    public <U> CompletionStage<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn);         public <U,V> CompletionStage<V> thenCombine(CompletionStage<? extends U> other, 
+        BiFunction<? super T,? super U,? extends V> fn);    
+    // ...
+}
+```
+
+关于CompletionStage接口，有几个关键点要说明：
+
+1. 
 
 ## 14.7 CompletableFuture内部原理
 
