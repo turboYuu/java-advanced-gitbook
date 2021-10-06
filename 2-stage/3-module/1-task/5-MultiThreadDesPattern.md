@@ -2,7 +2,7 @@
 
 # 24 Single Threaded Execution模式
 
-
+所谓地Single Threaded Execution模式，指的是“以一个线程执行”。
 
 # 25 Immutable模式
 
