@@ -56,17 +56,31 @@ JVM是Java程序能够运行的核心。但是需要注意，JVM自己什么也�
 
 ![image-20211007003958060](assest/image-20211007003958060.png)
 
-左半部分是Java虚拟机规范，其实就是为输入和执行字节码提供一个运行环境。右半部分是Java语法规范，比如switch、for、泛型、lambda等相关的程序，追钟都会编译成字节码。而连接左右两部分的桥梁依然是Java的字节码。
+左半部分是**Java虚拟机规范，其实就是为输入和执行字节码提供一个运行环境**。右半部分是Java语法规范，比如switch、for、泛型、lambda等相关的程序，追钟都会编译成字节码。而连接左右两部分的桥梁依然是Java的字节码。
 
 如.class文件的规格是不变的，这两部分是可以独立进行优化的。但Java也会偶尔扩充一下.class文件的格式，增加一些字节码指令，以便支持更多的特性。
 
+可以把Java虚拟机看作是一台抽象的计算机，它有自己的指令集以及各种运行时的内存区域，学过《计算机组成结构》的，会在后续课程中看到非常多的相似性。
 
+![image-20211008112402241](assest/image-20211008112402241.png)
 
+这里的Java程序时文本格式的。遵循Java语言规范，调用了System.out等模块，也就是JRE里提供的类库。
 
+使用JDK的工具javac进行编译后，会产生HelloWorld的字节码。Java字节码是沟通JVM与Java程序的桥梁，下面使用javap来稍微看一下字节码到底什么样子。
 
+```
+0: getstatic     #2                  // Field java/lang/System.out:Ljava/io/PrintStream;
+3: ldc           #3                  // String hello world
+5: invokevirtual #4                  // Method java/io/PrintStream.println:(Ljava/lang/String;)V
+8: return
 
+```
 
+Java虚拟机采用基于栈的架构，其指令由操作码和操作数组成。这些<font color='red'>字节码指令</font>，就叫做opcode。其中getstatic、ldc、invokevirtual、return等，就是opcode，可以看到是比较容易理解的。
 
+JVM就是靠解析这些opcode和操作数来完成程序的执行。当我们使用Java命令运行.class文件的时候，实际上就相当于启动了一个JVM进程。
+
+然后JVM会翻译这些字节码，它有两种执行方式。常见的就是解释执行，将opcode+操作数翻译成机器代码；另外一种执行方式就是JIT，也就是常说的即时编译，它会在一定条件下将字节码编译成机器码之后再执行。
 
 
 
