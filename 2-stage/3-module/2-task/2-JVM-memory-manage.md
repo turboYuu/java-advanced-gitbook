@@ -660,7 +660,93 @@ NIO的Buffer提供一个可以直接访问系统物理内存的类--DirectBuffer
 
 ## 7.1 Java堆溢出
 
+堆内存中主要存放对象，数组等，只要不断地创建这些对象，并且保证GC Roots到对象之间由可达路径来避免垃圾收集回收机制清除这些对象，当这些对象所占用空间超过最大堆容量时，就会产生OutOfMemoryError的异常。堆内存异常示例如下：
+
+```java
+/**
+* 设置最大堆最小堆：-Xms20m -Xmx20m 
+*/
+public class HeapOOM {
+    static class OOMObject {  }
+    public static void main(String[] args) {
+        List<OOMObject> oomObjectList = new ArrayList<>();        
+        while (true) {
+            oomObjectList.add(new OOMObject());      
+        }
+    } 
+}
+```
+
+运行后会报异常，在堆栈信息中可以看到
+
+`java.lang.OutOfMemoryError: Java heap space`的信息，说明在堆内存空间产生内存溢出的异常。
+
+新产生的对象最初分配在新生代，新生代满后会进行一次`Minor GC`，如果`Minor GC`后空间不足，会把对象和新生代满足条件的对象放入老年代，老年代空间不足时会进行`Full FC`，之后如果空间还不足以存放新对象，则抛出`OutOfMemoryError`异常。
+
+常见原因：
+
+- 内存中加载的数据过多，如一次从数据库中取出过多数据；
+- 集合对对象引用过多且使用完后没有清空；
+- 代码中存在死循环或循环生产过多重复对象；
+- 堆内存分配不合理
+
+
+
 ## 7.2 虚拟机栈和本地方法栈溢出
+
+由于HotSpot虚拟机中并不区分虚拟机栈和本地方法栈，因此对于HotSpot来说，-Xoss参数（设置本地方法栈大小）虽然存在，但实际上没有任何效果，栈容量只能由-Xss参数来设定。关于虚拟机栈和本地方法栈，在《Java虚拟机规范》中描述了两种异常：
+
+1. 入轨线程请求的栈深度大于虚拟机所允许的最大深度，将抛出StackOverflowError异常。
+2. 如果虚拟机的栈内存允许动态扩展，当扩展栈容量无法申请到足够的内存时，将抛出OutOfMemoryError异常。
+
+《Java虚拟机规范》明确允许Java虚拟机实现自行选择是否支持栈的动态扩展，而HotSpot虚拟机的选择是不支持扩展，所以除非在创建线程申请内存时，就因无法获得足够内存而出现OutOfMemoryError异常，否则在线程运行时是不会因为扩展而导致内存溢出的，只会因为栈容量无法容纳新的栈帧而导致StackOverflowError异常。为了验证这点，可以做两个实验。
+
+先将实验范围限制在单线程中操作，尝试下面两种行为是否能让HotSpot虚拟机产生OutOfMemoryError异常：使用-Xss参数减少栈内存容量，结果抛出StackOverflowError异常，异常出现时输出的堆栈深度相应缩小。<br>定义了大量的本地变量，增大此方法帧中本地变量表的长度。结果：抛出StackOverflowError异常，异常出现时输出的堆栈深度相应缩小。
+
+> 虚拟机栈和本地方法栈测试（作为第1点测试程序）
+
+```java
+package com.turbo.unit;
+
+/**
+ * -Xss180K
+ */
+public class JavaVMStackSOF {
+    private int stackLength = 1;
+    public void stackLeak() {
+        stackLength++;
+        stackLeak();
+    }
+
+    public static void main(String[] args) throws Throwable {
+        JavaVMStackSOF oom = new JavaVMStackSOF();
+        try {
+            oom.stackLeak();
+        } catch (Throwable e) {
+            System.out.println("stack length:" + oom.stackLength);
+            throw e;
+        }
+    }
+}
+```
+
+```
+stack length:2094
+Exception in thread "main" java.lang.StackOverflowError
+	at com.turbo.unit.JavaVMStackSOF.stackLeak(JavaVMStackSOF.java:7)
+```
+
+
+
+
+
+
+
+```
+
+```
+
+
 
 ## 7.3 运行时常量池和方法区溢出
 
