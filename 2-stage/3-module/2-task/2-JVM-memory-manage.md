@@ -730,19 +730,23 @@ public class JavaVMStackSOF {
 }
 ```
 
+运行结果
+
 ```
 stack length:2094
 Exception in thread "main" java.lang.StackOverflowError
 	at com.turbo.unit.JavaVMStackSOF.stackLeak(JavaVMStackSOF.java:7)
 ```
 
-
-
-
-
-
+对于不同版本的Java虚拟机和不同的操作系统，栈容量最小值可能会有所限制。主要取决于操作系统内存分页大小。譬如上述方法中参数-Xss128k可以正常用于32位Windows系统下的JDK6，但是，如果用于64位Windows系统下的JDK11，则会提示栈容量最小不能低于180K，而在Linux下这个值可能是228K，如果低于这个最小限制，HotSpot虚拟机启动时会提示：
 
 ```
+The Java thread stack size specified is too small. Specify at least 180k
+```
+
+继续第二种情况，这次为了多占局部变量表空间，不得不定义一长串变量，
+
+```java
 package com.turbo.unit;
 
 /**
@@ -808,12 +812,16 @@ public class JavaVMStackSOF {
 
 ```
 
+运行结果：
+
 ```
 stack length:88
 Exception in thread "main" java.lang.StackOverflowError
 	at com.turbo.unit.JavaVMStackSOF.stackLeak(JavaVMStackSOF.java:29)
 	at com.turbo.unit.JavaVMStackSOF.stackLeak(JavaVMStackSOF.java:30)
 ```
+
+实验结果表明：无论是由于栈帧太大还是虚拟机栈容量太小，当新的栈帧呢哦村无法分配的时候，HotSpot虚拟机抛出的都是StackOverflowError异常。可是如果在允许动态扩展栈容量大小的虚拟机上，相同代码则会导致不一样的情况。
 
 
 
@@ -849,11 +857,15 @@ public class JavaVMStackOOM {
 }
 ```
 
-
+在64位操作系统下的运行结果
 
 ```
 Exception: java.lang.OutOfMemoryError thrown from the UncaughtExceptionHandler in thread "main"
 ```
+
+出现StackOverflowError异常时，会有明确错误堆栈可供分析，相对而言比较容易定位到问题所在。如果使用HotSpot虚拟机默认参数，栈深度在大多数情况下（因为每个方法压入栈的帧大小不一样，所以只能说大多数情况下）到达1000~2000是完全没有问题的，对于正常的方法调用（包括不能 做尾递归优化的递归调用），这个深度应该完全够用了。但是，如果是建立过多线程导致的内存溢出，在不能减少线程数量或者更换64位虚拟机的情况下，就只能通过减少最大堆和减少栈容量来换取更多的线程。这种通过"减少内存"的手段来解决内存溢出的方式，如果没有这方面处理经验，一般比较难以想到。由于这种问题比较隐蔽，从JDK 7起，以上提示信息中"unable to create native thread"后面，虚拟机会特别注明原因可能是"possibly out of memory or process/resource limits reached"。
+
+
 
 
 
