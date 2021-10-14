@@ -41,7 +41,7 @@
 
 > **1.预加载**
 
-虚拟机启动时加载，加载的是JAVA_HOME/lib/下的rt.jar下的.class文件，这个jar包里面的内容是程序运行时常用到的，像`java.lang.*`、`java.util.`、`java.io.`等等，因此随着虚拟机一起加载。要证明这一点很简单，写一个空的main函数，设置虚拟机参数"-XX:TraceClassLoading"来获取类加载信息，运行一下：
+**虚拟机启动时加载**，加载的是JAVA_HOME/lib/下的rt.jar下的.class文件，这个jar包里面的内容是程序运行时常用到的，像`java.lang.*`、`java.util.`、`java.io.`等等，因此随着虚拟机一起加载。要证明这一点很简单，写一个空的main函数，设置虚拟机参数"-XX:TraceClassLoading"来获取类加载信息，运行一下：
 
 ```
 [Opened D:\tool\jdk1.8.0_60\jre\lib\rt.jar]
@@ -51,19 +51,22 @@
 [Loaded java.lang.CharSequence from D:\tool\jdk1.8.0_60\jre\lib\rt.jar]
 [Loaded java.lang.String from D:\tool\jdk1.8.0_60\jre\lib\rt.jar]
 [Loaded java.lang.reflect.AnnotatedElement from D:\tool\jdk1.8.0_60\jre\lib\rt.jar]
+...
+[Loaded java.lang.Class from D:\tool\jdk1.8.0_60\jre\lib\rt.jar]
+...
 ```
 
 
 
 > **2.运行时加载**
 
-虚拟机在用到一个.class文件的时候，会先去内存中查看一下这个.class文件有没有被加载，如果没有就会按照类的全限定名来加载这个类。
+**虚拟机在用到一个.class文件的时候**，会先去内存中查看一下这个.class文件有没有被加载，如果没有就会按照类的全限定名来加载这个类。
 
 那么，加载阶段做了什么，其实加载阶段做了三件事情：
 
 1. 获取.class文件的二进制流
 2. 将类信息，静态变量、字节码、常量 这些.class文件中的内容放入方法区中
-3. 在内存中生成一个代表这个.class文件的java.lang.Class对象，作为方法区这个类的各种数据的访问入口。一般这个Class是在堆里的，不过HotSpot虚拟机比较特殊，这个Class对象是放在方法区中的
+3. 在内存中生成一个代表这个.class文件的java.lang.Class对象，作为方法区这个类的各种数据的访问入口。一般这个Class是在堆里的，不过HotSpot虚拟机比较特殊，**这个Class对象是放在方法区中的**
 
 虚拟机规范堆这三点的要求并不具体，因此虚拟机实现与具体应用的灵活度都是相当大的。例如第一条，根本没有知名二进制字节流要从哪里来，怎么来，因此单单就这一条，就能变出许多花样来：
 
@@ -237,7 +240,11 @@ public class B {
 
 ### 8.3.3 初始化
 
+类的初始化阶段是类加载过程的最后一个步骤，之前介绍的的几个类加载动作里，除了在加载阶段用户应用程序可以通过自定义类加载器的方式局部参与外，其余动作都完全由Java虚拟机主导控制。直到初始化阶段，Java虚拟机才是真正开始执行类中编写的Java程序代码，将主导权移交给应用程序。
 
+初始化阶段就是执行类构造器方法的过程，并不是程序员在Java代码中直接编写的方法，它是Javac编译器的自动生成物，构造方法是由编译器自动收集类中的所有类变量的赋值动作和静态语句块（static{}块）中的语句合并产生的，编译器收集的顺序是由语句在源文件中出现的顺序决定的，静态语句块中只能访问到定义在静态语句块之前的变量，定义在它之后的变量，在前面的语句块中可以赋值，但是不能访问，如代码清单：
+
+![image-20211014192547750](assest/image-20211014192547750.png)
 
 ## 8.4 <font color='orange'>< cint >与< init ></font>
 
