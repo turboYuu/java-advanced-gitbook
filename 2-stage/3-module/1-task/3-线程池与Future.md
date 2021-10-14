@@ -1238,7 +1238,7 @@ final CompletableFuture<Integer> future = CompletableFuture.supplyAsync(new Supp
 
 
 
-## 14.4 任意个ConpletableFuture的组合
+## 14.4 任意个CompletableFuture的组合
 
 上面的thenCompose和thenComine只能组合2个CompletableFuture，而接下来的allOf和anyOf可以组合任意多个CompletableFuture。方法接口定义如下所示：
 
