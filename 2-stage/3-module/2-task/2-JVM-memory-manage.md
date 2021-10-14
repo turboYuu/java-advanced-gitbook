@@ -832,6 +832,7 @@ package com.turbo.unit;
 
 /**
  * -Xmx2m -Xms1m
+ * VM Args： -Xss2M （这时候不妨设大些，请在32位系统下运行）
  */
 public class JavaVMStackOOM {
 
@@ -867,39 +868,154 @@ Exception: java.lang.OutOfMemoryError thrown from the UncaughtExceptionHandler i
 
 
 
-
-
 ## 7.3 运行时常量池和方法区溢出
+
+由于运行时常量池是方法区的一部分，所以这两个区域的溢出测试可以放到一起。前面曾经提到HotSpot从JDK 7开始逐步"去永久代"的计划，并在JDK 8中完全使用元空间来代替永久代。在此就以测试代码来观察以下，使用永久代还是元空间来实现方法区，对程序有什么实际影响。
+
+String::intern()是一个本地方法，它的作用是如果字符串常量池中已经包含一个等于此String对象的字符串，则返回代表池中这个字符串的String对象的引用；否则，会将此String对象包含的字符串添加到常量池中，并且返回此String对象的引用。在JDK 6或更早之前的HotSpot虚拟机中，常量池都是分配在永久代中，可以通过-XX:PermSize和-XX:MaxPermSize限制永久代的大小，即可间接限制其中常量池的容量，具体实现如代码清单：
+
+> 运行时常量池内存溢出
+
+```java
+package com.turbo.unit;
+
+import java.util.HashSet;
+import java.util.Set;
+
+/**
+ * -XX:PermSize=6m -xx:MaxPermSize=6m  jdk 6 永久代
+ * -Xmx6m jdk 8 java堆
+ */
+public class RuntimeConstantPoolOOM {
+    public static void main(String[] args) {
+        // 使用Set保持着常量池引用，避免Full GC回收常量池行为
+        Set<String> set = new HashSet<String>();
+        // 在short范围内足以让6MB的PermSize产生OOM
+        short i = 0;
+        while (true){
+            set.add(String.valueOf(i++).intern());
+        }
+    }
+}
+
+```
+
+运行结果：
+
+```
+Exception in thread "main" java.lang.OutOfMemoryError: PermGen space at java.lang.String.intern(Native Method)
+at org.fenixsoft.oom.RuntimeConstantPoolOOM.main(RuntimeConstantPoolOOM.java: 18)
+```
+
+从运行结果中可以看出，运行时常量池溢出时，在OutOfMemoryError异常后面跟随的提示信息是"PermGen space"，说明运行时常量池的确属于方法区（即JDK 6 的HorSpot虚拟机中的永久代）的一部分。
+
+而使用JDK 7或更高版本的JDK来运行这段程序并不会得到相同的结果，无论是在JDK 7中继续使用-XX:MaxPermSize参数或者在JDK 8以以上版本使用-XX:MaxMetaspaceSize参数把方法区容量同样限制在6MB，也不会重现JDK 6中的溢出异常，循环将一直进行下去，永不停歇。出现这种变化，是因为自JDK 7起，原本存放在永久代的字符串常量池被移至Java堆中，所以在JDK 7及以上版本，限制方法区的容量对该测试用例来说毫无意义。这时候使用-Xmx参数限制最大堆到6MB就能看到以下两种运行结果之一，具体取决于哪里的对象分配时产生了溢出：
+
+```java
+// OOM异常一
+Exception in thread "main" java.lang.OutOfMemoryError: Java heap space
+	at java.util.HashMap.resize(HashMap.java:703)
+	at java.util.HashMap.putVal(HashMap.java:662)
+	at java.util.HashMap.put(HashMap.java:611)
+	at java.util.HashSet.add(HashSet.java:219)
+	at com.turbo.unit.RuntimeConstantPoolOOM.main(RuntimeConstantPoolOOM.java:17)
+
+// OOM异常二
+// 根据Oracle官方文档，默认情况下，如果java进程花费98%以上的时间执行GC,并且每次只有不到2%的堆被恢复，则JVM抛出此错误
+Exception in thread "main" java.lang.OutOfMemoryError: GC overhead limit exceeded
+	at java.lang.Integer.toString(Integer.java:403)
+	at java.lang.String.valueOf(String.java:3099)
+	at com.turbo.unit.RuntimeConstantPoolOOM.main(RuntimeConstantPoolOOM.java:17)
+```
+
+
+
+> 方法区内存溢出
+
+方法区的其他部分的内容，方法区的主要职责是用于存放类型的相关信息，如类名、访问修饰符、常量池、字段描述、方法描述等。对于这部分区域的测试，基本的思想是运行时产生大量的类去填满方法区，直到溢出为止。虽然直接使用Java SE API也可以动态产生类（如反射时的GeneratedConstructorAccesor和动态代理等），但在本次时眼中操作起来比较麻烦，
+
+**借助CGLIB使得方法区出现内存溢出异常**
+
+```java
+package com.turbo.unit;
+
+import net.sf.cglib.proxy.Enhancer;
+import net.sf.cglib.proxy.MethodInterceptor;
+import net.sf.cglib.proxy.MethodProxy;
+
+import java.lang.reflect.Method;
+
+/**
+ * VM Args: -XX:PermSize=10M -XX:MaxPermSize=10M   jdk 6 永久代
+ *          -XX:MetaspaceSize=10m -XX:MaxMetaspaceSize=10m jdk 8 元空间
+ */
+public class JavaMethodAreaOOM {
+    public static void main(final String[] args) {
+        while (true) {
+            Enhancer enhancer = new Enhancer();
+            enhancer.setSuperclass(OOMObject.class);
+            enhancer.setUseCache(false);
+            enhancer.setCallback(new MethodInterceptor() {
+                public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) throws Throwable {
+                    return methodProxy.invokeSuper(o,args);
+                }
+            });
+            enhancer.create();
+        }
+    }
+    static class OOMObject{
+
+    }
+}
+
+```
+
+
+
+```
+// jdk 8
+Caused by: java.lang.OutOfMemoryError: Metaspace
+	at java.lang.ClassLoader.defineClass1(Native Method)
+	at java.lang.ClassLoader.defineClass(ClassLoader.java:760)
+	... 11 more
+```
+
+
 
 ## 7.4 直接内存溢出
 
+直接内存（Direct Memory）的容量大小可通过-XX:MaxDirectMemorySize参数来指定，如果不指定，则默认与Java堆最大值（由-Xmx指定）一致，越过DirectByteBuffer类直接通过反射获取Unsafe实例进行内存分配（Unsafe类的getUnsafe()方法指定只有引导类加载器才会返回实例，体现了设计者希望只有虚拟机标准类库里面的类才能使用Unsafe的功能，在JDK 10时才将Unsafe的部分功能通过VarHandle开放给外部使用），因为虽然使用DirectByteBuffer分配内存也会抛出内存溢出异常，但它抛出异常时并没有真正向操作系统申请分配内存，而是通过计算得知内存无法分配就会在代码里手动抛出溢出异，真正申请分配内存的方式时Unsafe::allocateMemory()
 
+```java
+package com.turbo.unit;
 
+import sun.misc.Unsafe;
 
+import java.lang.reflect.Field;
 
+/**
+ * VM Args：-Xmx20M -XX:MaxDirectMemorySize=10M
+ */
+public class DirectMemoryOOM {
+    private static final int _1MB = 1024*1024;
 
+    public static void main(String[] args) throws IllegalAccessException {
+        Field unsafeField = Unsafe.class.getDeclaredFields()[0];
+        unsafeField.setAccessible(true);
+        Unsafe unsafe = (Unsafe) unsafeField.get(null);
+        while (true){
+            unsafe.allocateMemory(_1MB);
+        }
+    }
+}
+```
 
+运行结果：
 
+```
+Exception in thread "main" java.lang.OutOfMemoryError
+	at sun.misc.Unsafe.allocateMemory(Native Method)
+	at com.turbo.unit.DirectMemoryOOM.main(DirectMemoryOOM.java:18)
+```
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+由直接内存导致的内存溢出，一个明显的特征是在Heap Dump文件中不会看见有什么明显的异常情况，如果发现内存溢出之后产生的Dump文件很小，而程序中有直接或简介使用了DirectionMemory(典型的间接使用就是NIO)，那就可以考虑重点检查以下直接内存方面的原因了。
