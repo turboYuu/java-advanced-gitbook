@@ -101,7 +101,7 @@ Java语言本身是相对安全的语言（相对于C/C++来说），但是前�
 
 > **2 准备 Preparation**
 
-**准备阶段是正式为变量分配内存并设置其初始值的阶段**，这些变量所使用的内存都将在方法区中分配。关于这点，有两个地方注意一下：
+**准备阶段是正式为变量分配内存并设置其初始值的阶段**，**这些变量所使用的内存都将在方法区中分配**。关于这点，有两个地方注意一下：
 
 - 这时候进行内存分配的仅仅是类变量（被static修饰的变量），而不是实例变量，实例变量将会在对象实例化的时候随着对象一起分配在Java堆中
 - 这个节点赋初始值的变量指的是那些不被final修饰的static变量，比如"public static int value = 123"，value在准备阶段过后是0，而不是123。给value赋值为123的动作将在初始化阶段进行；比如"public static final int value = 123"；就不一样，在准备阶段，虚拟机就会给value赋值为123。
@@ -124,7 +124,7 @@ Java语言本身是相对安全的语言（相对于C/C++来说），但是前�
 
 复制code-snippet 1：
 
-```
+```java
 public class A {
     static int a;
 
@@ -136,7 +136,7 @@ public class A {
 
 code-snippet 2：
 
-```
+```java
 public class B {
     public static void main(String[] args) {
         int a;
@@ -221,9 +221,7 @@ public class B {
      #26 = Utf8               java/lang/Object
    ```
 
-   看到Constant Pool也就是常量池中有22项内容，其中带"Utf8"的就是符号引用。比如#25，它的值是"com/turbo/unit/TestMain"，表示的是这个类的全限定名；又比如#4为i，#5为I，它们是一对的，表示变量时Integer(int)类型的，名字叫做i；#6为d，#7为D也是一样，表示一个Double(double)类型的变量，名字为d；
-
-   #15、#16表示的都是方法的名字。
+   看到Constant Pool也就是常量池中有22项内容，其中带"Utf8"的就是符号引用。比如#25，它的值是"com/turbo/unit/TestMain"，表示的是这个类的全限定名；又比如#4为i，#5为I，它们是一对的，表示变量时Integer(int)类型的，名字叫做i；#6为d，#7为D也是一样，表示一个Double(double)类型的变量，名字为d；#15、#16表示的都是方法的名字。
 
    那其实总而言之，符号引用和上面讲的是一样的，但对于类、变量、方法的描述。符号引用和虚拟机的内存布局是没有关系的，引用的目标未必已经加载到内存中了。
 
@@ -242,11 +240,136 @@ public class B {
 
 类的初始化阶段是类加载过程的最后一个步骤，之前介绍的的几个类加载动作里，除了在加载阶段用户应用程序可以通过自定义类加载器的方式局部参与外，其余动作都完全由Java虚拟机主导控制。直到初始化阶段，Java虚拟机才是真正开始执行类中编写的Java程序代码，将主导权移交给应用程序。
 
-初始化阶段就是执行类构造器方法的过程，并不是程序员在Java代码中直接编写的方法，它是Javac编译器的自动生成物，构造方法是由编译器自动收集类中的所有类变量的赋值动作和静态语句块（static{}块）中的语句合并产生的，编译器收集的顺序是由语句在源文件中出现的顺序决定的，静态语句块中只能访问到定义在静态语句块之前的变量，定义在它之后的变量，在前面的语句块中可以赋值，但是不能访问，如代码清单：
+初始化阶段就是执行类构造器`<clinit>()`方法的过程，`<clinit>()`并不是程序员在Java代码中直接编写的方法，它是Javac编译器的自动生成物，`<clinit>()`方法是由编译器自动收集类中的所有类变量的赋值动作和静态语句块（static{}块）中的语句合并产生的，编译器收集的顺序是由语句在源文件中出现的顺序决定的，静态语句块中只能访问到定义在静态语句块之前的变量，定义在它之后的变量，在前面的语句块中可以赋值，但是不能访问，如代码清单：
 
 ![image-20211014192547750](assest/image-20211014192547750.png)
 
-## 8.4 <font color='orange'>< cint >与< init ></font>
+`<clinit>()`方法与类的构造函数（即在虚拟机视角中的示例构造器`<init>()`方法）不同，它不需要显示地调用父类构造器，Java虚拟机会保证在子类的`<clinit>()`执行前，父类的`<clinit>()`方法已经执行完毕。因此在Java虚拟机中第一个被执行的`<clinit>()`方法的类型肯定是`java.lang.Object`。
+
+由于父类的`<clinit>()`方法先执行，也就意味着父类中定义的静态语句块要优先于子类的变量赋值操作，如下代码，字段B的值将会是2而不是1.方法执行顺序。
+
+```java
+package com.turbo.unit;
+
+public class TestClinit02 {
+    static class Parent{
+        public static int A = 1;
+        static {
+            A = 2;
+        }
+    }
+
+    static class Sub extends Parent{
+        public static int B = A;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(Sub.B);
+    }
+}
+
+```
+
+`<clinit>()`方法对于类或接口来说并不是必须的，如果一个类中没有静态语句块，也没有对变量的赋值操作，那么编译器可以不为这个类生成`<clinit>()`方法。接口中不能使用静态语句块，但仍然有变量初始化的赋值动作，因此接口与类一样都会生成`<clinit>()`方法。
+
+但接口与类不同的是，执行接口的`<clinit>()`方法不需要先执行父接口的`<clinit>()`方法，因为只有当父接口中定义的变量被使用时，父接口才会被初始化。此外，**接口的实现类在初始化时也一样不会执行接口的`<clinit>()`方法**。
+
+Java虚拟机必须保证一个类的`<clinit>()`方法在多线程环境中被正确地加锁同步，如果多个线程同时去初始化一个类，那么只会有其中一个线程去执行这个类的`<clinit>()`方法，其他线程都需要阻塞等待，直到活动线程执行完毕`<clinit>()`方法。如果在一个类的`<clinit>()`方法中有耗时很长的操作，那就可能造成多个进程阻塞，在实际应用中这种阻塞往往是很隐蔽的。
+
+```java
+package com.turbo.unit;
+
+public class TestDeadLoop {
+    static class DeadLoopClass{
+        static {
+            // 如果不加这个if语句，编译将会提示"initializer must be able to complete normally
+           if(true){
+                System.out.println(Thread.currentThread() + "init DeadLoopClass");
+                while (true){
+
+                }
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        Runnable script = new Runnable() {
+            public void run() {
+                System.out.println(Thread.currentThread() + "start");
+                DeadLoopClass dlc = new DeadLoopClass();
+                System.out.println(Thread.currentThread() + "run over");
+            }
+        };
+        Thread thread1 = new Thread(script);
+        Thread thread2 = new Thread(script);
+        thread1.start();
+        thread2.start();
+    }
+}
+```
+
+```
+Thread[Thread-0,5,main]start
+Thread[Thread-0,5,main]init DeadLoopClass
+Thread[Thread-1,5,main]start
+
+....
+```
+
+
+
+## 8.4 <font color='orange'>< clinit >与< init ></font>
+
+<font color='orange'>`<clinit>方法和<init>方法有什么区别？`</font>
+
+主要是为了明白**类的初始化**和**对象的初始化**之间的差别。
+
+```java
+package com.turbo.unit;
+
+public class ParentA {
+    static {
+        System.out.println("1");
+    }
+
+    public ParentA() {
+        System.out.println("2");
+    }
+}
+
+public class SonB extends ParentA {
+    static {
+        System.out.println("a");
+    }
+
+    public SonB() {
+        System.out.println("b");
+    }
+
+    public static void main(String[] args) {
+        ParentA ab = new SonB(); // 1 a 2 b
+        ab = new SonB(); // 2 b
+    }
+}
+
+```
+
+运行结果：
+
+```
+1
+a
+2
+b
+2
+b
+```
+
+其中static字段和static代码块，属于类的，在类的加载的初始化阶段就已经被执行。类信息会被存放在方法区，在同一个类加载器下，这些信息有一份就够了，所以上面的static代码块只会执行一次，它对应的是`<clinit>`方法。
+
+![image-20211015113328389](assest/image-20211015113328389.png)
+
+所以，上面的static代码块只会执行一次，对象的构造方法执行两次。再加上继承关系的先后原则，不难分析出最后结果。
 
 # 9 类加载器
 
