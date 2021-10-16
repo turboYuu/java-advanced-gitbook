@@ -1252,7 +1252,7 @@ allOf的返回值是CompletableFuture<Void>类型，这是因为每个传入的C
 
 anyOf的含义是只要有任意一个CompletableFuture结束，就可以做接下来的事情，而无须项allOf那样，等待所有的CompletableFuture结束。
 
-但由于每个CompletableFuture的返回值都有可能不同，任意一个，意味着无法判断是什么类型，所以anyOf的返回值是CompletableFuture<Object>类型。
+但由于每个CompletableFuture的返回值都有可能不同，任意一个，意味着无法判断是什么类型，所以anyOf的返回值是`CompletableFuture<Object>`类型。
 
 
 
