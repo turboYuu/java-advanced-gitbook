@@ -371,32 +371,625 @@ b
 
 所以，上面的static代码块只会执行一次，对象的构造方法执行两次。再加上继承关系的先后原则，不难分析出最后结果。
 
+结论：
+
+方法`<clinit>`的执行时期：类初始化阶段（该方法只能被JVM调用，专门承担类变量的初始化工作），只执行一次
+
+方法`<init>`的执行期间：对象的初始化阶段
+
 # 9 类加载器
 
 ## 9.1 类加载器的作用
 
+类加载器指的是将类的.class文件中的而简直数据读入内存中，将其放在运行时数据区的方法区内，然后在创建一个java.lang.Class对象，用来封装在方法区内的数据结构。
+
+> 注意：JVM主要在程序第一次主动使用类的时候，才会去加载该类，也就是说，JVM并不是在一开始就把一个程序的所有类都加载到内存中，而是到不得不用的使用才把它加载进来，而且只加载一次。
+
+
+
 ## 9.2 类加载器分类
+
+1. jvm支持两种类型的加载器，分别是**引导类加载器**和**自定义加载器**。
+2. 引导类加载器是由c/c++实现的，自定义加载器是由java实现的。
+3. jvm规范自定义加载器是指派生于抽象类ClassLoader的类加载器。
+4. 按照这样的加载器类型划分，在程序中最常见的类加载器是：引导类加载器BootStrapClassLoader、自定义类加载器（Extension Class Loader，System Class Loader，User-Defined Class Loader）。
+
+
+
+![image-20211015140636975](assest/image-20211015140636975.png)
+
+**上图中的加载器划分为包含关系**而并非继承关系
+
+**启动类加载器**
+
+1. 这个类加载器使用c/c++实现，嵌套在jvm内部。
+2. 它用来加载Java核心类库（JAVA_HOME/jre/lib/rt.jar，resource.jar或sun.boot.class.path路径下的内容），用于提供JVM自身需要的类。
+3. 并不继承自java.lang.ClassLoader，没有父类加载器
+
+**扩展类加载器**
+
+1. Java语言编写，由sun.misc.Lanucher$ExtClassLoader实现。
+2. 从java.ext.dirs系统属性所指定的目录中加载类库，或从JDK的安装目录jre/lib/ext子目录（扩展目录）下加载类库。如果用户创建的JAR放在此目录下，也会自动由扩展类加载器加载；派生于ClassLoader。
+3. 父类加载器为启动类加载器。
+
+**系统类加载器**
+
+1. Java语言编写，由sun.misc.Lanucher$AppClassLoader实现
+2. 该类加载是程序中默认的类加载器，一般来说，Java应用的类都是由他它来完成加载的，它负责加载环境变量classpath或系统属性java.class.path指定路径下的类库：派生于ClassLoader。
+3. 父类加载器为扩展类加载器。
+4. 通过ClassLoader#getSystemClassLoader()方法可以获取到该类加载器。
+
+**用户自定义类加载器**
+
+在日常Java开发中，类加载几乎是由三种加载器配合执行的，在必要时还可以自定义类加载器，来定制类的加载方式。
+
+
+
+```java
+package com.turbo.unit2;
+
+/**
+ * 获取不同的类加载器
+ */
+public class Demo_ClassLoader {
+
+    public static void main(String[] args) {
+        // 1.获取系统类加载器
+        ClassLoader systemClassLoader = ClassLoader.getSystemClassLoader();
+        System.out.println(systemClassLoader); // sun.misc.Launcher$AppClassLoader@14dad5dc
+
+        // 2.获取扩展类加载器（扩展类加载器是系统类加载器的父类）
+        final ClassLoader extClassLoader = systemClassLoader.getParent();
+        System.out.println(extClassLoader); // sun.misc.Launcher$ExtClassLoader@677327b6
+
+        // 3.获取启动类加载器
+        final ClassLoader loaderParent = extClassLoader.getParent();
+        System.out.println(loaderParent); // null
+
+        // 4.获取用户自定义类加载器
+        final ClassLoader classLoader = Demo_ClassLoader.class.getClassLoader();
+        System.out.println(classLoader); // sun.misc.Launcher$AppClassLoader@14dad5dc
+
+        // 5.通过启动类加载器的对象，获取启动类加载器
+        final ClassLoader classLoader2 = String.class.getClassLoader();
+        System.out.println(classLoader2); // null
+    }
+}
+```
+
+
 
 # 10 双亲委派模型
 
 ## 10.1 什么是双亲委派机制
 
+双亲委派模型工作过程是：如果一个类加载器收到类加载的请求，它首先不会自己去尝试加载这个类，而是把这个类请求委派给父类加载器完成。每个类加载器都是如此，只有当父类加载器在自己的所有范围内找不到指定的类时（即`ClassNotFoundException`），子加载器才会尝试自己去加载。
+
+![image-20211015142631008](assest/image-20211015142631008.png)
+
 ## 10.2 为什么需要双亲委派模型
 
+为什么需要双亲委派模型呢？假设没有双亲委派模型，试想一个场景：
+
+> 黑客自定义一个<font color='f28500'>`java.lang.String`</font>类，该`String`类具有系统的`String`类一样的功能，只是在某个函数稍作修改。比如`equals`函数，这个函数经常使用，如果在这个函数中，黑客加入一些"病毒代码"。并且通过自定义类加载器加入到`JVM`中。此时，如果没有双亲委派模型，那么`JVM`就可能误以为黑客自定义的`java.lang.String`类是系统的`String`，导致"病毒代码"被执行。
+
+而有了双亲委派模型，黑客自定义的`java.lang.String`类永远都不会被加载进内存。因为首先是最顶端的类加载器加载系统的`java.lang.String`类，最终自定义类加载器无法加载`java.lang.String`类。
+
+或许会想，我在自定义的类加载器里面强制加载自定义的`java.lang.String`类，不区通过调用父加载器不就好了吗？确实，这样是可行的。但是，在`JVM`中，**判断一个对象是否是某个类型时，如果该对象的实际类型与待比较的类型的类加载器不同，那么会返回false**。
+
+例子：
+
+> `ClassLoader1`、`ClassLoader2`都加载`java.lang.String`类，对应Class1、Class2对象。那么`Class1`对象不属于`ClassLoader2`对象加载的`java.lang.String`类型。
+
+
+
 ## 10.3 如何实现双亲委派模型
+
+双钱委派模型的原理很简单，实现也简单。每次通过先委托父类加载器加载，当父类加载器无法加载时，再自己加载。其实`ClassLoader`类默认的`loadClass`方法已经帮我们写好了。
+
+**几个重要函数**
+
+`loadClass`默认实现如下：
+
+![image-20211015144836159](assest/image-20211015144836159.png)
+
+再看看`loadClass(String name, boolean resolve)`函数：
+
+![image-20211015144947399](assest/image-20211015144947399.png)
+
+![image-20211015145038458](assest/image-20211015145038458.png)
+
+从上面代码可以明显看出，`loadClass(String name, boolean resolve)`函数实现了双亲委派模型！整个大致过程如下：
+
+> 1. 首先，检查一下执行名称的类是否已经加载过，如果加载过，就不需要再加载，直接返回。
+> 2. 如果此类没有加载过，那么，在判断一下是否有父类加载器；如果有父类加载器，则由父加载器（即调用`parent.loadClass(name, false);`）或者调用`bootStrap`类加载器来加载。
+> 3. 如果父类加载器及`bootStrap`类加载器都没有找到执行的类，那么调用当前类加载器的`findClass`方法来完成类加载。
+
+换句话说，如果自定义类加载器，就必须重写`findClass`方法！
+
+`findClass`的默认实现：
+
+![image-20211015145922805](assest/image-20211015145922805.png)
+
+可以看出，抽象类`ClassLoader`的`findClass`函数默认是抛出异常的。而前面我们直到，`loadClass`在父类加载器无法加载类的时候，就会调用我们自定义的类加载器中的`findClass`函数，因此我们必须要在`loadClass`这个函数里面实现将一个指定类名称转换为`Class`对象。
+
+如果是读取一个指定的名称的类为字节数组的话，这就好办。但是如何让将字节数组转为`Class`对象呢？很简单，`Java`提供了`definedClass`方法，通过这个方法，就可以把一个字节数组转为Class对象。
+
+`defineClass`主要的功能是：
+
+> 将一个字节数组转为`Class`对象，这个字节数组是`class`文件读取后最终的字节数组。如，假设`class`文件是加密的，则需要解密后作为形参传入`definedClass`函数。
+
+`defineClass`默认实现：
+
+![image-20211015151233658](assest/image-20211015151233658.png)
 
 # 11 自定义类加载器
 
 ## 11.1 为什么要自定义类加载器
 
+- 隔离加载类
+
+  模块隔离，把类加载到不同的应用程序中。比如：tomcat这类web应用服务器，内部自定义了好几种类加载器，用于隔离web应用服务器上的不同应用程序。
+
+- 修改类加载方式
+
+  除了BootStrap加载器外，其他的加载并非一定要引入。根据实际情况在某个时间点按需进行动态加载。
+
+- 扩展加载源
+
+  比如还可以从数据库、网络 或其他终端上加载。
+
+- 防止源码泄漏
+
+  java代码容易被编译和篡改，可以进行编译加密，类加载需要自定义还原加密字节码。
+
 ## 11.2 自定义函数调用过程
 
+![image-20211015152045018](assest/image-20211015152045018.png)
+
 ## 11.3 自定义类加载器实现
+
+> 实现方式：
+>
+> 所有用户自定义类加载器都应继承ClassLoader类
+>
+> 在自定义ClassLoader的子类时，通常有两种做法：
+>
+> 1. 重写loadClass方法（是实现双亲委派逻辑的地方，修改它会破坏双亲委派机制，不推荐）
+> 2. 重写findClass方法（推荐）
+
+首先，我们定义一个待加载的普通`Java`类：`Test.java`。放在`com.turbo.demo`包下
+
+```java
+package com.turbo.unit2;
+
+public class MyClassLoaderTest {
+
+    public static void main(String[] args) {
+        final MyClassLoader myClassLoader = new MyClassLoader("d:/");
+        try {
+            final Class<?> clazz = myClassLoader.loadClass("TestMain");
+            System.out.println("TestMain字节码是由"+clazz.getClassLoader().getClass().getName()+ "加载的");
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+加下来就是自定义的类加载器：
+
+```java
+package com.turbo.unit2;
+
+import java.io.*;
+
+public class MyClassLoader extends ClassLoader {
+
+    // 1.定义字节码文件的路径
+    private String codePath;
+
+    // 2.定义构造方法
+    public MyClassLoader(ClassLoader classLoader, String codePath) {
+        super(classLoader);
+        this.codePath = codePath;
+    }
+
+    public MyClassLoader(String codePath) {
+        this.codePath = codePath;
+    }
+
+    /**
+     *
+     *
+     * @param name
+     * @return
+     * @throws ClassNotFoundException
+     */
+    @Override
+    protected Class<?> findClass(String name) throws ClassNotFoundException {
+        // 声明输入流
+        BufferedInputStream bis = null;
+        // 声明输出流
+        ByteArrayOutputStream baos = null;
+        try {
+            // 字节码路径
+            String file = codePath + name+".class";
+            // 初始化输入流
+            bis = new BufferedInputStream(new FileInputStream(file));
+            // 初始化输出流
+            baos = new ByteArrayOutputStream();
+            // io读写操作
+            int len;
+            byte[] data = new byte[1024];
+            while ((len = bis.read(data)) != -1){
+               baos.write(data,0,len);
+            }
+            // 获取内存中的字节数组
+            final byte[] bytes = baos.toByteArray();
+            // 调用definedClass将字节数组转成class实例
+            final Class<?> clazz = defineClass(null, bytes, 0, bytes.length);
+            //返回class对象
+            return clazz;
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                bis.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            try {
+                baos.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        return null;
+    }
+}
+```
+
+最后运行结果如下：
+
+```
+TestMain字节码是由com.turbo.unit2.MyClassLoader加载的
+```
+
+
 
 # 12 ClassLoader源码剖析
 
 ## 12.1 类的关系图
 
+![image-20211015194718256](assest/image-20211015194718256.png)
+
+关系类图如下：
+
+![image-20211016144349002](assest/image-20211016144349002.png)
+
+
+
 ## 12.2 Launcher核心类的源码剖析
 
+![image-20211016153355046](assest/image-20211016153355046.png)
+
+先从启动类说起，有一个Launcher类 sun.misc.Launcher；
+
+```java
+public class Launcher {
+    private static URLStreamHandlerFactory factory = new Factory();
+    // 静态变量，初始化，会执行构造方法
+    private static Launcher launcher = new Launcher();
+    private static String bootClassPath = System.getProperty("sun.boot.class.path");
+
+    public static Launcher getLauncher() {
+        return launcher;
+    }
+    
+    // 构造方法执行
+    public Launcher() {
+        Launcher.ExtClassLoader var1;
+        try {
+            // 初始化扩展类加载器
+            var1 = Launcher.ExtClassLoader.getExtClassLoader();
+        } catch (IOException var10) {
+            throw new InternalError("Could not create extension class loader", var10);
+        }
+
+        try {
+            // 初始化应用类加载器
+            this.loader = Launcher.AppClassLoader.getAppClassLoader(var1);
+        } catch (IOException var9) {
+            throw new InternalError("Could not create application class loader", var9);
+        }
+		// 设置ContextClassLoader，设置为扩展类加载器
+        Thread.currentThread().setContextClassLoader(this.loader);
+        String var2 = System.getProperty("java.security.manager");
+        if (var2 != null) {
+            SecurityManager var3 = null;
+            if (!"".equals(var2) && !"default".equals(var2)) {
+                try {
+                    var3 = (SecurityManager)this.loader.loadClass(var2).newInstance();
+                } catch (IllegalAccessException var5) {
+                } catch (InstantiationException var6) {
+                } catch (ClassNotFoundException var7) {
+                } catch (ClassCastException var8) {
+                }
+            } else {
+                var3 = new SecurityManager();
+            }
+
+            if (var3 == null) {
+                throw new InternalError("Could not create SecurityManager: " + var2);
+            }
+            System.setSecurityManager(var3);
+        }
+    }
+}    
+```
+
+构造方法中Launcher()做了四件事
+
+- 创建扩展类加载器
+- 创建应用程序类加载器
+- 设置ContextClassLoader
+- 如果需要安装安全管理器 Security Manager
+
+其中launcher是static的，所以初始化的时候就会创建对象，也就是触发了构造方法，所以初始化的时候机会执行上面4个步骤
+
+看下ExtClassLoader的创建中的关键几步
+
+```java
+static class ExtClassLoader extends URLClassLoader {
+        public static Launcher.ExtClassLoader getExtClassLoader() throws IOException {
+            final File[] var0 = getExtDirs();
+
+            try {
+                return (Launcher.ExtClassLoader)AccessController.doPrivileged(new PrivilegedExceptionAction<Launcher.ExtClassLoader>() {
+                    public Launcher.ExtClassLoader run() throws IOException {
+                        int var1 = var0.length;
+
+                        for(int var2 = 0; var2 < var1; ++var2) {
+                            MetaIndex.registerDirectory(var0[var2]);
+                        }
+
+                        return new Launcher.ExtClassLoader(var0);
+                    }
+                });
+            } catch (PrivilegedActionException var2) {
+                throw (IOException)var2.getException();
+            }
+        }
+
+        void addExtURL(URL var1) {
+            super.addURL(var1);
+        }
+
+        public ExtClassLoader(File[] var1) throws IOException {
+            super(getExtURLs(var1), (ClassLoader)null, Launcher.factory);
+            SharedSecrets.getJavaNetAccess().getURLClassPath(this).initLookupCache(this);
+        }
+
+        private static File[] getExtDirs() {
+            String var0 = System.getProperty("java.ext.dirs");
+            File[] var1;
+            if (var0 != null) {
+                StringTokenizer var2 = new StringTokenizer(var0, File.pathSeparator);
+                int var3 = var2.countTokens();
+                var1 = new File[var3];
+
+                for(int var4 = 0; var4 < var3; ++var4) {
+                    var1[var4] = new File(var2.nextToken());
+                }
+            } else {
+                var1 = new File[0];
+            }
+
+            return var1;
+        }
+
+        private static URL[] getExtURLs(File[] var0) throws IOException {
+            Vector var1 = new Vector();
+
+            for(int var2 = 0; var2 < var0.length; ++var2) {
+                String[] var3 = var0[var2].list();
+                if (var3 != null) {
+                    for(int var4 = 0; var4 < var3.length; ++var4) {
+                        if (!var3[var4].equals("meta-index")) {
+                            File var5 = new File(var0[var2], var3[var4]);
+                            var1.add(Launcher.getFileURL(var5));
+                        }
+                    }
+                }
+            }
+
+            URL[] var6 = new URL[var1.size()];
+            var1.copyInto(var6);
+            return var6;
+        }
+
+        public String findLibrary(String var1) {
+            var1 = System.mapLibraryName(var1);
+            URL[] var2 = super.getURLs();
+            File var3 = null;
+
+            for(int var4 = 0; var4 < var2.length; ++var4) {
+                File var5 = (new File(var2[var4].getPath())).getParentFile();
+                if (var5 != null && !var5.equals(var3)) {
+                    String var6 = VM.getSavedProperty("os.arch");
+                    File var7;
+                    if (var6 != null) {
+                        var7 = new File(new File(var5, var6), var1);
+                        if (var7.exists()) {
+                            return var7.getAbsolutePath();
+                        }
+                    }
+
+                    var7 = new File(var5, var1);
+                    if (var7.exists()) {
+                        return var7.getAbsolutePath();
+                    }
+                }
+
+                var3 = var5;
+            }
+
+            return null;
+        }
+
+        private static AccessControlContext getContext(File[] var0) throws IOException {
+            PathPermissions var1 = new PathPermissions(var0);
+            ProtectionDomain var2 = new ProtectionDomain(new CodeSource(var1.getCodeBase(), (Certificate[])null), var1);
+            AccessControlContext var3 = new AccessControlContext(new ProtectionDomain[]{var2});
+            return var3;
+        }
+
+        static {
+            ClassLoader.registerAsParallelCapable();
+        }
+    }
+```
+
+关键的几步：
+
+```
+extcl = ExtClassLoader.getExtClassLoader();
+
+final File[] dirs = getExtDirs();
+
+String s = System.getProperty("java.ext.dirs");
+```
+
+
+
+也看下AppClassLoader的创建中关键几步
+
+```java
+/**
+* var1 类全名
+* var2 是否连接该类
+*/
+public Class<?> loadClass(String var1, boolean var2) throws ClassNotFoundException {
+            int var3 = var1.lastIndexOf(46);
+            if (var3 != -1) {
+                SecurityManager var4 = System.getSecurityManager();
+                if (var4 != null) {
+                    var4.checkPackageAccess(var1.substring(0, var3));
+                }
+            }
+
+            if (this.ucp.knownToNotExist(var1)) { // 一般都是false,想要返回true可能需要设置启动参数lookupCacheEnabled为true。为true时，具体的逻辑也即是C ++写的，所以做了什么不大清除
+                Class var5 = this.findLoadedClass(var1); // 如果这个类已经被这个类加载器加载，则返回这个类，否则返回Null
+                if (var5 != null) {
+                    if (var2) {
+                        this.resolveClass(var5); // 如该类没有link（连接），则连接，否则什么都不做
+                    }
+
+                    return var5;
+                } else {
+                    throw new ClassNotFoundException(var1);
+                }
+            } else {
+                return super.loadClass(var1, var2);
+            }
+        }
+```
+
+关键的几个步骤：
+
+```
+this.loader = Launcher.AppClassLoader.getAppClassLoader(var1);
+
+final String var1 = System.getProperty("java.class.path");
+```
+
+Launcher类中的静态变量
+
+```
+private static String bootClassPath = System.getProperty("sun.boot.class.path");
+```
+
 ## 12.3 ClassLoader源码剖析
+
+ClassLoader类是一个抽象类，齐后所有的类加载器都继承自ClassLoader（不包括启动类加载器），这里主要介绍ClassLoader中几个比较中法的方法。
+
+![image-20211016160300436](assest/image-20211016160300436.png)
+
+- loadClass(String)
+
+  该方法加载指定名称（包括包名）的二进制类型，该方法在JDK1.2之后不再建议用户重写，但用户可以直接调用该方法，loadClass()方法是ClassLoader类自己实现的，该方法中的逻辑就是双亲委派模式的实现，奇冤吗如下，loadClass(String name, boolean resolve)是一个重载方法，resolve参数代表是否生成class对象的同时进行解析相关操作：
+
+  ```java
+  protected Class<?> loadClass(String name, boolean resolve)
+          throws ClassNotFoundException
+      {
+          synchronized (getClassLoadingLock(name)) {
+              // 先从缓存查找该class对象，找到就不重新加载
+              Class<?> c = findLoadedClass(name);
+              if (c == null) {
+                  long t0 = System.nanoTime();
+                  try {
+                      if (parent != null) {
+                          // 如果找不到，则委托父类加载器加载
+                          c = parent.loadClass(name, false);
+                      } else {
+                          // 没有父类，则委托启动类加载器加载
+                          c = findBootstrapClassOrNull(name);
+                      }
+                  } catch (ClassNotFoundException e) {
+                      // ClassNotFoundException thrown if class not found
+                      // from the non-null parent class loader
+                  }
+  
+                  if (c == null) {
+                      // If still not found, then invoke findClass in order
+                      // 如果没有找到，则通过自定义实现的findClass去查找并加载
+                      c = findClass(name);
+  
+                      // this is the defining class loader; record the stats
+                      sun.misc.PerfCounter.getParentDelegationTime().addTime(t1 - t0);
+                      sun.misc.PerfCounter.getFindClassTime().addElapsedTimeFrom(t1);
+                      sun.misc.PerfCounter.getFindClasses().increment();
+                  }
+              }
+              if (resolve) { // 是否需要在加载时进行解析
+                  resolveCrelass(c);
+              }
+              return c;
+          }
+      }
+  ```
+
+  使用指定的而进行名称来加载类，这个方法默认实现按照以下顺序查找类：
+
+  调用findLoadedClass(String)方法检查这个类是否被加载过，没有加载过，使用父类加载器调用loadClass(String)方法，如果父类为Null，类加载器装在虚拟内置的加载器调用findClass(String)方法装载类，如果，按照以上的步骤成功的找到对应的类，并且该方法接收的resolve参数的值为true，那么就调用resolveCrelass(Class)方法来处理类。ClassLoader的子类最好覆盖findClass(String)而不是loadClass方法。除非被重写，这个方法默认在整个装在过程中都是同步的（线程安全的）。
+
+- findClass(String)
+
+- defineClass(String name, byte[] b, int off, int len)
+
+- resolveClass(Class<?> c)
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
