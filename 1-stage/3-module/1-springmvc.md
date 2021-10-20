@@ -10,6 +10,28 @@ SpringMVC源码分析 通用数据操作接口设计
 
 ## 1.2 Spring Web MVC工作流程
 
+### 1.2.1 Spring MVC请求处理流程
+
+![image-20211020161449233](assest/image-20211020161449233.png)
+
+流程说明：
+
+1. 用户发送请求至控制器DispatcherServlet
+2. DispatcherServlet收到请求调用HandlerMapping处理器映射器
+3. 处理器映射器根据请求Url找到具体的Handler（后端控制器），生成处理器对象及处理器拦截器（如果 则生成）一并返回DispatcherServlet
+4. DispatcherServlet调用HandlerAdapter处理器适配器去调用Handler
+5. 处理器适配器执行Handler
+6. Handler执行完成给处理器适配器返回ModelAndView
+7. 处理器适配器像前端返回ModelAndView，ModelAndView是SpringMVC框架的一个底层对象，包括Model和View
+8. 前端控制器请求视图解析器去进行视图解析，根据逻辑视图名来解析真正的视图。
+9. 视图解析器向前端控制器返回View
+10. 前端控制器进行视图渲染，就是将模型数据（在ModelAndView对象中）填充到request域
+11. 前端控制器向用户响应结果
+
+### 1.2.2 Spring MVC九大组件
+
+
+
 ## 1.3 请求参数绑定
 
 ## 1.4 对Restful风格请求支持
@@ -20,9 +42,15 @@ SpringMVC源码分析 通用数据操作接口设计
 
 ## 2.1 拦截器（Inteceptor）使用
 
+### 2.1.1 监听器、过滤器和拦截器对比
+
+
+
 ## 2.2 处理multipart形式的数据
 
 ## 2.3 在控制器中处理异常
+
+@ControllerAdvice
 
 ## 2.4 基于Flash属性的跨重定向请求数据传递
 
