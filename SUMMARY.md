@@ -63,7 +63,7 @@
         * [第二部分 Redis扩展功能](5-stage/1-module/2-redis-extensions.md)
         * [第三部分 Redis核心原理](5-stage/1-module/3-redis-Core-Principle.md)
         * [第四部分 Redis企业实战](5-stage/1-module/4-redis-Enterprise-combat.md)
-        * [第五部分 Redis高可用方案](5-stage/1-module/4-redis-HA.md)
+        * [第五部分 Redis高可用方案](5-stage/1-module/5-redis-HA.md)
         * [Redis 官方 cluster分区](5-stage/1-module/2-redis-cluster.md)
 * [第六阶段 分布式消息服务中间件进阶](6-stage/README.md)
     * [模块一 开源消息中间件RabbitMQ](6-stage/1-module/README.md)
