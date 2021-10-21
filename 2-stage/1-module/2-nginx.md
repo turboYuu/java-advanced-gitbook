@@ -4,6 +4,18 @@
 
 # 2 Nginx核心配置文件解读
 
+Nginx的核心配置文件 conf/nginx.conf，包含三块内容：全局块、event块、http块
+
+> 全局块
+
+
+
+> event块
+
+
+
+> http块
+
 # 3 Nginx应用场景之反向代理
 
 # 4 Nginx应用场景之负载均衡
