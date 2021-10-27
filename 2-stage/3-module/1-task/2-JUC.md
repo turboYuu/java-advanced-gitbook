@@ -3374,7 +3374,7 @@ public ReentrantLock(boolean fair) {
 
 Sync的父类AbstractQueuedSynchronizer经常被称作**队列同步器**（**AQS**），这个类非常**重要**，该类的父类是AbstractOwnableSynchronizer。
 
-此处的锁具备synchronized功能，即可以阻塞一个线程。为了实现一把具有阻塞或唤醒功能的锁，组要几个核心要素：
+此处的锁具备synchronized功能，即可以阻塞一个线程。为了实现一把具有阻塞或唤醒功能的锁，需要几个核心要素：
 
 1. 需要一个**state**变量，标记该锁的状态。state变量至少有两个值：0、1。对state变量的操作，使用CAS保证线程安全。
 2. 需要记录当前是哪个线程持有锁。
@@ -3471,7 +3471,7 @@ public abstract class AbstractQueuedSynchronizer {    
 
 先说addWaiter(...)方法，就是为当前线程生成一个Node，然后把Node放入双向链表的尾部。要注意的时，这只是把Thread对象放入了一个队列中而已，线程本身并未阻塞。
 
-![image-20211002122101906](assest/image-20211002122101906.png)
+![image-20211002122101906](assest/image-20211002122101906.png)F
 
 创建节点，尝试将节点追加到队列尾部。获取tail节点，将tail节点的next设置为当前节点。如果tail不存在，就初始化队列。
 
