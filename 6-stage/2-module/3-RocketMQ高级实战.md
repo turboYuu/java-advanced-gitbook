@@ -426,7 +426,38 @@ org.apache.rocketmq.common.MixAll中：
 
 ## 5.2 客户端的公共配置
 
+| 参数名                        | 默认值  | 说明                                                         |
+| ----------------------------- | ------- | ------------------------------------------------------------ |
+| namesrvAddr                   |         | Name Server地址列表，多个Name Server地址用分号隔开           |
+| clientIP                      | 本机IP  | 客户端本机IP地址，某些机器会发生无法识别客户端IP地址情况，<br>需要应用在代码中强制指定 |
+| instanceName                  | DEFAULT | 客户端实例名称，客户端创建的多个Producer、Consumer，<br>实际是使用一个内部实例（这个实例包括网络连接、线程资源等） |
+| ClientCallbackExecutorThreads | 4       | 通信层异步回调线程数                                         |
+| pollNameServerInterval        | 30000   | 轮询Name Server间隔时间，单位毫秒                            |
+| heartbeatBrokerInterval       | 30000   | 向Broker发送心跳间隔时间，单位毫秒                           |
+| persistConsumerOffsetInterval |         | 持久化Consumer消费者进度间隔时间，单位毫秒                   |
+
+
+
 ## 5.3 Producer配置
+
+| 参数名                           | 默认值           | 说明                                                         |
+| -------------------------------- | ---------------- | ------------------------------------------------------------ |
+| producerGroup                    | DEFAULT_PRODUCER | Producer组名，多个Producer如果属于一个应用，发送同样的消息，则应该将它们归为同一组 |
+| createTopicKey                   | TBW102           | 在发送消息时，自动创建服务器不存在的topic，需要指定Key，该Key可用于配置发送消息所在的topic的默认路由 |
+| defaultTopicQueueNums            | 4                | 在发送消息，自动创建服务器不存在的topic时，默认创建的队列数  |
+| sendMsgTimeout                   | 10000            | 发送消息超时时间，单位毫秒                                   |
+| compressMsgBodyOverHowmuch       | 4096             | 消息Body超过多大开始压缩（Consumer收到消息会自动解压缩），单位字节 |
+| retryAnotherBrokerWhenNotStoreOK | FALSE            | 如果发送消息返回sendResult，但是sendStatus!=SEND_OK，是否重试发送 |
+| retryTimesWhenSendFailed         | 2                | 设置同步发送重试的次数                                       |
+| retryTimesWhenSendAsyncFailed    | 2                | 设置异步发送的重试次数                                       |
+| maxMessageSize                   | 4MB              | 客户端限制的消息大小，超过报错，同时服务端也会限制，所以需要跟服务端配合使用。 |
+| TransactionListener              |                  | 事务消息回查监听器，如果发送事务消息，必须设置               |
+|                                  |                  |                                                              |
+|                                  |                  |                                                              |
+|                                  |                  |                                                              |
+|                                  |                  |                                                              |
+
+
 
 ## 5.4 PushConsumer配置
 

@@ -1,6 +1,16 @@
 第一部分 RocketMQ架构与实战
 
+RocketMQ是阿里巴巴中间件团队自研的一款高性能、高吞吐量、低延迟、高可用、高可靠（具备金融级未定性）的分布式消息中间件。开源后并于2016年捐给Apache社区孵化，目前已经成为了Apache顶级项目。当前在国内外被广泛使用，包括互联网、电商、金融、企业服务领域。
+
+https://github.com/apache/rocketmq
+
 # 1 RocketMQ的前世今生
+
+RocketMQ在阿里内部叫做Metaq（最早名为Metamorphosis，中文意思”变形记“，作家卡夫卡的中篇小说代表作，客家是为了致敬Kafka）。
+
+RocketMQ是Metaq 3.0之后的开源版本。
+
+Metaq在阿里巴巴集团内部、蚂蚁金服、菜鸟等各业务中被广泛使用，接入了上万个应用系统中。
 
 ![image-20210910182151286](assest/image-20210910182151286.png)
 
@@ -24,7 +34,7 @@ RocketMQ的角色介绍
 ![image-20210916103132231](assest/image-20210916103132231.png)
 
 - NameServer是一个几乎无状态节点，可集群部署，节点之间无任何信息同步。
-- Broker部署相对复杂，Broker分为Master与Slave，一个Master可以对应多个Slave，但是一个Slave只能对应一个Master，Master与Slave的对应关系通过指定<span style='background-color:yellow'>**相同的BrokerName**</span>，<span style='background-color:yellow'>**不同的BrokerId**</span>来定义，BrokerId为0表示Master，非0表示Slave。Master也可以部署多个。每个Broker与NameServer集群中的所有节点建立长连接，定时注册Topic信息到所有NameServer。注意：当前RocketMQ版本在部署架构上支持1Master多Slave，但是只有BrokerId=1的从服务器才会参与消息的读负载。
+- Broker部署相对复杂，Broker分为Master与Slave，一个Master可以对应多个Slave，但是一个Slave只能对应一个Master，Master与Slave的对应关系通过指定<span style='background-color:yellow'>**相同的BrokerName**</span>，<span style='background-color:yellow'>**不同的BrokerId**</span>来定义，BrokerId为0表示Master，非0表示Slave。Master也可以部署多个。每个Broker与NameServer集群中的所有节点建立长连接，定时注册Topic信息到所有NameServer。注意：当前RocketMQ版本在部署架构上支持1Master多Slave，但是**只有BrokerId=1的从服务器才会参与消息的读负载**。
 - Producer与NameServer集群中的其中一个节点（随机选择）建立长连接，定期从NameServer获取Topic路由信息，并向提供Topic服务的Master建立长连接，且定时向Master发送心跳。Producer完全无状态，可集群部署。
 - Consumer与NameServer集群中的其中一个节点（随机选择）建立长连接，定期从NameServer获取Topic路由信息，并向提供Topic服务的Master、Slave建立长连接，且定时向Master、Slave发送心跳。Consumer既可以从Master订阅消息，也可以从Slave订阅消息，消费者在向Master拉取消息时，Master服务器会根据拉取偏移量与最大偏移量的距离（判断是否读老消息，产生读I/O），以及从服务器是否可读等因素建议下一次是从Master还是Slave拉取。
 
