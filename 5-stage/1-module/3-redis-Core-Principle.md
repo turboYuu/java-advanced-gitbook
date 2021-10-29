@@ -706,6 +706,43 @@ typedef struct dictht {
 
 > Hash表节点
 
+```c
+typedef struct dictEntry {
+	void *key;                  // 键
+	union {                     // 值v的类型可以是以下4种类型        
+		void *val;
+       	uint64_t u64;        
+        int64_t s64;        
+        double d;
+   } v;
+   struct dictEntry *next;     // 指向下一个哈希表节点，形成单向链表     解决hash冲突 
+} dictEntry;
+```
+
+key字段存储的是键值对中的键
+
+v字段是个联合体，存储的是键值对中的值。
+
+next指向下一个哈希表节点，用于解决hash冲突
+
+![image-20211029192041586](assest/image-20211029192041586.png)
+
+> dict字典
+
+```c
+typedef struct dict {
+	dictType *type;		// 该字典对应的特定操作函数    
+	void *privdata;     // 上述类型函数对应的可选参数
+	dictht ht[2];       /* 两张哈希表，存储键值对数据，ht[0]为原生 哈希表，
+							ht[1]为rehash 哈希表     */
+   	long rehashidx;		/*rehash标识     当等于-1时表示没有在 rehash，
+						否则表示正在进行rehash操作，存储的值表示hash表
+                        ht[0]的rehash进行到哪个索引值			
+						(数组下标)*/
+   int iterators;		// 当前运行的迭代器数量 
+} dict;
+```
+
 
 
 #### 11.2.2.4 压缩列表
