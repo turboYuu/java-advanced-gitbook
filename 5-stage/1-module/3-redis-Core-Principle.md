@@ -457,7 +457,7 @@ typedef struct redisObject {
 }robj;
 ```
 
-> **4位type**
+#### 11.2.1.1 4位type
 
 type字段表示对象的类型，占4位；
 
@@ -470,7 +470,7 @@ REDIS_STRING(字符串)、REDIS_LIST(列表)、REDIS_HASH(哈希)、REDIS_SET(�
 string
 ```
 
-> **4位encoding**
+#### 11.2.1.2 4位encoding
 
 encoding表示对象的内部编码，占4位，
 
@@ -485,7 +485,7 @@ Redis可以根据不同的使用场景来为对象设置不同的编码，大大
 "int"
 ```
 
-> **24 位LRU**
+#### 11.2.1.3 24 位LRU
 
 LRU（Least Recently Used）记录的是最后一次被命令程序访问的时间，（4.0版本占24位，2.6版本占22位）。
 
@@ -497,7 +497,7 @@ lfu ---> 低8位：最近访问次数
 
 
 
-> **refcount**
+#### 11.2.1.4 refcount
 
 refcount记录的是该对象被引用的次数，类型为整形。
 
@@ -507,7 +507,7 @@ refcount的作用，主要在于对象的引用计数和内存回收。
 
 Redis为了节省内存，当有一些对象重复出现时，新的程序不会创建新的对象，而是仍然使用原来的对象。
 
-> **ptr**
+#### 11.2.1.5 ptr
 
 ptr指针指向具体的数据，比如：set hello world，ptr指向包含字符串world的SDS。
 
@@ -548,7 +548,7 @@ SDS的主要应用在：存储字符串和整型数据、存储key、AOF缓冲�
 
 
 
-#### 11.2.2.2 跳跃表
+#### 11.2.2.2 跳跃表（重点）
 
 跳跃表是有序集合（sorted-set）的底层实现，效率高，实现简单。
 
@@ -686,7 +686,7 @@ RedisServer: siphash(hash算法)
 
 > Redis字典的实现
 
-Redis字典实现包括：字典（dict）、Hash表（dicht）、Hash表节点（dicEntry）。
+Redis字典实现包括：字典（dict）、Hash表（dictht）、Hash表节点（dicEntry）。
 
 ![image-20211029190713888](assest/image-20211029190713888.png)
 
@@ -802,7 +802,7 @@ Redis字典除了主数据库的K-V数据存储以外，还可以用于：散列
 
 
 
-> 压缩列表
+#### 11.2.2.4 压缩列表
 
 压缩列表（ziplist）是由一系列特殊编码的连续内存块组成的顺序型数据结构
 
@@ -814,33 +814,713 @@ Redis字典除了主数据库的K-V数据存储以外，还可以用于：散列
 
 ![image-20211030112545264](assest/image-20211030112545264.png)
 
+- zlbytes：压缩列表的字节长度
+
+- zltail：压缩列表尾元素相对于压缩列表起始地址的偏移量
+
+- zllen：压缩列表的元素个数
+
+- entry1..entryX：压缩列表的各个节点
+
+- zlend：压缩列表的结尾，占一个字节，恒为0xFF（255）
 
 
 
+entryX元素的编码结构：
+
+![image-20211030132834641](assest/image-20211030132834641.png)
+
+- previous_entry_length：前一个元素的字节长度
+- encoding：表示当前元素的编码
+- content：数据内容
 
 
 
-#### 11.2.2.4 压缩列表
+压缩列表（ziplist）结构体如下：
+
+```c
+struct ziplist<T>{
+    unsigned int zlbytes;		// ziplist的长度字节数，包含头部、所有entry和zipend。
+    unsigned int zloffset;		// 从ziplist的头指针到指向最后一个entry的偏移量，用于快速反 向查询
+    unsigned short int zllength; // entry元素个数    
+    T[] entry;              	// 元素值
+    unsigned char zlend;   		// ziplist结束符，值固定为0xFF 
+}
+typedef struct zlentry {
+    unsigned int prevrawlensize;  //previous_entry_length字段的长度
+    unsigned int prevrawlen;      //previous_entry_length字段存储的内容
+    unsigned int lensize;         //encoding字段的长度                            
+    unsigned int len;             //数据内容长度
+    
+    //当前元素的首部长度，即previous_entry_length字段长度与encoding字段长度之和。
+    unsigned int headersize;
+    
+    unsigned char encoding;     //数据类型
+
+    unsigned char *p;           //当前元素首地址 
+} zlentry;
+```
+
+应用场景：
+
+sorted-set和hash元素个数少且是小整数或短字符（直接使用）
+
+list用快速链表（quicklist）数据结构存储，而快速链表是双向列表与压缩列表的组合。（间接使用）
+
+
 
 #### 11.2.2.5 整数集合
 
+整数集合（intset）是一个有序的（整数升序）、存储整数的连续存储结构。
+
+当Redis集合类型的元素都是整数并且都处在64位有符号整数范围内（2^64），使用该结构体存储。
+
+```shell
+127.0.0.1:6379> sadd set:001 1 3 5 7 9
+(integer) 5
+127.0.0.1:6379> object encoding set:001
+"intset"
+127.0.0.1:6379> sadd set:004 1 10000000000000000000000000000 9999999999
+(integer) 3
+127.0.0.1:6379> object encoding set:004
+"hashtable"
+127.0.0.1:6379> type set:001
+set
+127.0.0.1:6379> type set:004
+set
+```
+
+intset的结构图如下：
+
+![image-20211030135643211](assest/image-20211030135643211.png)
+
+```c
+typedef struct intset{     
+    //编码方式
+    uint32_t encoding;     
+    //集合包含的元素数量     
+    uint32_t length;     
+    //保存元素的数组
+    int8_t contents[]; 
+}intset;
+```
+
+应用场景：
+
+可以保存类型为 int16_t、int32_t或者int64_t的整数值，并且保证集合中不会出现重复元素。
+
 #### 11.2.2.6 快速列表（重要）
+
+快速列表（quicklist）是Redis底层最重要的数据结构。是列表的底层实现。【在Redis3.2之前，Redis采用双向链表（adlist）和压缩列表（ziplist）实现】。在Redis3.2以后结合adlist和ziplist的优势Redis设计出了quicklist。
+
+```shell
+127.0.0.1:6379> lpush list:001 1 2 3 5 4
+(integer) 5
+127.0.0.1:6379> object encoding list:001
+"quicklist"
+127.0.0.1:6379> type list:001
+list
+```
+
+> 双向链表（adlist）
+
+![image-20211030141138289](assest/image-20211030141138289.png)
+
+双向链表优势：
+
+1. 双向：链表具有前置节点和后置节点的引用，获取这两个节点的时间复杂度都为O(1)。
+
+   *普通链表（单链表）：节点类保留下一节点的引用。链表类只保留头节点的引用，只能从头节点插入删除*
+
+2. 无环：表头节点的prev指针和表尾节点的next指针都指向NULL，对链表的访问都是以NULL结束。
+
+   *环状：头的前一个节点指向尾节点*
+
+3. 带链表长度计数器：通过len属性获取链表长度的时间复杂度为O(1)。
+
+4. 多态：链表节点使用void*指针来保存节点值，可以保存各种不同类型的值。
+
+
+
+> 快速列表
+
+quicklist是一个双向链表，链表中的每个节点是一个ziplist结构。quicklist中的每个节点ziplist都能够存储多个数据元素。
+
+![image-20211030142434095](assest/image-20211030142434095.png)
+
+quicklist的结构定义如下：
+
+```c
+typedef struct quicklist {
+    quicklistNode *head;        // 指向quicklist的头部
+    quicklistNode *tail;        // 指向quicklist的尾部
+    unsigned long count;        // 列表中所有数据项的个数总和
+    unsigned int len;           // quicklist节点的个数，即ziplist的个数
+    int fill : 16;              // ziplist大小限定，由list-max-ziplist-size给定 (Redis设定)
+    unsigned int compress : 16; // 节点压缩深度设置，由list-compress-depth给定 (Redis设定)
+} quicklist;
+```
+
+quicklistNode的结构定义如下：
+
+```c
+typedef struct quicklistNode {
+    struct quicklistNode *prev;  // 指向上一个ziplist节点    
+    struct quicklistNode *next;  // 指向下一个ziplist节点
+    unsigned char *zl;           // 数据指针，如果没有被压缩，就指向ziplist结构，反之指向quicklistLZF结构
+    
+    unsigned int sz;             // 表示指向ziplist结构的总长度(内存占用长度)
+    unsigned int count : 16;     // 表示ziplist中的数据项个数
+    unsigned int encoding : 2;   // 编码方式，1--ziplist，2--quicklistLZF
+    unsigned int container : 2;  // 预留字段，存放数据的方式，1--NONE，2--ziplist
+    
+    // 解压标记，当查看一个被压缩的数据时，需要暂时解压，标 记此参数为1，之后再重新进行压缩
+    unsigned int recompress : 1; 
+    unsigned int attempted_compress : 1; // 测试相关    
+    unsigned int extra : 10; // 扩展字段，暂时没用 
+} quicklistNode;
+```
+
+> 数据压缩
+
+quicklist每个节点的时机数据存储结构为ziplist，这种结构的优势在于节省存储空间。为了进一步降低ziplist的存储空间，还可以对ziplist进行压缩。Redis采用的压缩算法是LZF。其基本思想是：数据与前面重复的记录  重复位置及长度，不重复的记录原始数据。
+
+压缩后的数据可以分成多个片段，每个片段有两个部分：解释字段和数据字段。quicklistLZF的结构体如下：
+
+```c
+typedef struct quicklistLZF {
+    unsigned int sz; // LZF压缩后占用的字节数   
+    char compressed[]; // 柔性数组，指向数据部分 
+} quicklistLZF;
+```
+
+应用场景：
+
+列表（list）的底层实现、发布与订阅、慢查询、监视器等功能。
 
 #### 11.2.2.7 流对象
 
+stream主要由：消息、生产者、消费者和消费组 构成
+
+![image-20211030144429235](assest/image-20211030144429235.png)
+
+Redis stream的底层主要使用了listpack（紧凑列表）和Rax（基数树）。
+
+> listpack
+
+listpack表示一个字符串列表的序列化，listpack可用于存储字符串或整数。用于存储stream的消息内容。
+
+结构如下图：
+
+![image-20211030144701476](assest/image-20211030144701476.png)
+
+> Rax树
+
+Rax是一个有序字典树（基数树Radix Tree），按照key的字典序排列，支持快速地定位，插入和删除操作。
+
+![image-20211030144833590](assest/image-20211030144833590.png)
+
+Rax被用在Redis Stream结构里面用于存储消息队列，在stream里面消息ID的前缀是时间戳 + 序号，这样的消息可以理解为时间序列消息。使用Rax结构 进行存储就可以快速地根据消息ID定位到具体的消息，然后继续遍历指定消息之后的所有消息。
+
+![image-20211030145117693](assest/image-20211030145117693.png)
+
+应用场景：
+
+stream的底层实现。
+
 ### 11.2.3 10种encoding
+
+encoding表示对象的内部编码，占4位。
+
+Redis通过encoding属性为对象设置不同的编码。
+
+对于`少的`和`小的`数据，Redis采用小的和压缩的存储方式，体现Redis的灵活性
+
+大大提高了Redis的存储量和执行效率
+
+**比如Set对象**：
+
+intset：元素是64位以内的整数
+
+hashtable：元素是64位以外的整数
+
+如下所示：
+
+```shell
+127.0.0.1:6379> sadd set:001 1 3 5 7 9
+(integer) 5
+127.0.0.1:6379> object encoding set:001
+"intset"
+127.0.0.1:6379> sadd set:004 1 10000000000000000000000000000 9999999999
+(integer) 3
+127.0.0.1:6379> object encoding set:004
+"hashtable"
+```
+
+
+
+#### 11.2.3.1 String
+
+int、raw、embstr
+
+> int
+
+REDIS_ENCODING_INT（int类型的整数）
+
+```shell
+127.0.0.1:6379> set n1 123
+OK
+127.0.0.1:6379> object encoding n1
+"int"
+```
+
+> embstr
+
+REDIS_ENCODING_EMBSTR（编码的简单动态字符串）
+
+小字符串 长度小于44个字节
+
+```shell
+127.0.0.1:6379> set name:001 zhangfei
+OK
+127.0.0.1:6379> object encoding name:001
+"embstr"
+```
+
+> raw
+
+REDIS_ENCODING_RAW（简单动态字符串）
+
+大字符串 长度大于44个字节
+
+```shell
+127.0.0.1:6379> set address:001 asdasdasdasdasdasdasdasdasdasdasdasdasdasdasdasdasdasdasdasdasdasdasdaadasdasadasdasaadaad
+OK
+127.0.0.1:6379> object encoding address:001
+"raw"
+```
+
+
+
+#### 11.2.3.2 list
+
+列表的编码是quicklist。
+
+REDIS_ENCODING_QUICKLIST（快速列表）
+
+```shell
+127.0.0.1:6379> lpush list:001 1 2 3 5 4
+(integer) 5
+127.0.0.1:6379> object encoding list:001
+"quicklist"
+```
+
+
+
+#### 11.2.3.3 hash
+
+散列的编码是**字典**和**压缩列表**
+
+> dict
+
+REDIS_ENCODING_HT（字典）
+
+当散列表元素的个数比较多或元素不是 小整数或短字符串时。
+
+```shell
+127.0.0.1:6379> hmset user:003 username11111111111111111111111111111111111111111111111111111111111111111111111111111111 zhangfei password 111 num 230000000000000000000000000000000000000000000000000
+OK
+127.0.0.1:6379> object encoding user:003
+"hashtable"
+127.0.0.1:6379> type user:003
+hash
+```
+
+> ziplist
+
+REDIS_ENCODING_ZIPLIST（压缩列表）
+
+当散列表元素的个数比较少，且元素都是小整数或短字符串时。
+
+```shell
+127.0.0.1:6379> hmset user:001 username password 11 age sex m 
+OK
+127.0.0.1:6379> object encoding user:001
+"ziplist"
+127.0.0.1:6379> type user:001
+hash
+```
+
+
+
+#### 11.2.3.4 set
+
+集合的编码是整型集合和字典
+
+> intset
+
+REDIS_ENCODING_INTSET（整数集合）
+
+当Redis集合类型的元素都是整数并且都处在64位有符号整数范围内（< 18446744073709551616）
+
+```shell
+127.0.0.1:6379> sadd set:001 1 3 5 7 9
+(integer) 5
+127.0.0.1:6379> object encoding set:001
+"intset"
+127.0.0.1:6379> type set:001
+set
+```
+
+> dict
+
+REDIS_ENCODING_HT（字典）
+
+当Redis集合类型的元素是非整数或都处于64位有符号整数范围外（> 18446744073709551616）
+
+```shell
+127.0.0.1:6379> sadd set:004 1 10000000000000000000000000000 9999999999
+(integer) 3
+127.0.0.1:6379> object encoding set:004
+"hashtable"
+127.0.0.1:6379> type set:004
+set
+```
+
+
+
+#### 11.2.3.5 zset
+
+有序集合的编码是**压缩列表**和**跳跃表+字典**
+
+> ziplist
+
+REDIS_ENCODING_ZIPLIST（压缩列表）
+
+当元素的个数比较少，且元素都是小整数或短字符串时。
+
+```shell
+127.0.0.1:6379> zadd hit:1 100 item1 20 item2 45 itme3
+(integer) 3
+127.0.0.1:6379> object encoding hit:1
+"ziplist"
+```
+
+> skiplist + dict
+
+REDIS_ENCODING_SKIPLIST（跳跃表 + 字典）
+
+当元素的个数比较多或元素不是小整数或短字符串时。
+
+```shell
+127.0.0.1:6379> zadd hit:2 100 item1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111 20 item2 45 item3
+(integer) 3
+127.0.0.1:6379> object encoding hit:2
+"skiplist"
+```
+
+
 
 # 12 缓存过期和淘汰策略
 
-Redis的性能高，官方数据：读（110000次/s），写（81000次/s）。长期使用，key会不断增加，Redis作为缓存使用，物理内存会满。内存与硬盘交换（swap）虚拟内存，频繁IO性能急剧下降。
+Redis的性能高，官方数据：读（110000次/s），写（81000次/s）。
+
+长期使用，key会不断增加，Redis作为缓存使用，物理内存会满。内存与硬盘交换（swap）虚拟内存，频繁IO性能急剧下降。
 
 ## 12.1 maxmemory
 
+> 不设置的场景
+
+Redis的key是固定的，不会增加
+
+Redis作为DB使用，保证数据的完整性，不能淘汰，可以做集群，横向扩展
+
+缓存淘汰策略：禁止驱逐（默认）
+
+> 设置的场景
+
+```
+Redis是作为缓存使用，不断增加key
+maxmemory：默认为0 不限制
+问题：达到物理内存后性能急剧下降，甚至崩溃
+内存与硬盘交换（swap）虚拟内存，频繁IO性能急剧下降
+```
+
+设置多少？与业务有关
+
+1个Redis实例，保证系统运行1G，剩下的都可以设置Redis。物理内存的3/4
+
+如果需要slaver：还需要留出一定的内存
+
+在redis.conf中
+
+```basic
+maxmemory	1024mb
+```
+
+命令：获得maxmemory数
+
+```basic
+127.0.0.1:6379> config get maxmemory
+1) "maxmemory"
+2) "0"
+```
+
+设置maxmemory后，当趋近maxmemory时，通过缓存淘汰策略，从内存中删除对象
+
+
+
+不设置maxmemory	无最大内存限制	maxmemory-policy noeviction（禁止驱逐）不淘汰
+
+设置maxmemory	maxmemory-policy  要配置
+
+
+
+## 12.2 expire数据结构
+
+在Redis中可以使用expire命令设置一个键的存活时间（ttl：time to live），过了这段时间，这键就会自动被删除。
+
+### 12.2.1 expire的使用
+
+expire命令的使用方法如下：
+
+expire key ttl(单位秒)
+
+```shell
+127.0.0.1:6379> expire name 2	#2秒失效
+(integer) 0
+127.0.0.1:6379> get name
+(nil)
+127.0.0.1:6379> set name turbo
+OK
+127.0.0.1:6379> ttl name	#永久有效
+(integer) -1
+127.0.0.1:6379> expire name 30	#30秒失效
+(integer) 1
+127.0.0.1:6379> ttl name	#还有26秒
+(integer) 26
+127.0.0.1:6379> ttl name	#失效
+(integer) -2
+```
+
+
+
+### 12.2.2 expire原理
+
+```c
+typedef struct redisDb {
+    dict *dict;  -- key Value
+    dict *expires; -- key ttl
+    dict *blocking_keys;
+    dict *ready_keys;
+    dict *watched_keys;    
+    int id;
+} redisDb;
+```
+
+上面的代码是Redis中关于数据库的结构体定义，这个结构体定义中出来id以外都是指向字典的指针，其中我们只看dict和expires。
+
+dict用来维护一个Redis数据库中包含的所有key-Value键值对，expires则用于维护一个Redis数据库中设置了失效时间的键（即key与实现时间的映射）。
+
+当我们使用expire命令设置一个key的失效时间时，Redis首先到dict这个字典表中查找要设置的key是否存在，如果存在就将这个key和失效时间添加到expire这个字典表。
+
+当我们使用setex命令向系统插入数据时，Redis首先将Key和Value添加到dict这个字典表中，然后将Key和失效时间添加到expires这个字典表中。
+
+简单地总结来说就是，设置了失效时间的key和具体的失效时间全部都维护在expires这个字典表中。
+
+
+
+## 12.3 删除策略
+
+Redis的数据删除有定时删除、惰性删除和主动删除三种方式。
+
+Redis目前采用惰性删除 + 主动删除的方式。
+
+### 12.3.1 定时删除
+
+在设置键的过期时间的同时，创建一个定时器，让定时器在键的过期时间来临时，立即执行对键的删除操作。
+
+需要创建定时器，而且消耗CPU，**一般不推荐使用**。
+
+### 12.3.2 惰性删除
+
+在key被访问时如果发现它已经失效，那么就删除它。
+
+调用expireIfNeeded函数，该函数的意义是：读取数据之前先检查一下它有没有失效，如果失效了就删除它。
+
+```c
+int expireIfNeeded(redisDb *db, robj *key) {    
+    //获取主键的失效时间       get当前时间-创建时间>ttl    
+    long long when = getExpire(db,key);
+    //假如失效时间为负数，说明该主键未设置失效时间（失效时间默认为-1），直接返回0    
+    if (when < 0) return 0;
+    //假如Redis服务器正在从RDB文件中加载数据，暂时不进行失效主键的删除，直接返回0    
+    if (server.loading) return 0;
+    ...
+    //如果以上条件都不满足，就将主键的失效时间与当前时间进行对比，如果发现指定的主键    
+    //还未失效就直接返回0
+    if (mstime() <= when) return 0;
+    //如果发现主键确实已经失效了，那么首先更新关于失效主键的统计个数，然后将该主键失    
+    //效的信息进行广播，最后将该主键从数据库中删除
+    server.stat_expiredkeys++;    
+    propagateExpire(db,key);    
+    return dbDelete(db,key);
+}
+```
+
+
+
+### 12.3.3 主动删除
+
+在redis.conf文件中可以配置主动删除策略，默认是no-enviction（不删除）
+
+```basic
+maxmemory-policy allkeys-lru
+```
+
+
+
+#### 12.3.3.1 LRU
+
+LRU（Least recently used）最近最少使用，算法根据数据的历史访问记录来进行淘汰数据，其核心思想是【如果数据最近被访问过，那么将来被访问的记录也更高】。
+
+最常见的实现是使用一个链表保存缓存数据，详细算法实现如下：
+
+1. 新数据插入到链表头部；
+2. 每当缓存命中（即缓存数据被访问），则将数据移到链表头部；
+3. 当链表满的时候，将链表尾部的数据丢失。
+4. 在Java中可以使用**LinkHashMap**（哈希链表）实现LRU。
+
+以用户信息的需求为例，演示一下LRU算法的基本思路：
+
+> 1.假设我们使用哈希链表来缓存用户信息，目前缓存了4个用户，这4个用户是按照时间顺序依次从链表右端插入的。
+
+![image-20211030173637221](assest/image-20211030173637221.png)
+
+> 2.此时，业务访问用户5，由于哈希链表中没有用户5的数据，我们从数据库中读取出来，插入到缓存当中。这时候，链表中最右端是最新访问到的用户5，最左端是最近最少访问的用户1。
+
+![image-20211030174952851](assest/image-20211030174952851.png)
+
+> 3.接下来，业务方访问用户2，哈希链表中存在用户2的数据，我们怎么做呢？我们把用户2从它的前驱节点和后继节点之间移除，重新插入到链表最右端。这时候，链表中最右端变成了最新访问到的用户2，最左端仍然是最近最少访问的用户1。
+
+![image-20211030180555282](assest/image-20211030180555282.png)
+
+![image-20211030180608792](assest/image-20211030180608792.png)
+
+> 4.接下来，业务方请求修改用户4的信息。同样道理，我们把用户4从原来的位置移动到链表最右侧，并把用户信息的值更新。这时候，链表中最右端是最新访问到的用户4，最左端仍然是最近最少访问的用户1。
+
+![image-20211030180940431](assest/image-20211030180940431.png)
+
+![image-20211030180949031](assest/image-20211030180949031.png)
+
+
+
+> 5.业务访问用户6，用户6在缓存中没有，需要插入到哈希链表。假设这时，缓存容量达到上限，必须先删除最近最少访问的数据，那么位于哈希链表最左端的用户1就会被删除，然后再把用户6插入到最右端。
+
+![image-20211030181522013](assest/image-20211030181522013.png)
+
+![image-20211030181529514](assest/image-20211030181529514.png)
+
+
+
+> Redis的LRU数据淘汰机制
+
+在服务器配置中保存了lru计数器server.lrulock，会定时（redis定时程序serverCorn()）更新，server.lrulock的值是根据server.unixtime计算出来的。
+
+另外，从struct redisObject中可以发现，每一个redis对象都会设置相应的lru。可以想象的是，每一次访问数据的时候，会更新redisObject.lru。
+
+LRU数据淘汰机制是这样的：在数据集中最忌挑选几个键值对，取出其中lru最大的键值对淘汰。
+
+不可能遍历key	用当前时间-最近访问	越大说明	访问间隔时间越长
+
+**volatile-lru** 从已设置过期时间的数据集（server.db[i].expires）中挑选最近最少使用的数据淘汰
+
+**allkeys-lru** 从数据集（server.db[i].dict）中挑选最近最少使用的数据淘汰
+
+
+
+#### 12.3.3.2 LFU
+
+LFU（Least frequently used）最不经常使用，如果一个数据在最近一段时间内使用次数很少，那么在将来一段时间内被使用的可能性也很小。
+
+volatile-lfu
+
+allkeys-lfu
+
+#### 12.3.3.3 random
+
+随机
+
+**volatile-random** 从以设置过期时间的数据集（server.db[i].expires）中任意选择数据淘汰
+
+**allkeys-random** 从数据集（server.db[i].dict）中任意选择数据淘汰
+
+
+
+#### 12.3.3.4 ttl
+
+**volatile-ttl** 从以设置过期时间的数据集（server.db[i].expires）中挑选将要过期的数据淘汰
+
+redis数据集结构中保存了键值对过期时间的表，即redisDb.expires。
+
+TTL数据淘汰机制：从过期时间的表中随机挑选几个键值对，取出其中ttl最小的键值对淘汰
+
+#### 12.3.3.5 noenviction
+
+禁止驱逐数据，不删除默认
+
+
+
+#### 12.3.3.6 缓存淘汰策略的选择
+
+- allkeys-lru：在不确定时一般采用策略。冷热数据交换
+- volatile-lru：比allkeys-lru性能差，需要存过期时间
+- allkeys-random：希望请求符合平均分布（每个元素以相同的概率被访问）
+- 自己控制：volatile-ttl（把过期时间设置小一点）
+
 # 13 通讯协议及事件处理机制
 
+## 13.1 通信协议
 
+Redis是单进程单线程的。
 
+应用系统和Redis通过Redis协议（RESP）进行交互。
 
+### 13.1.1 请求响应模式
+
+Redis协议位于TCP层之上，即客户端和Redis实例保持双工的连接。
+
+![image-20211030191008541](assest/image-20211030191008541.png)
+
+#### 13.1.1.1 串行的请求响应模式（ping-pong）
+
+#### 13.1.1.2 双工的请求响应模式（pipline）
+
+#### 13.1.1.3 原子化的批量请求响应模式（事务）
+
+#### 13.1.1.4 发布订阅模式（pub/sub）
+
+#### 13.1.1.5 脚本化的批量执行（lua）
+
+### 13.1.2 请求数据格式
+
+### 13.1.3 命令处理流程
+
+### 13.1.4 协议相应格式
+
+### 13.1.5 协议解析及处理
+
+## 13.2 时间处理机制
+
+### 13.2.1 文件事件
+
+### 13.2.2 时间事件
+
+### 13.2.3 aeEventLoop
+
+### 13.2.4 aeMain
+
+### 13.2.5 aeProcessEvent
 
 
 
