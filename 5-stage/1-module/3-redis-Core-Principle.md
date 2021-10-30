@@ -731,17 +731,92 @@ next指向下一个哈希表节点，用于解决hash冲突
 
 ```c
 typedef struct dict {
-	dictType *type;		// 该字典对应的特定操作函数    
-	void *privdata;     // 上述类型函数对应的可选参数
-	dictht ht[2];       /* 两张哈希表，存储键值对数据，ht[0]为原生 哈希表，
+    dictType *type;		// 该字典对应的特定操作函数    
+    void *privdata;     // 上述类型函数对应的可选参数
+    dictht ht[2];       /* 两张哈希表，存储键值对数据，ht[0]为原生 哈希表，
 							ht[1]为rehash 哈希表     */
-   	long rehashidx;		/*rehash标识     当等于-1时表示没有在 rehash，
+    long rehashidx;		/*rehash标识     当等于-1时表示没有在 rehash，
 						否则表示正在进行rehash操作，存储的值表示hash表
                         ht[0]的rehash进行到哪个索引值			
 						(数组下标)*/
-   int iterators;		// 当前运行的迭代器数量 
+    int iterators;		// 当前运行的迭代器数量 
 } dict;
 ```
+
+type字段，指向dicType结构体，里面包括了对字典操作的函数指针
+
+```c
+typedef struct dictType {    
+    // 计算哈希值的函数
+    unsigned int (*hashFunction)(const void *key);                                          
+    // 复制键的函数
+    void *(*keyDup)(void *privdata, const void *key);                          
+    // 复制值的函数
+    void *(*valDup)(void *privdata, const void *obj);                                        
+    // 比较键的函数
+    int (*keyCompare)(void *privdata, const void *key1, const void *key2);                  
+    // 销毁键的函数
+    void (*keyDestructor)(void *privdata, void *key);                                        
+    // 销毁值的函数
+    void (*valDestructor)(void *privdata, void *obj);                          
+} dictType;
+```
+
+Redis字典除了主数据库的K-V数据存储以外，还可以用于：散列表对象、哨兵模式中的主从节点管理等在不同的应用中，字典的形态都可能不同，dicType是为了实现各种形态的字典而抽象出来的操作函数（多态）。
+
+完整的Redis字典数据结构：
+
+![image-20211030111014139](assest/image-20211030111014139.png)
+
+> 字典扩容
+
+字典达到存储上限（阈值0.75），需要rehash（扩容）
+
+扩容流程：
+
+![image-20211030111629925](assest/image-20211030111629925.png)
+
+说明：
+
+1. 初次申请默认容量为4个dicEntry，非初次申请为当前hash表容量的一倍。
+2. rehashidx=0表示要进行rehash操作。
+3. 新增加的数据在新的hash表h[1]
+4. 修改、删除、查询在老hash表h[0]、新hash表h[1]中（rehash中）
+5. 将老的hash表h[0]的数据重新计算索引值后全部迁移到新的hash表h[1]中，这个过程称为rehash。
+
+
+
+> 渐进式rehash
+
+当数据量巨大时rehash的过程是非常缓慢的，所以需要进行优化。
+
+服务器忙，则只对一个节点进行rehash
+
+服务器闲，可批量rehash（100节点）
+
+应用场景：
+
+1. 主数据库的k-v数据存储
+2. 散列表对象（hash）
+3. 哨兵模式中的主从节点管理
+
+
+
+> 压缩列表
+
+压缩列表（ziplist）是由一系列特殊编码的连续内存块组成的顺序型数据结构
+
+节省内存
+
+是一个字节数组，可以包含多个节点（entry）。每个节点可以保存一个字节数组或一个整数。
+
+压缩列表的数据结构如下
+
+![image-20211030112545264](assest/image-20211030112545264.png)
+
+
+
+
 
 
 
