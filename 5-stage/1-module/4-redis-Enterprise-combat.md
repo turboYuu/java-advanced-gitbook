@@ -346,7 +346,10 @@ grafana、prometheus以及redis_exporter。
 
 ## 15.7 Big Key
 
+大key指的是存储的值（Value）非常大，常见场景：
 
+- 热门话题下的讨论
+- 
 
 # 16 缓存与数据库一致性
 
