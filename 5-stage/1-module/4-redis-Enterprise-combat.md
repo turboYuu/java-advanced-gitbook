@@ -349,7 +349,69 @@ grafana、prometheus以及redis_exporter。
 大key指的是存储的值（Value）非常大，常见场景：
 
 - 热门话题下的讨论
-- 
+- 大V的粉丝列表
+- 序列化后的图片
+- 没有及时处理的垃圾数据
+
+...
+
+大key的影响：
+
+- 大key会大量占用内存，在集群中无法均衡
+- Redis的性能下降，主从复制异常
+- 在主动删除或过期删除时，会操作时间过长而引起服务阻塞
+
+
+
+如何发现大key：
+
+1. redis-cli --bigkeys命令。可以找到某个实例5种数据类型（list、hash、string、set、zset）的最大key。
+
+   但如果Redis的key比较多，执行该命令会比较慢。
+
+   ![image-20211031181625613](assest/image-20211031181625613.png)
+
+2. 获取生产Redis的rdb文件，通过rdbtools分析rdb生成csv文件，再导入MySQL或其他数据库中进行分析统计，根据size_in_byte统计bigkey。
+
+
+
+**大key的处理**：
+
+优化big key的原则就是string减少字符串长度，list、hash、set、zset等减少成员数。
+
+1. string类型的big key，尽量不要存入Redis，可以使用文档型数据库MongoDB或缓存到CDN上。如果必须用Redis存储，最好单独存储，不要和其他的key一起存储。采用一主一从或多从。
+
+2. 单个简单的key存储的value很大，可以尝试将对象拆成几个key-value，使用mget获取值，这样分拆的意义在于拆分单词操作的压力，将操作压力平摊到多次操作中，降低对Redis的IO影响。
+
+3. hash、set、zset、list中存储过多的元素，可以将这些元素拆分。（常见）
+
+   ```
+   以hash类型举例来说，对于field过多的场景，可以根据field进行hash取模，生成一个新的key，
+   例如 原来的
+   hash_key:{filed1:value, filed2:value, filed3:value ...}，可以hash取模后形成如下 key:value形式
+   hash_key:1:{filed1:value}
+   hash_key:2:{filed2:value}
+   hash_key:3:{filed3:value}
+   ...
+   取模后，将原先单个key分成多个key，每个key filed个数为原先的1/N
+   ```
+
+4. 删除大key时，不要使用del，因为del是阻塞命令，删除时会影响性能。
+
+5. 使用lazy delete（unlink命令）
+
+   删除指定的key(s)，若key不存在，则该key被跳过。但是，相比del会产生阻塞，该命令会在另一个线程中回收内存，因此它是非阻塞的。这也是该名字的由来：仅将keys从key空间中删除，真正的数据删除会在后续异步操作。
+
+   ```shell
+   127.0.0.1:6379> set key1 'turbo1'
+   OK
+   127.0.0.1:6379> set key2 'turbo2'
+   OK
+   127.0.0.1:6379> unlink key1 key2 key3
+   (integer) 2
+   ```
+
+   
 
 # 16 缓存与数据库一致性
 
