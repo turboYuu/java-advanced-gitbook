@@ -2508,12 +2508,12 @@ chmod +x /root/backup/mongobk.sh
 
 crontab -e
 
-```
+```sh
 #表示每天凌晨2点30执行备份
 30 2 * * * /root/backup/mongobk.sh
 ```
 
-```
+```sh
 #一分钟备份一次
 * * * * * /root/backup/mongobk.sh
 ```
@@ -2543,7 +2543,4 @@ crontab  -r 删除
 crontab  -e 编辑
 ```
 
-
-
-![image-20210819211544295](assest/image-20210819211544295.png)
 
