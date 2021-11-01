@@ -874,4 +874,16 @@ myLock:{"8743c9c0-0795-4907-87fd-6c719a6b4586:1":2}
 
 # 18 分布式集群架构中的session分离
 
+利用**spring-session-data-redis**（SpringSession），可以实现**基于redis来实现session分离**。
+
 # 19 阿里Redis使用手册
+
+## 19.1 键值设计
+
+## 19.2 命令使用
+
+## 19.3 客户端使用
+
+## 19.4 相关工具
+
+## 19.5 删除bigkey
