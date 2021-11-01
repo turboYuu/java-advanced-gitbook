@@ -417,7 +417,20 @@ grafana、prometheus以及redis_exporter。
 
 ## 16.1 缓存更新策略
 
+- 利用Redis的缓存淘汰策略被动更新 LRU、LFU
+- 利用TTL被动更新
+- 在更新数据库时主动更新（先更新数据库再删除缓存 --- 延时双删）
+- 异步更新 （使用定时任务，数据不保证实时一致，不穿DB）
+
 ## 16.2 不同策略之间的优缺点
+
+| 策略                              | 一致性 | 维护成本 |
+| --------------------------------- | ------ | -------- |
+| 利用Redis的缓存淘汰策略，被动更新 | 最差   | 最低     |
+| 利用TTL被动更新                   | 较差   | 较低     |
+| 在更新数据库时，主动更新          | 较强   | 最高     |
+
+
 
 ## 16.3 与Mybatis整合
 
@@ -429,13 +442,131 @@ https://gitee.com/turboYuu/spring-boot-source-code/tree/master/spring-boot-2.2.9
 
 ### 17.1.1 利用Watch实现Redis乐观锁
 
+乐观锁基于CAS（Compare And Swap）思想（比较并替换），是具有互斥性，不会产生等待而消耗资源，但是需要反复的重试，但也是因为重试的机制，能比较快的响应。因此我们可以利用Redis来实现乐观锁。具体思路如下：
+
+1. 利用Redis的watch功能，监控这个Redis的状态值
+2. 获取RedisKey的值
+3. 创建Redis事务
+4. 给这个key的值 +1
+5. 然后去执行这个事务，如果key的值被修改过则回滚，key不加1
+
+**Redis乐观锁实现秒杀**
+
+https://gitee.com/turboYuu/redis-5-1/blob/master/lab/jedis_demo/src/test/java/Second.java
+
+```java
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.Transaction;
+
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class Second {
+    public static void main(String[] args) {
+        String redisKey = "lock";
+        final ExecutorService executorService = Executors.newFixedThreadPool(20);
+        final Jedis jedis = new Jedis("192.168.31.135", 6379);
+        jedis.set(redisKey,"0");
+        jedis.close();
+
+        for (int i = 0; i < 1000; i++) {
+            executorService.execute(()->{
+                final Jedis jedis1 = new Jedis("192.168.31.135", 6379);
+                try {
+                    jedis1.watch(redisKey);
+                    final String redisValue = jedis1.get(redisKey);
+                    int valInteger = Integer.valueOf(redisValue);
+                    final String userInfo = UUID.randomUUID().toString();
+                    if(valInteger < 20){
+                        final Transaction tx = jedis1.multi();
+                        tx.incr(redisKey);
+                        final List<Object> list = tx.exec();
+                        if(list != null && list.size() > 0){
+                            System.out.println("用户："+userInfo + ".秒杀成功！当前成功人数："+(valInteger + 1));
+
+                        }else {
+                            System.out.println("用户："+userInfo + ".秒杀失败");
+                        }
+                    }else{
+                        System.out.println("已经有20人秒杀成功，秒杀结束");
+                    }
+                } catch (NumberFormatException e) {
+                    e.printStackTrace();
+                }finally {
+                    jedis1.close();
+                }
+
+            });
+
+        }
+        executorService.shutdown();
+    }
+}
+```
+
 
 
 ## 17.2 setnx
 
 ### 17.2.1 实现原理
 
+共享资源互斥
+
+共享资源串行化
+
+单应用中使用锁：（单进程多线程）
+
+synchronized、ReentrantLock
+
+分布式应用中使用锁：（多进程多线程）
+
+分布式锁是控制分布式系统之间同步访问，共享资源的一种方式。
+
+利用Redis的单线程特性对共享资源进行串行化处理
+
 ### 17.2.2 实现方式
+
+> 获取锁
+
+方式1（**使用set命令实现**） -- 推荐
+
+```java
+/**
+* 使用redis的set命令实现获取分布式锁 
+* @param lockKey   可以就是锁
+* @param requestId     请求ID，保证同一性        uuid+threadID 
+* @param expireTime    过期时间，避免死锁
+* @return */
+public  boolean getLock(String lockKey,String requestId,int expireTime) { 
+    //NX:保证互斥性
+    // hset  原子性操作  只要lockKey有效  则说明有进程在使用分布式锁
+    String result = jedis.set(lockKey, requestId, "NX", "EX", expireTime); 
+    if("OK".equals(result)) {
+        return true; 
+    }
+    return false; 
+}
+```
+
+方式2 （使用setnx命令实现）-- 并发会产生问题
+
+```java
+public  boolean getLock(String lockKey,String requestId,int expireTime) { 
+    Long result = jedis.setnx(lockKey, requestId);
+    if(result == 1) {
+        //成功设置  进程down  永久有效    别的进程就无法获得锁
+        jedis.expire(lockKey, expireTime); 
+        return true;
+    }
+    return false; 
+}
+```
+
+> 释放锁
+
+
 
 ### 17.2.3 存在问题
 
