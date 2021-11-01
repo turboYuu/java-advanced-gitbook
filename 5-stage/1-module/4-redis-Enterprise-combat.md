@@ -803,11 +803,40 @@ myLock:{"8743c9c0-0795-4907-87fd-6c719a6b4586:1":2}
 
 执行lua脚本如下：
 
+```lua
+#如果key已经不存在，说明已经被解锁，直接发布（publish）redis消息 
+"if (redis.call('exists', KEYS[1]) == 0) then " +
+        "redis.call('publish', KEYS[2], ARGV[1]); " +                        
+        "return 1; " +
+    "end;" +
+# key和field不匹配，说明当前客户端线程没有持有锁，不能主动解锁。  不是我加的锁 不能解锁
+    "if (redis.call('hexists', KEYS[1], ARGV[3]) == 0) then " +                        
+        "return nil;" +
+    "end; " + 
+# 将value减1
+    "local counter = redis.call('hincrby', KEYS[1], ARGV[3], -1); " +
+# 如果counter>0说明锁在重入，不能删除key
+    "if (counter > 0) then " +
+        "redis.call('pexpire', KEYS[1], ARGV[2]); " +                        
+        "return 0; " +
+# 删除key并且publish 解锁消息                    
+    "else " +
+        "redis.call('del', KEYS[1]); " +  #删除锁
+        "redis.call('publish', KEYS[2], ARGV[1]); " +                        
+        "return 1; "+
+        "end; " +
+        "return nil;",
 ```
 
-```
+- KEYS[1]：需要加锁的key，这里需要是字符串类型。
+- KEYS[2]：Redis消息ChannelName，一个分布式锁对应唯一一个ChannelName:"redission_lock**channel**{"+getName()+"}"
+- ARGV[1]：redis消息体，这里只需要一个字节的标记就可以，主要标记redis的key已经解锁，再结合redis的Subscribe，能唤醒其他订阅解锁消息的客户端线程申请锁。
+- ARGV[2]：锁的超时时间，防止死锁
+- ARGV[3]：锁的唯一标识，也就是刚才介绍的id（`(UUID.randomUUID()) + “:” + threadId)`）
 
+如果执行lock.unlock()，就可以释放分布式锁，此时的业务逻辑也是非常简单的。就是每次都对myLock数据结构中的那个加锁次数减1。
 
+如果发现加锁此时是0，说明这个客户端已经不再持有锁了，此时就会用：`del myLock`命令，从redis里删除这个key。然后，另外的客户端2就可以尝试完成加锁了。
 
 ## 17.4 分布式锁特征
 
