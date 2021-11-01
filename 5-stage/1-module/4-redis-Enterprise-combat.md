@@ -566,13 +566,248 @@ public  boolean getLock(String lockKey,String requestId,int expireTime) {
 
 > 释放锁
 
+方式1（del命令实现） -- 并发
+
+```java
+/**
+* 释放分布式锁
+* @param lockKey 
+* @param requestId
+*/
+public static void releaseLock(String lockKey,String requestId) {    
+    if (requestId.equals(jedis.get(lockKey))) {
+        jedis.del(lockKey);  
+    }
+}
+```
+
+```
+问题在于如果调用jedis.del()方法的时候，这把锁已经不属于当前客户端的时候会解除其他人加的锁。
+比如：客户端A加锁，一段时间之后客户端A解锁，在执行jedis.del()之前，锁突然过期了，此时客户端B尝试加锁成功，
+然后客户端A再执行del()方法，则客户端B的锁给解除了。
+```
+
+方式2（**redis+lua脚本实现**）-- 推荐
+
+```java
+public static boolean releaseLock(String lockKey, String requestId) {
+    String script = "if redis.call('get', KEYS[1]) == ARGV[1] "+
+            "then return redis.call('del', KEYS[1]) "+
+            "else return 0 end";
+    Object result = jedis.eval(script, Collections.singletonList(lockKey),
+                               Collections.singletonList(requestId));
+    if (result.equals(1L)) {
+        return true; 
+    }
+    return false;
+}
+```
+
 
 
 ### 17.2.3 存在问题
 
+单机 -- 无法保证高可用
+
+主从 -- 无法保证数据的强一致性，在主机宕机时会造成锁的重复获得。
+
+![image-20211101143047305](assest/image-20211101143047305.png)
+
+无法续租 -- 超过expire time后，不能续租
+
 ### 17.2.4 本质分析
 
+CAP模型分析
+
+在分布式环境下，不可能满足三者共存们只能满足其中的两者共存，在分布式下P不能舍弃（舍弃P就是单机）。
+
+所以只能是CP（强一致性模型）和AP（高可用模型）
+
+分布式锁是CP模型，Redis集群是AP模型。（base）
+
+Redis集群不能保证数据的实时一致性，只能保证数据的最终一致性。
+
+> 为什么还可以用Redis实现分布式锁？
+
+与业务有关，当业务不需要数据强一致性时，比如：社交场景，就可以使用Redis实现分布式锁；当业务必须要数据的强一致性，即不允许重复获得锁，比如金融场景，就不要使用，可以使用CP模型实现，比如zookeeper和etcd。
+
 ## 17.3 Redisson分布式锁的使用
+
+Redission是架设在Redis基础上的一个Java驻内存数据网格（In-Memory Data Grid）
+
+Redission在基于NIO的Netty框架上，生产环境使用分布式锁。
+
+**加入jar包**
+
+```xml
+<dependency>
+    <groupId>org.redisson</groupId>        
+    <artifactId>redisson</artifactId>         
+    <version>2.7.0</version> 
+</dependency>
+```
+
+配置Redission
+
+```java
+public class RedissonManager {
+    private static Config config = new Config();    
+    //声明redisso对象
+    private static Redisson redisson = null;   
+    //实例化redisson
+    static{
+        config.useClusterServers() 
+        // 集群状态扫描间隔时间，单位是毫秒    
+            .setScanInterval(2000)
+       //cluster方式至少6个节点(3主3从，3主做sharding，3从用来保证主宕机后可以高可用)    
+            .addNodeAddress("redis://127.0.0.1:6379" )
+            .addNodeAddress("redis://127.0.0.1:6380")    
+            .addNodeAddress("redis://127.0.0.1:6381")    
+            .addNodeAddress("redis://127.0.0.1:6382")    
+            .addNodeAddress("redis://127.0.0.1:6383")    
+            .addNodeAddress("redis://127.0.0.1:6384");          
+        //得到redisson对象
+        redisson = (Redisson) Redisson.create(config);
+    }
+    //获取redisson对象的方法
+    public static Redisson getRedisson(){        
+        return redisson;
+    }
+}
+```
+
+锁的获取和释放
+
+```java
+public class DistributedRedisLock {   
+    //从配置类中获取redisson对象
+    private static Redisson redisson = RedissonManager.getRedisson();    
+    private static final String LOCK_TITLE = "redisLock_";
+    //加锁
+    public static boolean acquire(String lockName){       
+        //声明key对象
+        String key = LOCK_TITLE + lockName;       
+        //获取锁对象
+        RLock mylock = redisson.getLock(key);
+        //加锁，并且设置锁过期时间3秒，防止死锁的产生 uuid+threadId        
+        mylock.lock(2,3,TimeUtil.SECOND);
+        //加锁成功
+       return  true;  
+    }
+ 
+    //锁的释放
+    public static void release(String lockName){       
+        //必须是和加锁时的同一个key
+        String key = LOCK_TITLE + lockName;       
+        //获取所对象
+        RLock mylock = redisson.getLock(key);      
+        //释放锁（解锁）
+        mylock.unlock();  
+    }
+}
+```
+
+**业务逻辑中使用分布式锁**
+
+```java
+public String discount() throws IOException{         
+    String key = "lock001";
+    //加锁
+    DistributedRedisLock.acquire(key);        
+    //执行具体业务逻辑
+    dosoming        
+    //释放锁
+    DistributedRedisLock.release(key);       
+    //返回结果
+    return soming;  
+}
+```
+
+### 17.3.1 Redission分布式锁的实现原理
+
+![image-20211101145510542](assest/image-20211101145510542.png)
+
+#### 17.3.1.1 加锁机制
+
+如果该客户端面对的是一个Redis Cluster集群，首先会根据hash节点选择一套机器。
+
+发送lua脚本到Redis服务器，脚本如下：
+
+```lua
+"if (redis.call('exists',KEYS[1])==0) then "+             --看有没有锁
+    "redis.call('hset',KEYS[1],ARGV[2],1) ; "+            --无锁 加锁          
+    "redis.call('pexpire',KEYS[1],ARGV[1]) ; "+            
+    "return nil; end ;" +
+"if (redis.call('hexists',KEYS[1],ARGV[2]) ==1 ) then "+  --我加的锁
+    "redis.call('hincrby',KEYS[1],ARGV[2],1) ; "+  --重入锁 
+    "redis.call('pexpire',KEYS[1],ARGV[1]) ; "+    
+    "return nil; end ;" +
+"return redis.call('pttl',KEYS[1]) ;"  --不能加锁，返回锁的时间
+```
+
+lua的作用；保证这段复杂业务逻辑执行的原子性。
+
+lua的解释：
+
+>KEYS[1]：加锁的key
+>
+>ARGV[1]：key的生存时间，默认为30秒
+>
+>ARGV[2]：加锁的客户端ID（`(UUID.randomUUID()) + “:” + threadId)`）
+
+第一段if判断语句，就是用`exists myLock`命令判断一下，如果你要加锁的那个key不存在的话，你就进行加锁。如何加锁，用下面命令
+
+`hset myLock 8743c9c0-0795-4907-87fd-6c719a6b4586:1 1`
+
+通过这个命令设置了一个hash数据结构，这行命令执行后，会出现一个类似下面的数据结构：
+
+myLock:{"8743c9c0-0795-4907-87fd-6c719a6b4586:1":1}
+
+上述就代表"8743c9c0-0795-4907-87fd-6c719a6b4586:1"这个客户端对“myLock”这个锁key完成了加锁。
+
+接着会执行`pexpire myLock 30000`命令，设置myLock这个锁的生存时间是30秒。
+
+
+
+#### 17.3.1.2 锁互斥机制
+
+那么在这个时候如果客户端2来尝试加锁，执行了同样的一段lua脚本，会如何？
+
+很简单，第一个 `if` 判断会执行`exists myLock`，发现myLock这个锁key已经存在了。
+
+接着第二个 `if` 判断一个，myLock锁 key的hash数据结构中，是否包含客户端 2 的ID，但是明显不是，因为那里包含的是客户端1的ID。
+
+所以，客户端2会获取到 `pttl myLock`返回的一个数字，这个数字代表了myLock这个锁 key 的**剩余生存时间**。此时客户端2会进入一个while循环，不断尝试加锁。
+
+#### 17.3.1.3 自动延时机制
+
+只要客户端1 一旦加锁成功，就会启动一个watch dog看门狗，它是一个后台线程，每隔10秒检查一下，如果客户端1还持有锁key，那么就会不断地延长锁 key 的生存时间。
+
+#### 17.3.1.4 可重入锁机制
+
+第一个 `if`判断 不成立，exists myLock会显示锁 key 已经存在了。
+
+第二个 `if` 判断会成立，因为 myLock的hash数据结构中包含的那个ID，就是客户端1的那个ID，也就是"8743c9c0-0795-4907-87fd-6c719a6b4586:1"。
+
+此时就会执行可重入锁的逻辑，它会用：
+
+`incrby myLock 8743c9c0-0795-4907-87fd-6c719a6b4586:1 1`
+
+通过这个命令，对客户端1的加锁次数，累加1。数据结构会变成：
+
+myLock:{"8743c9c0-0795-4907-87fd-6c719a6b4586:1":2}
+
+
+
+#### 17.3.1.5 释放锁机制
+
+执行lua脚本如下：
+
+```
+
+```
+
+
 
 ## 17.4 分布式锁特征
 
