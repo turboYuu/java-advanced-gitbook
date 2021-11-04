@@ -50,7 +50,7 @@
         * [第四部分 第一代SpringCloud核心组件](3-stage/4-module/4-SpringCloud-Core-Components.md)
         * [第五部分 常见问题及解决方案](3-stage/4-module/5-SpringCloud-Common-Problem-Solve.md)
         * [第六部分 SpringCloud高级进阶](3-stage/4-module/6-SpringCloud-Advance.md)
-        * [第七部分 第二代 SpringCloud核心组件（SCA）](3-stage/4-module/6-SpringCloudAlibaba-Core-Components.md)
+        * [第七部分 第二代 SpringCloud核心组件（SCA）](3-stage/4-module/7-SpringCloudAlibaba-Core-Components.md)
 * [第四阶段 大型分布式存储系统架构进阶](4-stage/README.md)
     * [模块一 MySQL海量数据存储与优化（上）](4-stage/1-module/1-mysql.md)
         * [MySQL集群架构搭建实战](4-stage/1-module/2-mysql-cluster.md)
