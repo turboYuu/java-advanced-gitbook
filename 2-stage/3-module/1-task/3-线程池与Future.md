@@ -1343,7 +1343,8 @@ public interface CompletionStage<T> {    
     public CompletionStage<Void> thenRun(Runnable action);
     public CompletionStage<Void> thenAccept(Consumer<? super T> action);
     public <U> CompletionStage<U> thenApply(Function<? super T,? extends U> fn);
-    public <U> CompletionStage<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn);         public <U,V> CompletionStage<V> thenCombine(CompletionStage<? extends U> other, 
+    public <U> CompletionStage<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn);
+    public <U,V> CompletionStage<V> thenCombine(CompletionStage<? extends U> other, 
         BiFunction<? super T,? super U,? extends V> fn);    
     // ...
 }
@@ -1351,11 +1352,45 @@ public interface CompletionStage<T> {    
 
 关于CompletionStage接口，有几个关键点要说明：
 
-1. 
+1. 所有方法的返回值都是CompletionStage类型，也就是它自己。正因如此，才能实现如下的链式调用：future1.thenApply(...).thenApply(...).thenCompose(...).thenRun(...)。
+2. thenApply接收的是一个有输入参数、返回值的Function。这个Function的输入参数，必须是？Super T类型，也就是T或者T的父类型，而T必须是调用thenApplyCompletableFuture对象的类型；返回值则必须是？ Extend U类型，也就是U或者U的子类型，而U恰好是thenApply的返回值的CompletionStage对应的类型。
+
+其他方法，诸如thenCompose、thenCombine也是类似的原理。
 
 ## 14.7 CompletableFuture内部原理
 
+### 14.7.1 CompletableFuture的构造：ForkJoinPool
 
+CompletableFuture中任务的执行依靠ForkJoinPool：
+
+```java
+public class CompletableFuture<T> implements Future<T>, CompletionStage<T> {
+    private static final Executor ASYNC_POOL = USE_COMMON_POOL ?
+        ForkJoinPool.commonPool() : new ThreadPerTaskExecutor();
+    
+    public static <U> CompletableFuture<U> supplyAsync(Supplier<U> supplier) {
+        return asyncSupplyStage(ASYNC_POOL, supplier);
+    }
+    static <U> CompletableFuture<U> asyncSupplyStage(Executor e,
+                                                     Supplier<U> f) {
+        if (f == null) throw new NullPointerException();
+        CompletableFuture<U> d = new CompletableFuture<U>();
+        // Supplier转换为ForkJoinTask
+        e.execute(new AsyncSupply<U>(d, f));
+        return d;
+    }
+    // ...
+        
+}
+```
+
+通过上面的代码可以看到，asyncPool是一个static类型，supplierAsync、asyncSupplyStage也是static方法。Static方法会返回一个CompletableFuture类型对象，之后就可以链式调用，CompletionStage里面的各个方法。
+
+
+
+### 14.7.2 任务类型的适配
+
+ForkJoinPool接收的任务是ForkJoinTask类型，而我们向CompletableFuture提交的任务是`Runnable/Supplier/Consumer/Function`。因此。肯定需要一个适配机制，把这四种任务类型转换成ForkJoinTask，然后交给ForkJoinPool，如下所示：
 
 ![image-20210923172826831](assest/image-20210923172826831.png)
 
