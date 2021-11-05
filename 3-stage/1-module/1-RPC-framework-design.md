@@ -221,6 +221,254 @@ Java NIO全称Java non-blocking IO，是指JDK提供的新API。从JDK1.4 开始
 
 ## 2.3 NIO三大核心原理示意图
 
+一张图描述NIO的Selector、Channel、Buffer的关系
+
+![image-20211105185416652](assest/image-20211105185416652.png)
+
+1. 每个Channel都会对应一个Buffer
+2. Selector对应一个线程，一个线程对应多个Channel
+3. 每个Channel都注册到Selector上
+4. Selector不断轮询查看Channel上的事件，**事件**是通道Channel非常重要的概念
+5. Selector会根据不同的事件，完成不同的处理操作
+6. Buffer就是一块内存，底层是有一个数组
+7. 数据的读取写入是通过Buffer，这个和BIO有区别（BIO中要么是输入流，或是输出流，不能双向），但是NIO的Buffer是可以读也可以写，Channel是双向的。
+
+## 2.4 缓冲区（Buffer）
+
+### 2.4.1 基本介绍
+
+缓冲区（Buffer）：缓冲区本质上就是一个可以读写数据的内存块，可以理解成是一个数组，该对象提供了一组方法，可以更轻松的使用内存块。缓冲区对象内置了一些机制，能够跟踪和记录缓冲区的状态变化情况。Channel提供从网络读取数据的渠道，但是读取或写入的数据都必须经由Buffer。
+
+![image-20211105190451068](assest/image-20211105190451068.png)
+
+
+
+### 2.4.2 Buffer常用API介绍
+
+#### 2.4.2.1 Buffer类及其子类
+
+![image-20211105190829837](assest/image-20211105190829837.png)
+
+在NIO中，Buffer是一个顶层父类，它是一个抽象类，类的层级关系图，常用的缓冲区分别对应byte,Short,int,long,float,double,char 7种。
+
+#### 2.4.2.2 缓冲区对象创建
+
+| 方法名                                          | 说明                           |
+| ----------------------------------------------- | ------------------------------ |
+| public static ByteBuffer allocate(int capacity) | 创建byte类型的指定长度的缓冲区 |
+| public static ByteBuffer wrap(byte[] array)     | 创建一个有内容的byte类型缓冲区 |
+
+示例代码：https://gitee.com/turboYuu/rpc-3-1/blob/master/lab/NIO/src/com/turbo/buffer/CreateBufferDemo.java
+
+```java
+package com.turbo.buffer;
+
+import java.nio.ByteBuffer;
+
+/**
+ * Buffer的创建
+ */
+public class CreateBufferDemo {
+    public static void main(String[] args) {
+        //1.创建指定长度的缓冲区  ByteBuffer为例
+        ByteBuffer allocate = ByteBuffer.allocate(5);
+        for (int i = 0; i < 5; i++) {
+            //从缓冲区当中拿取数据
+            System.out.println(allocate.get());
+        }
+        //从缓冲区当中拿去数据
+        //会报错. 后续讲解
+        //System.out.println(allocate.get());
+
+        //2.创建一个有内容的缓冲区
+        ByteBuffer wrap = ByteBuffer.wrap("turbo".getBytes());
+        for (int i = 0; i < 5; i++) {
+            System.out.println(wrap.get());
+        }
+    }
+}
+```
+
+#### 2.4.2.3 缓冲区对象添加数据
+
+| 方法名                                            | 说明                                          |
+| ------------------------------------------------- | --------------------------------------------- |
+| int position()/position(int newPosition)          | 获取当前要操作的索引/修改当前要操作的索引位置 |
+| int limit()/Buffer limit(int newLimit)            | 最多能操作到哪个索引/修改最多能操作的索引位置 |
+| int capacity()                                    | 返回缓冲区的总长度                            |
+| int remaining()/boolean hasRemaining()            | 返回多少能操作索引个数/是否还有能操作         |
+| ByteBuffer put(byte b)/ByteBuffer put(byte[] src) | 添加一个字节/添加字节数组                     |
+
+图解：
+
+![image-20211105193706826](assest/image-20211105193706826.png)
+
+
+
+![image-20211105193804817](../../image-20211105193804817.png)
+
+示例代码：
+
+https://gitee.com/turboYuu/rpc-3-1/blob/master/lab/NIO/src/com/turbo/buffer/PutBufferDemo.java
+
+```java
+package com.turbo.buffer;
+
+import java.nio.ByteBuffer;
+
+/**
+ * 向缓冲区中添加数据
+ */
+public class PutBufferDemo {
+    public static void main(String[] args) {
+        //1.创建一个缓冲区
+        ByteBuffer allocate = ByteBuffer.allocate(10);
+        System.out.println(allocate.position());//0 获取当前索引所在位置
+        System.out.println(allocate.limit());//10 最多能操作到哪个索引位置
+        System.out.println(allocate.capacity());//10 返回缓冲区总长度
+        System.out.println(allocate.remaining());//10 还有多少个可以操作的个数
+
+        System.out.println("----------------");
+        // 修改当前索引所在位置
+        //allocate.position(1);
+        // 修改最多能操作到哪个索引的位置
+        //allocate.limit(9);
+//        System.out.println(allocate.position());//1 获取当前索引所在位置
+//        System.out.println(allocate.limit());//9 最多能操作到哪个索引位置
+//        System.out.println(allocate.capacity());//10 返回缓冲区总长度
+//        System.out.println(allocate.remaining());//8 还有多少个可以操作的个数
+
+        // 添加一个字节
+        allocate.put((byte) 97);
+        System.out.println(allocate.position());//1 获取当前索引所在位置
+        System.out.println(allocate.limit());//10 最多能操作到哪个索引位置
+        System.out.println(allocate.capacity());//10 返回缓冲区总长度
+        System.out.println(allocate.remaining());//9 还有多少个可以操作的个数
+
+        System.out.println("----------------");
+        // 添加一个数组
+        allocate.put("abc".getBytes());
+        System.out.println(allocate.position());//4 获取当前索引所在位置
+        System.out.println(allocate.limit());//10 最多能操作到哪个索引位置
+        System.out.println(allocate.capacity());//10 返回缓冲区总长度
+        System.out.println(allocate.remaining());//6 还有多少个可以操作的个数
+        System.out.println("----------------");
+        // 添加一个数组
+        allocate.put("123456".getBytes());
+        System.out.println(allocate.position());//10 获取当前索引所在位置
+        System.out.println(allocate.limit());//10 最多能操作到哪个索引位置
+        System.out.println(allocate.capacity());//10 返回缓冲区总长度
+        System.out.println(allocate.remaining());//0 还有多少个可以操作的个数
+        System.out.println(allocate.hasRemaining());//false 是否还能操作
+        System.out.println("----------------");
+
+        //如果缓冲区满了. 可以调整position位置, 就可以重复写. 会覆盖之前存入索引位置的值
+        allocate.position(0);
+        allocate.put("123456".getBytes());
+        System.out.println(allocate.position());//6 获取当前索引所在位置
+        System.out.println(allocate.limit());//10 最多能操作到哪个索引位置
+        System.out.println(allocate.capacity());//10 返回缓冲区总长度
+        System.out.println(allocate.remaining());//4 还有多少个可以操作的个数
+        System.out.println(allocate.hasRemaining());//true 是否还能操作
+
+    }
+}
+```
+
+#### 2.4.2.4 缓冲区对象读取数据
+
+| 方法名                     | 介绍                                                 |
+| -------------------------- | ---------------------------------------------------- |
+| Buffer flip()              | 反转这个缓冲区，limit设置position位置，position设置0 |
+| byte get()                 | 读一个字节                                           |
+| ByteBuffer get(byte[] dst) | 都多个字节                                           |
+| ByteBuffer rewind()        | 将position设置为0，可以重复读                        |
+| ByteBuffer clear()         | 切换写模式，position设置为0，limit设置为capacity     |
+| byte[] array()             | 将缓冲区转换成字节数组返回                           |
+
+图解：filp()方法
+
+![image-20211105195154192](assest/image-20211105195154192.png)
+
+图解：clear()方法
+
+![image-20211105195244292](assest/image-20211105195244292.png)
+
+实例代码：
+
+https://gitee.com/turboYuu/rpc-3-1/blob/master/lab/NIO/src/com/turbo/buffer/GetBufferDemo.java
+
+```java
+package com.turbo.buffer;
+
+import java.nio.ByteBuffer;
+
+/**
+ * 从缓冲区中读取数据
+ */
+public class GetBufferDemo {
+    public static void main(String[] args) {
+        //1.创建一个指定长度的缓冲区
+        ByteBuffer allocate = ByteBuffer.allocate(10);
+        allocate.put("0123".getBytes());
+        //allocate.flip();
+        //获取当前索引所在位置
+        System.out.println("position:" + allocate.position());//4
+        System.out.println("limit:" + allocate.limit());//10
+        System.out.println("capacity:" + allocate.capacity());//10
+        System.out.println("remaining:" + allocate.remaining());//6
+
+        //切换读模式
+        System.out.println("读取数据--------------");
+        allocate.flip();
+        System.out.println("position:" + allocate.position());//4
+        System.out.println("limit:" + allocate.limit());//10
+        System.out.println("capacity:" + allocate.capacity());//10
+        System.out.println("remaining:" + allocate.remaining());//6
+        for (int i = 0; i < allocate.limit(); i++) {
+            System.out.println(allocate.get());
+        }
+        //读取完毕后.继续读取会报错,超过limit值
+        //System.out.println(allocate.get());
+        //读取指定索引字节
+        System.out.println("读取指定索引字节--------------");
+        System.out.println(allocate.get(1));//49
+
+        System.out.println("读取多个字节--------------");
+        // 重复读取
+        allocate.rewind();
+        byte[] bytes = new byte[4];
+        allocate.get(bytes);
+        System.out.println(new String(bytes));//0123
+
+        // 将缓冲区转化字节数组返回
+        System.out.println("将缓冲区转化字节数组返回（包括为空的部分）--------------");
+        byte[] array = allocate.array();
+        System.out.println(new String(array));//0123
+
+        // 切换写模式,覆盖之前索引所在位置的值
+        System.out.println("写模式--------------");
+        allocate.clear();
+        allocate.put("abc".getBytes());
+        System.out.println(new String(allocate.array()));//abc3
+
+    }
+}
+
+```
+
+
+
+注意事项：
+
+> 1. capacity：容量（长度）；limit：界限（最多能读/能写到哪里）；position：位置（读写哪个索引）。
+> 2. 获取缓冲区里面的数据之前，需要调用flip方法。
+> 3. 再次写数据之前，需要调用clear方法，但是数据还未消失，等再次写入数据，被覆盖才会消失。
+
+## 2.5 通道（Channel）
+
+## 2.6 选择器（Selector）
+
 # 3 Netty核心原理
 
 # 4 Netty高级应用
