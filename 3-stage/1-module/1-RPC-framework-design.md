@@ -207,7 +207,8 @@ AIO引入异步通道的概念，采用Proactor模式，简化了程序编写，
 
 Java NIO全称Java non-blocking IO，是指JDK提供的新API。从JDK1.4 开始，Java提供了一系列改进输入/输出的新特性，被统称为NIO（New I/O）同步非阻塞。
 
-1. NIO有三大部分
+1. NIO有三大部分：Channel（通道）、Buffer（缓冲区）、Selector（选择器）
+2. NIO是面向缓冲区编程的，数据
 
 # 3 Netty核心原理
 
