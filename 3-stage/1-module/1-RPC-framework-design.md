@@ -634,11 +634,122 @@ public class NIOClient {
 
 **常用方法**
 
-- SelectionKey.
+- SelectionKey.isAcceptable()    是否是连接连续事件
+- SelectionKey.isConnectable()    是否是连续就绪事件
+- SelectionKey.isReadable()   是否是读就绪事件
+- SelectionKey.isWritable()   是否是写就绪事件
 
 **SelectionKey中定义的4中事件**
 
+- SelectionKey.OP_ACCEPT    -- 接收连续继续事件，表示服务器监听到了客户链接，服务器可以接收这个连接了
+- SelectionKey.OP_CONNECT -- 连接就绪事件，表示客户端与服务器的连接已经建立成功
+- SelectionKey.OP_READ -- 读就绪事件，表示通道中已经有了可读的数据，可以执行读操作了（通道目前有数据，可以进行读操作了）
+- SelectionKey.OP_WRITE -- 写就绪事件，表示已经可以向通道写数据了（通道目前可以用于写操作）
+
 ### 2.6.3 Selector编码
+
+**服务端实现步骤**：
+
+1. 打开一个服务端通道
+2. 绑定对应的端口号
+3. 通道默认是阻塞的，需要设置为非阻塞
+4. 创建选择器
+5. 将服务端通道注册到选择器上，并指定注册监听事件为OP_ACCEPT
+6. 检查选择器是否有事件
+7. 获取事件集合
+8. 判断是否是客户端连接事件SelectionKey.isAcceptable()
+9. 得到客户端通道，并将通道注册到选择器上，并指定监听事件为OP_READ
+10. 判断是否是客户端读就绪事件SelectionKey.isReadable()
+11. 的大客户端通道，读取数据到缓冲区
+12. 给客户端回写数据
+13. 从集合中删除对应的事件，因为防止二次处理。
+
+
+
+**代码实现**：
+
+https://gitee.com/turboYuu/rpc-3-1/blob/master/lab/NIO/src/com/turbo/selector/NIOSelectorServer.java
+
+```java
+package com.turbo.selector;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
+import java.util.Set;
+
+/**
+ * 服务端-选择器
+ */
+public class NIOSelectorServer {
+    public static void main(String[] args) throws IOException {
+        //1. 打开一个服务端通道
+        ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
+        //2. 绑定对应的端口号
+        serverSocketChannel.bind(new InetSocketAddress(9999));
+        //3. 通道默认是阻塞的，需要设置为非阻塞
+        serverSocketChannel.configureBlocking(false);
+        //4. 创建选择器
+        Selector selector = Selector.open();
+        //5. 将服务端通道注册到选择器上,并指定注册监听的事件为OP_ACCEPT
+        serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
+        System.out.println("服务端启动成功.....");
+        while (true) {
+            //6. 检查选择器是否有事件
+            int select = selector.select(2000);
+            if (select == 0) {
+                System.out.println("没有事件发生....");
+                continue;
+            }
+            //7. 获取事件集合
+            Set<SelectionKey> selectionKeys = selector.selectedKeys();
+            Iterator<SelectionKey> iterator = selectionKeys.iterator();
+            while (iterator.hasNext()) {
+                //8. 判断事件是否是客户端连接事件SelectionKey.isAcceptable()
+                SelectionKey key = iterator.next();
+                if (key.isAcceptable()) {
+                    //9. 得到客户端通道,并将通道注册到选择器上, 并指定监听事件为OP_READ
+                    SocketChannel socketChannel = serverSocketChannel.accept();
+                    System.out.println("有客户端连接.....");
+                    //将通道必须设置成非阻塞的状态.因为selector选择器需要轮询监听每个通道的事件
+                    socketChannel.configureBlocking(false);
+                    //指定监听事件为OP_READ 读就绪事件 (为什么是读事件：要站在服务器的角度,因为服务器要读取客户端的数据)
+                    socketChannel.register(selector, SelectionKey.OP_READ);
+                }
+
+
+                //10. 判断是否是客户端读就绪事件SelectionKey.isReadable()
+                if (key.isReadable()) {
+                    //11.得到客户端通道,读取数据到缓冲区
+                    SocketChannel socketChannel = (SocketChannel) key.channel();
+                    ByteBuffer allocate = ByteBuffer.allocate(1024);
+                    int read = socketChannel.read(allocate);
+                    if (read > 0) {
+                        System.out.println("客户端消息:" + new String(allocate.array(), 0, read
+                                , StandardCharsets.UTF_8));
+                        //12. 给客户端回写数据
+                        socketChannel.write(ByteBuffer.wrap("没钱".getBytes(StandardCharsets.UTF_8)));
+                        socketChannel.close();
+                    }
+                }
+                //13. 从集合中删除对应的事件, 因为防止二次处理.
+                iterator.remove();
+            }
+        }
+    }
+}
+
+```
+
+
+
+
 
 # 3 Netty核心原理
 
