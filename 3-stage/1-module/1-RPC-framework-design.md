@@ -467,6 +467,14 @@ public class GetBufferDemo {
 
 ## 2.5 通道（Channel）
 
+### 2.5.1 基本介绍
+
+### 2.5.2 Channel常用类介绍
+
+### 2.5.3 ServerSocketChannel
+
+### 2.5.4 SocketChannel
+
 ## 2.6 选择器（Selector）
 
 # 3 Netty核心原理
