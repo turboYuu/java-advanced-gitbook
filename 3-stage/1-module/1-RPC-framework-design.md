@@ -469,13 +469,148 @@ public class GetBufferDemo {
 
 ### 2.5.1 基本介绍
 
+通常来说NIO中的所有IO嗾使从Channel（通道）开始的。NIO的通道类似于流，但有些区别：
+
+1. 通道可以读也可以写，流一般来说是单向的（只能读或写，所以之前我们用流进行IO操作的时候需要分别创建一个输入流和一个输出流）
+2. 通道可以异步读写
+3. 通道总是基于缓冲区Buffer来读写
+
+![image-20211108105741180](assest/image-20211108105741180.png)
+
 ### 2.5.2 Channel常用类介绍
+
+> 1.Channel接口
+
+常用的Channel实现类有：FileChannel，DatagramChannel，ServerSocketChannel和SocketChannel。FileChannel用于文件的数据读写，DatagramChannel用于UDP的数据读写，ServerSocketChannel和SocketChannel用于TCP的数据读写。【**ServerSocketChannel类似ServerSocket，SocketChannel类似Socket**】
+
+![image-20211108110331253](assest/image-20211108110331253.png)
+
+> 2.SocketChannel 与 ServerSocketChannel
+
+类似Socket和ServerSocket，可以完成客户端与服务端数据的通信工作。
 
 ### 2.5.3 ServerSocketChannel
 
+**服务端实现步骤**：
+
+1. 打开一个服务端通道
+2. 绑定对应的端口号
+3. 通道默认是阻塞的，需要设置位非阻塞
+4. 检查是否有客户端连接，有客户端连接会返回对应的通道
+5. 获取客户端传递过来的数据，并把数据放在byteBuffer这个缓冲区中
+6. 给客户端回写数据
+7. 释放资源
+
+**代码实现**：
+
+https://gitee.com/turboYuu/rpc-3-1/blob/master/lab/NIO/src/com/turbo/channel/NIOServer.java
+
+```java
+package com.turbo.channel;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.nio.charset.StandardCharsets;
+
+/**
+ * 服务端
+ */
+public class NIOServer {
+    public static void main(String[] args) throws IOException, InterruptedException {
+        //1. 打开一个服务端通道
+        ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
+        //2. 绑定对应的端口号
+        serverSocketChannel.bind(new InetSocketAddress(9999));
+        //3. 通道默认是阻塞的，需要设置为非阻塞
+        serverSocketChannel.configureBlocking(false);
+        System.out.println("服务端启动成功....");
+        while (true) {
+            //4. 检查是否有客户端连接 有客户端连接会返回对应的通道
+            SocketChannel socketChannel = serverSocketChannel.accept();
+            if (socketChannel == null) {
+                System.out.println("没有客户端连接...我去做别的事情");
+                Thread.sleep(2000);
+                continue;
+            }
+            //5. 获取客户端传递过来的数据,并把数据放在byteBuffer这个缓冲区中
+            ByteBuffer allocate = ByteBuffer.allocate(1024);
+            //返回值
+            //正数: 表示本次读到有效字节数
+            //0: 表示本次没有读到数据
+            //-1: 表示读到末尾
+            int read = socketChannel.read(allocate);
+            System.out.println("客户端消息:" + new String(allocate.array(), 0,
+                    read,StandardCharsets.UTF_8));
+            //6. 给客户端回写数据
+            socketChannel.write(ByteBuffer.wrap("没钱".getBytes(StandardCharsets.UTF_8)));
+            //7. 释放资源
+            socketChannel.close();
+        }
+    }
+}
+```
+
+
+
 ### 2.5.4 SocketChannel
 
+**实现步骤**
+
+1. 打开通道
+2. 设置连接IP和端口号
+3. 写出数据
+4. 读取服务器写回的数据
+
+**代码实现**
+
+https://gitee.com/turboYuu/rpc-3-1/blob/master/lab/NIO/src/com/turbo/channel/NIOClient.java
+
+```java
+package com.turbo.channel;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.Buffer;
+import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
+import java.nio.charset.StandardCharsets;
+
+/**
+ * 客户端
+ */
+public class NIOClient {
+    public static void main(String[] args) throws IOException {
+        //1. 打开通道
+        SocketChannel socketChannel = SocketChannel.open();
+        //2. 设置连接IP和端口号
+        socketChannel.connect(new InetSocketAddress("127.0.0.1", 9999));
+        //3. 写出数据
+        socketChannel.write(ByteBuffer.wrap("老板.还钱吧!".getBytes(StandardCharsets.UTF_8)));
+        //4. 读取服务器写回的数据
+        ByteBuffer allocate = ByteBuffer.allocate(1024);
+        int read = socketChannel.read(allocate);
+        System.out.println("服务端消息:" +
+                new String(allocate.array(), 0, read, StandardCharsets.UTF_8));
+        //5. 释放资源
+        socketChannel.close();
+    }
+}
+```
+
+
+
 ## 2.6 选择器（Selector）
+
+### 2.6.1 基本介绍
+
+可以用一个线程，处理多个的客户端连接，就会使用到NIO的Selector（选择器）。Selector能够检测多个注册的服务端通道上是否有事件发生，如果有事件发生，便获取事件然后针对每个事件进行相应的处理。这样就可以只用一个单线程去管理
+
+### 2.6.2 常用API介绍
+
+### 2.6.3 Selector编码
 
 # 3 Netty核心原理
 
