@@ -915,9 +915,76 @@ Netty 的设计主要基于主从Reactor多线程模式，并做了一定的改�
 
 ![image-20211108183953465](assest/image-20211108183953465.png)
 
+- Netty抽象出两组线程池：BossGroup和WorkerGroup，也可以叫做BossNioEventLoopGroup和WorkerNioEventLoopGroup。每个线程池中都有NioEventLoop线程。BossGroup中的线程专门负责和客户端建立连接，WorkerGroup中的线程专门负责处理连接上的读写。BossGroup和WorkerGroup的类型都是NioEventoopGroup
 
+- NioEventLoopGroup相当于一个事件循环组，这个组中含有多个事件循环，每个事件循环就是一个NioEventLoop
+
+- NioEventLoop表示一个不断循环的执行事件处理的线程，每个NioEventLoop都包含一个Selector，用于监听注册在其上的Socket网络连接（Channel）
+
+- NioEventLoopGroup可以含有多个线程，即可以含有多个NioEventLoop
+
+- 每个BossNioEventLoop中循环执行以下三个步骤：
+
+  - **select**：轮询注册在其上的ServerSocketChannel的accept事件（OP_ACCEPT事件）
+  - **processSelectdKeys**：处理accept事件，与客户端建立连接，生成一个NioSocketChannel，并将其注册到某个WorkerNioEventLoop上的Selector上
+  - **runAlltasks**：再去以此循环处理任务队列中的其他任务
+
+- 每个WorkerNioEventLoop中循环以下三个步骤
+
+  - **select**：轮询注册在其上的NioSocketChannel的read/write事件（OP_READ/OP_WRITE事件）
+  - **processSelectdKeys**：在对应的NioSocketChannel上处理read/write事件
+  - **runAllTasks**：再去以此循环任务队列中的其他任务
+
+- 在以上两个processSelectedKeys步骤中，会使用Pipeline（管道），Pipeline中引用了Channel，即通过Pipeline可以获取到对应的Channel，Pipeline中维护了很多的处理器（拦截处理器、过滤器处理器、自定义处理器等）。
+
+  
 
 ## 3.3 核心API介绍
+
+### 3.3.1 ChannelHandler及其实现类
+
+ChannelHandler接口定义了许多事件处理的方法，可以通过重写这些方法去实现具体的业务逻辑。API关系如下所示：
+
+![image-20211108203305706](assest/image-20211108203305706.png)
+
+Netty开发中需要自定义一个Handler类去实现ChannelHandler接口或其子接口或其实现类，然后通过重写相应方法实现业务逻辑，接下来看看一般都需要重写哪些方法
+
+- public void channelActive(ChannelHandlerContext ctx)，通道就绪事件
+- public void channelRead(ChannelHandlerContext ctx, Object o)，通道读取数据事件
+- public void channelReadComplete(ChannelHandlerContext ctx)，数据读取完毕事件
+- public void exceptionCaught(ChannelHandlerContext ctx, Throwable throwable)，通道发生异常事件
+
+### 3.3.2 ChannelPipeline
+
+ChannelPipeline是一个Handler的集合，它负责处理和拦截inbound或者outbound的事件和操作，相当于一个贯穿Netty的责任链。
+
+![image-20211108204315750](assest/image-20211108204315750.png)
+
+如果客户端和服务器的Handler是一样的，消息从客户端到服务端或者反过来，每个Inbound类型或Outbound类型的Handler只会经过一次，混合类型的Handler（实现了Inbound和Outbound的Handler）会经过两次。准确的说ChannelPipeline中是一个ChannelHandlerContext，每个上下文对象中有ChannelHandler。**InboundHandler是按照Pipeline的加载顺序顺序执行，OutboundHandler是按照Pipeline的加载顺序，逆序执行**
+
+### 3.3.3 ChannelPipeline
+
+ChannelPipeline是一个Handler的集合，它负责处理和拦截inbound或者outbound的事件和操作，相当于一个贯穿Netty的责任链。
+
+### 3.3.4 ChannelOption
+
+
+
+### 3.3.5 ChannelFuture
+
+
+
+### 3.3.6 EventLoopGroup和实现类NioEventLoopGroup
+
+
+
+### 3.3.7 ServerBootstrap和Bootstrap
+
+
+
+### 3.3.8 Unpooled类
+
+
 
 ## 3.4 Netty入门案例
 
