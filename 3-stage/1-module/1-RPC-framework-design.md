@@ -753,6 +753,32 @@ public class NIOSelectorServer {
 
 # 3 Netty核心原理
 
+## 3.1 Netty介绍
+
+### 3.1.1 原生NIO存在的问题
+
+1. NIO的类库和API繁杂，使用麻烦：需要熟练掌握Selector、ServerSocketChannel、SocketChannel、ByteBuffer等。
+
+2. 需要具备其他额外技能：要熟悉Java多线程编程，因为NIO涉及到Reactor模式，必须对多线程和网络编程非常熟悉，才能编写出高质量的NIO程序。
+
+3. 开发工作量和难度都非常大：例如客户端面临 断连重连、网络闪断、半包读写、失败缓存、网络拥塞 和 异常流的处理等等。
+
+4. JDK NIO的Bug：臭名昭著的Epoll Bug，它会导致Selector空轮询，最终导致CPU 100% 。直到 JDK 1.7 版本该问题仍旧存在，没有被根本解决
+
+   > 在NIO中通过Selector的轮询当前是否有IO事件，根据JDK NIO api描述，Selector的Select方法会一致阻塞，直到IO事件达到或超时，但是在Linux平台上这里有时会出现问题，在某些场景下select方法会直接返回，即使没有超时并且也没有IO事件达到，这就是著名的epoll bug，这是一个比较严重的bug，它会导致线程陷入死循环，会让CPU飙到100%，极大地影响系统地可靠性，到目前为止，JDK都没有完全解决这个问题。
+
+   
+
+### 3.1.2 概述
+
+## 3.2 线程模型
+
+## 3.3 核心API介绍
+
+## 3.4 Netty入门案例
+
+## 3.5 Netty异步模型
+
 # 4 Netty高级应用
 
 # 5 Netty核心源码剖析
