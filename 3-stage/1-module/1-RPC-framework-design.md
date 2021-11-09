@@ -989,13 +989,15 @@ Netty在创建Channel实例后，一般都需要设置ChannelOption参数。Chan
 常用方法如下所示：
 
 - Channel channel，返回当前正在进行IO操作的通道
-- 
+- ChannelFuture sync()，等待异步操作执行完毕，将异步改为同步
 
 
 
 ### 3.3.6 EventLoopGroup和实现类NioEventLoopGroup
 
 
+
+![image-20211109200435174](assest/image-20211109200435174.png)
 
 ### 3.3.7 ServerBootstrap和Bootstrap
 
