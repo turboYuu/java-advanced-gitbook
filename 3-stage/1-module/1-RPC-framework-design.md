@@ -962,13 +962,21 @@ ChannelPipeline是一个Handler的集合，它负责处理和拦截inbound或者
 
 如果客户端和服务器的Handler是一样的，消息从客户端到服务端或者反过来，每个Inbound类型或Outbound类型的Handler只会经过一次，混合类型的Handler（实现了Inbound和Outbound的Handler）会经过两次。准确的说ChannelPipeline中是一个ChannelHandlerContext，每个上下文对象中有ChannelHandler。**InboundHandler是按照Pipeline的加载顺序顺序执行，OutboundHandler是按照Pipeline的加载顺序，逆序执行**
 
-### 3.3.3 ChannelPipeline
+### 3.3.3 ChannelHandlerContext
 
-ChannelPipeline是一个Handler的集合，它负责处理和拦截inbound或者outbound的事件和操作，相当于一个贯穿Netty的责任链。
+这是事件处理器上下文对象，Pipeline链中的实际处理节点。每个处理节点CHannelHandlerContext中包含一个具体的事件处理器ChannelHandler，同时ChannelHandlerContext中也绑定了对应的ChannelPipeline和Channel的信息，方便对ChanneHandler进行调用。常用方法如下所示：
+
+- ChannelFuture close()，关闭通道
+- ChannelOutboundInvoker flush()，刷新
+- ChannelFuture writeAndFlush(Object msg)，将数据写道ChannelPipeline中当前ChannelHandler的下一个ChannelHandler开始处理（出战）
 
 ### 3.3.4 ChannelOption
 
+Netty在创建Channel实例后，一般都需要设置ChannelOption参数。ChannelOption是Socket标准参数，而非Netty独创。常用的参数配置有：
 
+- ChannelOption.SO_BACKLOG
+
+  对应TCP/IP协议listen函数中的backlog参数，用来初始化服务器可连接队列大小。服务端处理客户端连接请求是顺序处理的，所以同一时间只能处理一个客户端连接。多个客户端来的时候，服务端将不能处理
 
 ### 3.3.5 ChannelFuture
 
