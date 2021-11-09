@@ -305,7 +305,7 @@ public class CreateBufferDemo {
 
 
 
-![image-20211105193804817](../../image-20211105193804817.png)
+![image-20211105193804817](assest/image-20211105193804817-1636457189554.png)
 
 示例代码：
 
