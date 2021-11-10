@@ -1470,7 +1470,7 @@ Java序列化仅仅是Java编解码技术的一种，由于它的种种缺陷，
 
 ### 4.1.2 Netty编解码器
 
-> 1.概念
+#### 4.1.2.1 概念
 
 在网络应用中需要实现某种编解码器，将原始字节数据与自定义的消息对象进行相互转换。网络中都是以字节码的数据形式来传输数据的，服务器编码数据后发送到客户端，客户端需要对数据进行解码。
 
@@ -1483,7 +1483,7 @@ Netty的编（解）码器实现了ChannelHandlerAdapter，也是一种特殊的
 
 **Netty里面的编解码：解码器：负责处理入站InboundHandler数据。编码器：负责出战Outboundhandler数据。**
 
-> 2.解码器（Decode）
+#### 4.1.2.2 解码器（Decoder）
 
 解码器负责”入站“数据从一种个数到另一种格式，解码器处理入站数据是抽象ChannelInboundHandler的实现。需要将解码器放在ChannelPipeline中。对于解码器，Netty中主要提供了抽象基类`MessageToMessageDecoder`和`ByteToMessageDecoder`
 
@@ -1498,8 +1498,8 @@ Netty的编（解）码器实现了ChannelHandlerAdapter，也是一种特殊的
 **核心方法**：
 
 ```java
-// io.netty.handler.codec.ByteToMessageDecoder#decode
-protected abstract void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception;
+// io.netty.handler.codec.MessageToMessageDecoder#decode
+protected abstract void decode(ChannelHandlerContext ctx, I msg, List<Object> out) throws Exception
 ```
 
 **代码实现**：
@@ -1539,9 +1539,174 @@ public class MessageDecoder extends MessageToMessageDecoder {
  * @throws Exception
  */
 @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        System.out.println("客户端发送过来的消息："+msg);// 此处不再需要解码
+public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+    System.out.println("客户端发送过来的消息："+msg);// 此处不再需要解码
+}
+```
+
+启动类：
+
+```java
+protected void initChannel(SocketChannel channel) throws Exception {
+    // 添加解码器 (messageDecoder别名)
+    channel.pipeline().addLast("messageDecoder",new MessageDecoder());
+    //8. 向pipeline中添加自定义业务处理handler
+    channel.pipeline().addLast(new NettyServerHandler());
+}
+```
+
+
+
+#### 4.1.2.3 编码器（Encoder）
+
+与`MessageToMessageDecoder`和`ByteToMessageDecoder`相对应，Netty提供了对应的编码器实现`MessageToMessageEncoder`和`MessageToByteEncoder`，二者都实现`ChannelOutboundHandler`接口。
+
+![image-20211110172152218](assest/image-20211110172152218.png)
+
+抽象编码器：
+
+- `MessageToByteEncoder`：将消息转化成字节
+- `MessageToMessageEncoder`：用于从一种消息编码为另外一种消息（例如POJO到POJO）
+
+核心方法：
+
+```java
+//io.netty.handler.codec.MessageToMessageEncoder#encode
+protected abstract void encode(ChannelHandlerContext ctx, I msg, List<Object> out) throws Exception;
+```
+
+代码实现：
+
+编辑器
+
+```java
+package com.turbo.codec;
+
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.MessageToMessageEncoder;
+import io.netty.util.CharsetUtil;
+
+import java.util.List;
+
+/**
+ * 消息的编码
+ */
+public class MessageEncoder extends MessageToMessageEncoder {
+    @Override
+    protected void encode(ChannelHandlerContext ctx, Object msg, List out) throws Exception {
+        System.out.println("消息正在编码....");
+        String str = (String) msg;
+        out.add(Unpooled.copiedBuffer(str, CharsetUtil.UTF_8));
     }
+}
+```
+
+消息发送：
+
+```java
+/**
+ * 通道就绪事件
+ * @param ctx
+ * @throws Exception
+ */
+@Override
+public void channelActive(ChannelHandlerContext ctx) throws Exception {
+    //Unpooled.copiedBuffer("你好，我是Netty客户端",
+    //                CharsetUtil.UTF_8)
+    ChannelFuture future = ctx.writeAndFlush("你好，我是Netty客户端");
+    future.addListener(new ChannelFutureListener() {
+        @Override
+        public void operationComplete(ChannelFuture future) throws Exception {
+            if(future.isSuccess()){
+                System.out.println("数据发送成功!");
+            }else {
+                System.out.println("数据发送失败!");
+            }
+        }
+    });
+}
+```
+
+启动类：
+
+```java
+@Override
+protected void initChannel(SocketChannel socketChannel) throws Exception {
+    // 添加解码器
+    socketChannel.pipeline().addLast("messageDecoder",new MessageDecoder());
+    // 添加编码器
+    socketChannel.pipeline().addLast("messageEncoder",new MessageEncoder());
+    //6. 向pipeline中添加自定义业务处理handler
+    socketChannel.pipeline().addLast(new NettyClientHandler());
+}
+```
+
+#### 4.1.2.4 编解码器（Codec）
+
+编码解码器：同时具有编码与解码功能，特点同时实现了`ChannelInboundHandler`和`ChannelOutboundHandler`接口，因此在数据输入和输出时都能进行处理。
+
+![image-20211110171748416](assest/image-20211110171748416.png)
+
+Netty提供了一个`ChannelDuplexHandler`适配器类，编码解码器的抽象基类`ByteToMessageCodec`,`MessageToMessageCodec`都继承此类。
+
+代码实现：
+
+```java
+package com.turbo.codec;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.MessageToMessageCodec;
+import io.netty.util.CharsetUtil;
+
+import java.util.List;
+
+/**
+ * 消息编解码器
+ */
+public class MessageCodec extends MessageToMessageCodec {
+    /**
+     * 编码
+     * @param ctx
+     * @param msg
+     * @param out
+     * @throws Exception
+     */
+    @Override
+    protected void encode(ChannelHandlerContext ctx, Object msg, List out) throws Exception {
+        System.out.println("消息正在编码....");
+        String str = (String) msg;
+        out.add(Unpooled.copiedBuffer(str, CharsetUtil.UTF_8));
+    }
+
+    /**
+     * 解码
+     * @param ctx
+     * @param msg
+     * @param out
+     * @throws Exception
+     */
+    @Override
+    protected void decode(ChannelHandlerContext ctx, Object msg, List out) throws Exception {
+        System.out.println("正在进行消息解码...");
+        ByteBuf byteBuf = (ByteBuf) msg;
+        out.add(byteBuf.toString(CharsetUtil.UTF_8));//传递到下一个handler
+    }
+}
+```
+
+启动类：
+
+```java
+@Override
+protected void initChannel(SocketChannel channel) throws Exception {
+    // 添加编解码器
+    channel.pipeline().addLast("messageCoder",new MessageCodec());
+    //8. 向pipeline中添加自定义业务处理handler
+    channel.pipeline().addLast(new NettyServerHandler());
+}
 ```
 
 
