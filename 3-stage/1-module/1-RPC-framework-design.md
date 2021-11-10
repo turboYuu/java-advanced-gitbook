@@ -1380,11 +1380,108 @@ public class NettyClientHandler implements ChannelInboundHandler {
 
 ## 3.5 Netty异步模型
 
+### 3.5.1 基本介绍
+
+异步的概念和同步相对。当一个异步过程调用发出后，调用者不能立刻得到结果。实际处理这个调用的组件在完成后，通过状态、通知和回调来通知调用者。
+
+![image-20211104154006470](assest/image-20211104154006470.png)
+
+![image-20211104154027834](assest/image-20211104154027834.png)
+
+Netty中的I/O操作是异步的，包括Bind、Write、Connect等操作会简单的返回一个ChannelFuture。调用者并不能立刻获得结果，而是通过Future-Listener机制，用户可以方便的主动获取或者通过通知机制获得IO操作结果。
+
+Netty的异步模型是建立在future和callback之上的。callback就是回调。重点说Future，它的核心思想是：假设一个方法fun，极端过程可能非常耗时，等待fun返回显然不合适。那么可以在调用fun的时候，立马返回一个Future，后续可以通过Future去监控方法fun的处理过程（即：Future-Listener机制）
+
+
+
+### 3.5.2 Future和Future-Listener
+
+1. Future
+
+   表示异步的执行结果，可以通过它提供的方法来检测执行是否完成，ChannelFuture是它的一个子接口。ChannelFuture是一个接口，可以添加监听器，当监听的事件发生时，就会通知到监听器
+
+   当Future对象刚刚创建时，处于非完成状态，调用者可以通过返回的ChannelFuture来获取操作执行的状态，注册监听函数来执行完成后续的操作。
+
+   **常用方法有**：
+
+   - sync方法，阻塞等待程序结果返回
+   - isDone方法，判断当前操作是否完成；
+   - isSuccess方法，判断已完成的当前操作是否成功
+   - getCause方法，来获取已完成的当前操作失败的原因
+   - isCancellable方法，来判断已完成的当前操作是否被取消；
+   - addListener方法，注册监听器，当操作已完成（isDone方法返回完成），将会通知指定的监听器；如果Future对象已完成，则通知指定的监听器
+
+2. Furture-Listener机制
+
+   给Future添加监听器，监听操作结果
+
+   代码实现：
+
+   ```java
+   //9. 启动服务端并绑定端口,同时将异步改为同步
+   ChannelFuture future = serverBootstrap.bind(9999);
+   future.addListener(new ChannelFutureListener() {
+       @Override
+       public void operationComplete(ChannelFuture future) throws Exception {
+           if (future.isSuccess()){
+               System.out.println("端口绑定成功!");
+           }else{
+               System.out.println("端口绑定失败!");
+           }
+       }
+   });
+   ```
+
+   ```java
+   ChannelFuture future = ctx.writeAndFlush(Unpooled.copiedBuffer("你好，我是Netty客户端",
+                   CharsetUtil.UTF_8));
+   future.addListener(new ChannelFutureListener() {
+       @Override
+       public void operationComplete(ChannelFuture future) throws Exception {
+           if(future.isSuccess()){
+               System.out.println("数据发送成功!");
+           }else {
+               System.out.println("数据发送失败!");
+           }
+       }
+   });
+   ```
+
+   
+
 # 4 Netty高级应用
+
+## 4.1 Netty编解码器
+
+### 4.1.1 Java的编解码
+
+### 4.1.2 Netty编解码器
+
+## 4.2 Netty案例-群聊天室
+
+## 4.3 基于Netty的Http服务器开发
+
+## 4.4 基于Netty的WebSocket开发网页版聊天室
+
+## 4.5 Netty中的粘包和拆包的解决方案
 
 # 5 Netty核心源码剖析
 
+## 5.1 Netty源码构建
+
+## 5.2 EventLoopGroup事件循环组（线程组）源码
+
+## 5.3 Netty启动源码
+
+## 5.4 BossGroup/WorkerGroup/消息入站源码
+
+## 5.5 消息出站源码
+
 # 6 自定义RPC框架
+
+## 6.1 分布式框架网络通信
+
+## 6.2 基于Netty实现RPC框架
 
 
 
