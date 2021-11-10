@@ -995,9 +995,20 @@ Netty在创建Channel实例后，一般都需要设置ChannelOption参数。Chan
 
 ### 3.3.6 EventLoopGroup和实现类NioEventLoopGroup
 
+EventLoopGroup是一组 EventLoop 的抽象，Netty为了更好的利用多核CPU资源，一般会有多个EventLoop同时工作，每个EventLoop维护者一个Selector实例。
 
+EventLoopGroup提供next接口，可以从组里面按照一定规则获取其中一个EventLoop来处理任务。在Netty服务器端编程中，我们一般都需要提供两个EventLoopGroup，例如：BossEventLoopGroup和WorkerEventLoopGroup。通常一个服务端口即一个ServerSocketChannel，对应一个Selector和一个EventLoop线程。BossEventLoop负责接收客户端的连接并将SocketChannel交给WorkerEventLoopGroup来进行IO处理，如下图所示：
 
 ![image-20211109200435174](assest/image-20211109200435174.png)
+
+BossEventLoopGroup通常是一个单线程的EventLoop，EventLoop维护着一个注册了ServerSocketChannel的Selector实例，BossEventLoop不断循环Selector将连接事件分离出来，通常是`OP_ACCEPT`事件，然后将接收到的SocketChannel交给WorkerEventLoopGroup会由next选择一个EventLoop来将这个SocketChannel注册到其维护Selector并对其后续的IO事件进行处理。
+
+一般情况下，我们都是使用实现类NioEventLoopGroup。
+
+常用方法如下所示：
+
+- public NioEventLoopGroup()，构造方法，创建线程组
+- public Future<?> shutdownGracefully()，断开连接，关闭线程
 
 ### 3.3.7 ServerBootstrap和Bootstrap
 
