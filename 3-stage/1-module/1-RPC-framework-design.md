@@ -1015,7 +1015,9 @@ BossEventLoopGroup通常是一个单线程的EventLoop，EventLoop维护着一�
 ServerBootstrap是Netty中服务器端启动助手，通过它可以完成服务器的各种配置；Bootstrap是Netty种客户端的启动助手，通过它可以完成客户端的各种配置。常用方法如下：
 
 - io.netty.bootstrap.ServerBootstrap#group(io.netty.channel.EventLoopGroup, io.netty.channel.EventLoopGroup)，该方法用于服务器端，用来设置两个EventLoopGroup
-- io.netty.bootstrap.ServerBootstrap#group(io.netty.channel.EventLoopGroup)，该方法用客户端，用来设置一个EventLoop
+- io.netty.bootstrap.AbstractBootstrap#group(io.netty.channel.EventLoopGroup)，该方法用客户端，用来设置一个EventLoop
+- io.netty.bootstrap.AbstractBootstrap#channel（public B channel(Class<? extends C> channelClass)），该方法用来设置一个服务器端的通道
+- public <T> B option(ChannelOption<T> option, T value)，用来给ServerChannel添加配置
 - io.netty.bootstrap.ServerBootstrap#childOption（public <T> ServerBootstrap childOption(ChannelOption<T> childOption, T value) ），用来给接收到的通道添加配置
 - io.netty.bootstrap.ServerBootstrap#childHandler(io.netty.channel.ChannelHandler)，该方法用来设置业务处理类（自定义的handler）
 - io.netty.bootstrap.AbstractBootstrap#bind(int)，该方法用于服务器端，用来设置占用的端口号
@@ -1056,11 +1058,325 @@ Netty是由JBOSS提供的一个Java开源框架，所以在使用的时候，首
 6. 参数设置
 7. 创建一个通道初始化对象
 8. 向Pipeline中添加自定义业务处理handler
-9. 
+9. 启动服务端并绑定端口，同时将异步改为同步
+10. 关闭通道和关闭连接池
+
+
+
+**代码实现**：
+
+```java
+package com.turbo.demo;
+
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.*;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+
+/**
+ * Netty服务端
+ */
+public class NettyServer {
+
+    public static void main(String[] args) throws InterruptedException {
+
+        //1. 创建bossGroup线程组: 处理网络事件--连接事件 (线程个数 默认：处理器线程数*2,一般情况下为1)
+        EventLoopGroup bossGroup = new NioEventLoopGroup(1);
+        //2. 创建workerGroup线程组: 处理网络事件--读写事件 --默认：处理器线程数*2
+        EventLoopGroup workerGroup = new NioEventLoopGroup();
+        //3. 创建服务端启动助手
+        ServerBootstrap serverBootstrap = new ServerBootstrap();
+        //4. 设置bossGroup线程组和workerGroup线程组
+        serverBootstrap.group(bossGroup,workerGroup)
+                .channel(NioServerSocketChannel.class) //5. 设置服务端通道实现为NIO
+                .option(ChannelOption.SO_BACKLOG,128) //6. 参数设置
+                .childOption(ChannelOption.SO_KEEPALIVE,Boolean.TRUE) // 6. 参数设置
+                .childHandler(new ChannelInitializer<SocketChannel>() { //7. 创建一个通道初始化对象
+                    @Override
+                    protected void initChannel(SocketChannel channel) throws Exception {
+                        //8. 向pipeline中添加自定义业务处理handler
+                        channel.pipeline().addLast(new NettyServerHandler());
+                    }
+                });
+
+        //9. 启动服务端并绑定端口,同时将异步改为同步
+        ChannelFuture future = serverBootstrap.bind(9999);
+        future.addListener(new ChannelFutureListener() {
+            @Override
+            public void operationComplete(ChannelFuture future) throws Exception {
+                if (future.isSuccess()){
+                    System.out.println("端口绑定成功!");
+                }else{
+                    System.out.println("端口绑定失败!");
+                }
+            }
+        });
+        System.out.println("Netty服务端启动成功...");
+        //10. 关闭通道(并不是真正意义上的关闭，而是监听通道关闭的状态)和关闭连接池   关闭时也是将异步改为同步
+        future.channel().closeFuture().sync();
+        bossGroup.shutdownGracefully();
+        workerGroup.shutdownGracefully();
+    }
+}
+```
+
+自定义服务端handler
+
+```java
+package com.turbo.demo;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandler;
+import io.netty.util.CharsetUtil;
+
+/**
+ * 自定义处理handler
+ */
+public class NettyServerHandler implements ChannelInboundHandler {
+
+    /**
+     * 通道读取事件
+     * @param channelHandlerContext
+     * @param msg
+     * @throws Exception
+     */
+    @Override
+    public void channelRead(ChannelHandlerContext channelHandlerContext, Object msg) throws Exception {
+        ByteBuf byteBuf = (ByteBuf) msg;
+        System.out.println("客户端发送过来的消息："+byteBuf.toString(CharsetUtil.UTF_8));
+    }
+
+    /**
+     * 通道读取完毕事件 (给客户端响应)
+     * @param channelHandlerContext
+     * @throws Exception
+     */
+    @Override
+    public void channelReadComplete(ChannelHandlerContext channelHandlerContext) throws Exception {
+        channelHandlerContext.writeAndFlush(Unpooled.copiedBuffer("你好,我是Netty服务端",
+                CharsetUtil.UTF_8)); //消息出站 此处不需要编写outboundHandler,而入站需要
+    }
+
+    /**
+     * 通道发生异常事件
+     * @param channelHandlerContext
+     * @param throwable
+     * @throws Exception
+     */
+    @Override
+    public void exceptionCaught(ChannelHandlerContext channelHandlerContext, Throwable throwable) throws Exception {
+        // 打印异常
+        throwable.printStackTrace();
+        // 关闭通道
+        channelHandlerContext.close();
+    }
+
+    @Override
+    public void channelRegistered(ChannelHandlerContext channelHandlerContext) throws Exception {
+
+    }
+
+    @Override
+    public void channelUnregistered(ChannelHandlerContext channelHandlerContext) throws Exception {
+
+    }
+
+    @Override
+    public void channelActive(ChannelHandlerContext channelHandlerContext) throws Exception {
+
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext channelHandlerContext) throws Exception {
+
+    }
+
+
+    @Override
+    public void userEventTriggered(ChannelHandlerContext channelHandlerContext, Object o) throws Exception {
+
+    }
+
+    @Override
+    public void channelWritabilityChanged(ChannelHandlerContext channelHandlerContext) throws Exception {
+
+    }
+
+    @Override
+    public void handlerAdded(ChannelHandlerContext channelHandlerContext) throws Exception {
+
+    }
+
+    @Override
+    public void handlerRemoved(ChannelHandlerContext channelHandlerContext) throws Exception {
+
+    }
+}
+```
 
 
 
 ### 3.4.2 Netty客户端编写
+
+**客户端实现步骤**：
+
+1. 创建线程组
+2. 创建客户端启动助手
+3. 设置线程组
+4. 设置客户端通道实现为NIO
+5. 创建一个通道初始化对象
+6. 向Pipeline中添加自定义业务处理handler
+7. 启动客户端，等待连接服务端，同时将异步改为同步
+8. 关闭通道和关闭连接池
+
+**代码实现**：
+
+```java
+package com.turbo.demo;
+
+import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioSocketChannel;
+
+/**
+ * Netty客户端
+ */
+public class NettyClient {
+
+    public static void main(String[] args) throws InterruptedException {
+        //1. 创建线程组
+        EventLoopGroup group = new NioEventLoopGroup();
+        //2. 创建客户端启动助手
+        Bootstrap bootstrap = new Bootstrap();
+        //3. 设置线程组
+        bootstrap.group(group)
+                .channel(NioSocketChannel.class) //4. 设置客户端通道实现为NIO
+                .handler(new ChannelInitializer<SocketChannel>() { //5. 创建一个通道初始化对象
+                    @Override
+                    protected void initChannel(SocketChannel socketChannel) throws Exception {
+                        //6. 向pipeline中添加自定义业务处理handler
+                        socketChannel.pipeline().addLast(new NettyClientHandler());
+                    }
+                });
+        //7. 启动客户端,等待连接服务端,同时将异步改为同步
+        ChannelFuture future = bootstrap.connect("127.0.0.1", 9999).sync();
+        //8. 关闭通道(并不是真正意义上的关闭，而是监听通道关闭的状态)和关闭连接池
+        future.channel().closeFuture().sync();
+        group.shutdownGracefully();
+    }
+}
+```
+
+自定义客户端handler
+
+```java
+package com.turbo.demo;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandler;
+import io.netty.util.CharsetUtil;
+
+/**
+ * Netty客户端处理类
+ */
+public class NettyClientHandler implements ChannelInboundHandler {
+
+    /**
+     * 通道就绪事件
+     * @param ctx
+     * @throws Exception
+     */
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        ChannelFuture future = ctx.writeAndFlush(Unpooled.copiedBuffer("你好，我是Netty客户端",
+                CharsetUtil.UTF_8));
+        future.addListener(new ChannelFutureListener() {
+            @Override
+            public void operationComplete(ChannelFuture future) throws Exception {
+                if(future.isSuccess()){
+                    System.out.println("数据发送成功!");
+                }else {
+                    System.out.println("数据发送失败!");
+                }
+            }
+        });
+    }
+
+    /**
+     * 通道读就绪事件
+     * @param channelHandlerContext
+     * @param o
+     * @throws Exception
+     */
+    @Override
+    public void channelRead(ChannelHandlerContext channelHandlerContext, Object o) throws Exception {
+        ByteBuf byteBuf = (ByteBuf) o;
+        System.out.println("服务端发送消息："+byteBuf.toString(CharsetUtil.UTF_8));
+    }
+
+    @Override
+    public void channelRegistered(ChannelHandlerContext channelHandlerContext) throws Exception {
+
+    }
+
+    @Override
+    public void channelUnregistered(ChannelHandlerContext channelHandlerContext) throws Exception {
+
+    }
+
+
+
+    @Override
+    public void channelInactive(ChannelHandlerContext channelHandlerContext) throws Exception {
+
+    }
+
+
+
+    @Override
+    public void channelReadComplete(ChannelHandlerContext channelHandlerContext) throws Exception {
+
+    }
+
+    @Override
+    public void userEventTriggered(ChannelHandlerContext channelHandlerContext, Object o) throws Exception {
+
+    }
+
+    @Override
+    public void channelWritabilityChanged(ChannelHandlerContext channelHandlerContext) throws Exception {
+
+    }
+
+    @Override
+    public void handlerAdded(ChannelHandlerContext channelHandlerContext) throws Exception {
+
+    }
+
+    @Override
+    public void handlerRemoved(ChannelHandlerContext channelHandlerContext) throws Exception {
+
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext channelHandlerContext, Throwable throwable) throws Exception {
+
+    }
+}
+```
+
+
 
 ## 3.5 Netty异步模型
 
