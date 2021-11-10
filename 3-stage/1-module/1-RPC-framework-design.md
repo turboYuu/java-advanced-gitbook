@@ -1455,9 +1455,100 @@ Netty的异步模型是建立在future和callback之上的。callback就是回�
 
 ### 4.1.1 Java的编解码
 
+1. 编码（Encode）称为序列化，它将对象序列化为字节数组，用于网络传输、数据持久化或者其他用途。
+2. 解码（Decode）称为反序列化，它把从网络、磁盘等读取的字节数组还原成原始对象（通常是原始对象的拷贝），以方便后续的业务逻辑操作。
+
+![image-20211110160419686](assest/image-20211110160419686.png)
+
+java序列化对象著需要实现`java.io.Serializable`接口并生成序列化ID，这个类就能够通过`java.io.ObjectInput`和`java.io.ObjectOutput`序列化和反序列化。
+
+Java序列化的目的：1.网络传输；2.对象持久化。
+
+Java序列化缺点：1.无法跨语言；2.序列化后码流太大；3.序列化性能太低。
+
+Java序列化仅仅是Java编解码技术的一种，由于它的种种缺陷，衍生出了多种编解码技术和框架，这些编解码框架实现消息的高效序列化。
+
 ### 4.1.2 Netty编解码器
 
+> 1.概念
+
+在网络应用中需要实现某种编解码器，将原始字节数据与自定义的消息对象进行相互转换。网络中都是以字节码的数据形式来传输数据的，服务器编码数据后发送到客户端，客户端需要对数据进行解码。
+
+对于Netty而言，编解码器由两部分组成：编码器、解码器。
+
+- 编码器：将消息对象转成字节或其他序列化形式在网络上传输。
+- 解码器：负责将消息从字节或其他序列化形式转成指定的消息对象。
+
+Netty的编（解）码器实现了ChannelHandlerAdapter，也是一种特殊的ChannelHandler，所以依赖于ChannelPipeline，可以将多个编（解）码器链接在一起，以实现复杂的转换逻辑。
+
+**Netty里面的编解码：解码器：负责处理入站InboundHandler数据。编码器：负责出战Outboundhandler数据。**
+
+> 2.解码器（Decode）
+
+解码器负责”入站“数据从一种个数到另一种格式，解码器处理入站数据是抽象ChannelInboundHandler的实现。需要将解码器放在ChannelPipeline中。对于解码器，Netty中主要提供了抽象基类`MessageToMessageDecoder`和`ByteToMessageDecoder`
+
+![image-20211110163020973](assest/image-20211110163020973.png)
+
+**抽象解码器**：
+
+- `ByteToMessageDecoder`：用于将字节转为消息，需要检查缓冲区是否有足够的字节
+- `ReplayingDecoder`：继承`ByteToMessageDecoder`，不需要检查缓冲区是否有足够的字节，但是`ReplayingDecoder`素组略慢于`ByteToMessageDecoder`，同时不是所有的ByteBuf都支持。项目复杂性高则使用`ReplayingDecoder`，否则使用`ByteToMessageDecoder`
+- `MessageToMessageDecoder`：用于从一种消息解码为另外一种消息（例如POJO到POJO）
+
+**核心方法**：
+
+```java
+// io.netty.handler.codec.ByteToMessageDecoder#decode
+protected abstract void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception;
+```
+
+**代码实现**：
+
+解码器：
+
+```java
+package com.turbo.codec;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.MessageToMessageDecoder;
+import io.netty.util.CharsetUtil;
+
+import java.util.List;
+
+/**
+ * 消息解码器
+ */
+public class MessageDecoder extends MessageToMessageDecoder {
+    @Override
+    protected void decode(ChannelHandlerContext ctx, Object msg, List out) throws Exception {
+        System.out.println("正在进行消息解码...");
+        ByteBuf byteBuf = (ByteBuf) msg;
+        out.add(byteBuf.toString(CharsetUtil.UTF_8));//传递到下一个handler
+    }
+}
+```
+
+通道读取方法：
+
+```java
+/**
+ * 通道读取事件
+ * @param ctx
+ * @param msg
+ * @throws Exception
+ */
+@Override
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        System.out.println("客户端发送过来的消息："+msg);// 此处不再需要解码
+    }
+```
+
+
+
 ## 4.2 Netty案例-群聊天室
+
+
 
 ## 4.3 基于Netty的Http服务器开发
 
