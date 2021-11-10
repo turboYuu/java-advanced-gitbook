@@ -771,7 +771,7 @@ public class NIOSelectorServer {
 
 ### 3.1.2 概述
 
-Netty是由JBOSS提供地一个Java开源框架。Netty提供异步的、基于事件驱动的网络应用程序框架，用以快速开发高性能、高可靠的网络IO程序。Netty是一个基于NIO的网络编程框架，使用Netty可以帮助你快速、简单的开发出一个网络应用，相当于简化和流程化了NIO的开发过程。作为当前最流行的NIO框架，Netty在互联网领域、大数据分布式计算领域、游戏行业、通信行业等获得了广泛的应用，知名的Elasticsearch、Dubbo框架内部都采用了Netty。
+Netty是由JBOSS提供的一个Java开源框架。Netty提供异步的、基于事件驱动的网络应用程序框架，用以快速开发高性能、高可靠的网络IO程序。Netty是一个基于NIO的网络编程框架，使用Netty可以帮助你快速、简单的开发出一个网络应用，相当于简化和流程化了NIO的开发过程。作为当前最流行的NIO框架，Netty在互联网领域、大数据分布式计算领域、游戏行业、通信行业等获得了广泛的应用，知名的Elasticsearch、Dubbo框架内部都采用了Netty。
 
 https://netty.io/
 
@@ -1012,13 +1012,55 @@ BossEventLoopGroup通常是一个单线程的EventLoop，EventLoop维护着一�
 
 ### 3.3.7 ServerBootstrap和Bootstrap
 
+ServerBootstrap是Netty中服务器端启动助手，通过它可以完成服务器的各种配置；Bootstrap是Netty种客户端的启动助手，通过它可以完成客户端的各种配置。常用方法如下：
 
+- io.netty.bootstrap.ServerBootstrap#group(io.netty.channel.EventLoopGroup, io.netty.channel.EventLoopGroup)，该方法用于服务器端，用来设置两个EventLoopGroup
+- io.netty.bootstrap.ServerBootstrap#group(io.netty.channel.EventLoopGroup)，该方法用客户端，用来设置一个EventLoop
+- io.netty.bootstrap.ServerBootstrap#childOption（public <T> ServerBootstrap childOption(ChannelOption<T> childOption, T value) ），用来给接收到的通道添加配置
+- io.netty.bootstrap.ServerBootstrap#childHandler(io.netty.channel.ChannelHandler)，该方法用来设置业务处理类（自定义的handler）
+- io.netty.bootstrap.AbstractBootstrap#bind(int)，该方法用于服务器端，用来设置占用的端口号
+- io.netty.bootstrap.Bootstrap#connect(java.lang.String, int)，该方法用户客户端，用爱链接服务器端
 
 ### 3.3.8 Unpooled类
+
+这是Netty提供的一个专门用来操作缓冲区的工具类，常用方法如下所示：
+
+- io.netty.buffer.Unpooled#copiedBuffer(java.lang.CharSequence, java.nio.charset.Charset)，通过给定的数据和字符编码返回一个ByteBuf对象（类似于NIO中的ByteBuffer对象）
 
 
 
 ## 3.4 Netty入门案例
+
+Netty是由JBOSS提供的一个Java开源框架，所以在使用的时候，首先要先导入Netty的maven坐标。
+
+实例代码：https://gitee.com/turboYuu/rpc-3-1/tree/master/lab/Netty
+
+```xml
+<!--引入netty-->
+<dependency>
+    <groupId>io.netty</groupId>
+    <artifactId>netty-all</artifactId>
+    <version>4.1.42.Final</version>
+</dependency>
+```
+
+### 3.4.1 Netty服务端编写
+
+**服务端实现步骤**：
+
+1. 创建bossGroup线程组：处理网络事件 -- 连接事件
+2. 创建workerGroup线程组：处理网络事件 -- 读写事件
+3. 创建服务端启动助手
+4. 设置bossGroup线程组和workerGroup线程组
+5. 设置服务端通道实现为`NIO`
+6. 参数设置
+7. 创建一个通道初始化对象
+8. 向Pipeline中添加自定义业务处理handler
+9. 
+
+
+
+### 3.4.2 Netty客户端编写
 
 ## 3.5 Netty异步模型
 
