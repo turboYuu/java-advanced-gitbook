@@ -2243,7 +2243,243 @@ WebSocket实现了多路复用，是全双工通信。在WebSocket协议下服�
    }
    ```
 
+4. NettyWebSocketServer
+
+   ```java
+   package com.turbo.netty;
    
+   import com.turbo.config.NettyConfig;
+   import io.netty.bootstrap.ServerBootstrap;
+   import io.netty.channel.ChannelFuture;
+   import io.netty.channel.EventLoopGroup;
+   import io.netty.channel.nio.NioEventLoopGroup;
+   import io.netty.channel.socket.nio.NioServerSocketChannel;
+   import io.netty.handler.logging.LogLevel;
+   import io.netty.handler.logging.LoggingHandler;
+   import org.springframework.beans.factory.annotation.Autowired;
+   import org.springframework.stereotype.Component;
+   
+   import javax.annotation.PreDestroy;
+   
+   /**
+    * Netty服务器
+    */
+   @Component
+   public class NettyWebSocketServer implements Runnable {
+   
+       @Autowired
+       NettyConfig nettyConfig;
+   
+       @Autowired
+       WebSocketChannelInit webSocketChannelInit;
+   
+   
+       private EventLoopGroup bossGroup = new NioEventLoopGroup(1);
+   
+       private EventLoopGroup workerGroup = new NioEventLoopGroup();
+   
+       /**
+        * 资源关闭--在容器销毁是关闭
+        */
+       @PreDestroy
+       public void close() {
+           bossGroup.shutdownGracefully();
+           workerGroup.shutdownGracefully();
+       }
+   
+       @Override
+       public void run() {
+           try {
+               //1.创建服务端启动助手
+               ServerBootstrap serverBootstrap = new ServerBootstrap();
+               //2.设置线程组
+               serverBootstrap.group(bossGroup, workerGroup);
+               //3.设置参数
+               serverBootstrap.channel(NioServerSocketChannel.class)
+                       .handler(new LoggingHandler(LogLevel.DEBUG))
+                       .childHandler(webSocketChannelInit);
+               //4.启动
+               ChannelFuture channelFuture = serverBootstrap.bind(nettyConfig.getPort()).sync();
+               System.out.println("--Netty服务端启动成功---");
+               channelFuture.channel().closeFuture().sync();
+           } catch (Exception e) {
+               e.printStackTrace();
+               bossGroup.shutdownGracefully();
+               workerGroup.shutdownGracefully();
+           } finally {
+               bossGroup.shutdownGracefully();
+               workerGroup.shutdownGracefully();
+           }
+       }
+   }
+   ```
+
+5. 初始化通道对象
+
+   ```java
+   package com.turbo.netty;
+   
+   import com.turbo.config.NettyConfig;
+   import io.netty.channel.Channel;
+   import io.netty.channel.ChannelInitializer;
+   import io.netty.channel.ChannelPipeline;
+   import io.netty.handler.codec.http.HttpObjectAggregator;
+   import io.netty.handler.codec.http.HttpServerCodec;
+   import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
+   import io.netty.handler.stream.ChunkedWriteHandler;
+   import org.springframework.beans.factory.annotation.Autowired;
+   import org.springframework.stereotype.Component;
+   
+   /**
+    * 通道初始化对象
+    */
+   @Component
+   public class WebSocketChannelInit extends ChannelInitializer {
+   
+       @Autowired
+       NettyConfig nettyConfig;
+   
+       @Autowired
+       WebSocketHandler webSocketHandler;
+   
+       @Override
+       protected void initChannel(Channel channel) throws Exception {
+           ChannelPipeline pipeline = channel.pipeline();
+           //对http协议的支持.
+           pipeline.addLast(new HttpServerCodec());
+           // 对大数据流的支持
+           pipeline.addLast(new ChunkedWriteHandler());
+           //post请求分三部分. request line / request header / message body
+           // HttpObjectAggregator将多个信息转化成单一的request或者response对象
+           pipeline.addLast(new HttpObjectAggregator(8000));
+           // 将http协议升级为ws协议. websocket的支持
+           pipeline.addLast(new WebSocketServerProtocolHandler(nettyConfig.getPath()));
+           // 自定义处理handler
+           pipeline.addLast(webSocketHandler);
+       }
+   }
+   ```
+
+6. 处理对象
+
+   ```java
+   package com.turbo.netty;
+   
+   import io.netty.channel.Channel;
+   import io.netty.channel.ChannelHandler;
+   import io.netty.channel.ChannelHandlerContext;
+   import io.netty.channel.SimpleChannelInboundHandler;
+   import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
+   import org.springframework.stereotype.Component;
+   
+   import java.util.ArrayList;
+   import java.util.List;
+   
+   /**
+    * 自定义处理类
+    * TextWebSocketFrame: websocket数据是帧的形式处理
+    */
+   @Component
+   @ChannelHandler.Sharable //设置通道共享
+   public class WebSocketHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
+   
+       public static List<Channel> channelList = new ArrayList<>();
+   
+       /**
+        * 通道就绪事件
+        *
+        * @param ctx
+        * @throws Exception
+        */
+       @Override
+       public void channelActive(ChannelHandlerContext ctx) throws Exception {
+           Channel channel = ctx.channel();
+           //当有新的客户端连接的时候, 将通道放入集合
+           channelList.add(channel);
+           System.out.println("有新的连接.");
+       }
+   
+   
+       /**
+        * 通道未就绪--channel下线
+        *
+        * @param ctx
+        * @throws Exception
+        */
+       @Override
+       public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+           Channel channel = ctx.channel();
+           //当有客户端断开连接的时候,就移除对应的通道
+           channelList.remove(channel);
+       }
+   
+       /**
+        * 读就绪事件
+        *
+        * @param ctx
+        * @param textWebSocketFrame
+        * @throws Exception
+        */
+       @Override
+       protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame textWebSocketFrame) throws Exception {
+           String msg = textWebSocketFrame.text();
+           System.out.println("msg:" + msg);
+           //当前发送消息的通道, 当前发送的客户端连接
+           Channel channel = ctx.channel();
+           for (Channel channel1 : channelList) {
+               //排除自身通道
+               if (channel != channel1) {
+                   channel1.writeAndFlush(new TextWebSocketFrame(msg));
+               }
+           }
+       }
+   
+   
+       /**
+        * 异常处理事件
+        * @param ctx
+        * @param cause
+        * @throws Exception
+        */
+       @Override
+       public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+           cause.printStackTrace();
+           Channel channel = ctx.channel();
+           //移除集合
+           channelList.remove(channel);
+       }
+   }
+   ```
+
+7. 启动类
+
+   ```java
+   package com.turbo;
+   
+   import com.turbo.netty.NettyWebSocketServer;
+   import org.springframework.beans.factory.annotation.Autowired;
+   import org.springframework.boot.CommandLineRunner;
+   import org.springframework.boot.SpringApplication;
+   import org.springframework.boot.autoconfigure.SpringBootApplication;
+   
+   @SpringBootApplication
+   public class NettySpringbootApplication implements CommandLineRunner {
+   
+       @Autowired
+       NettyWebSocketServer nettyWebSocketServer;
+   
+       public static void main(String[] args) {
+           SpringApplication.run(NettySpringbootApplication.class, args);
+       }
+   
+       @Override
+       public void run(String... args) throws Exception {
+           new Thread(nettyWebSocketServer).start();
+       }
+   }
+   ```
+
+8. js 和 html （直接看源码）
 
 ## 4.5 Netty中的粘包和拆包的解决方案
 
