@@ -2145,13 +2145,105 @@ public class NettyHttpServerHandler extends SimpleChannelInboundHandler<HttpObje
 
 ### 4.4.1 WebSocket简介
 
-Web
+WebSocket是一种在单个TCP连接上进行**全双工通信**的协议。WebSocket使得客户端和服务器之间的数交换变得更加简单，**允许服务端主动向客户端推送数据**。在WebSocket API中，客户端和服务器只需要完成一次握手，两者之间就直接可以创建持久性的连接，并进行双向数据传输。
+
+应用场景：社交订阅；协同编辑/编程；股票基金报价；体育实况更新；多媒体聊天；在线教育。
 
 ### 4.4.2 WebSocket和HTTP的区别
 
+http协议是用在**应用层**的协议，基于tcp协议，http协议建立连接也必须要有三次握手才能发送信息。http连接分为短连接、长连接，短连接是每次请求都要三次握手才能发送自己的信息，即每一个request对应一个response。长连接是在一定的期限内保持连接，保持TCP连接不断开。客户端与服务器通信，必须要有客户端先发起（客户端主动），然后服务器返回结果（服务器被动）。**客户端要想实时获取服务端消息就得不断发送长连接到服务端**。
+
+WebSocket实现了多路复用，是全双工通信。在WebSocket协议下服务端和客户端可以同时发送信息。建立了WebSocket连接之后，服务端可以主动发送信息到客户端，而且信息当中不必再带有head的部分信息了，与http的长连接通信相比，这种方式，**不仅能降低服务器的压力**，**而且信息当中也减少了部分多余的信息**。
+
 ### 4.4.3 导入基础环境
 
+1. 代码地址
+
+   https://gitee.com/turboYuu/rpc-3-1/tree/master/lab/Netty-Springboot
+
+2. 相关依赖
+
+   ```xml
+   <!--整合web模块-->
+   <dependency>
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-starter-web</artifactId>
+   </dependency>
+   <!--整合模板引擎 -->
+   <dependency>
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-starter-thymeleaf</artifactId>
+   </dependency>
+   <dependency>
+       <groupId>org.projectlombok</groupId>
+       <artifactId>lombok</artifactId>
+   </dependency>
+   ```
+
+3. 静态资源
+
+4. yaml配置
+
+   ```yaml
+   server:
+     port: 8080
+   resources:
+     static-locations:
+       - classpath:/static/
+   spring:
+     thymeleaf:
+       cache: false
+       checktemplatelocation: true
+       enabled: true
+       encoding: UTF-8
+       mode: HTML5
+       prefix: classpath:/templates/
+       suffix: .html
+   ```
+
+   
+
 ### 4.4.4 服务端开发
+
+1. 添加Netty依赖
+
+   ```xml
+   <!--引入netty依赖 -->
+   <dependency>
+       <groupId>io.netty</groupId>
+       <artifactId>netty-all</artifactId>
+   </dependency>
+   ```
+
+2. Netty相关配置
+
+   ```yaml
+   netty:
+     port: 8081
+     path: /chat
+   ```
+
+3. Netty配置类
+
+   ```java
+   package com.turbo.config;
+   
+   import lombok.Data;
+   import org.springframework.boot.context.properties.ConfigurationProperties;
+   import org.springframework.stereotype.Component;
+   
+   @Component
+   @ConfigurationProperties(prefix = "netty")
+   @Data
+   public class NettyConfig {
+   
+       private int port;//netty监听的端口
+   
+       private String path;//websocket访问路径
+   }
+   ```
+
+   
 
 ## 4.5 Netty中的粘包和拆包的解决方案
 
