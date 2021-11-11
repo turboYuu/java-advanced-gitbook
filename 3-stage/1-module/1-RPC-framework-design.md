@@ -2139,17 +2139,19 @@ public class NettyHttpServerHandler extends SimpleChannelInboundHandler<HttpObje
 }
 ```
 
-
-
-
-
 ![image-20211110180802757](assest/image-20211110180802757.png)
 
 ## 4.4 基于Netty的WebSocket开发网页版聊天室
 
 ### 4.4.1 WebSocket简介
 
+Web
 
+### 4.4.2 WebSocket和HTTP的区别
+
+### 4.4.3 导入基础环境
+
+### 4.4.4 服务端开发
 
 ## 4.5 Netty中的粘包和拆包的解决方案
 
