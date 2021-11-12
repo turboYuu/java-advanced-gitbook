@@ -967,11 +967,80 @@ ClassLoader类是一个抽象类，齐后所有的类加载器都继承自ClassL
 
 - findClass(String)
 
+  在JDK1.2 之前，在自定义类加载时，会去继承ClassLoader类，并重写loadClass方法，从而实现自定义的类加载，但是在JDK1.2之后已不建议去覆盖loadClass()方法，而是建议重写findClass()方法（把自定义类加载逻辑写在这个方法中）。
+
+  从前面的分析可知，findClass()方法是在loadClass方法中被调用，当loadClass()方法中父加载器加载失败后，则会调用自己的findClass()方法来完成类加载，这样就可以保证自定义的类加载器也符合双亲委派模式。需要注意的是ClassLoader类中并没有实现findClass()方法的具体代码逻辑，取而代之的是抛出`ClassNotFoundException`异常，同时应该知道的是findClass方法通常是和defineClass方法一起使用的。
+
+  ClassLoader类中的findClass()方法源码如下：
+
+  ```java
+  protected Class<?> findClass(String name) throws ClassNotFoundException {
+      throw new ClassNotFoundException(name);
+  }
+  ```
+
+  
+
 - defineClass(String name, byte[] b, int off, int len)
+
+  defineClass()方法是用来将byte字节流解析成JVM能够识别的Class对象（defineClass中已经实现该方法逻辑），通过网络接收一个类的字节码，然后转换为byte字节流创建对应的Class对象，defineClass()方法通常与findClass()方法一起使用，一般情况下，在自定义类加载器时，会直接覆盖ClassLoader的findClass()方法并编写加载规则，取得要加载类的字节码后转换成字节流，然后调用defineClass()方法生成类的Class对象，简单例子如下：
+
+  ```java
+  /**
+   *
+   *
+   * @param name
+   * @return
+   * @throws ClassNotFoundException
+   */
+  @Override
+  protected Class<?> findClass(String name) throws ClassNotFoundException {
+      // 声明输入流
+      BufferedInputStream bis = null;
+      // 声明输出流
+      ByteArrayOutputStream baos = null;
+      try {
+          // 字节码路径
+          String file = codePath + name+".class";
+          // 初始化输入流
+          bis = new BufferedInputStream(new FileInputStream(file));
+          // 初始化输出流
+          baos = new ByteArrayOutputStream();
+          // io读写操作
+          int len;
+          byte[] data = new byte[1024];
+          while ((len = bis.read(data)) != -1){
+              baos.write(data,0,len);
+          }
+          // 获取内存中的字节数组
+          final byte[] bytes = baos.toByteArray();
+          // 调用definedClass将字节数组转成class实例
+          final Class<?> clazz = defineClass(null, bytes, 0, bytes.length);
+          //返回class对象
+          return clazz;
+      } catch (IOException e) {
+          e.printStackTrace();
+      } finally {
+          try {
+              bis.close();
+          } catch (IOException e) {
+              e.printStackTrace();
+          }
+          try {
+              baos.close();
+          } catch (IOException e) {
+              e.printStackTrace();
+          }
+      }
+      return null;
+  }
+  ```
+
+  需要注意的是，如果直接调用defineClass()方法生成的Class对象，这个类的Class对象并没有解析（也可以理解为链接阶段，毕竟解析是连接的最后一步），其解析操作操作需要等到初始化阶段进行。
 
 - resolveClass(Class<?> c)
 
-  
+  使用该方法可以使类的Class对象创建完成也同时被解析。前面我们说链接阶段主要是对字节码进行验证，为类变量分配并设置初始值同时将字节码文件中的符号引用转换为直接引用。
 
 
 
