@@ -949,10 +949,21 @@ ChannelHandler接口定义了许多事件处理的方法，可以通过重写这
 
 Netty开发中需要自定义一个Handler类去实现ChannelHandler接口或其子接口或其实现类，然后通过重写相应方法实现业务逻辑，接下来看看一般都需要重写哪些方法
 
-- public void channelActive(ChannelHandlerContext ctx)，通道就绪事件
-- public void channelRead(ChannelHandlerContext ctx, Object o)，通道读取数据事件
-- public void channelReadComplete(ChannelHandlerContext ctx)，数据读取完毕事件
-- public void exceptionCaught(ChannelHandlerContext ctx, Throwable throwable)，通道发生异常事件
+- io.netty.channel.ChannelInboundHandler#channelActive
+
+  `public void channelActive(ChannelHandlerContext ctx)`，通道就绪事件
+
+- io.netty.channel.ChannelInboundHandler#channelRead
+
+  `public void channelRead(ChannelHandlerContext ctx, Object o)`，通道读取数据事件
+
+- io.netty.channel.ChannelInboundHandler#channelReadComplete
+
+  `public void channelReadComplete(ChannelHandlerContext ctx)`，数据读取完毕事件
+
+- io.netty.channel.ChannelInboundHandler#exceptionCaught
+
+  `public void exceptionCaught(ChannelHandlerContext ctx, Throwable throwable)`，通道发生异常事件
 
 ### 3.3.2 ChannelPipeline
 
@@ -1014,14 +1025,37 @@ BossEventLoopGroup通常是一个单线程的EventLoop，EventLoop维护着一�
 
 ServerBootstrap是Netty中服务器端启动助手，通过它可以完成服务器的各种配置；Bootstrap是Netty种客户端的启动助手，通过它可以完成客户端的各种配置。常用方法如下：
 
-- io.netty.bootstrap.ServerBootstrap#group(io.netty.channel.EventLoopGroup, io.netty.channel.EventLoopGroup)，该方法用于服务器端，用来设置两个EventLoopGroup
-- io.netty.bootstrap.AbstractBootstrap#group(io.netty.channel.EventLoopGroup)，该方法用客户端，用来设置一个EventLoop
-- io.netty.bootstrap.AbstractBootstrap#channel（public B channel(Class<? extends C> channelClass)），该方法用来设置一个服务器端的通道
-- public <T> B option(ChannelOption<T> option, T value)，用来给ServerChannel添加配置
-- io.netty.bootstrap.ServerBootstrap#childOption（public <T> ServerBootstrap childOption(ChannelOption<T> childOption, T value) ），用来给接收到的通道添加配置
-- io.netty.bootstrap.ServerBootstrap#childHandler(io.netty.channel.ChannelHandler)，该方法用来设置业务处理类（自定义的handler）
-- io.netty.bootstrap.AbstractBootstrap#bind(int)，该方法用于服务器端，用来设置占用的端口号
-- io.netty.bootstrap.Bootstrap#connect(java.lang.String, int)，该方法用户客户端，用爱链接服务器端
+- io.netty.bootstrap.ServerBootstrap#group(io.netty.channel.EventLoopGroup, io.netty.channel.EventLoopGroup)
+
+  `public ServerBootstrap group(EventLoopGroup parentGroup, EventLoopGroup childGroup)`该方法用于服务器端，用来设置两个EventLoopGroup
+
+- io.netty.bootstrap.AbstractBootstrap#group(io.netty.channel.EventLoopGroup)
+
+  `public B group(EventLoopGroup group) `该方法用客户端，用来设置一个EventLoop
+
+- io.netty.bootstrap.AbstractBootstrap#channel
+
+  `public B channel(Class<? extends C> channelClass)`，该方法用来设置一个服务器端的通道
+
+- io.netty.bootstrap.AbstractBootstrap#option
+
+  `public <T> B option(ChannelOption<T> option, T value)`，用来给ServerChannel添加配置
+
+- io.netty.bootstrap.ServerBootstrap#childOption
+
+  `public <T> ServerBootstrap childOption(ChannelOption<T> childOption, T value) `，用来给接收到的通道添加配置
+
+- io.netty.bootstrap.ServerBootstrap#childHandler(io.netty.channel.ChannelHandler)
+
+  `public ServerBootstrap childHandler(ChannelHandler childHandler) `，该方法用来设置业务处理类（自定义的handler）
+
+- io.netty.bootstrap.AbstractBootstrap#bind(int)
+
+  `public ChannelFuture bind(int inetPort)`，该方法用于服务器端，用来设置占用的端口号
+
+- io.netty.bootstrap.Bootstrap#connect(java.lang.String, int)
+
+  `public ChannelFuture connect(String inetHost, int inetPort)`，该方法用户客户端，用爱链接服务器端
 
 ### 3.3.8 Unpooled类
 
