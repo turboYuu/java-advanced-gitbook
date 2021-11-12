@@ -2712,7 +2712,40 @@ public class NettyServerHandler implements ChannelInboundHandler {
 
 ## 5.1 Netty源码构建
 
+1. 下载源码
+
+   https://github.com/netty/netty/archive/refs/tags/netty-4.1.56.Final.zip
+
+2. 导入项目工程（import-pom.xml）
+
+   使用 jdk1.8 、maven 3.5.2
+
+3. 将入门案例demo代码复制到example模块下
+
+   ![image-20211112131809354](assest/image-20211112131809354.png)
+
+Netty 源码编译，io.netty.util.collection包不存在解决方法：
+
+```
+cd common
+mvn clean compile -Dcheckstyle.skip=true
+```
+
+![image-20211112132047811](assest/image-20211112132047811.png)
+
+源码代码：https://gitee.com/turboYuu/rpc-3-1/tree/master/netty-source-code/netty-netty-4.1.56.Final
+
 ## 5.2 EventLoopGroup事件循环组（线程组）源码
+
+EventLoopGroup是一组EventLoop的抽象，Netty为了更好的利用多核CPU资源，一般会有多个EventLoop同时工作，每个EventLoop维护着一个Selector实例。
+
+### 5.2.1 线程组源码流程分析
+
+![image-20211112134559921](assest/image-20211112134559921.png)
+
+
+
+### 5.2.2 线程组源码主要源码跟踪
 
 ## 5.3 Netty启动源码
 
@@ -2724,7 +2757,51 @@ public class NettyServerHandler implements ChannelInboundHandler {
 
 ## 6.1 分布式框架网络通信
 
+在分布式服务框架中，一个最基础的问题就是远程服务是怎么通讯的，在Java领域中有很多可实现远程通讯的技术，例如：RMI、Hessian、SOAP、ESB和JMS等，它们背后到底是基于什么原理实现的呢？
+
+### 6.1.1 基本原理
+
+要实现网络机器间的通讯，首先得来看啊看计算机网络通信的基本原理，在底层层面去看，网络通信需要做的就是将一台计算机传输到另外一台计算机，基于**传输协议**和**网络IO**来实现，其中传输协议比较出名的有tcp、udp等等，tcp、udp都是基于Socket概念上为某类应用场景而扩展的输出协议；网络IO，主要有BIO、NIO、AIO三种方式，所有的分布式应用通讯都基于这个原理而实现。
+
+### 6.1.2 什么是RPC
+
+RPC全称为remote procedure call，即远程过程调用。借助RPC可以做到像本地一样调用远程服务，是一种进程间的通信方式。
+
+比如两台服务器A和B，A服务器上部署一个应用，B服务器上部署一个应用，A服务器上的应用想调用B服务器上应用的方法，由于两个应用不再一个内存空间，不能直接调用，所以需要通过网络来表达调用语义和传达调用的数据。**需要注意的是RPC并不是一个具体的技术，而是指整个网络远程调用过程**。
+
+![本地调用](assest/image-20211112140603101.png)
+
+![远程调用](assest/image-20211112140634092.png)
+
+
+
+**RPC架构**
+
+一个完整的RPC架构里面包含了四个核心的组件，分别是Client、Client Stub、Server以及Server Stub，这个Stub可以理解为存根。
+
+- 客户端（Client），服务的调用方
+- 客户端存根（Client Stub），存放服务端的地址消息，再将客户端的请求参数打包成网络消息，然后通过网络远程发送给服务方。
+- 服务端（Server），真正的服务提供者。
+- 服务端存根（Server Stub），接收客户端发送过来的消息，将消息解包，并调用本地的方法。
+
+
+
+![image-20211112142938150](assest/image-20211112142938150.png)
+
+1. 客户端（Client）以本地调用方式（即接口的方式）调用服务；
+2. 
+
+### 6.1.3 RMI
+
 ## 6.2 基于Netty实现RPC框架
+
+
+
+
+
+
+
+
 
 
 
