@@ -558,6 +558,8 @@ public class Demo_ClassLoader {
 > 1. 重写loadClass方法（是实现双亲委派逻辑的地方，修改它会破坏双亲委派机制，不推荐）
 > 2. 重写findClass方法（推荐）
 
+[代码实例](https://gitee.com/turboYuu/concurrent-programming-2-3/blob/master/lab/jvm/demo-02/src/main/java/com/turbo/unit2/MyClassLoader.java)
+
 首先，我们定义一个待加载的普通`Java`类：`Test.java`。放在`com.turbo.demo`包下
 
 ```java
