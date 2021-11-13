@@ -624,9 +624,9 @@ public class NIOClient {
 
 常用方法：
 
-- Selector.open()	//得到一个选择器对象
-- Selector.select()    //阻塞，监控所有注册的通道，当有对应的事件操作时，会将SelectionKey放入集合内部并返回事件数量
-- Selector.select(1000)   //阻塞1000毫秒，监控所有注册的通道，当有对应的事件操作时，会将SelectionKey放入集合内部并返回
+- Selector.open()，得到一个选择器对象
+- Selector.select()，阻塞，监控所有注册的通道，当有对应的事件操作时，会将SelectionKey放入集合内部并返回事件数量
+- Selector.select(1000)，阻塞1000毫秒，监控所有注册的通道，当有对应的事件操作时，会将SelectionKey放入集合内部并返回
 
 > 2.SelectionKey
 
@@ -975,11 +975,15 @@ ChannelPipeline是一个Handler的集合，它负责处理和拦截inbound或者
 
 ### 3.3.3 ChannelHandlerContext
 
-这是事件处理器上下文对象，Pipeline链中的实际处理节点。每个处理节点CHannelHandlerContext中包含一个具体的事件处理器ChannelHandler，同时ChannelHandlerContext中也绑定了对应的ChannelPipeline和Channel的信息，方便对ChanneHandler进行调用。常用方法如下所示：
+这是事件处理器上下文对象，Pipeline链中的实际处理节点。每个处理节点ChannelHandlerContext中包含一个具体的事件处理器ChannelHandler，同时ChannelHandlerContext中也绑定了对应的ChannelPipeline和Channel的信息，方便对ChanneHandler进行调用。常用方法如下所示：
 
-- ChannelFuture close()，关闭通道
-- ChannelOutboundInvoker flush()，刷新
-- ChannelFuture writeAndFlush(Object msg)，将数据写道ChannelPipeline中当前ChannelHandler的下一个ChannelHandler开始处理（出战）
+- io.netty.channel.ChannelOutboundInvoker#close()，`ChannelFuture close()`，关闭通道
+
+- io.netty.channel.ChannelOutboundInvoker#flush，`ChannelOutboundInvoker flush()`，刷新
+
+- io.netty.channel.ChannelOutboundInvoker#writeAndFlush(java.lang.Object)，
+
+  `ChannelFuture writeAndFlush(Object msg)`，将数据写道ChannelPipeline中当前ChannelHandler的下一个ChannelHandler开始处理（出战）
 
 ### 3.3.4 ChannelOption
 
@@ -987,7 +991,7 @@ Netty在创建Channel实例后，一般都需要设置ChannelOption参数。Chan
 
 - ChannelOption.SO_BACKLOG
 
-  对应TCP/IP协议listen函数中的backlog参数，用来初始化服务器可连接队列大小。服务端处理客户端连接请求是顺序处理的，所以同一时间只能处理一个客户端连接。多个客户端来的时候，服务端将不能处理的客户端连接请求放在队列中等待处理，backlog参数指定了队列的大小。
+  对应TCP/IP协议listen函数中的backlog参数，用来初始化服务器可连接队列大小。服务端处理客户端连接请求是顺序处理的，所以同一时间只能处理一个客户端连接。多个客户端来的时候，服务端将不能处理的客户端连接请求，放在队列中等待处理，backlog参数指定了队列的大小。
 
 - ChannelOption.SO_KEEPALIVE
 
@@ -2904,26 +2908,4 @@ Dubbo底层使用了Netty作为网络通讯框架，要求用Netty实现一个�
    - 客户端业务处理类RpcClientHandler
    - RPC代理类
    - 客户端启动类ClientBootstrap
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
