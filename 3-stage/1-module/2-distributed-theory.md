@@ -296,7 +296,7 @@ BASE：全称Basically Available（基本可用），Soft state（软状态）�
 
 > 分布式事务：事务提供一种操作本地数据库的不可分割的一系列操作"要么什么都不做，要么做全套（All or Nothing）"的机制，而分布式事务就是为了操作不同数据库的不可分割的一些列操作“要么什么都不做，要么做全套（All or Nothing）”的机制
 
-![image-20211115112812121](assest/image-20211115112812121.png)
+![2PC](assest/image-20211115112812121.png)
 
 ### 3.1.2 2PC执行流程
 
@@ -398,9 +398,18 @@ BASE：全称Basically Available（基本可用），Soft state（软状态）�
 
 3PC，全称Three Phase Commit，是2PC的改进版，将2PC的提交事务请求过程一分为二，共形成了由CanCommit、PreCommit和doCommit三个阶段组成的事务处理协议。
 
+![3PC](assest/image-20211115142008249.png)
 
+三阶段提交升级点（基于二阶段）：
+
+- 三阶段提交协议引入了超时机制
+- 在第一阶段和第二阶段中，引入了一个准备阶段。保证了在最后提交阶段之前各参与节点的状态是一致的。
+
+简单讲：就是除了引入超时机制之外。3PC把2PC的准备阶段再次一分为二，这样三阶段提交就有CanCommit、PreCommit、DoCommit三个阶段。
 
 ### 3.2.2 三阶段详解
+
+
 
 ### 3.2.3 2PC对比3PC
 
