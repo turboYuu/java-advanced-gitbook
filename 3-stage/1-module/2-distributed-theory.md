@@ -409,7 +409,13 @@ BASE：全称Basically Available（基本可用），Soft state（软状态）�
 
 ### 3.2.2 三阶段详解
 
+> 1.第一阶段（CanCommit阶段）
 
+类似于2PC的准备阶段（第一）阶段。协调者向发送者发送commit请求，参与者如果可以提交就返回Yes响应，否则返回No响应。
+
+- 事务询问：
+
+  协调者向参与者发送CanCommit请求。询问是否可以执行事务提交操作。然后kai
 
 ### 3.2.3 2PC对比3PC
 
