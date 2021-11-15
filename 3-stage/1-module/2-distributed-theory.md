@@ -429,7 +429,13 @@ BASE：全称Basically Available（基本可用），Soft state（软状态）�
 
   (1) 发送预提交请求：协调者向参与者发送PreCommit请求，并进入Prepared阶段。
 
-  (2) 
+  (2) 事务预提交：参与者接收到PreCommit请求后，会执行事务操作，并将undo和redo信息记录到事务日志中。
+
+  (3) 响应反馈：如果参与者成功的执行了事务操作，则返回Ack响应，同时开始等待最终指令。
+
+- No
+
+  
 
 ### 3.2.3 2PC对比3PC
 
