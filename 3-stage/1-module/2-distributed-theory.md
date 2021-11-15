@@ -396,6 +396,10 @@ BASE：全称Basically Available（基本可用），Soft state（软状态）�
 
 ### 3.2.1 三阶段提交协议
 
+3PC，全称Three Phase Commit，是2PC的改进版，将2PC的提交事务请求过程一分为二，共形成了由CanCommit、PreCommit和doCommit三个阶段组成的事务处理协议。
+
+
+
 ### 3.2.2 三阶段详解
 
 ### 3.2.3 2PC对比3PC
