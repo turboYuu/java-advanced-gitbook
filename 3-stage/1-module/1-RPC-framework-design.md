@@ -124,7 +124,7 @@ https://gitee.com/turboYuu/rpc-3-1/tree/master/lab/socket
 
 ### 1.2.1 I/O模型说明
 
-1. I/O模型简单的理解：就是用什么样的通道进行数据的发送和接受，很大程度上决定了通信的性能
+1. I/O模型简单的理解：就是用什么样的通道进行数据的发送和接收，很大程度上决定了通信的性能
 2. Java共支持3中网络编程模型 I/O模式：BIO（同步并阻塞）、NIO（同步非阻塞）、AIO（异步非阻塞）
 
 
@@ -495,7 +495,7 @@ public class GetBufferDemo {
 
 1. 打开一个服务端通道
 2. 绑定对应的端口号
-3. 通道默认是阻塞的，需要设置位非阻塞
+3. 通道默认是阻塞的，需要设置为非阻塞
 4. 检查是否有客户端连接，有客户端连接会返回对应的通道
 5. 获取客户端传递过来的数据，并把数据放在byteBuffer这个缓冲区中
 6. 给客户端回写数据
@@ -763,7 +763,7 @@ public class NIOSelectorServer {
 
 3. 开发工作量和难度都非常大：例如客户端面临 断连重连、网络闪断、半包读写、失败缓存、网络拥塞 和 异常流的处理等等。
 
-4. JDK NIO的Bug：臭名昭著的Epoll Bug，它会导致Selector空轮询，最终导致CPU 100% 。直到 JDK 1.7 版本该问题仍旧存在，没有被根本解决
+4. JDK NIO的Bug：臭名昭著的**Epoll Bug**，它会导致Selector空轮询，最终导致CPU 100% 。直到 JDK 1.7 版本该问题仍旧存在，没有被根本解决
 
    > 在NIO中通过Selector的轮询当前是否有IO事件，根据JDK NIO api描述，Selector的Select方法会一致阻塞，直到IO事件达到或超时，但是在Linux平台上这里有时会出现问题，在某些场景下select方法会直接返回，即使没有超时并且也没有IO事件达到，这就是著名的epoll bug，这是一个比较严重的bug，它会导致线程陷入死循环，会让CPU飙到100%，极大地影响系统地可靠性，到目前为止，JDK都没有完全解决这个问题。
 
@@ -796,10 +796,10 @@ https://netty.io/
 
 - Reactor模型
 
-  根据Reactor的数量和处理资源池线程的数量不同，有3中典型的实现
+  根据Reactor的数量和处理资源池线程的数量不同，有3种典型的实现
 
-  - 单Reactor 单线程
-  - 单Reactor 多线程
+  - 单 Reactor 单线程
+  - 单 Reactor 多线程
   - 主从 Reactor 多线程
 
 ### 3.2.2 传统阻塞I/O服务模型
@@ -926,14 +926,14 @@ Netty 的设计主要基于主从Reactor多线程模式，并做了一定的改�
 - 每个BossNioEventLoop中循环执行以下三个步骤：
 
   - **select**：轮询注册在其上的ServerSocketChannel的accept事件（OP_ACCEPT事件）
-  - **processSelectdKeys**：处理accept事件，与客户端建立连接，生成一个NioSocketChannel，并将其注册到某个WorkerNioEventLoop上的Selector上
-  - **runAlltasks**：再去以此循环处理任务队列中的其他任务
+  - **processSelectedKeys**：处理accept事件，与客户端建立连接，生成一个NioSocketChannel，并将其注册到某个WorkerNioEventLoop上的Selector上
+  - **runAllTasks**：再去以此循环处理任务队列中的其他任务
 
 - 每个WorkerNioEventLoop中循环以下三个步骤
 
   - **select**：轮询注册在其上的NioSocketChannel的read/write事件（OP_READ/OP_WRITE事件）
-  - **processSelectdKeys**：在对应的NioSocketChannel上处理read/write事件
-  - **runAllTasks**：再去以此循环任务队列中的其他任务
+  - **processSelectedKeys**：在对应的NioSocketChannel上处理read/write事件
+  - **runAllTasks**：再去以此循环处理任务队列中的其他任务
 
 - 在以上两个processSelectedKeys步骤中，会使用Pipeline（管道），Pipeline中引用了Channel，即通过Pipeline可以获取到对应的Channel，Pipeline中维护了很多的处理器（拦截处理器、过滤器处理器、自定义处理器等）。
 
@@ -983,7 +983,7 @@ ChannelPipeline是一个Handler的集合，它负责处理和拦截inbound或者
 
 - io.netty.channel.ChannelOutboundInvoker#writeAndFlush(java.lang.Object)，
 
-  `ChannelFuture writeAndFlush(Object msg)`，将数据写道ChannelPipeline中当前ChannelHandler的下一个ChannelHandler开始处理（出战）
+  `ChannelFuture writeAndFlush(Object msg)`，将数据写道ChannelPipeline中当前ChannelHandler的下一个ChannelHandler开始处理（出站）
 
 ### 3.3.4 ChannelOption
 
@@ -1003,8 +1003,8 @@ Netty在创建Channel实例后，一般都需要设置ChannelOption参数。Chan
 
 常用方法如下所示：
 
-- Channel channel，返回当前正在进行IO操作的通道
-- ChannelFuture sync()，等待异步操作执行完毕，将异步改为同步
+- io.netty.channel.ChannelFuture#channel，`Channel channel()`，返回当前正在进行IO操作的通道
+- io.netty.channel.ChannelFuture#sync，`ChannelFuture sync()`，等待异步操作执行完毕，将异步改为同步
 
 
 
@@ -1065,7 +1065,9 @@ ServerBootstrap是Netty中服务器端启动助手，通过它可以完成服务
 
 这是Netty提供的一个专门用来操作缓冲区的工具类，常用方法如下所示：
 
-- io.netty.buffer.Unpooled#copiedBuffer(java.lang.CharSequence, java.nio.charset.Charset)，通过给定的数据和字符编码返回一个ByteBuf对象（类似于NIO中的ByteBuffer对象）
+- io.netty.buffer.Unpooled#copiedBuffer(java.lang.CharSequence, java.nio.charset.Charset)
+
+  `public static ByteBuf copiedBuffer(CharSequence string, Charset charset)`通过给定的数据和字符编码返回一个ByteBuf对象（类似于NIO中的ByteBuffer对象）
 
 
 
@@ -2708,7 +2710,7 @@ public class NettyServerHandler implements ChannelInboundHandler {
    - 消息长度固定，累计读取到程度和为定长LEN的报文后，就认为读取到了一个完整的信息
    - 将换行符作为消息结束符
    - 将特殊的分隔符作为消息结束标志，回车换行就是一种特殊的结束分隔符
-   - 通过在消息投中定义长度字段来表示消息的总长度
+   - 通过在消息头中定义长度字段来表示消息的总长度
 
 2. Netty中粘包和拆包解决方案
 
