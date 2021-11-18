@@ -575,6 +575,18 @@ Gossip协议由于以上的优缺点，所以**适合于AP场景地数据一致�
 
 ## 3.5 Paxos协议
 
+### 3.5.1 什么是Paxos
+
+### 3.5.2 Paxos解决了什么问题
+
+### 3.5.3 Basic Paxos相关概念
+
+### 3.5.4 Basic Paxos流程图
+
+### 3.5.5 Multi-Paxos流程图
+
+### 3.5.6 Multi-Paxos角色重叠流程图
+
 ## 3.6 Raft协议
 
 ## 3.7 Lease机制
