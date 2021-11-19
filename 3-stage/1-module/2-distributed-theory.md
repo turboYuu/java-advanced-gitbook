@@ -611,7 +611,71 @@ Paxos协议其实说的就是Paxos算法，Paxos算法基于**消息传递**且�
 
 ### 3.5.3 Basic Paxos相关概念
 
+> 1.角色介绍
+
+- Client：客户端
+
+  客户端向分布式系统发送请求，并等待响应。例如，对分布式文件服务器中文件的写请求。
+
+- Proposer：提案发起者
+
+  提案者倡议客户端请求，试图说服Acceptor对此达成一致，并在发生冲突时充当协调者以推动协议向前发展。
+
+- Acceptor：决策者
+
+  Acceptor可以接收（accept）提案，并进行投票，投票结果是通过以多数派为准，如果某个提案被选定，那么该提案里的value就被选定了。
+
+- Learner：最终决策的学习者
+
+  学习者充当协议的复制因素（不参与投票）
+
+> 2.**决策模型**
+
+![image-20211118184957400](assest/image-20211118184957400.png)
+
+> 3.**basic paxos流程**
+
+basic paxos流程一共分为4个步骤：
+
+- Prepare
+
+  Proposer提出一个提案，编号为N，此N大于这个Proposer之前提出的所有编号，请求Acceptor的多数人接收这个提案。
+
+- Promise
+
+  如果编号N大于此Acceptor之前接收的任何提案编号则接收，否则拒绝
+
+- Accept
+
+  如果达到多数派，Proposer会发出accept请求，此请求包含提案编号和对应的内容
+
+- Accepted
+
+  如果此Acceptor在此期间没有接收任何大于N的提案，则接收此提案内容，否则忽略。
+
 ### 3.5.4 Basic Paxos流程图
+
+1. 无故障的Basic Paxos
+
+   ![image-20211119103448001](assest/image-20211119103448001.png)
+
+2. Acceptor失败时的basic Paxos
+
+   在下图中，多数派中的一个Acceptor发生故障，因此多数派大小变为2。在这种情况下，Basic Paxos协议仍然成功。
+
+   ![image-20211119104640683](assest/image-20211119104640683.png)
+
+3. Proposer失败时的basic Paxos
+
+   Proposer在提出提案之后，在达成协议之前失败。具体来说，传递Acceptor的时候失败了，这个时候需要选出新的Proposer（提案人），那么Basic Paxos协议仍然成功。
+
+   ![image-20211119112329519](assest/image-20211119112329519.png)
+
+4. 当多个提议者发生冲突时的Basic Paxos
+
+   最复杂的情况是多个Proposer都进行提案，导致Paxos活锁问题。
+
+   
 
 ### 3.5.5 Multi-Paxos流程图
 
