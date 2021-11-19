@@ -77,4 +77,5 @@
         * [第四部分 RocketMQ集群与运维](6-stage/2-module/4-RocketMQ集群与运维.md)
         * [第五部分 RocketMQ源码剖析](6-stage/2-module/5-RocketMQ源码剖析.md)
     * [模块三 高吞吐消息中间件Kafka](6-stage/3-module/README.md)
+        * [第一部分 Kafka架构与实战](6-stage/3-module/1-Kafka-Arch-Act.md)
 
