@@ -675,13 +675,35 @@ basic paxos流程一共分为4个步骤：
 
    最复杂的情况是多个Proposer都进行提案，导致Paxos活锁问题。
 
-   
+   ![image-20211119125405307](assest/image-20211119125405307.png)
+
+   **针对活锁问题解决起来非常简单：只需要在每个Proposer再去提案的时候随机加上一个等待时间即可。**
 
 ### 3.5.5 Multi-Paxos流程图
 
+针对Basic Paxos是存在一定的问题，首先就是流程复杂，实现及其困难；其次，效率低（达成一致性需要2轮RPC调用），针对Basic Paxos流程进行拆分为选举和复制的过程。
+
+1. 第一次流程 确定Leader
+
+   ![image-20211119133234286](assest/image-20211119133234286.png)
+
+2. 第二次流程 直接由Leader确认
+
+   ![image-20211119134758493](assest/image-20211119134758493.png)
+
+   
+
 ### 3.5.6 Multi-Paxos角色重叠流程图
 
+Multi-Paxos在实施的时候会将Proposer，Acceptor和Learner的角色合并统称为“服务器”。因此，最后只有“客户端”和“服务器”。
+
+![image-20211119135912892](assest/image-20211119135912892.png)
+
 ## 3.6 Raft协议
+
+3.6.1 什么是Raft协议
+
+
 
 ## 3.7 Lease机制
 
