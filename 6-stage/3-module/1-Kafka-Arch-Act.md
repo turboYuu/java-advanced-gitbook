@@ -250,6 +250,89 @@ LEO是 Log End Offset的缩写，它表示了当前日志文件中**下一条待
 
 # 2 Kafka安装与配置
 
+## 2.1 Java环境为前提
+
+1. 上传jdk.rpm到服务器并安装
+
+   ```shell
+   rpm -ivf 
+   ```
+
+2. 配置环境变量
+
+   
+
+## 2.2 Zookeeper的安装配置
+
+1. 上传zookeeper-3.4.14.tar.gz到服务器
+2. 解压到/opt:
+3. 修改Zookeeper保存数据的目录，dataDir：
+4. 编辑/etc/profile
+5. 使配置生效
+6. 验证
+
+## 2.3 Kafka的安装与配置
+
+1. 上传kafka到服务器并解压
+
+2. 配置环境变量并生效：
+
+3. 配置/opt//config中的server.properties文件：
+
+4. 启动Zookeeper
+
+5. 确认Zookeeper的状态
+
+6. 启动Kafka
+
+7. 查看Zookeeper的节点
+
+8. 此时Kafka是前台模式启动，要停止使用`Ctrl+C`。
+
+   
+
+## 2.4 生产与消费
+
+1. kafka-topics.sh用于管理主题
+2. kafka-console-producer.sh用于生产消息
+3. kafka-console-consumer.sh用于消费消息
+
 # 3 Kafka开发实战
 
+## 3.1 消息的发送与接收
+
+![image-20211120175654044](assest/image-20211120175654044.png)
+
+生产者主要的对象有：`KafkaProducer`、`ProducerRecord`。
+
+其中`KafkaProducer`是用于发送消息的类，`ProducerRecord`类用于封装Kafka的消息。
+
+`KafkaProducer`的创建需要指定的参数和含义：
+
+| 参数              | 说明                                                         |
+| ----------------- | ------------------------------------------------------------ |
+| bootstrap.servers | 配置生产者如何与broker建立连接。该参数设置的是初始化参数。如果生产者需要连接的是Kafka集群，则这里配置集群中几个broker的地址，而不是全部，当生产者连接上此处指定的broker之后，在通过该连接发现集群中的其他节点。 |
+| key.serializer    | 要发送信息的key数据的序列化类。设置的时候可以写类名，也可以使用该类的Class对象。 |
+| value.serializer  | 要发送消息的value数据的序列化类。设置的时候可以写类名，也可以使用该类的Class对象。 |
+| acks              | 默认值：**all**<br>acks=0：<br>生产者不等待broker对消息的确认，只要将消息放到缓冲区，就认为消息已经发送完成。<br>该情形不能保证broker是否真的收到了消息，retries配置也不会生效。发送的消息的返回的消息偏移量永远是-1。<br><br>acks=1：<br>表示消息只需要写道主分区即可，然后就响应客户端，而不等待副本分区的确认。<br>在该情形下，如果主分区收到消息确认之后就宕机，而副本还没来得及同步该消息，则该消息丢失。<br><br>acks=all：<br>首领分区会等待所有ISR副本确认记录。<br>该处理保证了只要有一个ISR副本存活，消息就不会丢失。<br>这是Kafka最强的 可靠性保证，等效于`acks=-1` |
+| retries           | retries重试次数，<br>当消息发送出现错误的时候，系统会重发消息。<br>跟客户端收到错误时重发一样。<br>如果设置了重试，还想保证消息的有序性，需要设置<br>MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION=1<br>否则在重试此失败消息的时候，其他的消息可能发送成功了 |
+
+其他参数可以从`org`中找到。
+
+消费者生产消息后，需要broker端确认，可以同步确认，也可以异步确认。
+
+同步确认效率低，异步确认效率高，但是需要设置回调对象。
+
+
+
+## 3.2 SpringBoot Kafka
+
 # 4 服务端参数配置
+
+## 4.1 zookeeper.connect
+
+## 4.2 listeners
+
+## 4.3 broker.id
+
+## 4.4 log.dir
