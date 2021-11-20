@@ -218,15 +218,35 @@ Kafka使用主题来组织数据，每个主图被分为若干个分区，每个
 
 ### 1.5.8 副本
 
+Kafka通过副本保证高可用。副本分为首领副本（Leader）和跟随者副本（Follower）。
+
+跟随者副本包括**同步副本**和**不同步副本**，在发生首领副本切换的时候，只有同步副本可以切换为首领副本。
+
 #### 1.5.8.1 AR
+
+分区中的所有副本统称为**AR**(Assigned Repllicas)。
+
+***AR=ISR+OSR***
 
 #### 1.5.8.2 ISR
 
+所有与leader副本保持一定程度同步的副本（包括leader）组成ISR（In-Sync Replicas），ISR集合是AR集合中的一个子集。消息会先发送到leade副本，然后follower副本才能从leader副本中拉取消息进行同步，同步期间follower副本相对于leader副本而言有一定程度的滞后。前面所说的“一定程度”是指可以忍受的滞后范围，这个范围可以通过参数进行配置。
+
 #### 1.5.8.3 OSR
+
+与leader副本同步滞后过多的副本（不包括leader）副本，组成OSR（Out-Sync Replicas）。在正常情况下，所有的follower副本都应该与leader副本保持一定程度的同步，即AR=ISR，OSR集合为空。
 
 #### 1.5.8.4 HW
 
+HW是High Watermark的缩写，俗称高水位，它表示了一个特定消息的偏移量（offset），消费只能拉取到这个offset之前的消息。
+
 #### 1.5.8.5 LEO
+
+LEO是 Log End Offset的缩写，它表示了当前日志文件中**下一条待写入**消息的offset。
+
+![image-20211120170926978](assest/image-20211120170926978.png)
+
+
 
 # 2 Kafka安装与配置
 
