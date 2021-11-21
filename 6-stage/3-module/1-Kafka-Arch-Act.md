@@ -583,7 +583,7 @@ public class MyProducer1 {
 
 Kafka不支持消息的推送，可以自己实现。
 
-Kafka采用的是消息拉取（pull方法）
+Kafka采用的是消息拉取（poll方法）
 
 消费者主要的对象有：`kafkaConsumer`用于消费消息的类。
 
