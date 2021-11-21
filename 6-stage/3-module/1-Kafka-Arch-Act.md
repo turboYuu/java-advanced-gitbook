@@ -132,7 +132,7 @@ Kafka的消息通过主题进行分类。主题类似于数据库的表或者文
 
 一般情况下，一个消息会被发布到一个特定的主题上。
 
-1. 默认情况下通过轮询把消息均衡的分布到注定主题的所有分区上。
+1. 默认情况下通过轮询把消息均衡的分布到主题的所有分区上。
 2. 在某些情况下，生产者会把消息直接写到指定的分区。这通常是通过**消息键**和**分区器**来实现的，分区器为键生成一个散列值，并将其映射到指定的分区上。这样可以保证包含同一个键的消息会被写到同一个分区上。
 3. 生产者也可以使用自定义的分区器，根据不同的业务规则将消息映射到分区。
 
@@ -253,50 +253,215 @@ LEO是 Log End Offset的缩写，它表示了当前日志文件中**下一条待
 
 ## 2.1 Java环境为前提
 
-1. 上传jdk.rpm到服务器并安装
+1. 上传jdk-8u261-linux-x64.rpm到服务器并安装
 
    ```shell
-   rpm -ivf 
+   rpm -ivh jdk-8u261-linux-x64.rpm 
    ```
 
 2. 配置环境变量
 
+   ```shell
+   vim /etc/profile
+   
+   export JAVA_HOME=/usr/java/jdk1.8.0_261-amd64
+   export PATH=$PATH:$JAVA_HOME/bin
+   
+   # 生效
+   . /etc/profile
+   # 验证
+   java -version
+   ```
+   
+   ![image-20211121155808089](assest/image-20211121155808089.png)
+   
    
 
 ## 2.2 Zookeeper的安装配置
 
 1. 上传zookeeper-3.4.14.tar.gz到服务器
+
 2. 解压到/opt:
+
+   ```shell
+   tar -xvf zookeeper-3.4.14.tar.gz -C /opt
+   
+   cd /opt/zookeeper-3.4.14/conf/
+   # 复制zoo_sample.cfg命名为zoo.cfg
+   cp zoo_sample.cfg zoo.cfg
+   # 编辑zoo.cfg文件
+   vim zoo.cfg
+   ```
+
+   
+
 3. 修改Zookeeper保存数据的目录，dataDir：
+
+   ```properties
+   dataDir=/var/turbo/zookeeper/data
+   ```
+
+   
+
 4. 编辑/etc/profile
+
+   - 设置环境变量ZOO_LOG_DIR，指定Zookeeper保存日志的位置；
+   - ZOOKEEPER_PREFIX指向Zookeeper的解压目录；
+   - 将Zookeeper的bin目录添加到PATH中：
+
+   ```properties
+   export ZOOKEEPER_PREFIX=/opt/zookeeper-3.4.14
+   export PATH=$PATH:$ZOOKEEPER_PREFIX/bin
+   export ZOO_LOG_DIR=/var/turbo/zookeeper/log
+   ```
+
+   
+
 5. 使配置生效
+
+   ```shell
+   source /etc/profile
+   ```
+
+   
+
 6. 验证
+
+   ![image-20211121161809456](assest/image-20211121161809456.png)
 
 ## 2.3 Kafka的安装与配置
 
-1. 上传kafka到服务器并解压
+1. 上传kafka_2.12-1.0.2.tgz到服务器并解压
+
+   ```shell
+   tar -xvf kafka_2.12-1.0.2.tgz -C /opt
+   ```
 
 2. 配置环境变量并生效：
 
-3. 配置/opt//config中的server.properties文件：
+   ```shell
+   vim /etc/profile
+   
+   export KAFKA_HOME=/opt/kafka_2.12-1.0.2
+   export PATH=$PATH:$KAFKA_HOME/bin
+   
+   # 生效
+   . /etc/profile
+   ```
+
+   
+
+3. 配置/opt/kafka_2.12-1.0.2/config中的server.properties文件：
+
+   Kafka连接Zookeeper的地址，此处使用本地启动的Zookeeper实例，连接地址是localhost:2181，后面的`myKafka`是Kafka在Zookeeper中的很节点路径：
+
+   ![image-20211121162642642](assest/image-20211121162642642.png)
+
+   Kafka持久化的数据存放位置：
+
+   ```
+   mkdir -p /var/turbo/kafka/kafka-logs
+   ```
+
+   ![image-20211121165749428](assest/image-20211121165749428.png)
 
 4. 启动Zookeeper
 
+   ```shell
+   [root@localhost ~]# zkServer.sh start
+   ZooKeeper JMX enabled by default
+   Using config: /opt/zookeeper-3.4.14/bin/../conf/zoo.cfg
+   Starting zookeeper ... STARTED
+   ```
+
+   
+
 5. 确认Zookeeper的状态
+
+   ![image-20211121162807946](assest/image-20211121162807946.png)
 
 6. 启动Kafka
 
+   进入Kafka安装的根目录，执行如下命令：
+
+   ![image-20211121163003726](assest/image-20211121163003726.png)
+
+   启动成功，可以看到控制套输出的最后一行started状态：
+
+   ![image-20211121163059401](assest/image-20211121163059401.png)
+
 7. 查看Zookeeper的节点
 
+   ```
+   [root@localhost bin]# zkCli.sh
+   ```
+
+   ![image-20211121170119270](assest/image-20211121170119270.png)
+
 8. 此时Kafka是前台模式启动，要停止使用`Ctrl+C`。
+
+   如果要后台启动，使用命令：
+
+   ```shell
+   kafka-server-start.sh -daemon config/server.properties
+   ```
+
+   ![image-20211121170504663](assest/image-20211121170504663.png)
+
+   查看Kafka的后台进程：
+
+   ```shell
+   ps aux|grep kafka
+   ```
+
+   停止后台运行的Kafka:
+
+   ![image-20211121170722470](assest/image-20211121170722470.png)
+
+   
+
+   
 
    
 
 ## 2.4 生产与消费
 
 1. kafka-topics.sh用于管理主题
+
+   ```shell
+   # 列出现有的主题
+   [root@localhost ~]# kafka-topics.sh --list --zookeeper localhost:2181/myKafka
+   # 创建主题，该主题包含一个分区，该分区为Leader分区，它没有Follower分区副本。
+   [root@localhost ~]# kafka-topics.sh --zookeeper localhost/myKafka --create --topic topic_1 --partitions 1 --replication-factor 1
+   # 查看分区信息
+   [root@localhost ~]# kafka-topics.sh --zookeeper localhost/myKafka --list
+   # 查看指定主题的详细信息
+   [root@localhost ~]# kafka-topics.sh --zookeeper localhost/myKafka --describe --topic topic_1
+   # 删除指定主题
+   [root@localhost ~]# kafka-topics.sh --zookeeper localhost/myKafka --delete --topic topic_1
+   
+   ```
+
+   ![image-20211121172504591](assest/image-20211121172504591.png)
+
 2. kafka-console-producer.sh用于生产消息
+
+   ```shell
+   [root@localhost ~]# kafka-console-producer.sh --broker-list localhost:9092 --topic topic_1
+   ```
+
+   
+
 3. kafka-console-consumer.sh用于消费消息
+
+   ```shell
+   # 开启消费者
+   [root@localhost ~]# kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic topic_1
+   # 从头消费，不按照偏移量xiao'fei
+   [root@localhost ~]# kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic topic_1 --from-beginning
+   ```
+
+   
 
 # 3 Kafka开发实战
 
