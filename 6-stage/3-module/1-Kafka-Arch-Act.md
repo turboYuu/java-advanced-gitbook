@@ -469,6 +469,8 @@ LEO是 Log End Offset的缩写，它表示了当前日志文件中**下一条待
 
 ![image-20211120175654044](assest/image-20211120175654044.png)
 
+> 生产者
+
 生产者主要的对象有：`KafkaProducer`、`ProducerRecord`。
 
 其中`KafkaProducer`是用于发送消息的类，`ProducerRecord`类用于封装Kafka的消息。
@@ -483,11 +485,117 @@ LEO是 Log End Offset的缩写，它表示了当前日志文件中**下一条待
 | acks              | 默认值：**all**<br>acks=0：<br>生产者不等待broker对消息的确认，只要将消息放到缓冲区，就认为消息已经发送完成。<br>该情形不能保证broker是否真的收到了消息，retries配置也不会生效。发送的消息的返回的消息偏移量永远是-1。<br><br>acks=1：<br>表示消息只需要写道主分区即可，然后就响应客户端，而不等待副本分区的确认。<br>在该情形下，如果主分区收到消息确认之后就宕机，而副本还没来得及同步该消息，则该消息丢失。<br><br>acks=all：<br>首领分区会等待所有ISR副本确认记录。<br>该处理保证了只要有一个ISR副本存活，消息就不会丢失。<br>这是Kafka最强的 可靠性保证，等效于`acks=-1` |
 | retries           | retries重试次数，<br>当消息发送出现错误的时候，系统会重发消息。<br>跟客户端收到错误时重发一样。<br>如果设置了重试，还想保证消息的有序性，需要设置<br>MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION=1<br>否则在重试此失败消息的时候，其他的消息可能发送成功了 |
 
-其他参数可以从`org`中找到。
+其他参数可以从`org.apache.kafka.clients.producer.ProducerConfig`中找到。
 
 消费者生产消息后，需要broker端确认，可以同步确认，也可以异步确认。
 
 同步确认效率低，异步确认效率高，但是需要设置回调对象。
+
+
+
+```
+操作之前，修改linux的/etc/hostname
+修改window下的C:\Windows\System32\drivers\etc\host
+
+否则出现如下异常：Caused by: org.apache.kafka.common.errors.TimeoutException: Expiring 1 record(s) for topic_1-0: 30043 ms has passed since batch creation plus linger time
+```
+
+
+
+生产者1：
+
+```java
+package com.turbo.kafka.demo.producer;
+
+import org.apache.kafka.clients.producer.Callback;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
+import org.apache.kafka.common.header.Header;
+import org.apache.kafka.common.header.internals.RecordHeader;
+import org.apache.kafka.common.serialization.IntegerSerializer;
+import org.apache.kafka.common.serialization.StringSerializer;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+
+public class MyProducer1 {
+
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+        Map<String,Object> configs = new HashMap<>();
+        // 指定初始连接用到的broker地址
+        configs.put("bootstrap.servers","node1:9092");
+        // 指定key的序列化类
+        configs.put("key.serializer", IntegerSerializer.class);
+        // 指定value的序列化类
+        configs.put("value.serializer", StringSerializer.class);
+
+//        configs.put("acks","all");
+//        configs.put("retries","3");
+        KafkaProducer<Integer,String> producer = new KafkaProducer<Integer, String>(configs);
+
+        // 用于设置用户自定义的消息头字段
+        List<Header> headers = new ArrayList<>();
+        headers.add(new RecordHeader("biz.name","producer.demo".getBytes()));
+
+        ProducerRecord<Integer,String> record = new ProducerRecord<>(
+                "topic_1",
+                0,
+                0,
+                "hello turbo 0",
+                headers
+        );
+
+        // 消息的同步确认
+//        final Future<RecordMetadata> future = producer.send(record);
+//
+//        final RecordMetadata metadata = future.get();
+//        System.out.println("消息的分区号："+metadata.partition());
+//        System.out.println("消息的主题："+metadata.topic());
+//        System.out.println("消息的偏移量："+metadata.offset());
+
+        // 消息的异步确认
+        producer.send(record, new Callback() {
+            @Override
+            public void onCompletion(RecordMetadata metadata, Exception exception) {
+                if(exception == null){
+                    System.out.println("消息的分区号："+metadata.partition());
+                    System.out.println("消息的主题："+metadata.topic());
+                    System.out.println("消息的偏移量："+metadata.offset());
+                } else {
+                    System.out.println("异常消息："+exception.getMessage());
+                }
+            }
+        });
+        //关闭生产者
+        producer.close();
+    }
+}
+```
+
+
+
+> 消费者消费
+
+Kafka不支持消息的推送，可以自己实现。
+
+Kafka采用的是消息拉取（pull方法）
+
+消费者主要的对象有：`kafkaConsumer`用于消费消息的类。
+
+`kafkaConsumer`的创建需要指定的参数和含义：
+
+| 参数               | 说明                                                         |
+| ------------------ | ------------------------------------------------------------ |
+| bootstrap.servers  | 与Kafka建立初始连接的broker地址列表                          |
+| key.deserializer   | key的反序列化器                                              |
+| value.deserializer | value的反序列化器                                            |
+| group.id           | 指定消费组id，用于标识该消费者所属的消费组                   |
+| auto.offset.reset  | 当kafka中没有初始偏移量或当前偏移量在服务器中不存在（如数据被删除），该如何处理？<br>earliest：自动重置偏移量到最早的偏移量<br>latest：自动重置偏移量为最新的偏移量<br>none：如果消费组原来的（previous）偏移量不存在，则向消费者抛异常<br>anything：向消费者抛异常 |
 
 
 
@@ -502,3 +610,18 @@ LEO是 Log End Offset的缩写，它表示了当前日志文件中**下一条待
 ## 4.3 broker.id
 
 ## 4.4 log.dir
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
