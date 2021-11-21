@@ -457,11 +457,11 @@ LEO是 Log End Offset的缩写，它表示了当前日志文件中**下一条待
    ```shell
    # 开启消费者
    [root@localhost ~]# kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic topic_1
-   # 从头消费，不按照偏移量xiao'fei
+   # 从头消费，不按照偏移量消费
    [root@localhost ~]# kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic topic_1 --from-beginning
    ```
 
-   
+![image-20211121173711201](assest/image-20211121173711201.png)
 
 # 3 Kafka开发实战
 
