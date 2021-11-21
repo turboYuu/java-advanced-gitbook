@@ -597,7 +597,7 @@ Kafka采用的是消息拉取（pull方法）
 | group.id           | 指定消费组id，用于标识该消费者所属的消费组                   |
 | auto.offset.reset  | 当kafka中没有初始偏移量或当前偏移量在服务器中不存在（如数据被删除），该如何处理？<br>earliest：自动重置偏移量到最早的偏移量<br>latest：自动重置偏移量为最新的偏移量<br>none：如果消费组原来的（previous）偏移量不存在，则向消费者抛异常<br>anything：向消费者抛异常 |
 
-
+`org.apache.kafka.clients.consumer.ConsumerConfig`类中包含了所有的可以给KafkaConsumer配置的参数。
 
 ## 3.2 SpringBoot Kafka
 
