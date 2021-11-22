@@ -665,11 +665,101 @@ public class MyConsumer1 {
 
 ## 3.2 SpringBoot Kafka
 
+代码地址：https://gitee.com/turboYuu/kafka-6-3/tree/master/lab/kafka-demos/demo-02-springboot-kafka
+
+1. pom.xml
+2. application.properties
+3. Demo02SpringbootKafkaApplication.java
+4. KafkaConfig.java
+5. KafkaSyncProducerController.java
+6. KafkaAsyncProducerController.java
+7. MyConsumer.java
+
 # 4 服务端参数配置
+
+$KAFKA_HOME/config/server.properties文件中的配置。
 
 ## 4.1 zookeeper.connect
 
+该参数用于配置Kafka要连接的Zookeeper/集群地址。
+
+它是一个字符串，使用逗号分隔Zookeeper的多个地址。Zookeeper的单个地址是`host:port`的形式，可以在最后添加Kafka在Zookeeper中的根节点路径。
+
+如：
+
+```properties
+zookeeper.connect=node2:2181,node3:2181,node4:2181/myKafka
+```
+
+![image-20211121162642642](assest/image-20211121162642642.png)
+
 ## 4.2 listeners
+
+用于指定当前Broker向外发布服务的地址和端口
+
+与`advertised.listeners`配合使用，用于做内外网隔离。
+
+![image-20211122185820555](assest/image-20211122185820555.png)
+
+**内外网隔离配置**：
+
+**listener.security.protocol.map**
+
+监听器名称和安全协议的映射配置
+
+比如，可以将内外网隔离，即使它们都是用SSL。
+
+listener.security.protocol.map=INTERNAL:SSL,EXTERNAL:SSL
+
+每隔监听器的名称只能在map中出现一次
+
+
+
+**inter.broker.listener.name**
+
+用于配置broker之间的通信使用的监听器名称，该名称必须在advertised.listeners列表中。
+
+如：inter.broker.listener.name=EXTERNAL
+
+
+
+**listeners**
+
+用于配置broker监听的URI以及监听器名称列表，使用逗号隔开多个URI及监听器名称。
+
+如果监听器名称代表的不是安全协议，必须配置listener.security.protocol.map。
+
+每个监听器必须使用不同的网络端口。
+
+
+
+**advertised.listeners**
+
+需要将该地址发布到zookeeper供客户端使用，如果客户端使用的地址与listeners配置不同。
+
+可以在zookeeper的`get /myKafka/brokers/ids/<broker.id>`中找到。
+
+在LaaS环境，该条目的网络接口要与broker绑定的网络接口不同。
+
+如果不设置此条目，就是用listeners的配置。跟listeners不同，该条目不能使用0.0.0.0网络端口。
+
+advertised.listeners的地址必须是listeners中配置的或配置的一部分。
+
+
+
+**典型配置**：
+
+EXTERNAL://192.168.31.61:9001 供客户端使用，同时用于broker之间的通信。
+
+此时使用`kafka-console-producer.sh --broker-list 192.168.31.124:9000 --topic topic_1`是连接失败的，应该使用`kafkconsole-producer.sh --broker-list 192.168.31.61:9001 --topic topic_1`
+
+
+
+INTERNAL://192.168.31.124:9000 主要用于管理，<br>如`kafka-topics.sh --zookeeper localhost/myKafka --list`
+
+
+
+![image-20211122195502873](assest/image-20211122195502873.png)
 
 ## 4.3 broker.id
 
