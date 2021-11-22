@@ -1,5 +1,9 @@
 Linux VM
 
+
+
+## 1 VirtualBox Centos 配置网卡
+
 ![image-20211120171526758](assest/image-20211120171526758.png)
 
 ![image-20211120172017330](assest/image-20211120172017330.png)
@@ -7,3 +11,9 @@ Linux VM
 ![image-20211120172144938](assest/image-20211120172144938.png)
 
 ![image-20211120172405481](assest/image-20211120172405481.png)
+
+## 2 VirtualBox Centos 配置多个网卡
+
+![image-20211122162941842](assest/image-20211122162941842.png)
+
+![image-20211122163019071](assest/image-20211122163019071.png)
