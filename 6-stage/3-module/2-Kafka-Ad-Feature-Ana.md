@@ -439,24 +439,27 @@ Producer拦截器（interceptor）和Cosumer端的Interceptor是在Kafka 0.10版
 | request.timeout.ms                          | 客户端等待请求响应的最大时长。如果服务端响应超时，则会重发请求，除非达到重试次数。该设置应该比`replica.lag.time.max.ms`(a broker configuration)要大，以免在服务器延迟时间内重发消息。int类型值，默认：3000，可选值：[0,...] |
 | interceptor.classes                         | 在生产者接收到该消息，向Kafka集群传输之前，由序列化处理处理之前，可以通过拦截器对消息进行处理。<br>要求拦截器必须实现`org.apache.kafka.clients.producer.ProducerInterceptor`接口。<br>默认没有拦截器。<br>Map<String,Object> configs中通过List集合配置多个拦截器类名 |
 | acks                                        | <font style="font-size:92%">当生产者发送消息之后，如何确认消息已经发送成功了。<br>支持的值：<br><br>acks=0：如果设置为0，表示生产者不会等待Broker对消息的确认，只要将消息放到缓冲区，就认为消息已经发送完成。该情形下不能保证broker是否真的收到了消息，retries配置也不会生效，因为客户端不需要知道消息是否发送成功。发送的消息的返回的消息偏移量永远是-1。<br><br>acks=1：表示消息只需要写道主分区即可，然后就响应客户端，而不等待副本分区的确认。<br>在该情形下，如果主分区收到消息确认之后就宕机了，而副本还没来得及同步消息，则该消息丢失。<br><br>acks=all：首领分区等待所有的***ISR***副本分区确认记录。<br>该处理保证了只要有一个ISR副本分区存储，消息就不会丢失。<br>这就是Kafka最强的可靠性保证，等效于`acks=-1`。</font> |
-| batch.size                                  | 当多额消息发送到同一个分区的时候，生产者尝试将多个记录作为一个批次来处理。批处理提高了客户端和服务器的处理效率。<br>该配置项以字节为单位控制默认批的大小。<br>所有的批小于等于该值。<br>发送给broker的请求将包含多个批次，每个分区一个，并包含可发送的数据。<br>如果该值设置得比较小，会限制吞吐量（设置为0会完全禁用批处理）。如果设置的很大，又有一点浪费内存，因为Kafka会永远分配这么大的内存来参与到消息的批整合中。 |
+| batch.size                                  | 当多个消息发送到同一个分区的时候，生产者尝试将多个记录作为一个批次来处理。批处理提高了客户端和服务器的处理效率。<br>该配置项以字节为单位控制默认批的大小。<br>所有的批小于等于该值。<br>发送给broker的请求将包含多个批次，每个分区一个，并包含可发送的数据。<br>如果该值设置得比较小，会限制吞吐量（设置为0会完全禁用批处理）。如果设置的很大，又有一点浪费内存，因为Kafka会永远分配这么大的内存来参与到消息的批整合中。 |
 | client.id                                   | 生产者发送请求的时候传递给broker的id字符串。<br>用于在broker的请求日志中追踪什么应用发送了什么消息。<br>一般该id是跟业务有关的字符串。 |
 | compression.type                            | 生产设发送的所有数据的压缩方式。默认是`none`，也就是不压缩。<br>支持的值：none，gzip，snappy和lz4。<br>压缩是对整个批次来讲的，所以批处理的效率也就会影响到压缩的比例 |
 | send.buffer.bytes                           | TCP发送数据的时候使用的缓冲区（SO_SNDBUF）大小。如果设置为0，则使用操作系统默认的。 |
 | buffer.memory                               | 生产者可以用来缓存等待发送到服务器的记录的总内存字节。如果记录的发送速度超过了将记录发送到服务器的速度，则生产者将阻塞`max.block.ms`的时间，此后它将引发异常。<br>此设置应大致对应于生产者将使用的总内存，但并非生产者使用的所有内存都用于缓冲。<br>一些额外的内存将用于压缩（如果启用了压缩）以及维护运行中的请求。<br>long类型，默认值：33554432（32M），可选值：[0,...] |
 | connections.max.idle.ms                     | 当连接空闲时间达到这个值，就关闭连接。long类型数据，默认：540000 |
-| linger.ms                                   | 生产者在发送请求传输间隔回对需要发送的消息进行累加，然后作为一个批次发送。<br>一般情况是消息的发送速度比消息累积的速度慢。有时客户端需要减少请求的次数，即使在发送负载不大的情况下。<br>该配置设置了一个延迟，生产者不会立即将消息发送到broker，而是等待这么一段时间以累积消息，然后将这段时间之内的消息作为一个批次发送。<br> |
-| max.request.size                            |                                                              |
-| partitioner.class                           |                                                              |
-| receive.buffer.bytes                        |                                                              |
-| <font color='blue'>security.protocol</font> |                                                              |
-| max.in.flight.requests.per.connection       |                                                              |
-| reconnect.backoff.max.ms                    |                                                              |
-| reconnect.backoff.ms                        |                                                              |
+| linger.ms                                   | 生产者在发送请求传输间隔回对需要发送的消息进行累加，然后作为一个批次发送。<br>一般情况是消息的发送速度比消息累积的速度慢。有时客户端需要减少请求的次数，即使在发送负载不大的情况下。<br>该配置设置了一个延迟，生产者不会立即将消息发送到broker，而是等待这么一段时间以累积消息，然后将这段时间之内的消息作为一个批次发送。<br>该设置是批处理的另一个上限：一旦批处理达到`batch.size`指定的值，消息批会立即发送，如果积累的消息字节数达不到`batch.size`的值，可以设置该毫秒值，等待这么长时间之后，也会发送消息批。该属性默认值是0（没有延迟）。如果设置`linger.ms=5`，则在一个请求发送之前先等待5ms。<br>long类型，默认：0，可选值：[0,...] |
+| max.block.ms                                | 控制`KafkaProducer.send()`和`KafkaProducer.partitionsFor`阻塞的时长。当缓存满了或元数据不可用的时候，这些方法阻塞。在用户提供的序列化器和分区器的阻塞时间不计入。long类型，默认：60000，可选值：[0,....] |
+| max.request.size                            | 单个请求的最大字节数。该设置会限制单个请求中消息批的消息个数，以免单个请求发送太多的数据。服务器有自己的限制批大小的设置，于该配置可能不一样。<br>int类型，默认值：1048576，可选值：[0,....] |
+| partitioner.class                           | 实现了接口`org.apache.kafka.clients.producer.Partitioner`的分区实现类。默认值为：`org.apache.kafka.clients.producer.internals.DefaultPartitioner` |
+| receive.buffer.bytes                        | TCP接收缓存（SO_RCVBUF），如果设置为-1，则使用操作系统默认的值。<br>int类型，默认值：32768，可选值：[-1,...] |
+| <font color='blue'>security.protocol</font> | 跟broker通信协议：PLAINTEXT，SSL，SASL_PLAINTEXT，SASL_SSL<br>String类型，默认：PLAINTEXT |
+| max.in.flight.requests.per.connection       | 单个连接上未确认请求的最大数量。达到这个数量，客户端阻塞。如果该值大于1，且存在失败的请求，在重试的时候消息顺序不能保证。<br>int类型，默认5，可选值：[1,....] |
+| reconnect.backoff.max.ms                    | 对于每个连续的连接失败，每台主机的退避将成倍增加，直至达到此最大值。在计算退避增量之后，添加20%的随机抖动以避免连接风暴。<br>long型值，默认1000，可选值：[0,...] |
+| reconnect.backoff.ms                        | 尝试重连指定主机的基础等待时间。避免了到该主机的密集重连。该瑞比时间应用于该客户端到broker的所有连接。<br>long类型，默认值：50，可选值：[0,...] |
 
 
 
 # 2 消费者
+
+2.1 
 
 # 3 主题
 
