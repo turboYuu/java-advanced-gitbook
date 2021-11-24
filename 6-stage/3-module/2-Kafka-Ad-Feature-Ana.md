@@ -175,7 +175,7 @@ public interface Serializer<T> extends Closeable {
 
 ![image-20211124105840767](assest/image-20211124105840767.png)
 
-
+#### 1.1.4.1 自定义分区器
 
 如果要自定义分区器，则需要
 
@@ -323,9 +323,49 @@ public class DefaultPartitioner implements Partitioner {
 
 可以实现`Partitioner`接口自定义分区器：
 
+```java
+package com.turbo.kafka.demo.partitioner;
+
+import org.apache.kafka.clients.producer.Partitioner;
+import org.apache.kafka.common.Cluster;
+
+import java.util.Map;
+
+
+/**
+ * 自定义分区器
+ */
+public class MyPartitioner implements Partitioner {
+
+    @Override
+    public int partition(String topic, Object key, byte[] keyBytes, Object value, byte[] valueBytes, Cluster cluster) {
+        // 此处可以计算分区的数字
+        // 直接返回2
+        return 2;
+    }
+
+
+    @Override
+    public void close() {
+
+    }
+
+    @Override
+    public void configure(Map<String, ?> configs) {
+
+    }
+}
+
+```
+
 
 
 然后在生产者中配置：
+
+```java
+// 指定自定义的分区器
+configs.put(ProducerConfig.PARTITIONER_CLASS_CONFIG, MyPartitioner.class);
+```
 
 
 
@@ -333,7 +373,24 @@ public class DefaultPartitioner implements Partitioner {
 
 ![image-20211123152018506](assest/image-20211123152018506.png)
 
-Producer拦截器（interceptor）和Cosumer端的Interceptor是在Kafka 0.10版本被引入的。
+Producer拦截器（interceptor）和Cosumer端的Interceptor是在Kafka 0.10版本被引入的，主要用于实现Clienr端的定制化控制逻辑。
+
+对于Producer而言，Interceptor使得用户在**消息发送前**以及**Producer回调逻辑前**有机会对消息做一些定制化需求，比如修改消息等。同时，Producer允许用户指定多个Interceptor按序作用于同一条消息从而形成一个拦截器链（interceptor chain）(1,2,3,4 进入，1,2,3,4出来)。Interceptor的实现接口是`org.apache.kafka.clients.producer.ProducerInterceptor`，其定义的方法包括 ：
+
+- onSend(ProducerRecord<K, V> record)：该方法封装进KafkaProducer.send方法中，即运行在用户主线程中。Producer确保在消息被序列化以计算分区前调用该方法。用户可以在该方法中对消息做任何操作，但最好不要修改消息所属的topic和分区，否则会影响目标分区的计算。
+- onAcknowledgement(RecordMetadata, Exception)：该方法会在消息被应答之前或消息发送失败时调用，并且通常都是放在Producer回调逻辑触发之前。onAcknowledgement运行在Producer的IO线程中，因此不要在该方法中放入很重的逻辑，否则会拖慢Producer的消息发送效率。
+- close：关闭Interceptor，主要用于执行一些资源清理工作。
+
+如前所述，Interceptor可能被运行在多个线程中，因此在具体实现时，用户需要**自行确保线程安全**。另外倘若指定了多个Interceptor，则Producer将按照指定顺序调用它们，并仅仅是捕获每个Interceptor可能排除的异常记录到错误日志中而非在向上传递。这在使用过程中要特别留意。
+
+#### 1.1.5.1 自定义拦截器
+
+自定义拦截器：
+
+1. 实现`org.apache.kafka.clients.producer.ProducerInterceptor`接口
+2. 在KafkaProducer的设置中设置自定义的拦截器
+
+
 
 ## 1.2 原理剖析
 
