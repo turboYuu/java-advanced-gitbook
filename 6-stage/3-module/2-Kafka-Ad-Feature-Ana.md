@@ -321,6 +321,8 @@ public class DefaultPartitioner implements Partitioner {
 
 
 
+案例：https://gitee.com/turboYuu/kafka-6-3/tree/master/lab/kafka-demos/demo-06-kafka-customPartitioner
+
 可以实现`Partitioner`接口自定义分区器：
 
 ```java
@@ -392,7 +394,23 @@ Producer拦截器（interceptor）和Cosumer端的Interceptor是在Kafka 0.10版
 
 
 
+![image-20211124144732078](assest/image-20211124144732078.png)
+
+案例：https://gitee.com/turboYuu/kafka-6-3/tree/master/lab/kafka-demos/demo-07-kafka-customInterceptor
+
+1. 自定义拦截器1 `InterceptorOne`
+2. 自定义拦截器2 `InterceptorTwo`
+3. 自定义拦截器3 `InterceptorThree`
+4. 生产者
+5. 执行结果
+
+![image-20211124144821557](assest/image-20211124144821557.png)
+
 ## 1.2 原理剖析
+
+![image-20211124152543503](assest/image-20211124152543503.png)
+
+由
 
 ## 1.3 生产者参数配置补齐
 
