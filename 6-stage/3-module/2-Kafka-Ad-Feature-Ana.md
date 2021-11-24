@@ -408,7 +408,7 @@ Producer拦截器（interceptor）和Cosumer端的Interceptor是在Kafka 0.10版
 
 ## 1.2 原理剖析
 
-![image-20211124152543503](assest/image-20211124152543503.png)
+![image-20211124191146967](assest/image-20211124191146967.png)
 
 由上图可以看出：KafkaProducer有两个基本线程：
 
