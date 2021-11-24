@@ -147,29 +147,193 @@ public interface Serializer<T> extends Closeable {
 
 
 
-
-
-
-
 #### 1.1.3.1 自定义序列化器
 
 数据的序列化一般生产中使用avro。
 
 自定义序列化器需要实现`org.apache.kafka.common.serialization.Serializer`接口，并实现其中的`serialize`方法。
 
+案例：https://gitee.com/turboYuu/kafka-6-3/tree/master/lab/kafka-demos/demo-05-kafka-customSerializer
 
-
-案例：
-
-
+1. 实体类
+2. 序列化类
+3. 生产者
 
 ### 1.1.4 分区器
 
 ![image-20211123151952813](assest/image-20211123151952813.png)
 
+默认（DefaultPartitioner）分区计算：
+
+1. 如果record提供了分区号，则使用record提供的分区号
+2. 如果record没有提供分区号，则使用key的序列化后的值的hash值对分区数量取模
+3. 如果record没有提供分区号，也没有提供key，则使用轮询的方式分配区号。
+   - 会首先在可用的分区中分配分区号
+   - 如果没有可用的分区，则在该主题所有分区中分配分区号
+
+![image-20211124105641765](assest/image-20211124105641765.png)
+
+![image-20211124105840767](assest/image-20211124105840767.png)
+
+
+
+如果要自定义分区器，则需要
+
+1. 首先开发Partitioner接口的实现类
+2. 在kafkaProducer中进行设置：config.put("partitioner.class","xxx.xx.Xxx.Class")
+
+
+
+位于`org.apache.kafka.clients.producer.Partitioner`中的分区器接口
+
+```java
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.apache.kafka.clients.producer;
+
+import org.apache.kafka.common.Configurable;
+import org.apache.kafka.common.Cluster;
+
+import java.io.Closeable;
+
+/**
+ * 分区器接口
+ */
+
+public interface Partitioner extends Configurable, Closeable {
+
+    /**
+     * 为指定的消息记录计算分区值
+     *
+     * @param topic 主题名称
+     * @param key 根据该key的值进行分区计算，如果没有则为null
+     * @param keyBytes key的序列化字节数组，根据该数组进行分区计算。如果没有key，则为null
+     * @param value 根据value值进行分区计算，如果没有，则为null
+     * @param valueBytes value的序列化字节数组，根据此值进行分区计算。如果没有，则为null
+     * @param cluster 当前集群的元数据
+     */
+    public int partition(String topic, Object key, byte[] keyBytes, Object value, byte[] valueBytes, Cluster cluster);
+
+    /**
+     * 关闭分区器的时候调用该方法
+     */
+    public void close();
+
+}
+```
+
+包 `org.apache.kafka.clients.producer.internals`中分区器的默认实现：
+
+```java
+package org.apache.kafka.clients.producer.internals;
+
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.apache.kafka.clients.producer.Partitioner;
+import org.apache.kafka.common.Cluster;
+import org.apache.kafka.common.PartitionInfo;
+import org.apache.kafka.common.utils.Utils;
+
+/**
+ * 默认分区策略:
+ * 
+ * 如果在记录中指定了分区，则使用指定的分区
+ * 如果没有指定分区，但是有key，则使用key值得散列值计算分区
+ * 如果没有指定分区也没有key的值，则使用轮询的方式选择一个分区
+ */
+public class DefaultPartitioner implements Partitioner {
+
+    private final ConcurrentMap<String, AtomicInteger> topicCounterMap = new ConcurrentHashMap<>();
+
+    public void configure(Map<String, ?> configs) {}
+
+    /**
+     * 为指定的消息记录分区值
+     *
+     * @param topic 主题名称
+     * @param key 根据该key的值进行分区计算，如果没有则为null
+     * @param keyBytes key的序列化字节数组，根据该数据进行分区计算。如果没有key，则为null
+     * @param value 根据value值进行分区计算，如果没有，则为null
+     * @param valueBytes value的序列化字节数组，根据此值进行分区计算。如果没有，则为null
+     * @param cluster 当前集群的元数据
+     */
+    public int partition(String topic, Object key, byte[] keyBytes, Object value, byte[] valueBytes, Cluster cluster) {
+        // 获取指定主题的所有分区信息
+        List<PartitionInfo> partitions = cluster.partitionsForTopic(topic);
+        // 分区数量
+        int numPartitions = partitions.size();
+        // 如果没有提供key
+        if (keyBytes == null) {
+            int nextValue = nextValue(topic);
+            List<PartitionInfo> availablePartitions = cluster.availablePartitionsForTopic(topic);
+            if (availablePartitions.size() > 0) {
+                int part = Utils.toPositive(nextValue) % availablePartitions.size();
+                return availablePartitions.get(part).partition();
+            } else {
+                // no partitions are available, give a non-available partition
+                return Utils.toPositive(nextValue) % numPartitions;
+            }
+        } else {
+            // hash the keyBytes to choose a partition
+            // 如果有，就计算keyBytes的哈希值，然后对当前主题的个数取模
+            return Utils.toPositive(Utils.murmur2(keyBytes)) % numPartitions;
+        }
+    }
+
+    private int nextValue(String topic) {
+        AtomicInteger counter = topicCounterMap.get(topic);
+        if (null == counter) {
+            counter = new AtomicInteger(ThreadLocalRandom.current().nextInt());
+            AtomicInteger currentCounter = topicCounterMap.putIfAbsent(topic, counter);
+            if (currentCounter != null) {
+                counter = currentCounter;
+            }
+        }
+        return counter.getAndIncrement();
+    }
+
+    public void close() {}
+
+}
+
+```
+
+![image-20211124113242334](assest/image-20211124113242334.png)
+
+
+
+可以实现`Partitioner`接口自定义分区器：
+
+
+
+然后在生产者中配置：
+
+
+
 ### 1.1.5 拦截器
 
 ![image-20211123152018506](assest/image-20211123152018506.png)
+
+Producer拦截器（interceptor）和Cosumer端的Interceptor是在Kafka 0.10版本被引入的。
 
 ## 1.2 原理剖析
 
