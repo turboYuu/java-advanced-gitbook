@@ -572,21 +572,71 @@ broker处理心跳的逻辑在`GroupCoordinator`类中：如果心跳超期，br
 
 `org.apache.kafka.clients.consumer.internals.AbstractCoordinator.HeartbeatThread`
 
+```java
+if (coordinatorUnknown()) {
+    if (findCoordinatorFuture != null || lookupCoordinator().failed())
+        // the immediate future check ensures that we backoff properly in the case that no
+        // brokers are available to connect to.
+        AbstractCoordinator.this.wait(retryBackoffMs);
+} else if (heartbeat.sessionTimeoutExpired(now)) {
+    // the session timeout has expired without seeing a successful heartbeat, so we should
+    // probably make sure the coordinator is still healthy.
+    markCoordinatorUnknown();
+} else if (heartbeat.pollTimeoutExpired(now)) {
+    // the poll timeout has expired, which means that the foreground thread has stalled
+    // in between calls to poll(), so we explicitly leave the group.
+    maybeLeaveGroup();
+} else if (!heartbeat.shouldHeartbeat(now)) {
+    // poll again after waiting for the retry backoff in case the heartbeat failed or the
+    // coordinator disconnected
+    AbstractCoordinator.this.wait(retryBackoffMs);
+} else {
+    heartbeat.sentHeartbeat(now);
+
+    sendHeartbeatRequest().addListener(new RequestFutureListener<Void>() {
+        @Override
+        public void onSuccess(Void value) {
+            synchronized (AbstractCoordinator.this) {
+                heartbeat.receiveHeartbeat(time.milliseconds());
+            }
+        }
+
+        @Override
+        public void onFailure(RuntimeException e) {
+            synchronized (AbstractCoordinator.this) {
+                if (e instanceof RebalanceInProgressException) {
+                    // it is valid to continue heartbeating while the group is rebalancing. This
+                    // ensures that the coordinator keeps the member in the group for as long
+                    // as the duration of the rebalance timeout. If we stop sending heartbeats,
+                    // however, then the session timeout may expire before we can rejoin.
+                    heartbeat.receiveHeartbeat(time.milliseconds());
+                } else {
+                    heartbeat.failHeartbeat();
+
+                    // wake up the thread if it's sleeping to reschedule the heartbeat
+                    AbstractCoordinator.this.notify();
+                }
+            }
+        }
+    });
+}
+```
+
 
 
 ## 2.2 消息接收
 
 ### 2.2.1 必要参数配置
 
-| 参数               | 说明                                                         |
-| ------------------ | ------------------------------------------------------------ |
-| bootstrap.servers  | <font style="font-size:93%">向Kafka集群建立初始连接用到host/port列表。<br>客户端使用这里列出的所有服务器进行集群其他服务器的发现，而不管是否指定哪个服务器用作引导。<br>这个列表仅影响用来发现集群所有服务器的初始主机。<br>字符串形式：`host1:port1,host2:port2,...`<br>由于这组服务器仅用于建立初始连接，然后发现集群中的所有服务器，因此没有必要将集群中的所有地址写在这里。一般最好两台，以访其中一台宕机。</font> |
-| key.deserializer   | key的反序列化类，该类需要实现`org.apache.kafka.common.serialization.Deserializer`接口。 |
-| value.deserializer | 实现了`org.apache.kafka.common.serialization.Deserializer`的接口的反序列化器，用于对消息的value进行反序列化。 |
-| client.id          | 当从服务器消费消息的时候向服务器发送的id字符串。在ip/port基础上提供应用的逻辑名称，记录在服务端的请求日志中，用于追踪请求的源。 |
-| group.id           | 用于唯一标示当前消费者所属的消费组的字符串。<br>如果消费者使用管理功能如subscribe(topic)或使用基于kafka的偏移量管理策略，该项必须设置。 |
-| auto.offset.reset  | 当Kafka中没有初始偏移量或当前偏移量在服务器中不存在（如，数据被删除了），该如何处理？<br>earliest：自动重置偏移量到最早的偏移量；<br>latest：自动重置偏移量为最新的偏移量；<br>none：如果消费组原来的（previous）偏移量不存在，则向消费者抛异常；<br>anything：向消费者抛异常。 |
-| enable.auto.commit | 如果设置为true，消费者会自动周期性的向服务器提交偏移量。     |
+| 参数                                        | 说明                                                         |
+| ------------------------------------------- | ------------------------------------------------------------ |
+| <font color='blue'>bootstrap.servers</font> | <font style="font-size:93%">向Kafka集群建立初始连接用到host/port列表。<br>客户端使用这里列出的所有服务器进行集群其他服务器的发现，而不管是否指定哪个服务器用作引导。<br>这个列表仅影响用来发现集群所有服务器的初始主机。<br>字符串形式：`host1:port1,host2:port2,...`<br>由于这组服务器仅用于建立初始连接，然后发现集群中的所有服务器，因此没有必要将集群中的所有地址写在这里。一般最好两台，以访其中一台宕机。</font> |
+| key.deserializer                            | key的反序列化类，该类需要实现`org.apache.kafka.common.serialization.Deserializer`接口。 |
+| value.deserializer                          | <font style="font-size:93%">实现了`org.apache.kafka.common.serialization.Deserializer`的接口的反序列化器，用于对消息的value进行反序列化。</font> |
+| client.id                                   | 当从服务器消费消息的时候向服务器发送的id字符串。在ip/port基础上提供应用的逻辑名称，记录在服务端的请求日志中，用于追踪请求的源。 |
+| group.id                                    | 用于唯一标示当前消费者所属的消费组的字符串。<br>如果消费者使用管理功能如subscribe(topic)或使用基于kafka的偏移量管理策略，该项必须设置。 |
+| auto.offset.reset                           | 当Kafka中没有初始偏移量或当前偏移量在服务器中不存在（如，数据被删除了），该如何处理？<br>earliest：自动重置偏移量到最早的偏移量；<br>latest：自动重置偏移量为最新的偏移量；<br>none：如果消费组原来的（previous）偏移量不存在，则向消费者抛异常；<br>anything：向消费者抛异常。 |
+| enable.auto.commit                          | 如果设置为true，消费者会自动周期性的向服务器提交偏移量。     |
 
 
 
@@ -594,9 +644,9 @@ broker处理心跳的逻辑在`GroupCoordinator`类中：如果心跳超期，br
 
 #### 2.2.2.1 主题和分区
 
-- **Topic**，Kafka用于分类管理消息的逻辑单元，类似于MySQL的数据库。
-- **Partition**，是Kafka下数据存储的基本单元，这是个物理上的概念。同一个Topic的数据，会被分散的存储到多个Partition中，这些Partition可以在同一台机器上，也可以在多台机器上。优势在于：有利于水平扩展，避免单台机器在磁盘空间和性能上的限制，同时可以通过复制来增加数据冗余性，提高容灾能力。为了做到均匀分布，通常Partition的数量是Broker Server数量的整数倍。
-- Consumer Group，同样是逻辑上的概念，是Kafka实现单播和广播的两种消息模型的手段。保证一个消费组获取到特定主题的全部消息。在消费组内部，若干个消费者消费主题分区的消息，消费组可以保证一个主题的每个分区制备消费组中的一个消费者消费。
+- **Topic**，Kafka用于分类管理消息的逻辑单元，类似于MySQL分库分表中的逻辑表。
+- **Partition**，是Kafka下数据存储的基本单元，这是个物理上的概念。**同一个Topic的数据，会被分散的存储到多个Partition中**，这些Partition可以在同一台机器上，也可以在多台机器上。优势在于：有利于水平扩展，避免单台机器在磁盘空间和性能上的限制，同时可以通过复制来增加数据冗余性，提高容灾能力。为了做到均匀分布，通常Partition的数量是Broker Server数量的整数倍。
+- **Consumer Group**，同样是逻辑上的概念，是**Kafka实现单播和广播的两种消息模型的手段**。保证一个消费组获取到特定主题的全部消息。在消费组内部，若干个消费者消费主题分区的消息，消费组可以保证一个主题的每个分区只被消费组中的一个消费者消费。
 
 
 
