@@ -535,19 +535,86 @@ group_id通过消费者的配置指定：`group.id=xxx`
 
 ![image-20211125125647683](assest/image-20211125125647683.png)
 
-
+消费者宕机，退出消费组，触发再平衡，重新给消费组中的消费者分配分区。
 
 ![image-20211125125856627](assest/image-20211125125856627.png)
+
+
+
+由于broker宕机，主题X的分区3宕机，此时分区3没有Leader副本，触发再平衡，消费者4没有对应的主题分区，则消费者4闲置。
+
+![image-20211125132522037](assest/image-20211125132522037.png)
+
+
+
+Kafka的心跳是Kafka Consumer 和 Broker之间的健康检查，只有当Broker Coordinator正常时，Consumer才会发送心跳。
+
+Consumer 和 Rebalance 相关的2个配置参数：
+
+| 参数                 | 字段                              |
+| -------------------- | --------------------------------- |
+| session.timeout.ms   | MemberMetadata.sessionTimeoutMs   |
+| max.poll.interval.ms | MemberMetadata.rebalanceTimeoutMs |
+
+
+
+> broker端，sessionTimeoutMs参数
+
+broker处理心跳的逻辑在`GroupCoordinator`类中：如果心跳超期，broker coordinate会把消费者从group中移除，并触发rebalance。
+
+
+
+
+
+> consumer 端：sessionTimeoutMs，rebalanceTimeoutMs参数
+
+如果客户端发现心跳超期，客户端会标记coordinator为不可用，并阻塞心跳线程；如果超过poll消息的间隔超过了rebalanceTimeoutms，则consumer告知broker主动离开消费组，也会触发rebalance。
+
+`org.apache.kafka.clients.consumer.internals.AbstractCoordinator.HeartbeatThread`
+
+
 
 ## 2.2 消息接收
 
 ### 2.2.1 必要参数配置
 
+| 参数               | 说明                                                         |
+| ------------------ | ------------------------------------------------------------ |
+| bootstrap.servers  | <font style="font-size:93%">向Kafka集群建立初始连接用到host/port列表。<br>客户端使用这里列出的所有服务器进行集群其他服务器的发现，而不管是否指定哪个服务器用作引导。<br>这个列表仅影响用来发现集群所有服务器的初始主机。<br>字符串形式：`host1:port1,host2:port2,...`<br>由于这组服务器仅用于建立初始连接，然后发现集群中的所有服务器，因此没有必要将集群中的所有地址写在这里。一般最好两台，以访其中一台宕机。</font> |
+| key.deserializer   | key的反序列化类，该类需要实现`org.apache.kafka.common.serialization.Deserializer`接口。 |
+| value.deserializer | 实现了`org.apache.kafka.common.serialization.Deserializer`的接口的反序列化器，用于对消息的value进行反序列化。 |
+| client.id          | 当从服务器消费消息的时候向服务器发送的id字符串。在ip/port基础上提供应用的逻辑名称，记录在服务端的请求日志中，用于追踪请求的源。 |
+| group.id           | 用于唯一标示当前消费者所属的消费组的字符串。<br>如果消费者使用管理功能如subscribe(topic)或使用基于kafka的偏移量管理策略，该项必须设置。 |
+| auto.offset.reset  | 当Kafka中没有初始偏移量或当前偏移量在服务器中不存在（如，数据被删除了），该如何处理？<br>earliest：自动重置偏移量到最早的偏移量；<br>latest：自动重置偏移量为最新的偏移量；<br>none：如果消费组原来的（previous）偏移量不存在，则向消费者抛异常；<br>anything：向消费者抛异常。 |
+| enable.auto.commit | 如果设置为true，消费者会自动周期性的向服务器提交偏移量。     |
+
+
+
 ### 2.2.2 订阅
 
 #### 2.2.2.1 主题和分区
 
+- **Topic**，Kafka用于分类管理消息的逻辑单元，类似于MySQL的数据库。
+- **Partition**，是Kafka下数据存储的基本单元，这是个物理上的概念。同一个Topic的数据，会被分散的存储到多个Partition中，这些Partition可以在同一台机器上，也可以在多台机器上。优势在于：有利于水平扩展，避免单台机器在磁盘空间和性能上的限制，同时可以通过复制来增加数据冗余性，提高容灾能力。为了做到均匀分布，通常Partition的数量是Broker Server数量的整数倍。
+- Consumer Group，同样是逻辑上的概念，是Kafka实现单播和广播的两种消息模型的手段。保证一个消费组获取到特定主题的全部消息。在消费组内部，若干个消费者消费主题分区的消息，消费组可以保证一个主题的每个分区制备消费组中的一个消费者消费。
+
+
+
+![image-20211125155405380](assest/image-20211125155405380.png)
+
+consumer采用pull模式从broker中读取数据。
+
+采用pull模式，consumer可自主控制消息的速率，可以自己控制消费方式（批量消费/逐条消费），还可以选择不同的提交方式从而实现不同的传输语义。
+
+
+
 ### 2.2.3 反序列化
+
+Kafka的broker中所有的消息都是字节数组，消费者获取到消息之后，需要先对消息进行反序列化，然后才能交给用户程序消费处理。
+
+消费者的反序列化器包括key的和value的反序列化器。
+
+
 
 #### 2.2.3.1 自定义反序列化
 
