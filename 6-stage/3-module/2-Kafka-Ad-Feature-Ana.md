@@ -700,15 +700,20 @@ Kafka默认提供了几个反序列化的实现：
 
 
 
-
-
 #### 2.2.3.1 自定义反序列化
 
 自定义反序列化器，需要实现`org.apache.kafka.common.serialization.Deserializer`接口。
 
+https://gitee.com/turboYuu/kafka-6-3/tree/master/lab/kafka-demos/demo-08-kafka-customDeserializer
 
+1. 自定义反序列化器`UserDeserializer`
+2. 消费中配置反序列化器`config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, UserDeserializer.class);`
 
 ### 2.2.4 位移提交
+
+1. Consumer需要向kafka记录自己的位移数据，这个汇报过程称为`提交位移(Committing Offsets)`
+2. Consumer需要为分配给它的每个分区提交各自的位移数据
+3. 
 
 #### 2.2.4.1 自动提交
 
