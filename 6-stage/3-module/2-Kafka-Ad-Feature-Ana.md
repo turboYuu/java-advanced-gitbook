@@ -664,9 +664,47 @@ Kafka的broker中所有的消息都是字节数组，消费者获取到消息之
 
 消费者的反序列化器包括key的和value的反序列化器。
 
+> key.deserializer
+>
+> value.deserializer
+
+需要实现`org.apache.kafka.common.serialization.Deserializer`接口。
+
+消费者从订阅的主题拉取消息：consumer.poll(3_000);
+
+在Fetcher类中，对拉取到的消息首先进行反序列化处理。
+
+![image-20211125170451945](assest/image-20211125170451945.png)
+
+Kafka默认提供了几个反序列化的实现：
+
+`org.apache.kafka.common.serialization.Deserializer`包下包含了这几个实现：
+
+`org.apache.kafka.common.serialization.ByteArrayDeserializer`
+
+`org.apache.kafka.common.serialization.ByteBufferDeserializer`
+
+`org.apache.kafka.common.serialization.BytesDeserializer`
+
+`org.apache.kafka.common.serialization.DoubleDeserializer`
+
+`org.apache.kafka.common.serialization.FloatDeserializer`
+
+`org.apache.kafka.common.serialization.IntegerDeserializer`
+
+`org.apache.kafka.common.serialization.LongDeserializer`
+
+`org.apache.kafka.common.serialization.ShortDeserializer`
+
+`org.apache.kafka.common.serialization.StringDeserializer`
+
+
+
 
 
 #### 2.2.3.1 自定义反序列化
+
+自定义反序列化器，需要实现`org.apache.kafka.common.serialization.Deserializer`接口。
 
 
 
