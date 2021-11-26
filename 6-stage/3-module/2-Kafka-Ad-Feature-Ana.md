@@ -724,9 +724,46 @@ Kafka Consumer 后台提交
 - 开启自动提交：`enable.auto.commit=true`
 - 配置自动提交间隔：Consumer端：`auto.commit.interval.ms`，默认5s
 
-```
+```java
+Map<String,Object> configs = new HashMap<>();
+// node1对应192.168.31.61 ，windows的hosts文件中手动配置域名解析
+configs.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,"node1:9092");
+// 使用常量代理手写字符串，配置key的反序列化器
+configs.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, IntegerDeserializer.class);
+// 使用常量代理手写字符串，配置value的反序列化器
+configs.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+// 配置消费组ID
+configs.put(ConsumerConfig.GROUP_ID_CONFIG,"consumer_demo2");
+// 如果找不到消费者有效偏移量，则自动配置到最开始
+// latest：表示直接重置到消息偏移量最后一个
+configs.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,"earliest");
 
+// enable.auto.commit 设置自定提交。自动提交是默认值。这里做示例
+configs.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,"true");
+// auto.commit.interval.ms 偏移量自动提交的时间间隔
+configs.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG,"3000");
 
+KafkaConsumer<Integer,String> consumer = new KafkaConsumer<Integer, String>(configs);
+
+// 先订阅 再消费
+consumer.subscribe(Arrays.asList("topic_1"));
+
+while (true){
+    // 批量从主题的分区拉取消息
+    final ConsumerRecords<Integer, String> consumerRecords = consumer.poll(3_000);
+
+    // 遍历本次从主题的分区拉取的批量消息
+    consumerRecords.forEach(new Consumer<ConsumerRecord<Integer, String>>() {
+        @Override
+        public void accept(ConsumerRecord<Integer, String> record) {
+            System.out.println(record.topic() +"\t"
+                               + record.partition() +"\t"
+                               + record.offset() + "\t"
+                               + record.key() + "\t"
+                               + record.value() );
+        }
+    });
+}
 ```
 
 
