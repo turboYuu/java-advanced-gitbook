@@ -713,11 +713,43 @@ https://gitee.com/turboYuu/kafka-6-3/tree/master/lab/kafka-demos/demo-08-kafka-c
 
 1. Consumer需要向kafka记录自己的位移数据，这个汇报过程称为`提交位移(Committing Offsets)`
 2. Consumer需要为分配给它的每个分区提交各自的位移数据
-3. 
+3. 位移提交的由Consumer端负责，Kafka只负责保管。`_consumer_offset`
+4. 位移提交分为自动提交和手动提交
+5. 位移提交分为同步提交和异步提交
 
 #### 2.2.4.1 自动提交
 
-#### 2.2.4.2 异步提交
+Kafka Consumer 后台提交
+
+- 开启自动提交：`enable.auto.commit=true`
+- 配置自动提交间隔：Consumer端：`auto.commit.interval.ms`，默认5s
+
+```
+
+
+```
+
+
+
+- 自动提交位移的顺序
+  - 配置 `enable.auto.commit=true`
+  - Kafka会保证在开始调用poll方法时，提交上次poll返回的所有信息
+  - 因此自动提交不会出现消息丢失，但会`重复消费`
+- 重复消费举例
+  - Consumer 每 5s 提交 offset
+  - 假设提交 offset 后 3s 发生了 Rebalance
+  - Rebalance 之后的所有 Consumer 从上次提交（3s前）的 offset 处继续消费
+  - 因此 Rebalance 发生前 3s 的消息会被重复消费
+
+
+
+#### 2.2.4.2 同步提交
+
+- 使用KafkaConsumer
+
+
+
+#### 2.2.4.3 异步提交
 
 ### 2.2.5 消费者位移管理
 
