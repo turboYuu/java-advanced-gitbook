@@ -745,11 +745,21 @@ Kafka Consumer 后台提交
 
 #### 2.2.4.2 同步提交
 
-- 使用KafkaConsumer
+- 使用KafkaConsumer#commitSync()，会提交KafkaConsumer#poll() 返回的最新 offset
+
+- 该方法为同步操作，等待直到 offset 被成功提交才返回
+
+  ```
+  
+  ```
+
+- commitSync 在处理完所有消息之后
 
 
 
 #### 2.2.4.3 异步提交
+
+
 
 ### 2.2.5 消费者位移管理
 
