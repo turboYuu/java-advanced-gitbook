@@ -156,8 +156,14 @@ public interface Serializer<T> extends Closeable {
 案例：https://gitee.com/turboYuu/kafka-6-3/tree/master/lab/kafka-demos/demo-05-kafka-customSerializer
 
 1. 实体类
-2. 序列化类
-3. 生产者
+
+2. 自定义序列化类 UserSerializer
+
+3. 生产者中使用
+
+   ![image-20211126171200541](assest/image-20211126171200541.png)
+
+   
 
 ### 1.1.4 分区器
 
@@ -179,7 +185,7 @@ public interface Serializer<T> extends Closeable {
 
 如果要自定义分区器，则需要
 
-1. 首先开发Partitioner接口的实现类
+1. 首先开发`org.apache.kafka.clients.producer.Partitioner`接口的实现类
 2. 在kafkaProducer中进行设置：config.put("partitioner.class","xxx.xx.Xxx.Class")
 
 
@@ -420,7 +426,7 @@ Producer拦截器（interceptor）和Cosumer端的Interceptor是在Kafka 0.10版
 - Sender线程：
   - 该线程从消息收集器获取缓存的消息，将其处理为<Node,List< ProducerBacth>>的形式，Node表示集群的broker节点。
   - 进一步将<Node,List< ProducerBacth>>转化为<Node, Request>形式，此时才可以向服务端发送数据。
-  - 在发送之前，Sender线程将消息以Map<NodeId,Deque< Request>>的形式保存到InFlightRequests中进行缓存，可以通过其获取leastLoadedNode，即当前Node中负载压力最小的一个，以实现消息的尽快发出。
+  - 在发送之前，Sender线程将消息以Map<NodeId,Deque< Request>>的形式保存到 InFlightRequests 中进行缓存，可以通过其获取leastLoadedNode，即当前Node中负载压力最小的一个，以实现消息的尽快发出。
 
 ## 1.3 生产者参数配置补齐
 
