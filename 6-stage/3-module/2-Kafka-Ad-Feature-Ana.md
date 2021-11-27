@@ -721,7 +721,7 @@ https://gitee.com/turboYuu/kafka-6-3/tree/master/lab/kafka-demos/demo-08-kafka-c
 2. Consumer需要为分配给它的每个分区提交各自的位移数据
 3. 位移提交的由Consumer端负责，Kafka只负责保管。`_consumer_offset`
 4. 位移提交分为自动提交和手动提交
-5. 位移提交分为同步提交和异步提交
+5. 位移提交(手动提交)分为同步提交和异步提交
 
 #### 2.2.4.1 自动提交
 
