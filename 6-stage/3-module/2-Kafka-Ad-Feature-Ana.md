@@ -806,13 +806,71 @@ while (true){
 
 - 手动同步提交可以控制offset提交时机和频率
 
+- 手动同步提交会：
+
+  - 调用commitSync时，Consumer处于阻塞状态，直到Broker返回结果
+  - 会影响TPS
+  - 可以选择拉长提交间隔，但有以下问题
+    - 会导致Consumer的提交频率下降
+    - Consumer重启后，会有更多的消息被消费
+
 
 
 #### 2.2.4.3 异步提交
 
+- KafkaConsumer#commitAsync()
 
+  ```java
+  while (true) {
+      ConsumerRecords<String, String> records = consumer.poll(3_000); 
+      process(records); // 处理消息
+      consumer.commitAsync((offsets, exception) -> { 
+          if (exception != null) {
+              handle(exception);
+          }
+      }); 
+  }
+  ```
+
+- commitAsync出现问题不会自动重试
+
+- 处理方式：
+
+  ```java
+  try {
+      while(true) {
+          ConsumerRecords<String, String> records = consumer.poll(Duration.ofSeconds(1));
+          process(records); // 处理消息 commitAysnc(); // 使⽤异步提交规避阻塞
+      }
+  } catch(Exception e) { 
+      handle(e); // 处理异常
+  } finally {
+      try {
+          consumer.commitSync(); // 最后⼀次提交使⽤同步阻塞式提交
+      } finally {
+          consumer.close();
+      }
+  }
+  ```
+
+  
 
 ### 2.2.5 消费者位移管理
+
+Kafka中，消费者根据消费的位置顺序消费消息。
+
+消费者的位移由消费者管理，可以存储与zookeeper中，也可以存储于Kafka主题`_consumer_offsets`中。Kafka提供了消费者API，让消费者可以管理自己的位置。
+
+API如下：KafkaConsumer<K, V>
+
+| 项目API | 细节说明                                                     |
+| ------- | ------------------------------------------------------------ |
+| API     | public void assign(Collection<TopicPartition> partitions)    |
+|         | 给当前消费者分配一些列主题分区。<br/>手动分配分区不支持增量分配，如果先前有分配分区，则该操作会覆盖之前的分配。<br>如果给出的主题分区是空的，等价于调用`unsubscribe`方法。<br>手动分配分区的方法不使用消费组管理。当消费组成员变了，或者集群或主题的元数据改变了，不会触发分区分配的再平衡。<br>手动分区分配assign(Collection)不能和自动分区分配subscribe(Collection, ConsumerRebalanceListener)一起使用。<br>如果启用了自定提交偏移量，则在新的分区分配替换旧的分配之前，会对旧的分配中的消费偏移量进行异步提交。 |
+|         | public Set<TopicPartition> assignment()                      |
+|         | 获取给                                                       |
+
+
 
 ### 2.2.6 再均衡
 
