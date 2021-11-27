@@ -866,9 +866,23 @@ API如下：KafkaConsumer<K, V>
 | 项目API | 细节说明                                                     |
 | ------- | ------------------------------------------------------------ |
 | API     | public void assign(Collection<TopicPartition> partitions)    |
-|         | 给当前消费者分配一些列主题分区。<br/>手动分配分区不支持增量分配，如果先前有分配分区，则该操作会覆盖之前的分配。<br>如果给出的主题分区是空的，等价于调用`unsubscribe`方法。<br>手动分配分区的方法不使用消费组管理。当消费组成员变了，或者集群或主题的元数据改变了，不会触发分区分配的再平衡。<br>手动分区分配assign(Collection)不能和自动分区分配subscribe(Collection, ConsumerRebalanceListener)一起使用。<br>如果启用了自定提交偏移量，则在新的分区分配替换旧的分配之前，会对旧的分配中的消费偏移量进行异步提交。 |
-|         | public Set<TopicPartition> assignment()                      |
-|         | 获取给                                                       |
+| 说明    | 给当前消费者分配一些列主题分区。<br/>手动分配分区不支持增量分配，如果先前有分配分区，则该操作会覆盖之前的分配。<br>如果给出的主题分区是空的，等价于调用`unsubscribe`方法。<br>手动分配分区的方法不使用消费组管理。当消费组成员变了，或者集群或主题的元数据改变了，不会触发分区分配的再平衡。<br>手动分区分配assign(Collection)不能和自动分区分配subscribe(Collection, ConsumerRebalanceListener)一起使用。<br>如果启用了自定提交偏移量，则在新的分区分配替换旧的分配之前，会对旧的分配中的消费偏移量进行异步提交。 |
+| API     | public Set<TopicPartition> assignment()                      |
+| 说明    | 获取给当前消费者分配的分区集合。如果订阅是通过调用assign方法直接分配主题分区，则返回相同的集合。如果使用了实体订阅，该方法返回当前分配给消费者的主题分区集合。如果分区订阅还没开始进行分区分配，或者正在重新分配分区，则返回none。 |
+| API     | public Map<String, List<PartitionInfo>> listTopics()         |
+| 说明    | 获取对用户授权的所有主题分区元数据。该方法会对服务器发起远程调用 |
+| API     | public List<PartitionInfo> partitionsFor(String topic)       |
+| 说明    | 获取指定主题的分区元数据。如果当前消费者没有关于该主题的元数据，就会对服务器发起远程调用。 |
+| API     | public Map<TopicPartition, Long> beginningOffsets(Collection<TopicPartition> partitions) |
+| 说明    | 对于给定的主题分区，列出它们的第一个消息的偏移量。<br>注意，如果指定的分区不存在，该方法可能会永远阻塞。<br>该方法不改变分区的当前消费者偏移量。 |
+| API     | public void seekToEnd(Collection<TopicPartition> partitions) |
+| 说明    | 将偏移量移动到每个给定分区的最后一个。<br>该方法延迟执行，只有调用过poll方法或position方法之后才可以使用。<br>如果没有指定分区，则将当前消费者分配的所有分区的偏移量移到最后。<br>如果设置了隔离级别为：isolation.level=read_committed，则会将分区的消费偏移量移动到最后一个稳定的偏移量，即下一个要消费的消息，现在还是未提交状态的事务消息。 |
+| API     | public void seek(TopicPartition partition, long offset)      |
+| 说明    | 将给定主题分区的消费者偏移量移动到指定的偏移量，即当前消费者下一条要消费的消息偏移量。<br>若该方法多次调用，则最后一次的覆盖前面的。<br>如果在消费中间随意使用，可能会丢失数据。 |
+| API     | public long position(TopicPartition partition)               |
+| 说明    | 检查指定主题分区的消费偏移量                                 |
+| API     | public void seekToBeginning(Collection<TopicPartition> partitions) |
+| 说明    | 将给定每个分区的消费者偏移量移动到它们的起始偏移量。该方法懒执行，只有当调用过poll方法或position方法之后才会执行。如果没有提供分区，则将所有分配给当前消费者的分区的偏移量移动到起始偏移量。 |
 
 
 
