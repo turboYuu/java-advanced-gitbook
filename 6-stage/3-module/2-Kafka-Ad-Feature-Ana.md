@@ -956,11 +956,98 @@ https://gitee.com/turboYuu/kafka-6-3/tree/master/lab/kafka-demos/demo-09-kafka-c
 
 在分布式系统中，由于网络问题你不清楚没接收到心跳，是因为对方真正挂了还是因为负载过重没来得及发生心跳或是网络阻塞。所以补办会约定一个时间，超时即判定对方挂了，**而在Kafka消费者场景中，session.timeout.ms参数就是规定这个超时时间是多少。**
 
+还有一个参数，**heartbeat.interval.ms**，这个参数控制发送心跳的频率，频率越高越不容易被误判，但也会消耗更多资源。
 
+此外，还有最后一个参数，**max.poll.interval.ms**，消费者poll数据后，需要一些处理，再进行拉取。如果两次拉取时间间隔超过这个参数设置得值，那么消费者就会被踢出消费者组。也就是说，拉取，然后处理，这个处理的时间不能超过`max.poll.interval.ms`这个参数的值。这个参数的默认值是5分钟，而如果消费者接收到数据后执行耗时的操作，则应该将其设置得大一些。
+
+三个参数，
+
+session.timeout.ms控制心跳超时时间，
+
+heartbeat.interval.ms控制心跳发送频率，
+
+max.poll.interval.ms 控制poll的间隔。
+
+这里给出一个相对较为合理的配置，如下：
+
+- session.timeout.ms：设置为6s
+- heartbeat.interval.ms：设置2s
+- max.poll.interval.ms：推荐为消费者处理消息最长耗时再加1分钟
 
 ### 2.2.7 消费者拦截器
 
+消费者在拉取了分区消息之后，要首先经过反序列化器对key和value进行反序列化处理。
+
+处理完之后，如果消费端设置了拦截器，则需要经过拦截器的处理之后，才能返回给消费者应用程序进行处理。
+
+![image-20211127173726110](assest/image-20211127173726110.png)
+
+消费端定义消费拦截器，需要实现`org.apache.kafka.clients.consumer.ConsumerInterceptor`接口。
+
+1. 一个可插拔接口，允许拦截甚至更改小覅这接收到的消息。首要的用例在于将第三方组件引入消费者应用程序，用于定制的监控，日志处理等。
+2. 该接口的实现类通过configure方法获取消费者配置的属性，如果消费者配置中没有指定clientID，还可以获取KafkaConsumer生成clientID。获取的这个配置是跟其他拦截器共享的，需要保证不会在各个拦截器之间产生冲突。
+3. ConsumerInterceptor方法抛出的异常会被捕获、记录、但是不会向下传播。如果用户配置了错误的key或value类型参数，消费者不会抛出异常，而仅仅是记录下来。
+4. ConsumerInterceptor回调发生在org.apache.kafka.clients.consumer.KafkaConsumer#poll方法同一个线程。
+
+
+
+该接口有如下方法：
+
+```java
+package org.apache.kafka.clients.consumer;
+
+import org.apache.kafka.common.Configurable;
+import org.apache.kafka.common.TopicPartition;
+
+import java.util.Map;
+
+public interface ConsumerInterceptor<K, V> extends Configurable {
+
+    /**
+     * 该方法在poll方法返回之前调用。调用结束后poll方法就返回消息了
+     *  
+     * 该方法可以修改消费者消息，返回新的消息。拦截器可以过来收到的消息或生成新的消息。
+     * 如果有多个拦截器，则该方法按照KafkaConsumer的configs中配置顺序调用。
+     *
+     * @param records 由上个拦截器返回的由客户端消费的消息
+     * @return records 
+     */
+    public ConsumerRecords<K, V> onConsume(ConsumerRecords<K, V> records);
+
+    /**
+     * 当消费者提交偏移量时，调用该方法。
+     * 该方法抛出的任何异常调用者都会忽略。
+     */
+    public void onCommit(Map<TopicPartition, OffsetAndMetadata> offsets);
+
+    public void close();
+}
+```
+
+代码实现：
+
+https://gitee.com/turboYuu/kafka-6-3/tree/master/lab/kafka-demos/demo-10-kafka-consumer-Interceptor
+
 ### 2.2.8 消费者参数补齐
+
+|      |      |
+| ---- | ---- |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+
+
 
 ## 2.3 消费组管理
 
