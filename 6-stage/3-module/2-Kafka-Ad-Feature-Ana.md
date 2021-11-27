@@ -886,6 +886,22 @@ API如下：KafkaConsumer<K, V>
 
 
 
+> 1.准备数据
+
+```shell
+# 生成消息文件
+[root@node1 ~]# for i in `seq 60`; do echo "hello turbo $i" >> message.txt; done
+# 创建主题，三个分区，每个分区一个副本
+[root@node1 ~]# kafka-topics.sh --zookeeper node1:2181/myKafka --create --topic tp_demo_01 --partitions 3 --replication-factor 1
+[root@node1 ~]# kafka-topics.sh --zookeeper node1:2181/myKafka --describe --topic tp_demo_01
+# 将消息生产到主题中
+[root@node1 ~]# kafka-console-producer.sh --broker-list node1:9001 --topic tp_demo_01 < message.txt
+```
+
+
+
+> 2.API实战
+
 ### 2.2.6 再均衡
 
 ### 2.2.7 消费者拦截器
