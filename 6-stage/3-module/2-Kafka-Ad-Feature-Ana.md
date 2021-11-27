@@ -570,8 +570,6 @@ broker处理心跳的逻辑在`GroupCoordinator`类中：如果心跳超期，br
 
 
 
-
-
 > consumer 端：sessionTimeoutMs，rebalanceTimeoutMs参数
 
 如果客户端发现心跳超期，客户端会标记coordinator为不可用，并阻塞心跳线程；如果超过poll消息的间隔超过了rebalanceTimeoutms，则consumer告知broker主动离开消费组，也会触发rebalance。
@@ -792,11 +790,21 @@ while (true){
 
 - 该方法为同步操作，等待直到 offset 被成功提交才返回
 
-  ```
-  
+  ```java
+  while (true) {
+      ConsumerRecords<String, String> records = consumer.poll(Duration.ofSeconds(1));
+      process(records); // 处理消息 
+      try {
+          consumer.commitSync();
+      } catch (CommitFailedException e) {
+          handle(e); // 处理提交失败异常
+      } 
+  }
   ```
 
 - commitSync 在处理完所有消息之后
+
+- 手动同步提交可以控制offset提交时机和频率
 
 
 
