@@ -1097,11 +1097,13 @@ Kafka默认定期自动提交位移（`enable.auto.commit=true`），也手动�
 
 位移是提交到Kafka中的`__consumer_offsets`主题。`__consumer_offsets`中的消息保存了每个消费组某一时刻提交的offset信息。
 
+```shell
+[root@node1 ~]# kafka-console-consumer.sh --topic __consumer_offsets --bootstrap-server node1:9001 --formatter "kafka.coordinator.group.GroupMetadataManager\$OffsetsMessageFormatter" --consumer.config /opt/kafka_2.12-1.0.2/config/consumer.properties --from-beginning | head
 ```
 
-```
 
 
+![image-20211128153549377](assest/image-20211128153549377.png)
 
 ### 2.3.4 再谈再平衡
 
@@ -1148,6 +1150,115 @@ Kafka默认定期自动提交位移（`enable.auto.commit=true`），也手动�
 
 
 # 3 主题
+
+## 3.1 管理
+
+使用kafka.topic.sh脚本：
+
+| 选项                                                         | 说明 |
+| ------------------------------------------------------------ | ---- |
+| --config <String: name=value>                                |      |
+| --create                                                     |      |
+| --delete                                                     |      |
+| --delete-config <String: name>                               |      |
+| --alter                                                      |      |
+| --describe                                                   |      |
+| --disable-rack-aware                                         |      |
+| --force                                                      |      |
+| --help                                                       |      |
+| --if-exists                                                  |      |
+| --if-not-exists                                              |      |
+| --list                                                       |      |
+| --partitions <Integer: # of partitions>                      |      |
+| --replica-assignment <String:  <br/>  broker_id_for_part1_replica1 : <br/>  broker_id_for_part1_replica2 , <br/>  broker_id_for_part2_replica1 : <br/>  broker_id_for_part2_replica2 , ...> |      |
+| --replication-factor <Integer:replication factor>            |      |
+| --topic <String: topic>                                      |      |
+| --topics-with-overrides                                      |      |
+| --unavailable-partitions                                     |      |
+| --under-replicated-partitions                                |      |
+| --zookeeper <String: urls>                                   |      |
+|                                                              |      |
+
+
+
+### 3.1.1 创建主题
+
+```shell
+[root@node1 kafka-logs]# kafka-topics.sh --zookeeper localhost/myKafka --create --topic tp_test_01 --partitions 3 --replication-factor 1
+
+[root@node1 kafka-logs]# kafka-topics.sh --zookeeper localhost/myKafka --create --topic tp_test_02 --partitions 2 --replication-factor 1 --config cleanup.policy=compact
+
+[root@node1 kafka-logs]# kafka-topics.sh --zookeeper localhost/myKafka --create --topic tp_test_03 --partitions 5 --replication-factor 1 --config compression.type=gzip --config max.message.bytes=512
+
+```
+
+
+
+### 3.1.2 查看主题
+
+```shell
+kafka-topics.sh --zookeeper localhost/myKafka --list
+[root@node1 kafka-logs]# kafka-topics.sh --zookeeper localhost/myKafka --describe --topic tp_test_01
+[root@node1 kafka-logs]# kafka-topics.sh --zookeeper localhost/myKafka --describe --topics-with-overrides
+```
+
+
+
+### 3.1.3 修改主题
+
+```shell
+[root@node1 kafka-logs]# kafka-topics.sh --zookeeper localhost/myKafka --alter --topic tp_test_02 --config segment.bytes=1048566
+[root@node1 kafka-logs]# kafka-topics.sh --zookeeper localhost/myKafka --alter --topic tp_test_03 --delete-config max.message.bytes
+```
+
+
+
+### 3.1.4 删除主题
+
+```shell
+[root@node1 kafka-logs]# kafka-topics.sh --zookeeper localhost/myKafka --delete --topic tp_test_03
+```
+
+![image-20211128164455700](assest/image-20211128164455700.png)
+
+## 3.2 增加分区
+
+通过命令行工具操作，主题的分区只能增加，不能减少。否则报错：
+
+```
+Error while executing topic command : The number of partitions for a topic can only be increased. Topic tp_demo_01 currently has 3 partitions, 2 would not be an increase.
+```
+
+通过--alter修改主题的分区数，增加分区。
+
+```shell
+[root@node1 ~]# kafka-topics.sh --zookeeper node1/myKafka --alter --topic tp_demo_01 --partitions 3
+```
+
+
+
+## 3.3 分区副本的分配
+
+副本分配的三个目标：
+
+1. 均衡的将副本分散于各个broker上
+2. 对于某个broker上的分配的分区，它的其他副本在其他broker上
+3. 如果所有的broker都有机架信息，尽量将分区的各个副本分配到不同机架上的broker。
+
+在不考虑机架信息的情况下：
+
+1. 第一个分区副本通过轮询的方式挑选一个broker，进行分配。该轮询从broker列表的最忌位置进行轮询。
+2. 其余副本通过增加偏移进行分配。
+
+分配案例：
+
+
+
+## 3.4 必要参数配置
+
+## 3.5 KafkaAdminClient应用
+
+## 3.6 偏移量管理
 
 # 4 分区
 
