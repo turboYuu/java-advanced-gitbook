@@ -1256,7 +1256,34 @@ Error while executing topic command : The number of partitions for a topic can o
 
 ## 3.4 必要参数配置
 
+kafka-topic.sh --config xx=xx --config yy=yy
+
+配置给主题的参数。
+
+| 属性           | 默认值 | 服务器默认属性     | 说明 |
+| -------------- | ------ | ------------------ | ---- |
+| cleanup.policy | delete | log.cleanup.policy |      |
+|                |        |                    |      |
+|                |        |                    |      |
+|                |        |                    |      |
+|                |        |                    |      |
+|                |        |                    |      |
+|                |        |                    |      |
+|                |        |                    |      |
+|                |        |                    |      |
+|                |        |                    |      |
+
+
+
 ## 3.5 KafkaAdminClient应用
+
+> 说明
+
+除了使用Kafka的bin目录下的脚本工具来管理Kafka，还可以使用管理Kafka的API将某些管理查看的功能集成到系统中。在Kafka 0.11.0.0版本之前，可以通过Kafka-core包（Kafka的服务端，采用Scala编写）中的AdminClient和AdminUtils来实现部分的集群管理操作。Kafka 0.11.0.0之后，又多了一个AdminClient，在kafka-client包下，一个抽象类，具体的实现是`org.apache.kafka.clients.admin.KafkaAdminClient`。
+
+> 功能与原理介绍
+
+
 
 ## 3.6 偏移量管理
 
