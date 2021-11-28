@@ -1030,22 +1030,36 @@ https://gitee.com/turboYuu/kafka-6-3/tree/master/lab/kafka-demos/demo-10-kafka-c
 
 ### 2.2.8 消费者参数补齐
 
-|      |      |
-| ---- | ---- |
-|      |      |
-|      |      |
-|      |      |
-|      |      |
-|      |      |
-|      |      |
-|      |      |
-|      |      |
-|      |      |
-|      |      |
-|      |      |
-|      |      |
-|      |      |
-|      |      |
+| 配置项                        | 说明                                                         |
+| ----------------------------- | ------------------------------------------------------------ |
+| bootstrap.servers             | 建立到Kafka集群的初连接用到的host/port列表<br>客户端会使用这里指定的所有的host/port来建立初始连接。<br>这个配置仅会影响发现集群所有节点的初始连接。<br>形式：`host1:port1,host2:port2,...`<br>这个配置中不需要包含集群中所有的节点信息。<br>最好不要配置一个，以避免配置的这个节点宕机的时候连不上。 |
+| group.id                      | 用于定义当前消费者所属的消费组的位移字符串。<br>如果使用了消费组的功能`subscribe(topic)`，<br>或使用了基于Kafka的偏移量管理机制，则应该配置group.id。 |
+| auto.commit.interval.ms       | 如果设置了`enable.auto.commit`的值为true，<br>则该值定义了消费者偏移量向Kafka提交的频率。 |
+| auto.offset.reset             | 如果Kafka中没有初始偏移量或当前偏移量在服务器中不存在（比如数据被删掉了）：<br>earliest：自动重置偏移量到最早的偏移量。<br>latest：自动重置偏移量到最后一个；<br>none：如果没有找到该消费组以前的偏移量，就抛异常；<br>其他值：向消费者抛异常。 |
+| fetch.min.bytes               | 服务器对每个拉取消息的请求返回的数据量最小值。<br>如果数据量达不到这个值，请求等待，以让更多的数据积累，达到这个值之后响应请求。<br>默认设置一个字节，表示只有一个字节的数据，就立即响应请求，或者在没有数据的时候请求超时。<br>将该值设置为大一点的数字，会让服务器等待稍微长一点的时间以积累数据。<br>如此可以提高服务器的吞吐量，代价是额外的延迟时间。 |
+| fetch.max.wait.ms             | 如果服务器端的数据量达不到`fetch.min.bytes`的话，服务器端不能立即响应请求。<br>该事件用于配置服务器阻塞请求的最大时长。 |
+| fetch.max.bytes               | 服务器给单个拉取请求返回的最大数据量。<br>消费者批量拉取消息，如果第一个非空消息批次的值比该值大，消息批也会返回，以让消费者可以接着进行。<br>即该配置并不是绝对的最大值。<br>broker可以接收的消息批最大值通过`message.max.bytes`(broker配置)或`max.message.bytes`(主题配置)来指定。<br>需要注意的是，消费者一般会并发拉取请求。 |
+| enable.auto.commit            | 如果设置为true，则消费者的偏移量会周期性地在后台提交。       |
+| connections.max.idle.ms       | 在这个时间之后关闭空闲地连接。                               |
+| check.crcs                    | 自动计算被消费的消息的CRC32校验值。<br>可以确保在传输过程中或磁盘存储过程中消息没有被破环。<br>它会增加额外的负载，**在追求极致性能的场合禁用**。 |
+| exclude.internal.topics       | 是否内部主题应该暴露给消费者。如果该条目设置为true，则只能先订阅再拉取。 |
+| isolation.level               | 控制如何读取事务消息。<br>如果设置了`read_committed`，消费者的poll()方法只会返回**已经提交的事务消息**。<br>如果设置了`read_uncommitted`（默认值），消费者的poll方法返回所有的消息，即使是**已经取消的事务消息**。<br>非事务消息以上两种情况都返回。<br>消息总是以偏移量的顺序返回。<br>`read_committed`只能返回到达LSO的消息。<br>在LSO之后出现的消息只能等待相关的事务提交之后才能看到。<br>结果，`read_commited`模式，如果有未提交的事务，消费者不能读取到直到HW的消息。<br>`read_committed`的seekToEnd方法返回LSO。 |
+| heartbeat.interval.ms         |                                                              |
+| session.timeout.ms            |                                                              |
+| max.poll.records              |                                                              |
+| max.poll.interval.ms          |                                                              |
+| max.partition.fetch.bytes     |                                                              |
+| send.buffer.bytes             |                                                              |
+| retry.backoff.ms              |                                                              |
+| request.timeout.ms            |                                                              |
+| reconnect.backoff.ms          |                                                              |
+| reconnect.backoff.max.ms      |                                                              |
+| receive.buffer.bytes          |                                                              |
+| partition.assignment.strategy |                                                              |
+| metrics.sample.window.ms      |                                                              |
+| metrics.log.level             |                                                              |
+| metrics.num.samples           |                                                              |
+| interceptor.classes           |                                                              |
 
 
 
