@@ -1406,7 +1406,99 @@ Kafka 1.0.2 ，__consumer_offsets主题中保存了各个消费组的偏移量�
 | --topic <String: topic>                                 |      |
 | --zookeeper <String: urls>                              |      |
 
+这里我们先编写一个生产者，消费者的例子：
 
+先启动消费者，再启动生产者，再通过`bin/kafka-consumer-groups.sh`进行消费偏移量查询，
+
+由于Kafka消费者记录group的消费偏移量有两种方式：
+
+- kafka自己维护（新）
+- zookeeper维护（旧），已经逐渐被废弃
+
+所以，脚本只查看由broker维护的，由zookeeper维护的可以将`--bootstrap-server`换成`--zookeeper`即可。
+
+1. 查看有哪些group ID 正在进行消费：
+
+   ```shell
+   [root@node1 ~]# kafka-consumer-groups.sh --bootstrap-server node1:9092 --list
+   Note: This will not show information about old Zookeeper-based consumers.
+   
+   group
+   ```
+
+   ![image-20211129180103912](assest/image-20211129180103912.png)
+
+   注意：
+
+   - 这里面没有指定topic，查看的是所有topic消费者的group.id 的列表。
+   - 注意：重名的group.id只会显示一次
+
+2. 查看指定group.id的消费者消费情况
+
+   ```shell
+   [root@node1 ~]# kafka-consumer-groups.sh --bootstrap-server node1:9092  --describe --group group
+   Note: This will not show information about old Zookeeper-based consumers.
+   
+   
+   TOPIC                          PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG        CONSUMER-ID                                       HOST                           CLIENT-ID
+   tp_demo_02                     0          0               0               0          consumer-1-36276391-f6a5-4e1b-8768-619db4f0a3c8   /192.168.31.136                consumer-1
+   tp_demo_02                     1          0               0               0          consumer-1-36276391-f6a5-4e1b-8768-619db4f0a3c8   /192.168.31.136                consumer-1
+   tp_demo_02                     2          0               0               0          consumer-1-36276391-f6a5-4e1b-8768-619db4f0a3c8   /192.168.31.136                consumer-1
+   ```
+
+
+
+如果消费者停止，查看偏移量信息：
+
+![image-20211129180647003](assest/image-20211129180647003.png)
+
+
+
+**将偏移量设置为最早的：**
+
+```shell
+[root@node1 ~]# kafka-consumer-groups.sh --bootstrap-server node1:9092  --reset-offsets --group group --to-earliest --topic tp_demo_02
+```
+
+![image-20211129181110787](assest/image-20211129181110787.png)
+
+
+
+```shell
+[root@node1 ~]# kafka-consumer-groups.sh --bootstrap-server node1:9092  --reset-offsets --group group --to-earliest --topic tp_demo_02 --execute
+```
+
+![image-20211129181425853](assest/image-20211129181425853.png)
+
+
+
+**将偏移量设置为最新的**：
+
+```shell
+[root@node1 ~]# kafka-consumer-groups.sh --bootstrap-server node1:9092  --reset-offsets --group group --to-latest --topic tp_demo_02
+```
+
+![image-20211129182808206](assest/image-20211129182808206.png)
+
+
+
+**分别将指定主题的指定分区的偏移量向前移动10个消息：**
+
+```shell
+[root@node1 ~]# kafka-consumer-groups.sh --bootstrap-server node1:9092  --reset-offsets --group group --topic tp_demo_02:0 --shift-by -10 --execute
+```
+
+![image-20211129182055913](assest/image-20211129182055913.png)
+
+
+
+**将指定主题的多个指定分区的偏移量向前移动**：
+
+```shell
+[root@node1 ~]# kafka-consumer-groups.sh --bootstrap-server node1:9092  --reset-offsets --group group --topic tp_demo_02:0,2 --shift-by -5 --execute
+```
+
+![image-20211129183339617](assest/image-20211129183339617.png)
 
 # 4 分区
 
