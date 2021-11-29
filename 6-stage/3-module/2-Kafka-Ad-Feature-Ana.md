@@ -1381,32 +1381,34 @@ Kafka 1.0.2 ，__consumer_offsets主题中保存了各个消费组的偏移量�
 
 首先运行脚本，查看帮助：
 
-| 参数                                                    | 说明 |
-| ------------------------------------------------------- | ---- |
-| --all-topics                                            |      |
-| --bootstrap-server <String: server to connect to>       |      |
-| --by-duration <String: duration>                        |      |
-| --command-config <String: command config property file> |      |
-| --delete                                                |      |
-| --describe                                              |      |
-| --execute                                               |      |
-| --export                                                |      |
-| --from-file <String: path to CSV file>                  |      |
-| --group <String: consumer group>                        |      |
-| --list                                                  |      |
-| --new-consumer                                          |      |
-| --reset-offsets                                         |      |
-| --shift-by <Long: number-of-offsets>                    |      |
-| --timeout <Long: timeout (ms)>                          |      |
-| --to-current                                            |      |
-| --to-datetime <String: datetime>                        |      |
-| --to-earliest                                           |      |
-| --to-latest                                             |      |
-| --to-offset <Long: offset>                              |      |
-| --topic <String: topic>                                 |      |
-| --zookeeper <String: urls>                              |      |
+| 参数                                                    | 说明                                                         |
+| ------------------------------------------------------- | ------------------------------------------------------------ |
+| --all-topics                                            | 将所有关联到指定消费组的主题都划归到`reset-offsets`操作范围  |
+| --bootstrap-server <String: server to connect to>       | **必须**：（基于消费组的新的消费者）：要连接的服务器地址     |
+| --by-duration <String: duration>                        | 距离当前时间戳的一个时间段。格式：'PnDTnHnMnS'               |
+| --command-config <String: command config property file> | 指定配置文件，该文件内容传递给Admin Client和消费者           |
+| --delete                                                | 传值消费组名称，删除整个消费组与所有主题的各个分区的偏移量和所有者关系。<br>如：`--group g1 --group g2`。<br>传值消费组名称和单个主题，仅删除该消费组到指定主题分区偏移量和所属关系。<br>如：`--group g1 --group g2 --topic t1`。<br>传值一个主题名称，仅删除指定主题与所有消费组分区偏移量以及所属关系。<br>如：`--topic t1`。<br>注意：**消费组的删除仅对基于ZK保存偏移量的消费组有效，并且要小心使用，仅删除不活跃的消费组**。 |
+| --describe                                              | 描述给定消费组的偏移量差距（有多少消息还没有消费）。         |
+| --execute                                               | 执行操作。支持的操作：`reset-offsets`。                      |
+| --export                                                | 到处操作的结果到CSV文件。支持的操作：`reset-offsets`。       |
+| --from-file <String: path to CSV file>                  | 重置偏移量到CSV文件中定义的值                                |
+| --group <String: consumer group>                        | 目标消费组。                                                 |
+| --list                                                  | 列出所有消费组                                               |
+| --new-consumer                                          | 使用新的消费者实现。这是默认值。随后的发行版本中会删除这一操作。 |
+| --reset-offsets                                         | 重置消费组的偏移量。当前一次操作只支持一个消费组，并且该消费组应该是不活跃的。<br>有三个操作选项：<br>1. (默认) plan ：要重置哪个偏移量；<br>2. execute：执行`reset-offsets`操作；<br>3. process：配合`--export`将操作结果导出到CSV格式。<br>可以使用如下选项：<br>`--to-datetime`<br>`--by-period`<br>`--to-earliest`<br>`--to-latest`<br>`--shift-by`<br>`--from-file`<br>`--to-current`。<br>必须选择一个选项使用。<br>要定义操作的范围，使用：<br>`--all-topics`<br>`--topic`。<br>必须选择一个，除非使用`--from-file`选项。 |
+| --shift-by <Long: number-of-offsets>                    | 重置偏移量n个，n可以是正值，也可以是负值。                   |
+| --timeout <Long: timeout (ms)>                          | 对某些操作设置超时时间。<br>如：对于描述指定消费组信息，指定毫秒值的最大等待时间，以获取正常数据（如刚创建的消费组，或者消费组做了一些更改操作）。默认时间：`5000` |
+| --to-current                                            | 重置到当前的偏移量。                                         |
+| --to-datetime <String: datetime>                        | 重置偏移量到指定的时间戳。格式'YYYY-MM-DDTHH:mm:SS.sss'      |
+| --to-earliest                                           | 重置为最早的偏移量                                           |
+| --to-latest                                             | 重置为最新的偏移量                                           |
+| --to-offset <Long: offset>                              | 重置到指定的偏移量                                           |
+| --topic <String: topic>                                 | 指定哪个主题的消费组需要删除，或者指定哪个主题的消费组需要包含到`reset-offsets`操作中。对于`reset-offsets`操作，还可以指定分区：`topic1:0,1,2`。其中0，1，2表示要包含到操作中的分区号。重置偏移量的操作支持多个主题一起操作。 |
+| --zookeeper <String: urls>                              | 必须，在偏移量基于zookeeper保存的情况下 `--zookeeper node1:2181/myKafka`。 |
 
 这里我们先编写一个生产者，消费者的例子：
+
+代码地址：
 
 先启动消费者，再启动生产者，再通过`bin/kafka-consumer-groups.sh`进行消费偏移量查询，
 
