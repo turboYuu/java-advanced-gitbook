@@ -1133,31 +1133,70 @@ Kafka默认定期自动提交位移（`enable.auto.commit=true`），也手动�
 
 Kafka提供了一个角色：Group Coordinator来执行对于消费组的管理。
 
+Group Coordinator —— 每个消费组分配一个消费者协调器用于组管理和位移管理。当消费组的第一个消费者启动的时候，它会去和Kafka Broker确定谁是它们组的组协调器，之后该消费组内所有消费者和该组协调器协调通信。
 
+#### 2.3.4.5 如何确定coordinator？
 
-#### 2.3.4.5 如何确定coordinator
+两步：
 
-
+1. 确定消费组位移信息写入`__consumer_offsets`的哪个分区。具体计算公式：
+   - __consumer_offsets partition #= Math.abs(groupId.hashCode() % groupMetadataTopicPartitionCount) 注意：groupMetadataTopicPartitionCount由 `offsets.topic.num.partitions`指定，默认是50个分区。
+2. 该分区leader所在的broker就是协调器。
 
 #### 2.3.4.6 Rebalance Generation
 
+它表示Rebalance之后主题分区到消费组中消费者映射关系的一个版本，主要是用于保护消费组，隔离无效偏移量提交的。如上一个版本的消费者无法提交位移到新版本的消费组中，因为映射关系变了，你消费的或许已经不是原来的那个分区了。每次group进行Rebalance之后，Generation号都会加1，表示消费组和分区的映射关系到了一个新版本，如下所示：Generation 1 时 group 有3个成员，随后成员2退出组，消费者协调器触发Rebalance，消费组进入Generation 2，之后成员4加入，再次触发Rebalance，消费组进入Generation 3。
 
+![image-20211129144157594](assest/image-20211129144157594.png)
 
 #### 2.3.4.7 协议（protocol）
 
+Kafka提供了5个协议来处理与消费组协调相关的问题：
 
+- Heartbeat请求：consumer需要定期给组协调器发送心跳来表明自己还活着
+- LeaveGroup请求：主动告诉组协调器我要离开消费组
+- SyncGroup请求：消费组Leader把分配方案告诉组内所有成员
+- JoinGroup请求：成员请求加入组
+- DescribeGroup请求：显示组的所有信息，包括成员信息，协议名称，分配方案，订阅信息等。通常该请求是给管理员使用。
+
+组协调器再均衡的时候主要用到了前面4种请求。
 
 #### 2.3.4.8 liveness
+
+消费者如何向消费组协调器证明自己还活着？通过定时向消费组协调器发送Heartbeat请求。流过超过了设定的超时时间，那么协调器认为该消费者已挂了。一旦协调器认为某个消费者挂了，那么他就会开启新一轮再均衡，并且在当前其他消费者的心跳**响应中**添加“REBALANCE_IN_PROGRESS”，告诉其他消费者：重新分配分区。
 
 
 
 #### 2.3.4.9 再均衡过程
 
+再均衡分为2步：Join和Sync
 
+1. Join，加入组。所有成员都向消费组协调器发送JoinGroup请求，请求加入消费组。一旦所有成员都发送了JoinGroup请求，协调器从中选择一个消费者担任Leader的角色，并发组成员信息以及订阅信息发送给Leader。
+2. Sync，Leader开始分配消费方案，即哪个消费者负责消费哪些主题的分区信息，一旦完成分配，Leader会将这个方案封装进SyncGroup请求中发送给消费组协调器，非Leader也会发SyncGroup请求，只是内容为空。消费组协调器接收到分配方案之后会把方案塞进SyncGroup的response中发送给各个消费者。
+
+
+
+![image-20211129150837810](assest/image-20211129150837810.png)
+
+注意：在协调器收集到所有成员请求前，它会把已收到请求放入一个叫purgatory(炼狱)的地方。然后是分发分配方案的过程，即SyncGroup请求：
+
+![image-20211129151639638](assest/image-20211129151639638.png)
+
+<font color=red>注意</font>：消费组的分区分配<font color=blue>方案在客户端执行</font>。Kafka交给客户端可以有更好的灵活性。Kafka默认提供三种分配策略：range和round-robin和sticky。可以通过消费者参数：`partition.assignment.strategy`来实现自己的分配策略。
 
 #### 2.3.4.10 消费组状态机
 
+消费组协调器根据状态机对消费组做出不同的处理：
 
+![image-20211129153103450](assest/image-20211129153103450.png)
+
+说明：
+
+1. Dead：组内已经没有任何成员的最终状态，组的元数据也已经被组协调器移除了。这种状态响应各种请求都是一个response：UNKONW_MEMBER_ID
+2. Empty：组内无成员，但是位移信息还没有过期。这种状态只能响应JoinGroup请求
+3. PreparingRebalance：组准备开启新的rebalance，等待成员加入
+4. AwaitingSync：正在等待leader consumer将分配方案传给各个成员
+5. Stable：再均衡完成，可以开始消费。
 
 
 
@@ -1189,7 +1228,6 @@ Kafka提供了一个角色：Group Coordinator来执行对于消费组的管理�
 | --unavailable-partitions                                     |      |
 | --under-replicated-partitions                                |      |
 | --zookeeper <String: urls>                                   |      |
-|                                                              |      |
 
 
 
@@ -1297,7 +1335,78 @@ kafka-topic.sh --config xx=xx --config yy=yy
 
 
 
+
+
+> 用到的参数
+
+参考 2.2.8 消费者参数补齐
+
+
+
+> 主要操作步骤
+
+客户端根据方法的调用创建相应的协议请求，比如创建Topic的createTopic方法，其内部就是发送CreateTopicRequest请求。
+
+客户端发送请求至Kafka Broker。
+
+Kafka Broker处理相应的请求并回执，比如与CreateTopicRequest对应的是CreateTopicResponse。客户端接收相应的回执并进行解析处理。
+
+和协议有关的请求和回执的类基本都在`org.apache.kafka.common.requests`包中，`AbstractRequest`和`AbstractResponse`是这些请求和响应类的两个父类。
+
+综上，如果要自定义实现一个功能，只需要三个步骤：
+
+1. 自定义 XXXOptions；
+2. 自定义XXXResult返回值；
+3. 自定义Call，然后挑选合适的的XXXRequest和XXXResponse来实现Call类中的3个抽象方法。
+
+
+
+参考代码：https://gitee.com/turboYuu/kafka-6-3/tree/master/lab/kafka-demos/demo-11-kafkaAdminClient
+
+
+
 ## 3.6 偏移量管理
+
+Kafka 1.0.2 ，__consumer_offsets主题中保存了各个消费组的偏移量。
+
+早期由zookeeper管理消费组的偏移量。
+
+
+
+**查询方法**：
+
+通过原生 Kafka提供的工具脚本进行查询。
+
+工具脚本的位置与名称为`bin/kafka-consumer-groups.sh`
+
+首先运行脚本，查看帮助：
+
+| 参数                                                    | 说明 |
+| ------------------------------------------------------- | ---- |
+| --all-topics                                            |      |
+| --bootstrap-server <String: server to connect to>       |      |
+| --by-duration <String: duration>                        |      |
+| --command-config <String: command config property file> |      |
+| --delete                                                |      |
+| --describe                                              |      |
+| --execute                                               |      |
+| --export                                                |      |
+| --from-file <String: path to CSV file>                  |      |
+| --group <String: consumer group>                        |      |
+| --list                                                  |      |
+| --new-consumer                                          |      |
+| --reset-offsets                                         |      |
+| --shift-by <Long: number-of-offsets>                    |      |
+| --timeout <Long: timeout (ms)>                          |      |
+| --to-current                                            |      |
+| --to-datetime <String: datetime>                        |      |
+| --to-earliest                                           |      |
+| --to-latest                                             |      |
+| --to-offset <Long: offset>                              |      |
+| --topic <String: topic>                                 |      |
+| --zookeeper <String: urls>                              |      |
+
+
 
 # 4 分区
 
