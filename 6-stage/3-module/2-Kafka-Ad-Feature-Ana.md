@@ -1517,7 +1517,7 @@ Kafka在一定数量的服务器上对主题分区进行复制。
 1. 将复制因子为1的未复制主题为复制主题；
 2. 主题的分区是复制的最小单元；
 3. 在非故障的情况下，Kafka中的每个分区都有一个Leader副本和零个或多个Follower副本；
-4. 包括Leader副本在内的副本总数构成复制因子；
+4. 包括Leader副本在内的副本**总数构成复制因子**；
 5. 所有读取和写入都由Leader副本负责；
 6. 通常，分区比broker多，并且Leader分区在broker之间平均分配。
 
@@ -1613,7 +1613,7 @@ Kafka会在Zookeeper上针对每个Topic维护一个称为ISR（In-Sync Replica�
 
 1. 等待ISR集合中得副本复活；
 2. 选择任何一个立即可用得副本，而这个副本不一定是在ISR集合中。
-   - 需要设置`unclean.leader.election.enable-true`
+   - 需要设置`unclean.leader.election.enable=true`
 
 这两种方法各有利弊，实际生产中按需选择。
 
@@ -1628,7 +1628,7 @@ Kafka中Leader分区选举，通过维护一个动态变化的***ISR***集合来
 如果***ISR***中副本都丢失了，则：
 
 1. 可以等待***ISR***中的副本任何一个恢复，接着对外提供服务，需要时间等待；
-2. 从OSR中选出一个副本做Leader副本，此时会造成数据丢失。
+2. 从***OSR***中选出一个副本做Leader副本，此时会造成数据丢失。
 
 
 
@@ -1642,9 +1642,256 @@ Kafka中Leader分区选举，通过维护一个动态变化的***ISR***集合来
 
 在重新分布topic分区之前，我们先看看现在topic的各个分区的分布位置：
 
+1. 创建主题
 
+   ```shell
+   [root@node1 ~]# kafka-topics.sh --zookeeper node1/myKafka --create --topic tp_re_01 --partitions 5 --replication-factor 1
+   ```
 
+2. 查看主题信息
 
+   ```shell
+   [root@node1 ~]# kafka-topics.sh --zookeeper node1/myKafka --describe --topic tp_re_01
+   Topic:tp_re_01	PartitionCount:5	ReplicationFactor:1	Configs:
+   	Topic: tp_re_01	Partition: 0	Leader: 0	Replicas: 0	Isr: 0
+   	Topic: tp_re_01	Partition: 1	Leader: 0	Replicas: 0	Isr: 0
+   	Topic: tp_re_01	Partition: 2	Leader: 0	Replicas: 0	Isr: 0
+   	Topic: tp_re_01	Partition: 3	Leader: 0	Replicas: 0	Isr: 0
+   	Topic: tp_re_01	Partition: 4	Leader: 0	Replicas: 0	Isr: 0
+   ```
+
+3. 在node11上搭建Kafka
+
+   - 拷贝JDK并安装
+
+     ```shell
+     [root@node1 ~]# scp jdk-8u261-linux-x64.rpm node11:~
+     
+     [root@node11 ~]# rpm -ivh jdk-8u261-linux-x64.rpm
+     ```
+
+   - 拷贝node1上安装的Kafka
+
+     ```shell
+     [root@node1 opt]# scp -r kafka_2.12-1.0.2/ node11:/opt
+     ```
+
+     修改$KAFKA_HOME/config/server.properties
+
+     ```properties
+     broker.id=1
+     zookeeper.connect=node1:2181/myKafka
+     ```
+
+     
+
+   - vim /etc/profile
+
+     ```properties
+     export JAVA_HOME=/usr/java/jdk1.8.0_261-amd64
+     export PATH=$PATH:$JAVA_HOME/bin
+     
+     export KAFKA_HOME=/opt/kafka_2.12-1.0.2
+     export PATH=$PATH:$KAFKA_HOME/bin
+     ```
+
+     生效环境变量：
+
+     ```shell
+     . /etc/profile
+     ```
+
+   - 启动node11上的 Kafka
+
+     ```shell
+     [root@node11 ~]# kafka-server-start.sh /opt/kafka_2.12-1.0.2/config/server.properties
+     ```
+
+   注意观察node11上节点启动的时候的ClusterId，看和zookeeper节点上的ClusterId是否一致，如果是，证明node11和node1在同一个集群中。
+
+   node11启动的ClusterID:
+
+   ![image-20211130174628910](assest/image-20211130174628910.png)
+
+   zookeeper节点上的Cluster ID:
+
+   ![image-20211130174916787](assest/image-20211130174916787.png)
+
+   在node1上查看zookeeper的节点信息：
+
+   ![image-20211130175110671](assest/image-20211130175110671.png)
+
+4. 现在我们在现有集群的基础上再添加一个Kafka节点，然后使用Kafka自带的`kafka-reassign-partitions.sh`工具来重新分布分区。该工具有三种使用模式：
+
+   - generate模式，给定需要重新分配的Topic，自动生成reassign plan（并不执行）
+   - execute模式，根据指定的reassign plan重新分配 Partition
+   - verify模式，验证重新分配Partition是否成功
+
+5. 将分区3和4重新分布到broker1上，借助`kafka-reassign-partitions.sh`工具生成reassign plan，不过要先按要求定义一个文件，说明哪些topic需要重新分区，文件内容如下：
+
+   ```shell
+   [root@node1 ~]# cat topics-to-move.json 
+   {
+     "topics": [     
+       {
+         "topic":"tp_re_01"     
+       }
+     ],
+     "version":1 
+   }
+   ```
+
+   然后使用`kafka-reassign-partitions.sh`工具生成 reassign plan
+
+   ![image-20211130181311958](assest/image-20211130181311958.png)
+
+   ```shell
+   [root@node1 ~]# kafka-reassign-partitions.sh --zookeeper node1:2181/myKafka --topics-to-move-json-file topics-to-move.json --broker-list "0,1" ---generate
+   Current partition replica assignment
+   {"version":1,"partitions":[{"topic":"tp_re_01","partition":4,"replicas":[0],"log_dirs":["any"]},{"topic":"tp_re_01","partition":1,"replicas":[0],"log_dirs":["any"]},{"topic":"tp_re_01","partition":2,"replicas":[0],"log_dirs":["any"]},{"topic":"tp_re_01","partition":3,"replicas":[0],"log_dirs":["any"]},{"topic":"tp_re_01","partition":0,"replicas":[0],"log_dirs":["any"]}]}
+   
+   Proposed partition reassignment configuration
+   {"version":1,"partitions":[{"topic":"tp_re_01","partition":4,"replicas":[0],"log_dirs":["any"]},{"topic":"tp_re_01","partition":1,"replicas":[1],"log_dirs":["any"]},{"topic":"tp_re_01","partition":2,"replicas":[0],"log_dirs":["any"]},{"topic":"tp_re_01","partition":3,"replicas":[1],"log_dirs":["any"]},{"topic":"tp_re_01","partition":0,"replicas":[0],"log_dirs":["any"]}]}
+   ```
+
+   
+
+   ***Proposed partition reassignment configuration***下面生成的就是将分区重新分布到broker 1上的结果。将这些内容保存到名为topics-to-move-execute.json文件里面（文件名和格式不重要，只要保证内容是json即可），然后执行这些reassign plan：
+
+   ![image-20211130182300463](assest/image-20211130182300463.png)
+
+   执行计划：
+
+   ```shell
+   [root@node1 ~]# kafka-reassign-partitions.sh --zookeeper node1:2181/myKafka --reassignment-json-file topics-to-move-execute.json --execute
+   Current partition replica assignment
+   
+   {"version":1,"partitions":[{"topic":"tp_re_01","partition":4,"replicas":[0],"log_dirs":["any"]},{"topic":"tp_re_01","partition":1,"replicas":[0],"log_dirs":["any"]},{"topic":"tp_re_01","partition":2,"replicas":[0],"log_dirs":["any"]},{"topic":"tp_re_01","partition":3,"replicas":[0],"log_dirs":["any"]},{"topic":"tp_re_01","partition":0,"replicas":[0],"log_dirs":["any"]}]}
+   
+   Save this to use as the --reassignment-json-file option during rollback
+   Successfully started reassignment of partitions.
+   [root@node1 ~]# 
+   ```
+
+   这样Kafka就在执行reassign plan ，可以校验reassign plan是否执行完成：
+
+   ```shell
+   [root@node1 ~]# kafka-reassign-partitions.sh --zookeeper node1:2181/myKafka --reassignment-json-file topics-to-move-execute.json --verify
+   Status of partition reassignment: 
+   Reassignment of partition tp_re_01-1 completed successfully
+   Reassignment of partition tp_re_01-4 completed successfully
+   Reassignment of partition tp_re_01-2 completed successfully
+   Reassignment of partition tp_re_01-3 completed successfully
+   Reassignment of partition tp_re_01-0 completed successfully
+   
+   ```
+
+   查看主题的细节：
+
+   ```shell
+   [root@node1 bin]# kafka-topics.sh --zookeeper node1/myKafka --describe --topic tp_re_01
+   Topic:tp_re_01	PartitionCount:5	ReplicationFactor:1	Configs:
+   	Topic: tp_re_01	Partition: 0	Leader: 0	Replicas: 0	Isr: 0
+   	Topic: tp_re_01	Partition: 1	Leader: 1	Replicas: 1	Isr: 1
+   	Topic: tp_re_01	Partition: 2	Leader: 0	Replicas: 0	Isr: 0
+   	Topic: tp_re_01	Partition: 3	Leader: 1	Replicas: 1	Isr: 1
+   	Topic: tp_re_01	Partition: 4	Leader: 0	Replicas: 0	Isr: 0
+   ```
+
+   broker 1上已经有分区分布上了。使用`kafka-reassign-partitions.sh`工具生成的reassign plan只是一个建议，方便而已。可以自己编辑以合reassign plan，然后执行它：
+
+   ```json
+   {
+      "version":1,
+      "partitions":[
+         {
+            "topic":"tp_re_01",
+            "partition":4,
+            "replicas":[
+               1
+            ],
+            "log_dirs":[
+               "any"
+            ]
+         },
+         {
+            "topic":"tp_re_01",
+            "partition":1,
+            "replicas":[
+               0
+            ],
+            "log_dirs":[
+               "any"
+            ]
+         },
+         {
+            "topic":"tp_re_01",
+            "partition":2,
+            "replicas":[
+               0
+            ],
+            "log_dirs":[
+               "any"
+            ]
+         },
+         {
+            "topic":"tp_re_01",
+            "partition":3,
+            "replicas":[
+               1
+            ],
+            "log_dirs":[
+               "any"
+            ]
+         },
+         {
+            "topic":"tp_re_01",
+            "partition":0,
+            "replicas":[
+               0
+            ],
+            "log_dirs":[
+               "any"
+            ]
+         }
+      ]
+   }
+   ```
+
+   将上面的数据文件保存到my-topics-to-execute.json文件中，然后执行它：
+
+   ```shell
+   [root@node1 ~]# kafka-reassign-partitions.sh --zookeeper node1:2181/myKafka --reassignment-json-file my-topics-to-execute.json --execute
+   Current partition replica assignment
+   
+   {"version":1,"partitions":[{"topic":"tp_re_01","partition":4,"replicas":[0],"log_dirs":["any"]},{"topic":"tp_re_01","partition":1,"replicas":[1],"log_dirs":["any"]},{"topic":"tp_re_01","partition":2,"replicas":[0],"log_dirs":["any"]},{"topic":"tp_re_01","partition":3,"replicas":[1],"log_dirs":["any"]},{"topic":"tp_re_01","partition":0,"replicas":[0],"log_dirs":["any"]}]}
+   
+   Save this to use as the --reassignment-json-file option during rollback
+   Successfully started reassignment of partitions.
+   [root@node1 ~]# kafka-reassign-partitions.sh --zookeeper node1:2181/myKafka --reassignment-json-file my-topics-to-execute.json --verify
+   Status of partition reassignment: 
+   Reassignment of partition tp_re_01-1 completed successfully
+   Reassignment of partition tp_re_01-4 completed successfully
+   Reassignment of partition tp_re_01-2 completed successfully
+   Reassignment of partition tp_re_01-3 completed successfully
+   Reassignment of partition tp_re_01-0 completed successfully
+   [root@node1 ~]# 
+   
+   ```
+
+   等这个reassign plan执行完，再看分区分布：
+
+   ```shell
+   [root@node1 bin]# kafka-topics.sh --zookeeper node1/myKafka --describe --topic tp_re_01
+   Topic:tp_re_01	PartitionCount:5	ReplicationFactor:1	Configs:
+   	Topic: tp_re_01	Partition: 0	Leader: 0	Replicas: 0	Isr: 0
+   	Topic: tp_re_01	Partition: 1	Leader: 0	Replicas: 0	Isr: 0
+   	Topic: tp_re_01	Partition: 2	Leader: 0	Replicas: 0	Isr: 0
+   	Topic: tp_re_01	Partition: 3	Leader: 1	Replicas: 1	Isr: 1
+   	Topic: tp_re_01	Partition: 4	Leader: 1	Replicas: 1	Isr: 1
+   ```
+
+   
 
 ## 4.4 自动再均衡
 
