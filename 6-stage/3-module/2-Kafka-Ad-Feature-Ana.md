@@ -1798,7 +1798,7 @@ Kafka中Leader分区选举，通过维护一个动态变化的***ISR***集合来
    	Topic: tp_re_01	Partition: 4	Leader: 0	Replicas: 0	Isr: 0
    ```
 
-   broker 1上已经有分区分布上了。使用`kafka-reassign-partitions.sh`工具生成的reassign plan只是一个建议，方便而已。可以自己编辑以合reassign plan，然后执行它：
+   broker 1上已经有分区分布上了。使用`kafka-reassign-partitions.sh`工具生成的reassign plan只是一个建议，方便而已。可以自己编辑一个reassign plan，然后执行它：
 
    ```json
    {
@@ -1894,6 +1894,140 @@ Kafka中Leader分区选举，通过维护一个动态变化的***ISR***集合来
    
 
 ## 4.4 自动再均衡
+
+可以在新建主题的时候，手动指定各个Leader分区以及Follower分区的分配情况，即什么分区副本在哪个broker节点上。
+
+随着系统的运行，broker的宕机重启，会引发Leader分区和Follower分区的角色转换，最后可能Leader大部分都集中在少数几台broker上，由于Leader负责客户端的读写操作，此时集中Leader分区的少数几台服务器的网络I/O，CPU，以及内存都会紧张。
+
+Leader和Follower的角色转换会引起Leader副本在集群中分布的不均衡，此时需要一种手段，让Leader的分布重新恢复到一个均衡的状态。
+
+执行脚本：
+
+```sh
+[root@node11 ~]# kafka-topics.sh --zookeeper node1/myKafka --create --topic tp_re_02 --replica-assignment "0:1,1:0,0:1"
+```
+
+上述脚本执行的结果：创建主题tp_demo_03，有三个分区，每个分区有两个副本，Leader副本在列表中第一个指定的broker id上，Follower副本在随后指定的broker id上。
+
+```sh
+[root@node11 ~]# kafka-topics.sh --zookeeper node1/myKafka --describe --topic tp_re_02
+Topic:tp_re_02	PartitionCount:3	ReplicationFactor:2	Configs:
+	Topic: tp_re_02	Partition: 0	Leader: 0	Replicas: 0,1	Isr: 0,1
+	Topic: tp_re_02	Partition: 1	Leader: 1	Replicas: 1,0	Isr: 1,0
+	Topic: tp_re_02	Partition: 2	Leader: 0	Replicas: 0,1	Isr: 0,1
+```
+
+
+
+然后模拟broker 0宕机的情况：
+
+```shell
+[root@node1 ~]# jps
+1441 QuorumPeerMain
+11522 Jps
+1747 Kafka
+[root@node1 ~]# kill -9 1747
+[root@node1 ~]# jps
+1441 QuorumPeerMain
+11564 Jps
+[root@node1 ~]# kafka-topics.sh --zookeeper node1/myKafka --describe --topic tp_re_02
+Topic:tp_re_02	PartitionCount:3	ReplicationFactor:2	Configs:
+	Topic: tp_re_02	Partition: 0	Leader: 1	Replicas: 0,1	Isr: 1
+	Topic: tp_re_02	Partition: 1	Leader: 1	Replicas: 1,0	Isr: 1
+	Topic: tp_re_02	Partition: 2	Leader: 1	Replicas: 0,1	Isr: 1
+
+[root@node1 ~]# kafka-server-start.sh -daemon /opt/kafka_2.12-1.0.2/config/server.properties 
+[root@node1 ~]# jps
+1441 QuorumPeerMain
+12114 Kafka
+12139 Jps
+[root@node1 ~]# kafka-topics.sh --zookeeper node1/myKafka --describe --topic tp_re_02
+Topic:tp_re_02	PartitionCount:3	ReplicationFactor:2	Configs:
+	Topic: tp_re_02	Partition: 0	Leader: 1	Replicas: 0,1	Isr: 1,0
+	Topic: tp_re_02	Partition: 1	Leader: 1	Replicas: 1,0	Isr: 1,0
+	Topic: tp_re_02	Partition: 2	Leader: 1	Replicas: 0,1	Isr: 1,0
+
+```
+
+是否有一种方式，可以让Kafka自动帮我们进行修改，改为初始的副本分配？
+
+此时，用到了Kafka提供的自动再均衡脚本：`kafka-preferred-replica-election.sh`
+
+先看介绍：
+
+![image-20211130192400620](assest/image-20211130192400620.png)
+
+该工具会让每个分区的Leader副本分配在合适的位置，让Leader分区和Follower分区在服务器之间均衡分配。
+
+如果该脚本仅指定zookeeper地址，则会对集群中所有的主题进行操作，自动再平衡。
+
+```shell
+[root@node1 ~]# kafka-preferred-replica-election.sh --zookeeper node1/myKafka
+....
+[root@node1 ~]# kafka-topics.sh --zookeeper node1/myKafka --describe --topic tp_re_02
+Topic:tp_re_02	PartitionCount:3	ReplicationFactor:2	Configs:
+	Topic: tp_re_02	Partition: 0	Leader: 0	Replicas: 0,1	Isr: 1,0
+	Topic: tp_re_02	Partition: 1	Leader: 1	Replicas: 1,0	Isr: 1,0
+	Topic: tp_re_02	Partition: 2	Leader: 0	Replicas: 0,1	Isr: 1,0
+
+```
+
+
+
+具体操作：
+
+1. 创建preferred-replica.json
+
+   ```json
+   {
+       "partitions": [
+       {
+         "topic":"tp_re_02","partition":1
+       },
+       {
+         "topic":"tp_re_02","partition":0
+       },
+       {
+         "topic":"tp_re_02","partition":2
+       }
+     ]
+   }
+   ```
+
+2. 执行操作：
+
+   ```shell
+   [root@node1 ~]# kafka-preferred-replica-election.sh --zookeeper node1/myKafka --path-to-json-file preferred-replica.json 
+   Created preferred replica election path with {"version":1,"partitions":[{"topic":"tp_re_02","partition":1},{"topic":"tp_re_02","partition":0},{"topic":"tp_re_02","partition":2}]}
+   Successfully started preferred replica election for partitions Set(tp_re_02-1, tp_re_02-0, tp_re_02-2)
+   
+   ```
+
+3. 查看操作结果：
+
+   ```shell
+   [root@node1 ~]# kafka-topics.sh --zookeeper node1/myKafka --describe --topic tp_re_02
+   Topic:tp_re_02	PartitionCount:3	ReplicationFactor:2	Configs:
+   	Topic: tp_re_02	Partition: 0	Leader: 0	Replicas: 0,1	Isr: 0,1
+   	Topic: tp_re_02	Partition: 1	Leader: 1	Replicas: 1,0	Isr: 0,1
+   	Topic: tp_re_02	Partition: 2	Leader: 0	Replicas: 0,1	Isr: 0,1
+   ```
+
+
+
+恢复到最初的分配情况。
+
+之所以是这样分配，是因为我们在创建主题的时候：
+
+```shell
+--replica-assignment "0:1,1:0,0:1"
+```
+
+
+
+
+
+
 
 ## 4.5 修改分区副本
 
