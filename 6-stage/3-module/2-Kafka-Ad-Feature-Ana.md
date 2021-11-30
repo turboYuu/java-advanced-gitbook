@@ -2023,7 +2023,7 @@ Topic:tp_re_02	PartitionCount:3	ReplicationFactor:2	Configs:
 --replica-assignment "0:1,1:0,0:1"
 ```
 
-
+在逗号分割的每个数值对中排在前面的是Leader分区，后面的是副本分区。那么所谓的preferred replica，就是排在前面的数字就是Leader副本应该在的brokerId。
 
 
 
