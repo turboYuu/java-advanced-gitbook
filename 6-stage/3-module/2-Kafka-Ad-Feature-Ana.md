@@ -2171,11 +2171,109 @@ RoundRobinAssignor的分配策略是将消费者组内订阅的所有Topic的分
 
 尽管RoundRobinAssignor已经在RangeAssignor上做了一些优化来更均衡的分配分区，但是在一些情况下依旧会产生严重的分配偏差，比如消费组中订阅的Topic列表不相同的情况下。
 
-更核心的问题是无论是RangeAssignor，还是Rounb
+更核心的问题是无论是RangeAssignor，还是RoundRobinAssignor，当前的分区分配算法都没有考虑上一次的分配结果。显然，在执行一次新的分配之前，如果能考虑到上一次的分配结果，尽量少的调整分区分配的变动，显然是能节省很多开销的。
+
+> **目标**
+
+从字面意义上看，Sticky是”粘性的“，可以理解为分配结果是带”粘性的“：
+
+1. **分区的分配尽量的均衡**
+2. **每一次重分配的结果尽量与上一次分配结果保持一致**
+
+当这两个目标发生冲突时，优先保证第一个目标。第一个目标是每个分配算法都尽量尝试去完成的，而第二个目标才真正体现出**StickyAssignor**特性。
+
+例如：
+
+- 有3个Consumer：C0、C1、C2
+- 有4个Topic：T0、T1、T2、T3，每个Topic有2个分区
+- 所有Consumer都订阅了这4个分区
+
+StickyAssignor的分配结果如下图所示（增加RoundRobinAssignor分配做对比）：
+
+![image-20211201143851567](assest/image-20211201143851567.png)
+
+如果消费者1宕机，按照**RooudRobin**的方式分配结果如下：
+
+打乱从新来过，轮询分配：
+
+![image-20211201144312002](assest/image-20211201144312002.png)
+
+按照**Sticky**的方式：
+
+仅对消费者1分配的分区进行重分配，红线部分。最终达到均衡的目的。
+
+![image-20211201144616043](assest/image-20211201144616043.png)
+
+
+
+
+
+再举一个例子：
+
+- 有3个Consumer：C0，C1，C2
+- 3个Topic：T0、T1、T2，它们分别有1、2、3个分区
+- C0订阅T0；C1订阅T0、T1；C2订阅T0、T1、T2
+
+分配结果如下图所示：
+
+![image-20211201145256312](assest/image-20211201145256312.png)
+
+消费者0下线，则按照轮询的方式分配：
+
+![image-20211201145438173](assest/image-20211201145438173.png)
+
+按照Sticky方式分配分区，仅仅需要动的就是红线部分，其他部分不动。
+
+![image-20211201145841250](assest/image-20211201145841250.png)
+
+
+
+StickyAssignor分配方式的实现稍微复杂。
 
 
 
 ### 4.6.4 自定义分配策略
+
+自定义的分配策略必须要实现`org.apache.kafka.clients.consumer.internals.PartitionAssignor`接口。PartitionAssignor接口的定义如下：
+
+```java
+public interface PartitionAssignor {
+
+    Subscription subscription(Set<String> topics);
+
+    Map<String, Assignment> assign(Cluster metadata, Map<String, Subscription> subscriptions);
+
+    void onAssignment(Assignment assignment);
+    
+    String name();
+
+    class Subscription {
+        private final List<String> topics;
+        private final ByteBuffer userData;      
+    }
+
+    class Assignment {
+        private final List<TopicPartition> partitions;
+        private final ByteBuffer userData;
+    }
+}
+```
+
+PartitionAssignor接口中定义了两个内部类：Subscription和Assignment。
+
+Subscription类用来表示消费者的订阅信息，类中有两个属性：topics和userData，分表表示消费者所订阅topic列表和用户自定义信息。PartitionAssignor接口通过subscription()方法来设置消费者自身相关的Subscription信息，注意到此方法中只有一个参数topics，与Subscription类中的topics相呼应，但是并没有有关userData的参数体现。为了增强用户对分配结果的控制，可以在subscription()的方法内部添加一些影响分配的用户自定义信息赋予userData，比如：权重，ip地址，host或者机架(rack) 等等。
+
+再来说Assignment类，它是用来表示分配结果信息的，类中也有两个属性：partitions和userData，分别表示所分配到的分区集合和用户自定义的数据。可以通过PartitionAssignor接口中的onAssignment()方法（在每个消费者收到消费组leader分配结果时的回调函数）。例如在StickyAssignor策略中就是通过这个方法保存当前的分配方案，以备下次消费组再平衡（Rebalance）时可以提供分配参考依据。
+
+接口中的name()方法用来提供分配策略的名称，对于Kafka提供的3中分配策略而言，<br>**RangeAssignor**对应的protocol_name为***range***，<br>**RoundRobinAssignor**对应的protocol_name为***roundrobin***，<br>**StickyAssignor**对应的protocol_name为***sticky***，<br>所以自定义的分配策略中要注意命名的时候不要与已存在的分配策略发生冲突。这个命名用来标识分配策略的名称，在后面所描述的加入消费组以及选举消费组leader的时候会有涉及。
+
+真正的分区分配方案的实现是在assign()方法中，方法中的参数metadata表示集群的元数据信息，而subscriptions表示消费组内各个消费者成员的订阅信息，最终方法返回各个消费者的分配信息。
+
+Kafka中还提供了一个抽象类`org.apache.kafka.clients.consumer.internals.AbstractPartitionAssignor`，它可以简化PartitionAssignor接口的实现，对assign()方法进行了实现，其中会将Subscription中的userData信息去掉后，在进行分配。Kafka提供的3中分配策略都是继承自这个抽象类。如果开发人员在自定义分区分配策略时需要使用userData信息来控制分配结果，那么就不能继承AbstractPartitionAssignor这个抽象类，而需要直接实现PartitioAssignor接口。
+
+
+
+
 
 # 5 物理存储
 
