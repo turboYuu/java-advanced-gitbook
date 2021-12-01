@@ -1,6 +1,6 @@
 # Java高级第一版
 
-序言
+> **Preface**
 
 ***All the shine of a thousand spotlights***
 
@@ -8,4 +8,7 @@
 
 
 
-[github](https://github.com/turboYuu/java-advanced-gitbook)
+> **github**
+
+[turbo-github](https://github.com/turboYuu/java-advanced-gitbook)
+
