@@ -2140,7 +2140,24 @@ PartitionAssignor接口用于用户定义实现分区分配算法，以实现Con
 大致算法如下：
 
 ```scala
-
+assign(topic, consumers) {
+    // 对分区和Consumer进⾏排序
+    List<Partition> partitions = topic.getPartitions(); 
+    sort(partitions);
+    sort(consumers);
+    // 计算每个Consumer分配的分区数
+    int numPartitionsPerConsumer = partition.size() / consumers.size(); 
+    // 额外有⼀些Consumer会多分配到分区
+    int consumersWithExtraPartition = partition.size() % consumers.size(); 
+    // 计算分配结果
+    for (int i = 0, n = consumers.size(); i < n; i++) { 
+        // 第i个Consumer分配到的分区的index
+        int start = numPartitionsPerConsumer * i + Math.min(i, consumersWithExtraPartition);
+        // 第i个Consumer分配到的分区数
+        int length = numPartitionsPerConsumer + (i + 1 > consumersWithExtraPartition ? 0:1); 
+        // 分装分配结果
+        assignment.get(consumersForTopic.get(i)).addAll(partitions.subList(start, start + length));         }
+}
 ```
 
 RangeAssignor策略的原理是按照消费者总数和分区总数进行整除运算来获得一个跨度，然后将分区按照跨度进行平均分配，以保证分区尽可能均匀地分配给所有消费者。对于每一个Topic，RangeAssignor策略会将消费组内所有订阅这个Topic的消费者按照名称字典排序，然后为每个消费者划分固定的分区范围，如果不够平均分配，那么字典序靠前的消费者会被多分配一个分区。
@@ -2190,7 +2207,7 @@ RoundRobinAssignor的分配策略是将消费者组内订阅的所有Topic的分
 
 StickyAssignor的分配结果如下图所示（增加RoundRobinAssignor分配做对比）：
 
-![image-20211201143851567](assest/image-20211201143851567.png)
+![image-20211201165755770](assest/image-20211201165755770.png)
 
 如果消费者1宕机，按照**RooudRobin**的方式分配结果如下：
 
@@ -2222,11 +2239,9 @@ StickyAssignor的分配结果如下图所示（增加RoundRobinAssignor分配做
 
 ![image-20211201145438173](assest/image-20211201145438173.png)
 
-按照Sticky方式分配分区，仅仅需要动的就是红线部分，其他部分不动。
+按照**Sticky**方式分配分区，仅仅需要动的就是红线部分，其他部分不动。
 
 ![image-20211201145841250](assest/image-20211201145841250.png)
-
-
 
 StickyAssignor分配方式的实现稍微复杂。
 
@@ -2273,12 +2288,58 @@ Kafka中还提供了一个抽象类`org.apache.kafka.clients.consumer.internals.
 
 
 
+```java
+package com.turbo.kafka.demo.assignor;
+
+import org.apache.kafka.clients.consumer.internals.AbstractPartitionAssignor;
+import org.apache.kafka.common.TopicPartition;
+
+import java.util.List;
+import java.util.Map;
+
+public class MyAssignor extends AbstractPartitionAssignor {
+  ...
+}
+```
+
+使用时，消费者客户端需要添加相应的Properties参数：
+
+```java
+configs.put(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, MyAssignor.class.getName());
+```
+
 
 
 # 5 物理存储
 
+## 5.1 日志存储概述
+
+## 5.2 日志存储
+
+## 5.3 磁盘存储
+
 # 6 稳定性
+
+## 6.1 事务
+
+## 6.2 控制器
+
+## 6.3 可靠性保证
+
+## 6.4 一致性保证
+
+## 6.5 消息重复的场景及解决
+
+## 6.6 __consumer_offsets
 
 # 7 延时队列
 
+## 7.1 延迟操作接口
+
 # 8 重试队列
+
+## 8.1 消费端的消息发送到重试队列
+
+## 8.2 处理待消费的消息
+
+## 8.3 消息重试
