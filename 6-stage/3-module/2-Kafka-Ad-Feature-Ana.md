@@ -2027,9 +2027,97 @@ Topic:tp_re_02	PartitionCount:3	ReplicationFactor:2	Configs:
 
 
 
-
-
 ## 4.5 修改分区副本
+
+实际项目中，可能由于主题的副本因子设置的问题，需要重新设置副本因子。
+
+或者由于集群的扩展，需要重新设置副本因子。
+
+topic一旦使用不能轻易删除重建，因此动态增加副本因子就成为最终的选择。
+
+
+
+**说明**：Kafka 1.0版本配置文件默认没有default.replication.factor=x，因此如果创建topic时，不指定replication-factor想，默认副本因子为1。我们可以在自己的server.properties中配置常用的副本因子，省去手动调整。例如设置default.replication.factor3，详细内容可参考官方文档 https://kafka.apache.org/documentation/#replication
+
+**原因分析**：
+
+假设我们有2个Kafka broker分别broker0，broker1。
+
+1. 当我们创建的topic有2个分区partition时，并且replication-factor为1，基本上一个broker上一个分区。当一个broker宕机了，该topic就无法使用了，因此两个分区只有一个能用。
+
+2. 当我们创建的topic有3个分区partition时，并且replication-factor为2时，可能的分区情况是：
+
+   broker0，partition0，partition1，partition2
+
+   broker1，partition1，partition0，partition2
+
+   每个分区有一个副本，当其中一个broker宕机了，Kafka集群还能完整凑出该topic的完整分区。例如当broker0宕机了，可以通过broker1组合出topic的分区。
+
+
+
+**操作**：
+
+1. 创建主题
+
+   ```shell
+   [root@node1 ~]# kafka-topics.sh --zookeeper node1/myKafka --create --topic tp_re_03 --partitions 3 --replication-factor 1
+   ```
+
+2. 查看主题细节：
+
+   ```shell
+   [root@node1 ~]# kafka-topics.sh --zookeeper node1/myKafka --describe --topic tp_re_03 
+   Topic:tp_re_03	PartitionCount:3	ReplicationFactor:1	Configs:
+   	Topic: tp_re_03	Partition: 0	Leader: 1	Replicas: 1	Isr: 1
+   	Topic: tp_re_03	Partition: 1	Leader: 0	Replicas: 0	Isr: 0
+   	Topic: tp_re_03	Partition: 2	Leader: 1	Replicas: 1	Isr: 1
+   ```
+
+3. 修改副本因子：错误
+
+   ```shell
+   [root@node1 ~]# kafka-topics.sh --zookeeper node1/myKafka --alter --topic tp_re_03 --replication-factor 2
+   Option "[replication-factor]" can't be used with option"[alter]"
+   ```
+
+4. 使用`kafka-reassign-partitions.sh` 修改副本因子：
+
+   创建increment-replication-factor.josn
+
+   ```json
+   {
+     "version":1,
+     "partitions":[
+       {"topic":"tp_re_03","partition":0,"replicas":[0,1]},
+       {"topic":"tp_re_03","partition":1,"replicas":[0,1]},
+       {"topic":"tp_re_03","partition":2,"replicas":[1,0]}
+     ]
+   }
+   ```
+
+5. 执行分配：
+
+   ```shell
+   [root@node1 ~]# kafka-reassign-partitions.sh --zookeeper node1/myKafka --reassignment-json-file increment-replication-factor.json --execute
+   Current partition replica assignment
+   
+   {"version":1,"partitions":[{"topic":"tp_re_03","partition":0,"replicas":[1],"log_dirs":["any"]},{"topic":"tp_re_03","partition":2,"replicas":[1],"log_dirs":["any"]},{"topic":"tp_re_03","partition":1,"replicas":[0],"log_dirs":["any"]}]}
+   
+   Save this to use as the --reassignment-json-file option during rollback
+   Successfully started reassignment of partitions.
+   ```
+
+6. 查看主题细节
+
+   ```shell
+   [root@node1 ~]# kafka-topics.sh --zookeeper node1/myKafka --describe --topic tp_re_03 
+   Topic:tp_re_03	PartitionCount:3	ReplicationFactor:2	Configs:
+   	Topic: tp_re_03	Partition: 0	Leader: 1	Replicas: 0,1	Isr: 1,0
+   	Topic: tp_re_03	Partition: 1	Leader: 0	Replicas: 0,1	Isr: 0,1
+   	Topic: tp_re_03	Partition: 2	Leader: 1	Replicas: 1,0	Isr: 1,0
+   ```
+
+   
 
 ## 4.6 分区分配策略
 
