@@ -2357,7 +2357,7 @@ Kafka消息是以主题为单位进行分类，各个主题之间是彼此独立
 
 如果日志文件命名为`00000000000000000121.log`，则当前日志文件的一条数据偏移量就是121（偏移量从 0 开始）。
 
-
+![image-20211202135715377](assest/image-20211202135715377.png)
 
 > **日志与索引文件**
 
@@ -2375,7 +2375,7 @@ Kafka消息是以主题为单位进行分类，各个主题之间是彼此独立
 
 **时间戳索引文件**则根据时间戳查找对应的偏移量。
 
-Kafka中的索引文件是以稀疏索引的方式构造消息的索引，并不保证每一个消息在索引文件中都有对应的索引项。
+Kafka中的索引文件是以**稀疏**索引的方式构造消息的索引，并不保证每一个消息在索引文件中都有对应的索引项。
 
 每当写入一定量的消息时，偏移量索引文件 和 时间戳索引文件分别增加一个偏移量 索引项和时间戳索引项。
 
@@ -2385,19 +2385,177 @@ Kafka中的索引文件是以稀疏索引的方式构造消息的索引，并不
 
 ### 5.1.2 切分文件
 
+当满足如下几个条件的其中之一，就会触发文件（日志文件，索引文件）的切分：
 
+1. 当前日志分段的大小超过了broker端参数`log.segment.bytes`配置的值。`log.segment.bytes`参数的默认值为1073741824，即1GB。
+2. 当前日志分段中消息的最大时间戳与当前系统的时间戳的差值大于`log.roll.ms`或`log.roll.hours`参数配置的值。如果同时配置了`log.roll.ms`或`log.roll.hours`参数，那么`log.roll.ms`的优先级高。默认情况下，只配置`log.roll.hours`参数，其值为168，即7天。
+3. 偏移量索引文件或时间戳索引文件的大小达到broker端参数`log.index.size.max.bytes`配置的值。`log.index.size.max.bytes`的默认值为10485760，即10MB。
+4. 追加的消息的偏移量与当前日志分段的偏移量之间的差值大于`Integer.MAX_VALUE`，即要追加的消息的偏移量不能转变为相对偏移量。
 
 ### 5.1.3 为什么是`Integer.MAX_VALUE`？
 
+1024 * 1024 * 1024 = 1073741824
 
+在偏移量索引文件中，每个索引项共占用8个字节，并分为两部分。
+
+相对偏移量和物理地址。
+
+相对偏移量：表示消息相对于基准的偏移量，占4个字节
+
+物理地址：消息在日志分段文件中对应的物理位置，也占4个字节
+
+4个字节刚好对应`Integer.MAX_VALUE`，如果大于`Integer.MAX_VALUE`，则不能用4个字节进行表示了。
 
 ### 5.1.4 索引文件切分过程
 
+索引文件会根据`log.index.size.max.bytes`值进行**预先分配空间**，即文件创建的时候就是最大值，
 
+当真正的进行索引文件切分的时候，才会将其裁剪到实际数据大小的文件。
+
+这一点是跟日志文件有所区别的地方。其意义**降低了代码逻辑的复杂性**。
 
 ## 5.2 日志存储
 
+### 5.2.1 索引
+
+偏移量索引文件用于记录消费偏移量与物理地址之间的映射关系。时间戳索引文件则根据**时间戳查找对应的偏移量**。
+
+> 文件
+
+查看一个topic分区目录下的内容，发现有log、index和timeindex三个文件：
+
+1. log文件名是以文件中第一条message的offset来命名的，实际offset长度是64位，但是这里只使用了20位，应付生产是足够的。
+2. 一组index + log + timeindex 文件的名字是一样的，并且log文件默认写满1G后，会进行 log rolling 形成一个新的组合来记录消息，这个是通过broker端`log.segment.bytes`=1073741824 指定的。
+3. index和timeindex在刚使用时会分配10M的大小，当进行`log rolling`后，它会修剪为实际的大小。
+
+
+
+操作：
+
+1. 创建主题：
+
+   ```shell
+   [root@node1 ~]# kafka-topics.sh --zookeeper node1/myKafka --create --topic tp_demo_03 --partitions 1 --replication-factor 1 --config segment.bytes=104857600
+   ```
+
+2. 创建消息文件
+
+   ```shell
+   [root@node1 ~]# for i in `seq 10000000`;do echo "hello turbine $i" >> messages.txt; done
+   ```
+
+3. 将文本消息生产到主题中：
+
+   ```shell
+   [root@node1 ~]# kafka-console-producer.sh --broker-list node1:9092 --topic tp_demo_03 < messages.txt
+   ```
+
+4. 查看存储文件：
+
+   ![image-20211202185614204](assest/image-20211202185614204.png)
+
+   
+
+   
+
+如果想查看这些文件，可以使用Kafka提供的shell来完成，几个关键信息如下：
+
+- offset是逐渐增加的整数，每个offset对应一个消息偏移量
+- position：消息批字节数，用于计算物理地址
+- CreateTime：时间戳
+- magic：2代表这个消息类型是V2，如果是0则代表V0类型，1代表V1类型。
+- compresscodec：None说明没有指定压缩类型，Kafka目前提供了4种可选择：0-None，1-GZIP，2-snappy，3-lz4。
+- crc：对所有字段进行校验后的crc值。
+
+```shell
+[root@node1 tp_demo_03-0]# kafka-run-class.sh kafka.tools.DumpLogSegments --files 00000000000000000000.log --print-data-log | head
+Dumping 00000000000000000000.log
+Starting offset: 0
+baseOffset: 0 lastOffset: 642 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false position: 0 CreateTime: 1638432578178 isvalid: true size: 16375 magic: 2 compresscodec: NONE crc: 2366246298
+baseOffset: 643 lastOffset: 1285 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false position: 16375 CreateTime: 1638432578178 isvalid: true size: 16375 magic: 2 compresscodec: NONE crc: 2366246298
+baseOffset: 1286 lastOffset: 1928 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false position: 32750 CreateTime: 1638432578178 isvalid: true size: 16375 magic: 2 compresscodec: NONE crc: 2366246298
+baseOffset: 1929 lastOffset: 2559 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false position: 49125 CreateTime: 1638432578311 isvalid: true size: 16373 magic: 2 compresscodec: NONE crc: 2330272897
+baseOffset: 2560 lastOffset: 3190 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false position: 65498 CreateTime: 1638432578311 isvalid: true size: 16373 magic: 2 compresscodec: NONE crc: 2330272897
+baseOffset: 3191 lastOffset: 3191 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false position: 81871 CreateTime: 1638432783914 isvalid: true size: 71 magic: 2 compresscodec: NONE crc: 2095332440
+baseOffset: 3192 lastOffset: 3192 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false position: 81942 CreateTime: 1638432786217 isvalid: true size: 71 magic: 2 compresscodec: NONE crc: 1947798555
+baseOffset: 3193 lastOffset: 3835 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false position: 82013 CreateTime: 1638432866713 isvalid: true size: 16382 magic: 2 compresscodec: NONE crc: 3328889173
+[root@node1 tp_demo_03-0]# 
+```
+
+
+
+> 关于消息偏移量：
+
+**消息存储**：
+
+1. 消息内容保存在log日志文件种。
+2. 消息封装为Record，追加到log日志文件末尾，采用的是**顺序写**模式。
+3. 一个topic的不同分区，可认为是queue，顺序写入接收的消息
+
+
+
+![image-20211202190911051](assest/image-20211202190911051.png)
+
+消费者有offset。下图中，消费者A消费的offset是9，消费者B消费的offset是11，不同的消费者offset是交给一个内部公共topic来记录的。
+
+![image-20211202191117143](assest/image-20211202191117143.png)
+
+时间戳索引文件，它的作用是可以让用户查询某个时间段内的消息，它一条数据的结构是时间戳（8byte）+ 相对offset（4byte），如果要使用这个索引文件，首先需要通过时间范围，找到对应的offset，然后再去对应的index文件找到position信息，然后才能遍历log文件。
+
+但是由于producer生产消息可以指定消息的时间戳，这可能导致消息的时间戳不一定有先后顺序，因此**尽量不要生产消息时指定时间戳**。
+
+#### 5.2.1.1 偏移量
+
+1. 位置索引保存在index文件中
+2. log日志默认没写入4K（log.index.interval.bytes设定的），会写入一条索引信息到index文件中，因此索引文件是稀疏索引，它**不会为每条日志都建立索引信息**。
+3. log文件中的日志，是顺序写入的，有message+实际offset+position组成
+4. 索引文件的数据结构则是由相对offset（4byte）+ position（4byte）组成，由于保存的是相对第一个消息的相对offset，只需要4bytes就可以了，可以节省空间，在实际查找后还需要计算回实际的offset，这对用户是透明的。
+
+稀疏索引，索引密度不高，但是offset有序，二分查找的时间复杂度O(lgN)，如果从头遍历时间复杂度是O(N)。示意图如下：
+
+![image-20211202194416530](assest/image-20211202194416530.png)
+
+偏移量索引由**相对偏移量**和**物理地址**组成。
+
+![image-20211202194707580](assest/image-20211202194707580.png)
+
+可以通过如下命令解析`.index`文件
+
+```shell
+[root@node1 tp_demo_03-0]# kafka-run-class.sh kafka.tools.DumpLogSegments --files 00000000000000000000.index --print-data-log | head
+Dumping 00000000000000000000.index
+offset: 643 position: 16375
+offset: 1286 position: 32750
+offset: 1929 position: 49125
+offset: 2560 position: 65498
+offset: 3191 position: 81871
+offset: 3836 position: 98395
+offset: 4466 position: 114753
+offset: 5091 position: 131116
+offset: 5721 position: 147493
+```
+
+注意：offset与position没有直接关系，因为会删除数据项和清理日志。
+
+
+
+
+
+#### 5.2.1.2 时间戳
+
+### 5.2.2 清理
+
+#### 5.2.2.1 日志删除
+
+#### 5.2.2.2 日志压缩策略
+
 ## 5.3 磁盘存储
+
+### 5.3.1 零拷贝
+
+### 5.3.2 页缓存
+
+### 5.3.3 顺序写入
 
 # 6 稳定性
 
