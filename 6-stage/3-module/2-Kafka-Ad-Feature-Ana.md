@@ -2537,11 +2537,47 @@ offset: 5721 position: 147493
 
 注意：offset与position没有直接关系，因为会删除数据项和清理日志。
 
+![image-20211203101345993](assest/image-20211203101345993.png)
 
+```shell
+[root@node1 tp_demo_03-0]# kafka-run-class.sh kafka.tools.DumpLogSegments --files 00000000000003646147.log --print-data-log | head
+Dumping 00000000000003646147.log
+Starting offset: 3646147
+baseOffset: 3646147 lastOffset: 3646711 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false position: 0 CreateTime: 1638434481233 isvalid: true size: 16382 magic: 2 compresscodec: NONE crc: 2977591589
+baseOffset: 3646712 lastOffset: 3647276 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false position: 16382 CreateTime: 1638434481235 isvalid: true size: 16382 magic: 2 compresscodec: NONE crc: 959488520
+baseOffset: 3647277 lastOffset: 3647841 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false position: 32764 CreateTime: 1638434481236 isvalid: true size: 16382 magic: 2 compresscodec: NONE crc: 739311332
+baseOffset: 3647842 lastOffset: 3648406 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false position: 49146 CreateTime: 1638434481238 isvalid: true size: 16382 magic: 2 compresscodec: NONE crc: 1175158371
+baseOffset: 3648407 lastOffset: 3648971 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false position: 65528 CreateTime: 1638434481239 isvalid: true size: 16382 magic: 2 compresscodec: NONE crc: 2433191594
+baseOffset: 3648972 lastOffset: 3649536 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false position: 81910 CreateTime: 1638434481269 isvalid: true size: 16382 magic: 2 compresscodec: NONE crc: 961784939
+baseOffset: 3649537 lastOffset: 3650101 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false position: 98292 CreateTime: 1638434481271 isvalid: true size: 16382 magic: 2 compresscodec: NONE crc: 4263124730
+baseOffset: 3650102 lastOffset: 3650666 baseSequence: -1 lastSequence: -1 producerId: -1 producerEpoch: -1 partitionLeaderEpoch: 0 isTransactional: false position: 114674 CreateTime: 1638434481272 isvalid: true size: 16382 magic: 2 compresscodec: NONE crc: 4103898545
+```
+
+在偏移量索引文件中，索引数据都是顺序记录offset，但时间戳索引文件中每个追加的索引时间戳必须大于之前追加的索引项，否则不予追加。在`Kafka 0.11.0.0`以后，消息元数据中存在若干的时间戳信息。如果broker端参数`log.message.timestamp.type`设置为LogAppendTime，那么时间戳必定能保持单调增长。反之如果是CreateTime则无法保证顺序。
+
+<font color=red>注意：timestamp文件中的offset与index文件中的relativeOffset不是一一对应的。因为数据的写入是各自追加。</font>
+
+思考：如何查看偏移量为23的消息？
+
+Kafka中存在一个`ConcurrentSkipListMap`来保存每日志分段，通过跳跃表方式，定位在`00000000000000000000.index`，通过二分法在偏移量索引文件中找到不大于23的最大索引项，即offset 20那栏，然后从日志分段文件中的物理位置为320开始顺序查找偏移量为23的消息。
 
 
 
 #### 5.2.1.2 时间戳
+
+在偏移量索引文件中，索引数据都是顺序记录offset，但时间戳索引文件中每个追加的索引时间戳必须大于之前追加的索引项，否则不予追加。在`Kafka 0.11.0.0`以后，消息元数据中存在若干的时间戳信息。如果broker端参数`log.message.timestamp.type`设置为LogAppendTime，那么时间戳必定能保持单调增长。反之如果是CreateTime则无法保证顺序。
+
+通过时间戳方式进行查找信息，需要通过查找时间戳索引和偏移量索引**两个文件**。
+
+时间戳索引格式：前八字节表示**时间戳**，后四个字节表示**偏移量**。
+
+![image-20211203105705910](assest/image-20211203105705910.png)
+
+![image-20211203110052604](assest/image-20211203110052604.png)
+
+思考：查找时间戳为 1638180309915 开始的消息？
+
+1. 查找该时间戳应该在哪个日志分段中。将1638180309915 和每个日志分段中最大时间戳 largestTimeStamp逐一对比，直到找到不小于 1638180309915 
 
 ### 5.2.2 清理
 
