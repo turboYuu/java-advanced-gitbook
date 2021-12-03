@@ -1310,18 +1310,20 @@ kafka-topic.sh --config xx=xx --config yy=yy
 
 配置给主题的参数。
 
-| 属性             | 默认值 | 服务器默认属性     | 说明 |
-| ---------------- | ------ | ------------------ | ---- |
-| cleanup.policy   | delete | log.cleanup.policy |      |
-| compression.type | none   |                    |      |
-|                  |        |                    |      |
-|                  |        |                    |      |
-|                  |        |                    |      |
-|                  |        |                    |      |
-|                  |        |                    |      |
-|                  |        |                    |      |
-|                  |        |                    |      |
-|                  |        |                    |      |
+| 属性                           | 默认值  | 服务器默认属性             | 说明                                                         |
+| ------------------------------ | ------- | -------------------------- | ------------------------------------------------------------ |
+| cleanup.policy                 | delete  | log.cleanup.policy         | 要么是"delete"要么是"compact"；这个字符串指明了针对旧日志部分的利用方式；默认方式（"delete"）将会丢弃旧的部分（当它们的回收时间或者尺寸限制到达时）。"compact"将会进行日志压缩。 |
+| compression.type               | none    |                            | producer用于压缩数据的压缩类型。默认是无压缩。正确的选项值是none、gzip、snappy、lz4。压缩最好用于批量处理，批量处理消息越多，压缩性越好。 |
+| max.message.bytes              | 1000000 | max.message.bytes          | Kafka追加消息的最大字节数。注意如果你增大这个字节数，也必须增大consumer的fetch字节数，这样consumer才能fetch到这些最大字节数的消息。 |
+| min.cleanable.dirty.ration     | 0.5     | min.cleanable.dirty.ration | 此项配置控制 log 压缩器试图进行清除日志的频率。默认情况下，将避免清除压缩率超过59%的日志。这个比率避免了最大的空间浪费 |
+| min.insync.replicas            | 1       | min.insync.replicas        | <font style="font-size:85%">当producer设置request.required.acks为-1时，</font> |
+| retention.bytes                |         |                            |                                                              |
+| retention.ms                   |         |                            |                                                              |
+| segment.bytes                  |         |                            |                                                              |
+| segment.index.bytes            |         |                            |                                                              |
+| segment.jitter.ms              |         |                            |                                                              |
+| segment.ms                     |         |                            |                                                              |
+| unclean.leader.election.enable |         |                            |                                                              |
 
 
 
@@ -2577,9 +2579,22 @@ Kafka中存在一个`ConcurrentSkipListMap`来保存每日志分段，通过跳�
 
 思考：查找时间戳为 1638180309915 开始的消息？
 
-1. 查找该时间戳应该在哪个日志分段中。将1638180309915 和每个日志分段中最大时间戳 largestTimeStamp逐一对比，直到找到不小于 1638180309915 
+1. 查找该时间戳应该在哪个日志分段中。将1638180309915 和每个日志分段中最大时间戳 largestTimeStamp逐一对比，直到找到不小于 1638180309915 所对应的日志分段。日志分段中的largestTimeStamp的计算是：先查询该日志分段所对应时间戳索引文件，找到最后一条索引项，若最后一条索引项的时间戳字段值大于0，则取该值，否则取该日志分段的最近修改时间。
+2. 查找该日志分段的偏移量索引文件，查找该偏移量对应的物理地址。
+3. 日志文件从320 的物理偏移量开始查找不小于1638180309915 数据。
+
+<font color=red>注意：timestamp文件中的offset与index文件中的relativeOffset不是一一对应的。因为数据的写入是各自追加。</font>
 
 ### 5.2.2 清理
+
+Kafka提供两种日志清理策略：
+
+- 日志删除：按照一定的删除策略，将不满足
+- 日志压缩：针对每个消息的Key进行整合，对于有相同Key的不同Value值，只保留最后一个版本。
+
+Kafka 提供`log.cleanup.ploicy`参数进行相应配置，默认值：`delete`，还可以选择`compact`。
+
+主题级别的配置项是`cleanup.policy`。
 
 #### 5.2.2.1 日志删除
 
