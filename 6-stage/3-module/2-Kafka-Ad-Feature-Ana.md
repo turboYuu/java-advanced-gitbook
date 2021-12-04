@@ -1319,9 +1319,9 @@ kafka-topic.sh --config xx=xx --config yy=yy
 | min.insync.replicas            | 1       | min.insync.replicas        | <font style="font-size:85%">当producer设置request.required.acks为-1时，min.insync.replicas指定replicas的最小数目（必须确认每一个replica的写数据都是成功的），如果这个数据没有达到，producer会产生异常。</font> |
 | retention.bytes                | None    | log.retention.bytes        | 如果使用"delete"的retention策略，这项配置就是指在删除日志之前，日志所能达到的最大尺寸。默认情况下，没有尺寸限制而只有时间限制 |
 | retention.ms                   | 7 days  | log.retention.minutes      | 如果使用"delete"的retention策略，这项配置就是指删除日志前日志保存的时间。 |
-| segment.bytes                  | 1GB     | log.segment.bytes          | Kafka中log日志是                                             |
-| segment.index.bytes            |         |                            |                                                              |
-| segment.jitter.ms              |         |                            |                                                              |
+| segment.bytes                  | 1GB     | log.segment.bytes          | Kafka中log日志是分成一块块存储的，此项配置是指log日志划分成块的大小 |
+| segment.index.bytes            | 10MB    | log.index.size.max.bytes   | 此项配置有关offsets和文件位置之间映射的索引文件的大小；一般不需要修改这个配置 |
+| segment.jitter.ms              | 0       | log.roll.jitter.{ms,hours} |                                                              |
 | segment.ms                     |         |                            |                                                              |
 | unclean.leader.election.enable |         |                            |                                                              |
 
