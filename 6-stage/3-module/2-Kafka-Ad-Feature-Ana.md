@@ -2738,13 +2738,110 @@ Kafka的两个过程：
 
 
 
+**磁盘文件通过网络发送（Broker 到 Consumer）**
+
+磁盘数据通过DMA（Direct Memory Access，直接存储器访问）拷贝到内核态Buffer
+
+直接通过DMA拷贝到NIC Buffer（socket buffer），无需CPU拷贝。
+
+除了减少苏剧拷贝外，整个读文件 ==> 网络发送 由一个sendfile 调用完成，整个过程只有两次上下文切换，因此大大提高了性能。
+
+Java NIO对 sendfile的支持就是FileChannel.transferTo()/transferForm()
+
+fileChannel.transferTo(postiton, count, socketChannel);
+
+把磁盘文件读取OS内核缓冲区后的fileChannel，直接转给socketChannel发送；底层就是sendfile。消费者从broker读取数据们就是由此实现。
+
+具体来看，Kafka 的数据传输通过TransportLayer来完成，其子类PlaintextTransportLayer通过 Java NIO 的FileChannel 的 transferTO 和 transferFrom 方法实现零拷贝。
+
+![image-20211204174741396](assest/image-20211204174741396.png)
+
+注意：transferTo 和 transferFrom 并不保证一定能使用零拷贝，需要操作系统支持。
+
+Linux 2.4 + 内核通过sendfile 系统调用，提供了零拷贝。
+
+
+
 ### 5.3.2 页缓存
 
+页缓存时操作系统实现的一种主要的磁盘缓存，以此用来减少对磁盘IO的操作。
+
+具体来说，就是把磁盘中的数据缓存到内存中，把对磁盘的访问变成对内存的访问。
+
+
+
+Kafka接收来自socket buffer的网络数据，应用进程不需要中间处理，直接进行持久化。可以使用 mmap 内存文件映射。
+
+Memory Mapped Files简称 mmap，简单描述其作用就是：将磁盘文件映射到内存，用户通过修改内存就能修改硬盘文件。
+
+它的工作原理是直接利用操作系统的Page来实现磁盘文件到物理内存的直接映射。完成映射之后对物理内存的操作会被同步到硬盘上（操作系统再适当的时候）。
+
+![image-20211204175631768](assest/image-20211204175631768.png)
+
+通过mmap，进程像读写硬盘一样读写内存（当然是虚拟内存）。使用这种方式可以获取很大的IO提升，省去了用户空间到内核空间复制的开销。
+
+mmap也有一个很明显的缺陷：**不可靠**，写到mmap中的数据并没有被真正的写到硬盘，操作系统会在程序主动调用flush的时候才把数据真正写到硬盘。
+
+Kafka提供了一个参数`producer.type`来控制是不是主动flush；
+
+如果Kafka写入到mmap之后，就立即flush，然后再返回Producer，叫同步（sync）;
+
+写入mmap之后，立即返回Producer，不调用flush，叫异步（async）。
+
+
+
+Java NIO对文件映射的支持：
+
+Java NIO，提供了一个`MappedByteBuffer`类可以用来实现内存映射。
+
+`MappedByteBuffer`只能通过调用FileChannel的map()获得，再没有其他方式。
+
+FileChannel.map()是抽象方法，具体实现是在 FileChannelImpl.map()，其map0()方法就是调用了Linux内核的mmap的API。
+
+![image-20211204181028952](assest/image-20211204181028952.png)
+
+![image-20211204181126023](assest/image-20211204181126023.png)
+
+![image-20211204181209687](assest/image-20211204181209687.png)
+
+使用MappedByteBuffer类要注意的是
+
+- mmap的文件映射，在full gc时才进行释放。当close时，需要手动清除内存映射文件，可以反射调用 sun.misc.Cleaner方法。
+
+
+
+当一个进程准备读取磁盘上的文件内容时：
+
+1. 操作系统会先查看待读取得数据所的页
+
 ### 5.3.3 顺序写入
+
+![image-20211204182146678](assest/image-20211204182146678.png)
+
+
+
+mmap 和 sendfile：
+
+1. Linux内核提供，实现零拷贝的API；
+2. sendfile 是将读到内核空间的数据，转到 socket buffer，进行网络发送；
+3. mmap将磁盘文件映射到内存，支持读和写，对内存的操作会反映在磁盘文件上；
+4. RocketMQ在消费消息时，使用mmap；Kafka使用了 sendfile。
+
+
+
+Kafka速度快是因为：
+
+1. partition顺序读写，充分利用磁盘特性，这是基础；
+2. Producer生产的数据持久化到broker，采用mmap文件映射，实现顺序的快速写入；
+3. Consumer从broker读取数据，采用sendfile，将磁盘文件读到OS内核缓冲区后，直接转到socket buffer 进行网络发送。
+
+
 
 # 6 稳定性
 
 ## 6.1 事务
+
+
 
 ### 6.1.1 幂等性
 
