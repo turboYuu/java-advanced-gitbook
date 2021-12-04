@@ -1321,9 +1321,9 @@ kafka-topic.sh --config xx=xx --config yy=yy
 | retention.ms                   | 7 days  | log.retention.minutes      | 如果使用"delete"的retention策略，这项配置就是指删除日志前日志保存的时间。 |
 | segment.bytes                  | 1GB     | log.segment.bytes          | Kafka中log日志是分成一块块存储的，此项配置是指log日志划分成块的大小 |
 | segment.index.bytes            | 10MB    | log.index.size.max.bytes   | 此项配置有关offsets和文件位置之间映射的索引文件的大小；一般不需要修改这个配置 |
-| segment.jitter.ms              | 0       | log.roll.jitter.{ms,hours} |                                                              |
-| segment.ms                     |         |                            |                                                              |
-| unclean.leader.election.enable |         |                            |                                                              |
+| segment.jitter.ms              | 0       | log.roll.jitter.{ms,hours} | The maximum jitter to subtract from logRollTimeMills         |
+| segment.ms                     | 7 days  | log.roll.hours             | 即使log的分块文件没有达到需要删除、压缩的大小，一旦log的时间达到这个上限，就会强制新建一个log分块文件 |
+| unclean.leader.election.enable | true    |                            | 指明了是否能够使不在ISR中replicas设置用来作为leader          |
 
 
 
@@ -2509,7 +2509,7 @@ baseOffset: 3193 lastOffset: 3835 baseSequence: -1 lastSequence: -1 producerId: 
 #### 5.2.1.1 偏移量
 
 1. 位置索引保存在index文件中
-2. log日志默认没写入4K（log.index.interval.bytes设定的），会写入一条索引信息到index文件中，因此索引文件是稀疏索引，它**不会为每条日志都建立索引信息**。
+2. log日志默认每写入4K（log.index.interval.bytes设定的），会写入一条索引信息到index文件中，因此索引文件是**稀疏**索引，它**不会为每条日志都建立索引信息**。
 3. log文件中的日志，是顺序写入的，有message+实际offset+position组成
 4. 索引文件的数据结构则是由相对offset（4byte）+ position（4byte）组成，由于保存的是相对第一个消息的相对offset，只需要4bytes就可以了，可以节省空间，在实际查找后还需要计算回实际的offset，这对用户是透明的。
 
