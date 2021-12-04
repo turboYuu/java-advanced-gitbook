@@ -1316,10 +1316,10 @@ kafka-topic.sh --config xx=xx --config yy=yy
 | compression.type               | none    |                            | producer用于压缩数据的压缩类型。默认是无压缩。正确的选项值是none、gzip、snappy、lz4。压缩最好用于批量处理，批量处理消息越多，压缩性越好。 |
 | max.message.bytes              | 1000000 | max.message.bytes          | Kafka追加消息的最大字节数。注意如果你增大这个字节数，也必须增大consumer的fetch字节数，这样consumer才能fetch到这些最大字节数的消息。 |
 | min.cleanable.dirty.ration     | 0.5     | min.cleanable.dirty.ration | 此项配置控制 log 压缩器试图进行清除日志的频率。默认情况下，将避免清除压缩率超过59%的日志。这个比率避免了最大的空间浪费 |
-| min.insync.replicas            | 1       | min.insync.replicas        | <font style="font-size:85%">当producer设置request.required.acks为-1时，</font> |
-| retention.bytes                |         |                            |                                                              |
-| retention.ms                   |         |                            |                                                              |
-| segment.bytes                  |         |                            |                                                              |
+| min.insync.replicas            | 1       | min.insync.replicas        | <font style="font-size:85%">当producer设置request.required.acks为-1时，min.insync.replicas指定replicas的最小数目（必须确认每一个replica的写数据都是成功的），如果这个数据没有达到，producer会产生异常。</font> |
+| retention.bytes                | None    | log.retention.bytes        | 如果使用"delete"的retention策略，这项配置就是指在删除日志之前，日志所能达到的最大尺寸。默认情况下，没有尺寸限制而只有时间限制 |
+| retention.ms                   | 7 days  | log.retention.minutes      | 如果使用"delete"的retention策略，这项配置就是指删除日志前日志保存的时间。 |
+| segment.bytes                  | 1GB     | log.segment.bytes          | Kafka中log日志是                                             |
 | segment.index.bytes            |         |                            |                                                              |
 | segment.jitter.ms              |         |                            |                                                              |
 | segment.ms                     |         |                            |                                                              |
