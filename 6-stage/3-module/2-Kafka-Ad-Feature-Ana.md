@@ -2841,7 +2841,20 @@ Kafka速度快是因为：
 
 ## 6.1 事务
 
+> 六、事务相关配置
 
+1. Broker Configs
+
+   | 配置项                                   | 说明 |
+   | ---------------------------------------- | ---- |
+   | transactional.id.timeout.ms              |      |
+   | max.transaction.timeout.ms               |      |
+   | transaction.state.log.replication.factor |      |
+   | transaction.state.log.mum.partitions     |      |
+   | transaction.state.log.min.isr            |      |
+   | transaction.state.log.segment.bytes      |      |
+
+   
 
 ### 6.1.1 幂等性
 
