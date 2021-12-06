@@ -2854,9 +2854,33 @@ Kafka速度快是因为：
    | transaction.state.log.min.isr            |      |
    | transaction.state.log.segment.bytes      |      |
 
+2. Producer configs
+
+   | 配置项                 | 说明 |
+   | ---------------------- | ---- |
+   | enable.idempotence     |      |
+   | transaction.timeout.ms |      |
+   | transaction.id         |      |
+
+3. Consumer configs
+
+   | 配置项          | 说明                                                         |
+   | --------------- | ------------------------------------------------------------ |
+   | isolation.level | - read_uncommitted：以偏移量顺序使用已提交和未提交的消息。<br>- reda_committed：仅以偏移量顺序使用非事务性消息或已提交事务性消息。为了维护偏移排序，这个设置意味着我们必须使用缓冲中的消息，直到看到给定事务中的所有消息。 |
+
    
 
 ### 6.1.1 幂等性
+
+保证在消息重发的时候，消费者不会重复处理。即使在消费者收到重复消息的时候，重复处理，也要保证最终结果一致性。
+
+所谓幂等性，数学概念就是：`f(f(x)) = f(x)`，f 函数表示对消息的处理。
+
+> 幂等性实现
+
+添加唯一ID，类似于数据库的主键，用于唯一标记一个消息。
+
+Kafka为了实现幂等性，它在底层设计架构中引入了ProducerID
 
 ### 6.1.2 事务操作
 
