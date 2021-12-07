@@ -2839,7 +2839,7 @@ Kafka速度快是因为：
 
 # 6 稳定性
 
-## 6.1 事务
+## 6.1 事务 - ing
 
 > 六、事务相关配置
 
@@ -2872,6 +2872,16 @@ Kafka速度快是因为：
 
 ### 6.1.1 幂等性
 
+Kafka在引入幂等性之前，Producer向Broker发送消息，然后Broker将消息追加到消息流中后给Producer返回Ack信号值。实现流程如下：
+
+生产中，会出现各种不确定的因素，比如在Producer发送给Broker时出现网络异常：
+
+![image-20211207102849794](assest/image-20211207102849794.png)
+
+上图中这种情况，当Producer第一次发送消息给Broker时，Broker将消息 (x2, y2)追加到了消息流中，但是在返回Ack信号给Producer时失败了（比如网络异常）。此时，Producer端触发重试机制，将消息 (x2, y2) 重新发送给Broker，Broker接收到消息后，再次将该消息追加到消息流中，然后成功返回Ack给Producer。这样下来，消息流中就被重复追加了两条相同的 (x2,y2) 的消息。
+
+> 幂等性
+
 保证在消息重发的时候，消费者不会重复处理。即使在消费者收到重复消息的时候，重复处理，也要保证最终结果一致性。
 
 所谓幂等性，数学概念就是：`f(f(x)) = f(x)`，f 函数表示对消息的处理。
@@ -2880,9 +2890,37 @@ Kafka速度快是因为：
 
 添加唯一ID，类似于数据库的主键，用于唯一标记一个消息。
 
-Kafka为了实现幂等性，它在底层设计架构中引入了ProducerID
+Kafka为了实现幂等性，它在底层设计架构中引入了ProducerID和SequenceNumber。
+
+- ProducerID：在每个新的Producer初始化时，会被分配一个唯一的ProducerID，这个ProducerID对客户端使用者是不见的。
+- SequenceNumber：对于每个ProducerID，Producer发送数据的每个Topic和Partition都对应一个从0开始单调递增的SequenceNumber值。
+
+![image-20211207110011785](assest/image-20211207110011785.png)
+
+同样，这是一种理想状态下的发送流程。实际情况下，会有很多不确定的因素，比如Broker在发送Ack信号给Producer时出现网络异常，导致发送失败。异常情况如下图所示：
+
+![image-20211207110342801](assest/image-20211207110342801.png)
+
+当Producer发送消息 (x2, y2) 给Broker时，Broker接收消息并将其追加到消息流中。此时，Broker返回Ack信号给Producer时，发生异常导致Producer接收Ack信号失败。对于Producer来说，会触发重试机制，将消息 (x2, y2) 再次发送。但是，由于引入了幂等性，在每条消息中附带了PID（Producer ID） 和 SequenceNumber。相同的PID和SequenceNumber发送给Broker，而之前Broker缓存过值卡发送的相同的消息，那么在消息流中的消息就只有一条 (x2,y2) ，不会出现重复发送的情况。
+
+
+
+客户端在生成Producer时，会实例化如下代码：
+
+```java
+// 实例化一个 Producer对象
+KafkaProducer<String,String> kafkaProducer = new KafkaProducer<String, String>(props);
+```
+
+在`org.apache.kafka.clients.producer.internals.Sender`类中，在 run()  中有一个 maybeWaitForProducerId()方法，用来生成一个ProducerID，实现代码如下：
+
+![image-20211207113426522](assest/image-20211207113426522.png)
 
 ### 6.1.2 事务操作
+
+在 Kafka 事务中，一个原子操作，根据操作类型可以分为3种情况：
+
+- 
 
 ## 6.2 控制器
 
