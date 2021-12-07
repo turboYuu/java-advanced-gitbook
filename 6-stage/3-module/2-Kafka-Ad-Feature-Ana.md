@@ -2920,11 +2920,109 @@ KafkaProducer<String,String> kafkaProducer = new KafkaProducer<String, String>(p
 
 在 Kafka 事务中，一个原子操作，根据操作类型可以分为3种情况：
 
-- 
+- 只有Producer生产消息，这种场景需要事务的介入；
+- 消费消息和生产消息并存，比如Consumer & Producer 模式，这种场景是一般Kafka项目中比较常见的模式，需要事务介入；
+- 只有Consumer消费消息，这种操作在实际项目中意义不大，和手动Commit Offsets的结果一样，而且这种场景不是事务的引入目的。
+
+```java
+public interface Producer<K, V> extends Closeable {
+
+    /**
+     * 初始化事务，需要注意确保 transaction.id 属性被分配
+     */
+    void initTransactions();
+
+    /**
+     * 开启事务
+     */
+    void beginTransaction() throws ProducerFencedException;
+
+    /**
+     * 为Consumer提供的在事务内Commit Offsets的操作
+     */
+    void sendOffsetsToTransaction(Map<TopicPartition, OffsetAndMetadata> offsets,
+                                  String consumerGroupId) throws ProducerFencedException;
+
+    /**
+     * 提交事务
+     */
+    void commitTransaction() throws ProducerFencedException;
+
+    /**
+     * 放弃事务，类似于回滚事务的操作
+     */
+    void abortTransaction() throws ProducerFencedException;
+}
+```
+
+
+
+案例一：单个 Producer ，使用事务保证消息的仅一次发送。
+
+```java
+
+```
+
+
+
+案例二：在 消费-转换-生产 模式，使用事务保证仅一次发送。
+
+```java
+
+```
+
+
+
+
 
 ## 6.2 控制器
 
+Kafka集群包含若干个broker，broker.id指定broker的编号，编号不要重复。
+
+Kafka集群上创建的主题，包含若干个分区。
+
+每个分区包含若干个副本，副本因子包括了 Follower副本 和 Leader副本。
+
+副本又分为***ISR***（同步副本分区）和 ***OSR***（非同步副本分区）。
+
+![image-20211130122857528](assest/image-20211130122857528.png)
+
+控制器就是一个broker。
+
+控制器除了一般broker的功能，还负责 Leader分区的选举。
+
+
+
 ### 6.2.1 broker选举
+
+集群里第一个启动的broker 在 Zookeeper 中创建临时节点 `<KafkaZkChroot>/controller`。
+
+其他broker在该控制器节点创建Zookeeper watch对象，使用Zookeeper的监听机制接收该节点的变更。
+
+即：Kafka通过Zookeeper的分布式锁特性选举**集群控制器**。
+
+下图中，节点`/myKafka/controller`是一个zookeeper临时节点，其中`"brokerid":0`，表示当前控制器是broker.id=0的broker。
+
+![image-20211207134712227](assest/image-20211207134712227.png)
+
+每个新选出的控制器通过Zookeeper的条件递增操作获得一个全新的、数值更大的controller epoch。其他broker在直到当前 controller epoch后，如果收到由控制器发出的包含较旧 epoch 的消息，就忽略它们，以防止"**脑裂**"。
+
+比如当一个Leader副本分区所在的broker宕机，需要选举新的Leader副本分区，有可能两个具有不同纪元数字的控制器都选举新的Leader副本分区，如果选举出来的Leader副本分区不一样，听谁的？脑裂了。有了纪元数字，直接使用纪元数字最新的控制器结果。
+
+![image-20211207135142128](assest/image-20211207135142128.png)
+
+当控制器发现一个broker已经离开集群，那些失去Leader副本分区的Follower分区需要一个新Leader（这些分区的首领刚好是在这个Leader上）。
+
+1. 控制器需要直到哪个broker宕机了？
+2. 控制器需要知道宕机的broker上负责哪些分区的Leader副本分区？
+
+下图中，`<KafkaChroot>/brokers/ids/0`保存该broker的信息，此节点为临时节点，如果broker节点宕机，该节点丢失。
+
+集群控制器负责监听`ids`节点，一旦节点子节点发生变化，集群控制器就会得到通知。
+
+![image-20211207135851951](assest/image-20211207135851951.png)
+
+
 
 ## 6.3 可靠性保证
 
