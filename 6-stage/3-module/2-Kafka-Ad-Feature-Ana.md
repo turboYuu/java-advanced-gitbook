@@ -2927,30 +2927,20 @@ KafkaProducer<String,String> kafkaProducer = new KafkaProducer<String, String>(p
 ```java
 public interface Producer<K, V> extends Closeable {
 
-    /**
-     * 初始化事务，需要注意确保 transaction.id 属性被分配
-     */
+    //  初始化事务，需要注意确保 transaction.id 属性被分配
     void initTransactions();
 
-    /**
-     * 开启事务
-     */
+    // 开启事务
     void beginTransaction() throws ProducerFencedException;
 
-    /**
-     * 为Consumer提供的在事务内Commit Offsets的操作
-     */
+    //  为Consumer提供的在事务内Commit Offsets的操作
     void sendOffsetsToTransaction(Map<TopicPartition, OffsetAndMetadata> offsets,
                                   String consumerGroupId) throws ProducerFencedException;
 
-    /**
-     * 提交事务
-     */
+    // 提交事务
     void commitTransaction() throws ProducerFencedException;
 
-    /**
-     * 放弃事务，类似于回滚事务的操作
-     */
+    // 放弃事务，类似于回滚事务的操作
     void abortTransaction() throws ProducerFencedException;
 }
 ```
@@ -2960,6 +2950,57 @@ public interface Producer<K, V> extends Closeable {
 案例一：单个 Producer ，使用事务保证消息的仅一次发送。
 
 ```java
+package com.turbo.kafka.demo.producer;
+
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.serialization.StringSerializer;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public class MyTransactionalProducer {
+
+    public static void main(String[] args) {
+        Map<String,Object> configs = new HashMap<>();
+
+        configs.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,"node1:9092");
+        configs.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        configs.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,StringSerializer.class);
+
+        // 提供生产者client.id
+        configs.put(ProducerConfig.CLIENT_ID_CONFIG,"tx_producer");
+        // 设置事务ID
+        configs.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG,"my_tx_id_1");
+        // 需要ISR 全体确认消息
+        configs.put(ProducerConfig.ACKS_CONFIG,"all");
+
+        KafkaProducer<String,String> producer = new KafkaProducer<String, String>(configs);
+
+        // 初始化事务
+        producer.initTransactions();
+
+        try {
+            // 开启事务
+            producer.beginTransaction();
+
+            // 发送事务消息
+            producer.send(new ProducerRecord<>("tp_tx_01","txkey1","tx_msg_4"));
+            producer.send(new ProducerRecord<>("tp_tx_01","txkey2","tx_msg_5"));
+            producer.send(new ProducerRecord<>("tp_tx_01","txkey3 ","tx_msg_6"));
+            // 提交事务
+            producer.commitTransaction();
+        } catch (Exception e){
+            e.printStackTrace();
+            // 事务回滚
+            producer.abortTransaction();
+        }finally {
+            // 关闭生产者
+            producer.close();
+        }
+    }
+}
 
 ```
 
