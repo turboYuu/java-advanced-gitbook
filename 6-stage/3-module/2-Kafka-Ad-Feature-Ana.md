@@ -3022,7 +3022,7 @@ Kafka集群上创建的主题，包含若干个分区。
 
 ![image-20211207140257033](assest/image-20211207140257033.png)
 
-控制器遍历这些Follower副本分区，并确定谁应该成为新Leader分区，然后向所有包含新Leader分区和现有Follower 的 broker 发送请求。该请求消息包含了
+控制器遍历这些Follower副本分区，并确定谁应该成为新Leader分区，然后向所有包含新Leader分区和现有Follower 的 broker 发送请求。该请求消息包含了谁是新Leader副本分区以及谁是Follower副本分区的信息。
 
 ## 6.3 可靠性保证
 
