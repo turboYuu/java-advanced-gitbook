@@ -3167,7 +3167,19 @@ Kafka集群上创建的主题，包含若干个分区。
 
 ![image-20211207140257033](assest/image-20211207140257033.png)
 
-控制器遍历这些Follower副本分区，并确定谁应该成为新Leader分区，然后向所有包含新Leader分区和现有Follower 的 broker 发送请求。该请求消息包含了谁是新Leader副本分区以及谁是Follower副本分区的信息。
+控制器遍历这些Follower副本分区，并确定谁应该成为新Leader分区，然后向所有包含新Leader分区和现有Follower 的 broker 发送请求。该请求消息包含了谁是新Leader副本分区以及谁是Follower副本分区的信息。随后，新Leader分区开始处理来自生产者和消费者的请求，而跟随者开始从新Leader副本分区消费消息。
+
+当控制器发现一个broker加入集群时，他会使用 broker ID 来检查新加入的broker 是否包含现有分区的副本。如果有，控制器就把变更通知发送给新加入的broker 和 其他 broker，新broker上的副本分区开始从Leader分区那里消费消息，与Leader分区保持同步。
+
+
+
+![image-20211209141856184](assest/image-20211209141856184.png)
+
+结论：
+
+1. Kafka 使用 Zookeeper的分布式锁选举控制器，并在节点加入集群或退出集群时通知控制器。
+2. 控制器负责在节点加入或离开集群时进行分区Leader选举。
+3. 控制器使用 epoch 来避免“脑裂”，“脑裂”是指两个节点同时认为自己是当前的控制器。
 
 ## 6.3 可靠性保证
 
