@@ -3337,7 +3337,19 @@ Kafka中，一个主题可以有多个分区，增强主题的可扩展性，为
 
 > 一、概念
 
+1. 水位标记
 
+   水位或水印（watermark）一词，表示位置信息，即位移（offset）。Kafka源码中使用的名字是高水位，HW（high watermark）。
+
+2. 副本角色
+
+   Kafka分区使用多个副本（replica）提供高可用。
+
+3. LEO和HW
+
+   每个分区副本都有两个重要的属性：LEO和HW。
+
+   - LEO：即日志末端位移（log end offset），记录了该副本日志中下一条消息的位移值。如果 LEO=10，那么表示该副本保存了10条消息，
 
 > 二、Follower副本何时更新 LEO
 
