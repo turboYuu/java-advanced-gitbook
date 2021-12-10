@@ -3183,7 +3183,7 @@ Kafka集群上创建的主题，包含若干个分区。
 
 ## 6.3 可靠性保证
 
-**概念**
+> **概念**
 
 1. 创建Topic的时候可以指定`--replication-factor 3`，表示分区的副本数，不要超过broker的数量。
 2. Leader是负责读写的节点，而其他副本则是Follower。Producer只把消息发送到Leader，Follower定期地到Leader上Pull数据。
@@ -3192,7 +3192,7 @@ Kafka集群上创建的主题，包含若干个分区。
 
 
 
-**副本的分配**：
+> **副本的分配**：
 
 当某个topic的 `--replication-factor`为N（N>1）时，每个Partition都有N个副本，称作replica。原则上是将replica均匀的分配到整个集群上。不仅如此，partition的分配也同样需要均匀分配，为了更好的负载均衡。
 
@@ -3213,9 +3213,23 @@ Kafka集群上创建的主题，包含若干个分区。
 
 
 
-Leader的选举
+> **Leader的选举**
+
+如果Leader宕机了该怎么办？很容易想到在Follower中重新选举一个Leader，但是选举哪个作为Leader呢？Follower可能已经落后许多了，因此我们要选择的是“最新”的Follower：新的Leader必须拥有与原来Leader commit过的所有信息。
+
+Kafka动态维护一组同步Leader数据副本（ISR），只有这个组的成员才有资格当选Leader，Kafka副本写入不被认为是已提交，直到所有的同步副本已经接收才认为。这组ISR保存在zookeeper，正因如此，在ISR中任何副本都有资格当选Leader。
 
 
+
+> **基于Zookeeper的选举方式**
+
+大数据很多组件都有Leader选举的概念。它们大都基于ZK进行选举，所有Follow都在ZK上面注册一个Watch，一旦Leader宕机，Leader对于的Znode会自动删除，那些Follow由于在Leader节点上注册了Watcher，故可以得到通知，就去参与下一轮选举，尝试去创建该节点，zk会保证只有一个Follow创建成功，成为新的Leader。
+
+**但是这种方式有几个缺点**：
+
+- split-brain：
+- herd effect：
+- Zookeeper负载过重：
 
 ### 6.3.1 失效副本
 
