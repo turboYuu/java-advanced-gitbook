@@ -3175,13 +3175,47 @@ Kafka集群上创建的主题，包含若干个分区。
 
 ![image-20211209141856184](assest/image-20211209141856184.png)
 
-结论：
+**结论**：
 
 1. Kafka 使用 Zookeeper的分布式锁选举控制器，并在节点加入集群或退出集群时通知控制器。
 2. 控制器负责在节点加入或离开集群时进行分区Leader选举。
 3. 控制器使用 epoch 来避免“脑裂”，“脑裂”是指两个节点同时认为自己是当前的控制器。
 
 ## 6.3 可靠性保证
+
+**概念**
+
+1. 创建Topic的时候可以指定`--replication-factor 3`，表示分区的副本数，不要超过broker的数量。
+2. Leader是负责读写的节点，而其他副本则是Follower。Producer只把消息发送到Leader，Follower定期地到Leader上Pull数据。
+3. ISR 是 Leader 负责维护地与其保持同步地Replica列表，即当前活跃地副本列表。如果一个Follower落后太多，Leader会将它从 ISR 中移除。落后太多意思是该Follower复制地消息落后于Leader地条数超过预定值（参数：`replica.lag.max.message` 默认值：4000）或者Follower长时间没有向 Leader 发送 fetch 请求（参数：`replica.lag.time.max.ms` 默认值：10000）。
+4. 为了保证可靠性，可以设置`acks=all`。Follower收到消息后，会向Leader发送ACK。一旦Leader收到了 ISR 中所有的 Replica的ACK，Leader就commit，那么Leader就向 Producer 发送 ACK。
+
+
+
+**副本的分配**：
+
+当某个topic的 `--replication-factor`为N（N>1）时，每个Partition都有N个副本，称作replica。原则上是将replica均匀的分配到整个集群上。不仅如此，partition的分配也同样需要均匀分配，为了更好的负载均衡。
+
+副本分配的三个目标：
+
+1. 均衡的将副本分散于各个broker上
+2. 对于某个broker上分配的分区，它的其他副本在其他broker上
+3. 如果所有的broker都有机架信息，尽量将分区的各个副本分配到不同机架上的broker.
+
+在不考虑机架信息的情况下：
+
+1. 第一个副本分区通过轮询的方式挑选一个broker，进行分配。该轮询从broker列表的随机位置进行轮询。
+2. 其余副本通过增加偏移进行分配。
+
+
+
+![img](assest/2018060202441127.png)
+
+
+
+Leader的选举
+
+
 
 ### 6.3.1 失效副本
 
