@@ -3227,15 +3227,135 @@ Kafka动态维护一组同步Leader数据副本（ISR），只有这个组的成
 
 **但是这种方式有几个缺点**：
 
-- split-brain：
-- herd effect：
-- Zookeeper负载过重：
+- split-brain：这是由Zookeeper的特性引起的，虽然Zookeeper能保证所有Watch按顺序触发，但不能保证同一时刻所有Replica“看”到的状态是一样的，这就是可能造成不同Replica响应不一致
+- herd effect：如果宕机的哪个Broker上的Partition比较多，会造成多个Watch被触发，造成集群内大量的调整
+- Zookeeper负载过重：每个Replica都要为此在Zookeeper上注册一个Watch，当集群规模增加到几千个Partition时Zookeeper负载过重。
+
+
+
+> **基于Controller的选举方式**
+
+Kafka 0.8 后的Leader Election方案解决了上述问题，它在所有broker中选出一个controller，所有Partition的Leader选举都由controller决定。controller 会将Leader的改变直接通过RPC的方式（比如 Zookeeper Queue的方式更高效）通知需要为此做出响应的Broker。同时controller也负责增删Topic以及Replica的重新分配。
+
+**优点**：极大缓解了Herd Effect问题、减轻了ZK的负载，Controller与Leader/Follower之间通过RPC通信，高效且实时。
+
+**缺点**：引入Controller增加了复杂度，且需要考虑Controller的Failover
+
+
+
+如何处理Replica的恢复
+
+![img](assest/2018060203035054.png)
+
+1. 只有当ISR 列表中所有分区副本都确认接收数据后，该消息才会被commit。因此只有m1被commit了。即使Leader上有m1、m2、m3，consumer此时只能读到m1。
+2. 此时A宕机了，B变成了新的Leader，A从 ISR 列表中移除。B有 m2，B会发给C，C收到m2后，m2被commit。
+3. B继续commit消息 m4和 m5
+4. A恢复后，注意A并不能马上在 ISR 列表中出现，因为它落后了很多，只有当它接收了一些数据， 比如m2、m4、m5，它不落后太多的时候，才会回到 ISR 列表中。
+
+
+
+**思考：m3怎么办？**
+
+两种情况：
+
+1. A重试，重试成功了，m3就恢复了，但是乱序了。
+2. A重试不成功，此时数据就可能丢失了
+
+如果 Replica都死了怎么办？
+
+只要至少有一个replica，就能保证数据不丢失，可是如果某个Partition的所有Replica都死了怎么办？有两种方案：
+
+1. 等待在 ISR 中的副本恢复，并选择该副本作为Leader。
+2. 选择第一个活过来的副本（不一定在 ISR 中），作为Leader。
+
+
+
+**可用性和一致性的矛盾**：如果一定要等待副本恢复，等待的时间可能比较长，甚至可能永远不可用。如果是第二种，不能保证所有已经commit的消息不丢失，但有可用性。
+
+Kafka默认选用第二种方式，支持选择不能保证一致的副本。
+
+可以通过参数`unclean.leader.election.enable`禁用它。
+
+
+
+**Broker宕机怎么办**？
+
+Controller在Zookeeper的`/brokers/ids`节点上注册Watch。一旦有Broker宕机，其在Zookeeper对应的Znode会自动被删除，Zookeeper会fire Controller注册的Watch，Controller即可获取最新的幸存的Broker列表。
+
+Controller决定set_p，该集合包含了宕机的所有Broker上的所有Partition。
+
+对set_p中的每一个Partition：
+
+1. 从`/brokers/topics/[topic]/partitions/[partition]/state` 读取该Partition当前的 ISR 。
+
+2. 决定该Partition的新Leader，如果当前 ISR 中至少一个Replica还幸存，则选择其中一个作为新Leader，新的 ISR 则包含当前 ISR 中所有幸存的 Replica。否则选择 该Partition中任意一个幸存者的Replica作为新的Leader 以及 ISR（该场景下可能会有潜在的数据丢失）。如果该Partition的所有 Replica都宕机了，则将新的Leader设置为 -1。
+
+3. 将新的Leader，ISR和新的 Leader_epoch 及 controller_epoch写入 `/brokers/topics/[topic]/partitions/[partition]/state`。
+
+   ```shell
+   [zk: localhost:2181(CONNECTED) 1] get /myKafka/brokers/topics/tp_tx_01/partitions/0/state
+   {"controller_epoch":88,"leader":0,"version":1,"leader_epoch":2,"isr":[0]}
+   ```
+
+直接通过RPC向set_p相关的Broker发送 LeaderAndISRRequest命令。Controller可以在一个RPC操作中发送多个命令从而提高效率。
+
+
+
+**Controller宕机怎么办**？
+
+每个Broker都会在 /controller 上注册一个 Watch。
+
+```shell
+[zk: localhost:2181(CONNECTED) 2] get /myKafka/controller
+{"version":1,"brokerid":0,"timestamp":"1639117135456"}
+```
+
+当前Controller宕机时，对应的/controller会自动消失。所有“活”着的Broker竞选成为新的Controller，会创建新的Controller Path
+
+```shell
+[zk: localhost:2181(CONNECTED) 2] get /myKafka/controller
+{"version":1,"brokerid":2,......}
+```
+
+注意：只会有一个竞选成功（这点由Zookeeper保证）。金萱成功者即成为新的Leader，竞选失败者则重新在新的Controller Path上注册Watch。因为Zookeeper的Watch是一次性的，被fire一次之后即失效，所以需要重新注册。
 
 ### 6.3.1 失效副本
+
+Kafka中，一个主题可以有多个分区，增强主题的可扩展性，为了保证可用，可以为每个分区设置副本数。
+
+只有Leader副本可以对外提供读写服务，Follower副本只负责poll Leader副本的数据，与Leader副本保持数据的同步。
+
+系统维护一个 ISR 副本集合，即所有与Leader副本保持同步的副本列表。
+
+当Leader宕机找不到的时候，就从 ISR 列表中挑选一个分区做 Leader。如果 ISR 列表中的副本都找不到了，就剩下 OSR 的副本了。
+
+此时，有两个选择：要么选择 OSR 的副本做Leader，优点是可以立即恢复该分区的服务。缺点是可能会丢失数据。<br>要么选择等待，等待 ISR 列表中的分区副本可用，就选择该可用 ISR 分区副本做 Leader。优点是不会丢失数据；缺点是会影响当前分区的可用性。
 
 ### 6.3.2 副本复制
 
 ## 6.4 一致性保证
+
+> 一、概念
+
+
+
+> 二、Follower副本何时更新 LEO
+
+
+
+> 三、Follower副本何时更新 HW
+
+
+
+> 四、Leader副本何时更新 LEO
+
+
+
+> 五、Leader副本何时更新 HW值
+
+
+
+
 
 ## 6.5 消息重复的场景及解决
 
