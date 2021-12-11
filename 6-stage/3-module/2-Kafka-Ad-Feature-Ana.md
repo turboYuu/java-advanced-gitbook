@@ -3389,9 +3389,29 @@ Follower更细 HW 发生在其更新 LEO 之后，一旦 Follower向Log写完数
 
 > 四、Leader副本何时更新 LEO
 
-
+和 Follower更新 LEO 相同，Leader写 Log 是自动更新自己的LEO值。
 
 > 五、Leader副本何时更新 HW值
+
+Leader 的 HW 值就是 分区 HW 值，直接影响分区数据对消费者的可见性。
+
+
+
+Leader会尝试去更新分区 HW 的四种情况：
+
+1. Follower副本成为 Leader 副本时：Kafka会尝试去更新分区 HW。
+2. Broker崩溃导致副本被踢出 ISR 时：检查下分区 HW 值是否需要更新是有必要的。
+3. 生产者向Leader副本写消息时：因为写入消息会更新 Leader的LEO，有必要检查 HW 值是否需要更新
+4. Leader处理 Follower FETCH 请求时：首先从Log读取数据，之后尝试更新分区 HW 值
+
+
+
+**结论**：
+
+当Kafka broker 都正常工作时，分区 HW 值得更新时机有两个：
+
+1. Leader处理Producer请求时
+2. Leader处理FETCH请求时。
 
 
 
