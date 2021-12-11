@@ -3360,7 +3360,7 @@ Kafka中，一个主题可以有多个分区，增强主题的可扩展性，为
 
 > 二、Follower副本何时更新 LEO
 
-Follower副本不停地向Leader副本所在地broker发送 FETCH 请求，一旦获取消息后写入自己地日志中进行备份。那么Follower副本的LEO是何时更新的呢？首先必须说明，Kafka有两套Follower副本 LEO：
+Follower副本不停地向Leader副本所在地broker发送 FETCH 请求，一旦获取消息后写入自己的日志中进行备份。那么Follower副本的LEO是何时更新的呢？首先必须说明，Kafka有两套Follower副本 LEO：
 
 1. 一套 LEO 保存在Follower副本所在的Broker的副本管理机中；
 2. 另一套LEO保存在Leader副本所在 Broker的副本管理机中。Leader副本机器上保存了所有的Follower副本的LEO。
@@ -3369,11 +3369,23 @@ Follower副本不停地向Leader副本所在地broker发送 FETCH 请求，一�
 
 Kafka使用前者帮助Follower副本更新其 HW 值；利用后者帮助 Leader 副本更新其HW。
 
-1. 
+1. Followe副本的本地 LEO 何时更新？
+
+   Follower副本的LEO值就是日志的LEO值，每当新写入一条消息，LEO值就会被更新。当Follower发送 FETCH 请求后，Leader将数据返回给 Follower，此时Follower开始Log写数据，从而自动更新LEO值。
+
+2. Leader端Follower的LEO何时更新？
+
+   Leader端的Follower的LEO更新发生在Leader在处理Follower FETCH请求时。一旦Leader接收到Follower发送的FETCH请求，它先从Log中读取相应的数据，给Follower返回数据前，先更新Follower的LEO。
 
 > 三、Follower副本何时更新 HW
 
+Follower更细 HW 发生在其更新 LEO 之后，一旦 Follower向Log写完数据，尝试更新自己的HW值。
 
+比较当前 LEO 值与 FETCH 响应中Leader的HW 值，取两者的小者作为新的 HW 值。
+
+即：如果Follower 的LEO 大于 Leader 的 HW，Follower HW值不会大于 Leader 的 HW 值。
+
+![image-20211211113329910](assest/image-20211211113329910.png)
 
 > 四、Leader副本何时更新 LEO
 
