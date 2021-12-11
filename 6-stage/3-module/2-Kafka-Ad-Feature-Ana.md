@@ -3598,19 +3598,115 @@ B重启之后需要给A发FETCH请求，但若A所在broker机器在此时宕机
 
 > 0.Kafka解决方案
 
+造成上述两个问题的根本原因在于
 
+1. HW值被用于衡量副本备份的成功与否。
+2. 在出现失败重启时作为日志阶段的依据。
+
+但HW值的更新是异步延迟的，特别是需要额外的FETCH请求处理流程才能更新，故这中间发生的任何崩溃都可能导致HW值得过期。
+
+
+
+Kafka从0.11引入了`leader epoch`来取代HW值。Leader端使用内存保存Leader得epoch信息，即使出现上面得两个场景也能避免这些问题。
+
+所谓Leader epoch实际上就是一对值：<epoch,offset>:
+
+1. epoch表示Leader得版本号，从0开始，Leader变更过1次，epoch+1
+
+2. offset对应于该epoch版本得Leader写入第一条消息的offset。因此假设有两对值：
+
+   ```
+   <0, 0>
+   <1, 120>
+   ```
+
+   则表示第一个Leader从位移0开始写入消息；共写了120条[0, 119]；而第二个Leader版本是1，从位移120除开始写入消息。
+
+   - Leader broker中会保存这样一个缓存，并定期的写入到一个`checkpoint`文件中。
+   - 当Leader写Log是它会尝试更新整个缓存：如果这个Leader首次写消息，则会在缓存中增加一个条目；否则就不做更新。
+   - 每次副本变为Leader时会查询这部分缓存，获取出对应Leader版本的位移，则不会发生数据不一致和丢失的情况。
 
 > 1.规避数据丢失
 
 
 
+只需要知道每个副本都i引入了新的状态来保存自己当leader时开始昔日图的第一条消息的offset以及leader版本。这样在恢复的时候完全使用这些信息而非HW来判断是否需要截断日志。
+
 > 2.规避数据不一致
+
+
+
+依靠Leader epoch的信息可以有效的规避数据不一致的问题。
 
 ## 6.5 消息重复的场景及解决
 
+消费重复主要发生在以下三个阶段：
+
+1. 生产者阶段
+2. broker阶段
+3. 消费者阶段
+
 ### 6.5.1 根本原因
 
+生产发送的消息没有收到正确的broker响应，导致producer重试。
+
+producer发出一条消息，broker落盘以后因为网络等种种原因发送端得到一个发送失败的响应或者网络中断，然后producer收到一个可恢复的Exception重试消息导致消息重复。
+
 ## 6.6 __consumer_offsets
+
+Zookeeper不适合大批量的频繁写入操作。
+
+Kafka 1.0.2将consumer的位移信息保存在Kakfa内部的topic中，即__consumer_offsets主题，并且默认提供了`kafka-consumer-groups.sh`脚本供用户查看consumer信息。
+
+1. 创建topic  "tp_test_01"
+
+   ```shell
+   
+   ```
+
+2. 使用kafka-console-producer.sh脚本生产消息
+
+   ```
+   
+   ```
+
+   由于默认没有指定key，所以根据round-robin方式，消息分布到不同的分区上。（本例中生产了100条消息）
+
+3. 验证消息生产成功
+
+   ```shell
+   
+   ```
+
+   结果输出表明100条消息全部生产成功！
+
+4. 创建一个consumer group ，kafka-console-consumer.sh
+
+   ```shell
+   
+   ```
+
+5. 获取该consumer group 的group id（后面需要根据该id查询它的位移信息）
+
+   ```shell
+   
+   ```
+
+6. 查询__consumer_offsets topic所有内容
+
+   **注意：运行下面命令前先要consumer.properties中设置exclude.internal.topics=false**
+
+   ```
+   
+   ```
+
+   默认情况下 __consumer_offsets有50个分区，如果你的系统中consumer group也很多的话，那么这个命令的输出结果会很多。
+
+7. 计算指定consumer group 在 __consumer_offsets topic中分区信息
+
+8. 获取指定consumer group的位移信息
+
+   
 
 # 7 延时队列
 
