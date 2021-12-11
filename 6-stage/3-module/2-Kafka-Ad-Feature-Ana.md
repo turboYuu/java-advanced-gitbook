@@ -3352,9 +3352,24 @@ Kafka中，一个主题可以有多个分区，增强主题的可扩展性，为
    - LEO：即日志末端位移（log end offset），记录了该副本日志中下一条消息的位移值。如果 LEO=10，那么表示该副本保存了10条消息，位移值范围是[0,9]。另外，Leader LEO和Follower LEO 的更新是有区别的。
    - HW：即上面提到了水为之。对于同一个副本对象而言，其HW值不会大于LEO值。小于等于HW值得所有消息都被认为是已备份的（replicated）。Leader副本和Follower副本的HW更新不同。
 
+![image-20211211110415747](assest/image-20211211110415747.png)
+
+上图中，HW值是7，表示位移是`0~7`的所有消息都已处于“已提交状态”（committed），而LEO值是14，8~13的消息就是未完全备份（fully replicated）——为什么没有14？LEO指向的是下一条消息到来时的位移。
+
+消费者无法消费分区下Leader副本中位移大于 HW的消息。
+
 > 二、Follower副本何时更新 LEO
 
+Follower副本不停地向Leader副本所在地broker发送 FETCH 请求，一旦获取消息后写入自己地日志中进行备份。那么Follower副本的LEO是何时更新的呢？首先必须说明，Kafka有两套Follower副本 LEO：
 
+1. 一套 LEO 保存在Follower副本所在的Broker的副本管理机中；
+2. 另一套LEO保存在Leader副本所在 Broker的副本管理机中。Leader副本机器上保存了所有的Follower副本的LEO。
+
+
+
+Kafka使用前者帮助Follower副本更新其 HW 值；利用后者帮助 Leader 副本更新其HW。
+
+1. 
 
 > 三、Follower副本何时更新 HW
 
