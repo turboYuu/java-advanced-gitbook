@@ -3335,7 +3335,7 @@ Kafka中，一个主题可以有多个分区，增强主题的可扩展性，为
 
 ## 6.4 一致性保证
 
-> 一、概念
+### 6.4.1 概念
 
 1. 水位标记
 
@@ -3358,7 +3358,7 @@ Kafka中，一个主题可以有多个分区，增强主题的可扩展性，为
 
 消费者无法消费分区下Leader副本中位移大于 HW的消息。
 
-> 二、Follower副本何时更新 LEO
+### 6.4.2 Follower副本何时更新 LEO
 
 Follower副本不停地向Leader副本所在地broker发送 FETCH 请求，一旦获取消息后写入自己的日志中进行备份。那么Follower副本的LEO是何时更新的呢？首先必须说明，Kafka有两套Follower副本 LEO：
 
@@ -3377,7 +3377,7 @@ Kafka使用前者帮助Follower副本更新其 HW 值；利用后者帮助 Leade
 
    Leader端的Follower的LEO更新发生在Leader在处理Follower FETCH请求时。一旦Leader接收到Follower发送的FETCH请求，它先从Log中读取相应的数据，给Follower返回数据前，先更新Follower的LEO。
 
-> 三、Follower副本何时更新 HW
+### 6.4.3 Follower副本何时更新 HW
 
 Follower更细 HW 发生在其更新 LEO 之后，一旦 Follower向Log写完数据，尝试更新自己的HW值。
 
@@ -3387,11 +3387,11 @@ Follower更细 HW 发生在其更新 LEO 之后，一旦 Follower向Log写完数
 
 ![image-20211211113329910](assest/image-20211211113329910.png)
 
-> 四、Leader副本何时更新 LEO
+### 6.4.4 Leader副本何时更新 LEO
 
 和 Follower更新 LEO 相同，Leader写 Log 是自动更新自己的LEO值。
 
-> 五、Leader副本何时更新 HW值
+### 6.4.5 Leader副本何时更新 HW值
 
 Leader 的 HW 值就是 分区 HW 值，直接影响分区数据对消费者的可见性。
 
@@ -3413,9 +3413,198 @@ Leader会尝试去更新分区 HW 的四种情况：
 1. Leader处理Producer请求时
 2. Leader处理FETCH请求时。
 
+Leader 如何更新自己的HW值？Leader broker上保存了一套 Follower副本的LEO以及自己的LEO。当尝试确定分区 HW 时，它会选出所有**满足条件的副本**，比较它们的LEO（包括Leader的LEO），并**选择最小的LEO值作为HW值**。
+
+需要满足的条件，（二选一）：
+
+1. 处于ISR中
+2. 副本LEO落后于Leader LEO的时长不大于 `replica.lag.time.max.ms`参数值（默认是10s）
+
+如果Kafka只判断第一个条件的话，确定分区HW值时就不会考虑这些未在 ISR 中的副本，但这些副本已经具备了“立刻进入ISR”的资格，因此就可能出现分区HW值越过 ISR 副本LEO的情况 ——不允许。因为分区 HW 定义就是 ISR 中所有副本 LEO的最小值。
+
+### 6.4.6 HW 和 LEO 正常更新案例
+
+假设有一个topic，单分区，副本因子是2，即一个Leader副本和一个Follower副本，我们看下当producer发送一条消息时，broker端的副本到底会发生什么事情以及愤怒 HW 是如何被更新的。
+
+> 1.初始状态
+
+初始时Leader和Follower的HW和LEO都是 0（严格来说源代码会初始化 LEO 为 -1，不过这不影响之后的讨论）。Leader中的Remote LEO指的就是 Leader端保存的Follower LEO，也被初始化为0。此时生产者没有发送任何消息给Leader，而Follower已经开始不断地给Leader发送 FETCH请求了，但因为没有数据因此什么都不会发生。值得一提的是，Follower发送过来的FETCH请求因为无数据暂时会被寄存到Leader端的purgatory中，待500ms（`replica.fetch.wait.max.ms` 参数）超时后会强制完成。倘若在寄存期间生产者发送来数据，则Kafka会自动唤醒该FETCH请求，让 Leader继续处理。
+
+![image-20211211123456750](assest/image-20211211123456750.png)
+
+> 2.Follower发送 FETCH请求在Leader处理完 Producer请求之后
+
+producer给该topic分区发送一条消息，此时的状态如下图所示：
+
+![image-20211211124536070](assest/image-20211211124536070.png)
+
+如上图所示，Leader接收到Producer请求主要做两件事情：
+
+1. 把消息写入Log，同时自动更新Leader自己的LEO
+2. 尝试更新 Leader HW 值。假设此时 Follower尚未发送 FETCH请求，Leader端保存的Remote LEO依然是 0，因此Leader会比较它自己的LEO值和Remote LEO值，发现最小值是0，与当前 HW 值相同，故不会更新分区 HW 值（仍为0）
+
+Produce请求处理完成后各值如下，Leader端的HW值依然是0，而LEO是1，Remote LEO也是0。
+
+| 属性         | 阶段            | 旧值 | 新值 | 备注                            |
+| ------------ | --------------- | ---- | ---- | ------------------------------- |
+| Leader LEO   | PRODUCE处理完成 | 0    | 1    | 写入了一条数据                  |
+| Remote LEO   | PRODUCE处理完成 | 0    | 0    | 还未Fetch                       |
+| Leader HW    | PRODUCE处理完成 | 0    | 0    | min(Leader LEO=1,RemoteLEO=0)=0 |
+| Follower LEO | PRODUCE处理完成 | 0    | 0    | 还未Fetch                       |
+| Follower HW  | PRODUCE处理完成 | 0    | 0    | min(LeaderHW=0,FollowerLEO=0)=0 |
+
+**假设此时follower发送了fetch请求**，则状态变更如下：
+
+![image-20211211130127683](assest/image-20211211130127683.png)
+
+本例中当follower发送Fetch请求时，Leader端的处理依次是：
+
+1. 读取Log数据
+2. 更新remote LEO = 0（为什么是0？因为此时Follower还没有写入这条消息。Leader如何确认Follower还未写入呢？这是通过Follower发来的Fetch请求中的 Fetch offset来确定的）
+3. 尝试更新分区 HW：此时Leader LEO = 1，Remote LEO = 0，故分区HW = min(Leader LEO，Follower Remote LEO)=0
+4. 把数据和当前分区HW值（依然是0）发送给Follower副本
 
 
 
+而Follower副本接收到Fetch Response后依次执行下列操作：
+
+1. 写入本地Log，同时更新Follower自己管理的LEO 为 1
+2. 更新Follower HW：比较本地LEO 和 Fetch Response 中当前 Leader HW 值，取较小者，Follower HW = 0
+
+
+
+此时，第一轮Fecth RPC 结束，会发现虽然Leader 和 Follower都已经在Log中保存了这条消息，但分区 HW 值尚未被更新，仍未0。
+
+| 属性         | 阶段                            | 旧值 | 新值 | 备注                            |
+| ------------ | ------------------------------- | ---- | ---- | ------------------------------- |
+| Leader LEO   | Produce和Follower Fetch处理完成 | 0    | 1    | 写入了一条数据                  |
+| Remote LEO   | Produce和Follower Fecth处理完成 | 0    | 0    | 第一次fetch中offset为0          |
+| Leader HW    | Produce和Follower Fecth处理完成 | 0    | 0    | min(LeaderLEO=1,RemoteLEO=0)=0  |
+| Follower LEO | Produce和Follower Fecth处理完成 | 0    | 1    | 同步了一条数据                  |
+| Follower HW  | Produce和Follower Fecth处理完成 | 0    | 0    | min(LeaderHW=0,FollowerLEO=1)=0 |
+
+
+
+**Follower 第二轮 FETCH**
+
+分区HW是在第二轮FETCH RPC中被更新的，如下图所示：
+
+![image-20211211132355975](assest/image-20211211132355975.png)
+
+Follower发来了第二轮Fetch请求，Leader端接收到后仍然会依次执行下列操作：
+
+1. 读取Log数据
+2. 更新Remote LEO = 1（这次为什么是1了？因为这轮FETCH RPC携带的fetch offset是1，那么为什么这轮携带的就是1了呢，因为上一轮结束后 Follower LEO被更新为1了）。
+3. 尝试更新分区HW：此时Leader LEO = 1，Remote LEO = 1，故分区HW值 = min(Leader LEO,Follower Remote LEO) =1。
+4. 把数据（实际上没有数据）和当前分区 HW（已更新为1）发送给Follower副本作为Response
+
+
+
+同样地，Follower副本接收到FETCH response后依次执行下列操作：
+
+1. 写入本地Log，当然没东西可写，Follower LEO也不会变化，依然是1。
+2. 更新Follower HW：比较本地LEO和当前Leader HW取小者，由于都是1，故更新Follower HW = 1。
+
+
+
+
+
+| 属性         | 阶段                         | 旧值 | 新值 | 备注                                            |
+| ------------ | ---------------------------- | ---- | ---- | ----------------------------------------------- |
+| Leader LEO   | 第二次Follower FETCH处理完成 | 1    | 1    | 未写入新数据                                    |
+| Remote LEO   | 第二次Follower FETCH处理完成 | 0    | 1    | 第2次fetch中offset为1                           |
+| Leader HW    | 第二次Follower FETCH处理完成 | 0    | 1    | min(RemoteLeo,LeaderLEO)=1                      |
+| Follower LEO | 第二次Follower FETCH处理完成 | 1    | 1    | 未写入新数据                                    |
+| Follower HW  | 第二次Follower FETCH处理完成 | 0    | 1    | 第2次fetch resp中LeaderHW和本地FollowerLEO都是1 |
+
+此时消息已经成功地被复制到Leader和Follower的Log中且分区HW是1，表明消费者能够消息offset=0的消息。
+
+
+
+> 3.FETCH请求保存在purgatory中，PRODUCE请求到来
+
+当Leader无法立即满足FETCH返回要求的时候（比如没有数据），那么FETCH请求被暂存到Leader端的purgatory中（炼狱），待时机成熟尝试再次处理。Kafka不会无限期缓存，默认有个超时时间（500ms），一旦超时时间已过，则这个请求会被强制完成。当寄存期间还没超时，生产者发送PRODUCE请求从而使之满足了条件以致被唤醒。此时，Leader端处理流程如下：
+
+1. Leader写Log（自动更新Leader LEO）
+2. 尝试唤醒在purgatory中寄存的Fetch请求
+3. 尝试更新分区HW
+
+
+
+### 6.4.7 HW和LEO异常案例
+
+Kafka使用HW值来决定副本备份的进度，而HW值的更新通常需要额外一轮FETCH RPC才能完成。但这种设计是有问题的，可能引起的问题包括：
+
+1. 备份数据丢失
+2. 备份数据不一致
+
+
+
+> 1.备份数据丢失
+
+使用HW值来确定备份进度时其值的更新是在下一轮RPC中完成的。如果Follower副本在标记上方的第一步与第二步之间发生崩溃，那么就有可能造成数据的丢失。
+
+
+
+
+
+上图中有两个副本：A和B。开始状态是 A为 Leader。
+
+假设生产者`min.insync.replicas`为1，那么当生产者发送两条消息给A后，A写入Log，此时Kafka会通知生产者这两条消息写入成功。
+
+
+
+| 代   | 属性         | 阶段                            | 旧值 | 新值 | 备注                                                         |
+| ---- | ------------ | ------------------------------- | ---- | ---- | ------------------------------------------------------------ |
+| 1    | Leader LEO   | Produce和follower FETCH处理完成 | 0    | 1    | 写入了一条数据                                               |
+| 1    | Remote LEO   | Produce和follower FETCH处理完成 | 0    | 0    | 第1次fetch中offset为0                                        |
+| 1    | Leader HW    | Produce和follower FETCH处理完成 | 0    | 0    | min(LeaderLEO=1,RemoteLEO=0)=0                               |
+| 1    | Follower LEO | Produce和follower FETCH处理完成 | 0    | 1    | 同步了一条数据                                               |
+| 1    | Follower HW  | Produce和follower FETCH处理完成 | 0    | 0    | min(LeaderHW=0,FollowerLEo=1)=0                              |
+| 2    | Leader LEO   | 第二次Follower FETCH处理完成    | 1    | 2    | 写入了第二条数据                                             |
+| 2    | Remote LEO   | 第二次Follower FETCH处理完成    | 0    | 1    | 第2次fetch中offset为1                                        |
+| 2    | Leader HW    | 第二次Follower FETCH处理完成    | 0    | 1    | min(RemoteLEO=1,LeaderLEO=2)=1                               |
+| 2    | Follower LEO | 第二次Follower FETCH处理完成    | 1    | 2    | 写入了第二条数据                                             |
+| 2    | Follower HW  | 第二次Follower FETCH处理完成    | 0    | 1    | min(LeaderHW=1,FollowerLEO=2)=1                              |
+| 3    | Leader LEO   | 第三次Follower FETCH处理完成    | 2    | 2    | 未写入新数据                                                 |
+| 3    | Remote LEO   | 第三次Follower FETCH处理完成    | 1    | 2    | 第3次fetch中offset为2                                        |
+| 3    | Leader HW    | 第三次Follower FETCH处理完成    | 1    | 2    | min(RemoteLEO=2,LeaderLEO=2)=2                               |
+| 3    | Follower LEO | 第三次Follower FETCH处理完成    | 2    | 2    | 未写入新数据                                                 |
+| 3    | Follower HW  | 第三次Follower FETCH处理完成    | 1    | 2    | <font style="font-size:90%">第三次 fetch resp中的LeaderHW和本地FollowerLEO都是2</font> |
+
+但是在broker端，Leader和Follower的Log虽然写入了2条消息，且分区HW已经被更新到2，但Follower HW尚未被更新还是1，也就是上面标记的第二步尚未执行，表中最后一步未执行。
+
+倘若此时副本B所在的broker宕机，那么重启后B会自动把LEO调整到之前的HW值1，故副本B会做日志截断（log truncation），将offset = 1的那条消息从log中删除，并调整LEO = 1。此时follower副本底层Log中就只有一条消息，即offset=0的消息！
+
+B重启之后需要给A发FETCH请求，但若A所在broker机器在此时宕机，那么Kafka会令B成为新的Leader，而当A重启恢复后会执行日志阶段，将HW调整回1。这样，offset=1的消息就从两个副本的Log中被删除，也就是说这条已经被生产者认为发送成功的数据丢失。
+
+丢失数据的前提是`min.insync.replicas=1`时，一旦消息被写入Leader端Log即被认为是`committed`。**延迟一轮`FETCH RPC`更新 HW值的设计使follower HW值是异步延迟更新**，若在这个过程中Leader发生变更，那么成为新Leader的Follower的HW值就有可能是过期的，导致生产者本是成功提交的消息被删除。
+
+> 2.**Leader和Follower数据离散**
+
+除了可能造成的数据丢失以外，该设计还会造成Leader的Log和Follower的log数据不一致。
+
+如Leader端记录序列：m1,m2,m3,m4,m5,...；Follower端序列可能是m1,m3,m5,...。
+
+
+
+假设：A是Leader，A的Log写入了2条消息，但B的Log只写了1条消息。分区HW更新到2，但B的HW还是1，同时生产者`min.insync.replicas`仍然为1。
+
+假设A和B所在Broker同时宕机，B先重启回来，因此B成为Leader，分区HW=1。假设此时生产者发送了第3条消息（红色表示）给B，于是B的Log中offset=1的消息变成了红框表示的消息，同时分区HW更新到2（A还没有回来，就B一个副本，故可以直接更新HW而不用理会A）之后A重启回来，需要执行日志截断，但发现此时分区HW=2 而A之前的HW也是2，故不做任何调整，此后A和B将以这种状态继续正常工作。
+
+显然，这种场景下，A和B的Log中保存在offset=1的消息是不同的记录，从而引发不一致的情形出现。
+
+### 6.4.8 Leader Epoch使用
+
+> 0.Kafka解决方案
+
+
+
+> 1.规避数据丢失
+
+
+
+> 2.规避数据不一致
 
 ## 6.5 消息重复的场景及解决
 
