@@ -3675,7 +3675,7 @@ Kafka从0.11引入了`leader epoch`来取代HW值。Leader端使用内存保存L
 
 ![image-20211213152331280](assest/image-20211213152331280.png)
 
-只需要知道每个副本都i引入了新的状态来保存自己当leader时开始昔日图的第一条消息的offset以及leader版本。这样在恢复的时候完全使用这些信息而非HW来判断是否需要截断日志。
+只需要知道每个副本都引入了新的状态来保存自己当leader时开始写入的第一条消息的offset以及leader版本。这样在恢复的时候完全使用这些信息而非HW来判断是否需要截断日志。
 
 > 2.规避数据不一致
 
@@ -3687,7 +3687,7 @@ Kafka从0.11引入了`leader epoch`来取代HW值。Leader端使用内存保存L
 
 ## 6.5 消息重复的场景及解决
 
-消费重复主要发生在以下三个阶段：
+消息重复主要发生在以下三个阶段：
 
 1. 生产者阶段
 2. broker阶段
@@ -3699,6 +3699,59 @@ Kafka从0.11引入了`leader epoch`来取代HW值。Leader端使用内存保存L
 
 producer发出一条消息，broker落盘以后因为网络等种种原因发送端得到一个发送失败的响应或者网络中断，然后producer收到一个可恢复的Exception重试消息导致消息重复。
 
+`org.apache.kafka.common.errors.RetriableException`可重试异常。
+
+
+
+### 6.5.2 生产者发送重复解决方案
+
+1. 启动Kafka的幂等性
+
+   要启动kafka的幂等性，设置：`enable.idempotence=true`，以及`ack=all` 和 `retries > 1`。
+
+2. ack=0,不重试。
+
+   可能会丢消息，适用于吞吐量指标重要性高于数据丢失，例如：日志收集
+
+
+
+### 6.5.3 生产者和broker阶段消息丢失场景
+
+1. ack=0，不重试
+
+   生产者发送消息完，不管结果了，如果发送失败就是失败了
+
+2. ack=1,leader crash
+
+   生产者发送完消息，只等待Leader写入成功就返回，Leader分区丢失了，此时Follower没来得及同步，消息丢失。
+
+3. `unclean.leader.election.enable`配置true
+
+
+
+### 6.5.4 解决生产者和broker阶段消息丢失
+
+1. 禁用 unclean 选举，ack=all
+2. 配置：min.insync.replicas > 1
+3. 失败的offset单独记录
+
+
+
+### 6.5.5 消费者数据重复场景及解决方案
+
+1. 根本原因
+
+   数据消费完没有及时提交offset到broker
+
+2. 场景
+
+   消费端在消费过程中挂掉，没有及时提交offset到broker，另一个消费端启动后，拿之前记录的offset开始消费，由于offset的滞后性，可能导致新启动的客户端有少量重复消费。
+
+3. 解决方案
+
+   - 取消自动提交
+   - 下游做幂等
+
 ## 6.6 __consumer_offsets
 
 Zookeeper不适合大批量的频繁写入操作。
@@ -3708,13 +3761,15 @@ Kafka 1.0.2将consumer的位移信息保存在Kakfa内部的topic中，即__cons
 1. 创建topic  "tp_test_01"
 
    ```shell
-   
+   [root@node1 ~]# kafka-topics.sh --zookeeper node1/myKafka --create -topic tp_test_01 --partitions 5 --replication-factor 1
    ```
 
 2. 使用kafka-console-producer.sh脚本生产消息
 
-   ```
-   
+   ```shell
+   [root@node1 ~]# for i in `seq 100`; do echo "hello turbo $i" >> messages.txt; done
+   [root@node1 ~]# kafka-console-producer.sh --broker-list node1:9092 --topic tp_test_01 < messages.txt
+   >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
    ```
 
    由于默认没有指定key，所以根据round-robin方式，消息分布到不同的分区上。（本例中生产了100条消息）
@@ -3722,6 +3777,12 @@ Kafka 1.0.2将consumer的位移信息保存在Kakfa内部的topic中，即__cons
 3. 验证消息生产成功
 
    ```shell
+   [root@node1 ~]# kafka-run-class.sh kafka.tools.GetOffsetShell --broker-list node1:9092 --topic tp_test_01 --time -1
+   tp_test_01:2:20
+   tp_test_01:4:20
+   tp_test_01:1:20
+   tp_test_01:3:20
+   tp_test_01:0:20
    
    ```
 
@@ -3730,28 +3791,73 @@ Kafka 1.0.2将consumer的位移信息保存在Kakfa内部的topic中，即__cons
 4. 创建一个consumer group ，kafka-console-consumer.sh
 
    ```shell
-   
+   [root@node1 ~]# kafka-console-consumer.sh --bootstrap-server node1:9092 --topic tp_test_01 --from-beginning
    ```
 
 5. 获取该consumer group 的group id（后面需要根据该id查询它的位移信息）
 
    ```shell
+   [root@node1 ~]# kafka-consumer-groups.sh --bootstrap-server node1:9092 --list
+   Note: This will not show information about old Zookeeper-based consumers.
    
+   console-consumer-82570
    ```
+
+   ```shell
+   [root@node1 ~]# kafka-consumer-groups.sh --bootstrap-server node1:9092  --describe --group console-consumer-82570
+   Note: This will not show information about old Zookeeper-based consumers.
+   
+   Consumer group 'console-consumer-82570' has no active members.
+   
+   TOPIC                          PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG        CONSUMER-ID                                       HOST                           CLIENT-ID
+   tp_test_01                     3          20              20              0          -                                                 -                              -
+   tp_test_01                     4          20              20              0          -                                                 -                              -
+   tp_test_01                     0          20              20              0          -                                                 -                              -
+   tp_test_01                     1          20              20              0          -                                                 -                              -
+   tp_test_01                     2          20              20              0          -                                                 -                              -
+   ```
+
+   
 
 6. 查询__consumer_offsets topic所有内容
 
    **注意：运行下面命令前先要consumer.properties中设置exclude.internal.topics=false**
 
-   ```
-   
+   ```shell
+   [root@node1 ~]# kafka-console-consumer.sh --topic __consumer_offsets --bootstrap-server node1:9092 --formatter "kafka.coordinator.group.GroupMetadataManager\$OffsetsMessageFormatter" --consumer.config /opt/kafka_2.12-1.0.2/config/consumer.properties --from-beginning
    ```
 
-   默认情况下 __consumer_offsets有50个分区，如果你的系统中consumer group也很多的话，那么这个命令的输出结果会很多。
+   默认情况下 __consumer_offsets有**50**个分区，如果你的系统中consumer group也很多的话，那么这个命令的输出结果会很多。
 
 7. 计算指定consumer group 在 __consumer_offsets topic中分区信息
 
+   这时候就用到了第五步获取的group.id（console-consumer-82570）。Kafka会使用下面公式计算该group位移保存在__consumer_offsets的哪个分区：
+
+   ```
+   Math.abs(groupID.hashCode()) % numPartitions;
+   ```
+
+   
+
+   ![image-20211213171314647](assest/image-20211213171314647.png)
+
+   对应的分区 = 13 ，即 __consumer_offsets 的分区13 保存了这个 consumer group 的位移信息。
+
 8. 获取指定consumer group的位移信息
+
+   ```shell
+   [root@node1 ~]# kafka-simple-consumer-shell.sh --topic __consumer_offsets --partition 13 --broker-list node1:9092 --formatter "kafka.coordinator.group.GroupMetadataManager\$OffsetsMessageFormatter"
+   [2021-12-13 17:14:09,970] WARN WARNING: SimpleConsumerShell is deprecated and will be dropped in a future release following 0.11.0.0. (kafka.tools.SimpleConsumerShell$)
+   [console-consumer-10407,tp_demo_01,0]::NULL
+   [console-consumer-10407,tp_demo_01,1]::NULL
+   [console-consumer-10407,tp_demo_01,2]::NULL
+   [console-consumer-82570,tp_test_01,3]::[OffsetMetadata[20,NO_METADATA],CommitTime 1639385156249,ExpirationTime 1639471556249]
+   [console-consumer-82570,tp_test_01,4]::[OffsetMetadata[20,NO_METADATA],CommitTime 1639385156249,ExpirationTime 1639471556249]
+   [console-consumer-82570,tp_test_01,0]::[OffsetMetadata[20,NO_METADATA],CommitTime 1639385156249,ExpirationTime 1639471556249]
+   ...
+   ```
+
+   可以看到 __consumer_offsets topic的每一日志项的格式都是：[Group, Topic, Partition]::[OffsetMetadata[Offset, Metadata],CommitTime, ExpirationTime]。
 
    
 
