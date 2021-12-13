@@ -3710,6 +3710,24 @@ Kafka 1.0.2将consumer的位移信息保存在Kakfa内部的topic中，即__cons
 
 # 7 延时队列
 
+TimingWheel是Kafka时间轮的实现，内部包含了一个TimerTaskList数组，每个数组包含了一些链表组成的TimerTaskEntry事件，每个TimerTaskList表示时间轮的某一格，这一格的时间跨度为tickMs，同一个TimerTaskList中的事件都是相差在一个tickMs跨度内的，整个时间轮的时间跨度为interval = tickMs * wheelSize，该时间轮能处理的时间范围在currentTime到currentTime + interval之间的事件。
+
+当添加一个时间它的超时世家大于整个时间轮的跨度时，expiration >= currentTime + interval，则会将该事件向上级传递，上级的tickMs是下级的interval，传递直到某一个时间轮满足 expiration < currentTime + interval，然后计算对应位于哪一格，然后将事件放进去，重新设置超时时间，然后放进jdk延迟队列
+
+
+
+```
+
+```
+
+
+
+SystemTime会取出queue中的TimeTaskList，根据expiration将currentTime往前推进，然后把里面所有的事件重新放进时间轮中，因为ct推进了，所以有些事件会在第0格，表示到期了，直接返回。
+
+
+
+
+
 ## 7.1 延迟操作接口
 
 # 8 重试队列
