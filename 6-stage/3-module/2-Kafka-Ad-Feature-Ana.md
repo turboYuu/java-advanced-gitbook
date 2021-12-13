@@ -3513,11 +3513,7 @@ Produce请求处理完成后各值如下，Leader端的HW值依然是0，而LEO�
 1. 读取Log数据
 2. 更新remote LEO = 0（为什么是0？因为此时Follower还没有写入这条消息。Leader如何确认Follower还未写入呢？这是通过Follower发来的Fetch请求中的 Fetch offset来确定的）
 3. 尝试更新分区 HW：此时Leader LEO = 1，Remote LEO = 0，故分区HW = min(Leader LEO，Follower Remote LEO)=0
-4. 把数据和当前分区HW值（依然是0）发送给Follower副本
-
-
-
-而Follower副本接收到Fetch Response后依次执行下列操作：
+4. 把数据和当前分区HW值（依然是0）发送给Follower副本而Follower副本接收到Fetch Response后依次执行下列操作：
 
 1. 写入本地Log，同时更新Follower自己管理的LEO 为 1
 2. 更新Follower HW：比较本地LEO 和 Fetch Response 中当前 Leader HW 值，取较小者，Follower HW = 0
@@ -3540,7 +3536,7 @@ Produce请求处理完成后各值如下，Leader端的HW值依然是0，而LEO�
 
 分区HW是在第二轮FETCH RPC中被更新的，如下图所示：
 
-![image-20211211132355975](assest/image-20211211132355975.png)
+![image-20211213143247178](assest/image-20211213143247178.png)
 
 Follower发来了第二轮Fetch请求，Leader端接收到后仍然会依次执行下列操作：
 
