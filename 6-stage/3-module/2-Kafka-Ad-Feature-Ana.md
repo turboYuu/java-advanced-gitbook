@@ -3187,7 +3187,7 @@ Kafka集群上创建的主题，包含若干个分区。
 
 1. 创建Topic的时候可以指定`--replication-factor 3`，表示分区的副本数，不要超过broker的数量。
 2. Leader是负责读写的节点，而其他副本则是Follower。Producer只把消息发送到Leader，Follower定期地到Leader上Pull数据。
-3. ISR 是 Leader 负责维护地与其保持同步地Replica列表，即当前活跃地副本列表。如果一个Follower落后太多，Leader会将它从 ISR 中移除。落后太多意思是该Follower复制地消息落后于Leader地条数超过预定值（参数：`replica.lag.max.message` 默认值：4000）或者Follower长时间没有向 Leader 发送 fetch 请求（参数：`replica.lag.time.max.ms` 默认值：10000）。
+3. ISR 是 Leader 负责维护与其保持同步的Replica列表，即当前活跃的副本列表。如果一个Follower落后太多，Leader会将它从 ISR 中移除。落后太多意思是该Follower复制的消息落后于Leader的条数超过预定值（参数：`replica.lag.max.message` 默认值：4000）或者Follower长时间没有向 Leader 发送 fetch 请求（参数：`replica.lag.time.max.ms` 默认值：10000）。
 4. 为了保证可靠性，可以设置`acks=all`。Follower收到消息后，会向Leader发送ACK。一旦Leader收到了 ISR 中所有的 Replica的ACK，Leader就commit，那么Leader就向 Producer 发送 ACK。
 
 
@@ -3321,6 +3321,37 @@ Controller决定set_p，该集合包含了宕机的所有Broker上的所有Parti
 
 ### 6.3.1 失效副本
 
+失效副本的判定
+
+`replica.lag.time.max.ms`默认大小为10000。
+
+当ISR中的一个Follower副本滞后Leader副本的时间超过参数`replica.lag.time.max.ms`指定的值，即判定为副本失效，需要将此Follower副本踢出 ISR。
+
+具体实现原理，当Follower副本将Leader副本的LEO之前的日志全部同步时，则认为该Follower副本已经追赶上Leader副本，此时更新副本的lastCaughtUpTimeMs标识。
+
+Kafka的副本管理器（ReplicaManager）启动时会启动一个副本过期检测的定时任务，而这个定时任务会定时检查当前时间与副本的lastCaughtUpTimeMs差值是否大于参数`replica.lag.time.max.ms`指定的值。
+
+Kafka源码注释中说明了一般有两种情况会导致副本失效：
+
+1. Follower副本进程卡住，在一段时间内没有像Leader副本发起同步请求，比如频繁的Full GC。
+2. Follower副本进程同步过慢，在一段时间内都无法追赶上Leader副本，比如IO开销过大。
+
+如果通过工具增加了副本因子，那么新增加的副本在赶上Leader副本之前也都是处于失效状态的。
+
+如果一个Follower副本由于某些原因（比如宕机）而下线，之后又上线，在追赶上Leader副本之前也是出于失效状态。
+
+失效副本的分区个数是用于衡量Kafka性能指标的重要部分。Kafka本身提供了一个相关的指标，即UnderReplicatedPartitions，这个可以通过JMX访问：
+
+```properties
+kafka.server:type=ReplicaManager,name=UnderReplicatedPartitions
+```
+
+取值范围是大于等于0的整数。注意：如果Kafka集群正在做分区迁移（kafka-reassign-partitions.sh）的时候，这个值也会大于0。
+
+
+
+
+
 Kafka中，一个主题可以有多个分区，增强主题的可扩展性，为了保证可用，可以为每个分区设置副本数。
 
 只有Leader副本可以对外提供读写服务，Follower副本只负责poll Leader副本的数据，与Leader副本保持数据的同步。
@@ -3332,6 +3363,17 @@ Kafka中，一个主题可以有多个分区，增强主题的可扩展性，为
 此时，有两个选择：要么选择 OSR 的副本做Leader，优点是可以立即恢复该分区的服务。缺点是可能会丢失数据。<br>要么选择等待，等待 ISR 列表中的分区副本可用，就选择该可用 ISR 分区副本做 Leader。优点是不会丢失数据；缺点是会影响当前分区的可用性。
 
 ### 6.3.2 副本复制
+
+日志复制算法（log replication algorithm）必须提供的基本保证是，如果它告诉客户端消息已被提交，而当前Leader出现故障，新选出的Leader也必须具有该消息。在出现故障时，Kafka会从挂掉Leader的ISR里面选择一个Follower作为这个分区新的Leader。
+
+每个分区的Leader会维护一个 in-sync replica（同步副本列表，又称 ISR）。当Producer向broker发送消息，消息先写入对应的Leader分区，然后复制到这个分区的所有副本中。ACKS = ALL 时，只有将下拍戏成功复制到所有同步副本（ISR）后，这条消息才算被提交。
+
+**什么情况下会导致一个副本与Leader失去同步**：
+
+一个副本与Leader失去同步的原因有很多，主要包括：
+
+- 慢副本
+- 卡住副本
 
 ## 6.4 一致性保证
 
