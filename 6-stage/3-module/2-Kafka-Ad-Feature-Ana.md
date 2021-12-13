@@ -3426,11 +3426,11 @@ Kafka使用前者帮助Follower副本更新其 HW 值；利用后者帮助 Leade
 
 2. Leader端Follower的LEO何时更新？
 
-   Leader端的Follower的LEO更新发生在Leader在处理Follower FETCH请求时。一旦Leader接收到Follower发送的FETCH请求，它先从Log中读取相应的数据，给Follower返回数据前，先更新Follower的LEO。
+   Leader端的Follower的LEO更新发生在Leader在处理Follower FETCH请求时。一旦Leader接收到Follower发送的FETCH请求，它先从Log中读取相应的数据，给Follower返回数据前，先更新Remote Follower的LEO。
 
 ### 6.4.3 Follower副本何时更新 HW
 
-Follower更细 HW 发生在其更新 LEO 之后，一旦 Follower向Log写完数据，尝试更新自己的HW值。
+Follower更新 HW 发生在其更新 LEO 之后，一旦 Follower向Log写完数据，尝试更新自己的HW值。
 
 比较当前 LEO 值与 FETCH 响应中Leader的HW 值，取两者的小者作为新的 HW 值。
 
@@ -3444,14 +3444,14 @@ Follower更细 HW 发生在其更新 LEO 之后，一旦 Follower向Log写完数
 
 ### 6.4.5 Leader副本何时更新 HW值
 
-Leader 的 HW 值就是 分区 HW 值，直接影响分区数据对消费者的可见性。
+**Leader 的 HW 值就是 分区 HW 值，直接影响分区数据对消费者的可见性**。
 
 
 
 Leader会尝试去更新分区 HW 的四种情况：
 
 1. Follower副本成为 Leader 副本时：Kafka会尝试去更新分区 HW。
-2. Broker崩溃导致副本被踢出 ISR 时：检查下分区 HW 值是否需要更新是有必要的。
+2. Broker崩溃导致副本被踢出 ISR 时：检查分区 HW 值是否需要更新是有必要的。
 3. 生产者向Leader副本写消息时：因为写入消息会更新 Leader的LEO，有必要检查 HW 值是否需要更新
 4. Leader处理 Follower FETCH 请求时：首先从Log读取数据，之后尝试更新分区 HW 值
 
@@ -3461,7 +3461,7 @@ Leader会尝试去更新分区 HW 的四种情况：
 
 当Kafka broker 都正常工作时，分区 HW 值得更新时机有两个：
 
-1. Leader处理Producer请求时
+1. Leader处理Produce请求时；
 2. Leader处理FETCH请求时。
 
 Leader 如何更新自己的HW值？Leader broker上保存了一套 Follower副本的LEO以及自己的LEO。当尝试确定分区 HW 时，它会选出所有**满足条件的副本**，比较它们的LEO（包括Leader的LEO），并**选择最小的LEO值作为HW值**。
