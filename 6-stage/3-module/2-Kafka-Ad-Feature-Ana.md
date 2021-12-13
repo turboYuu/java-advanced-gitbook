@@ -3372,8 +3372,17 @@ Kafka中，一个主题可以有多个分区，增强主题的可扩展性，为
 
 一个副本与Leader失去同步的原因有很多，主要包括：
 
-- 慢副本
-- 卡住副本
+- **慢副本（Slow replica）**：follower replica 在一段时间内一直无法赶上 leader 的写速度。造成这种情况的最常见原因值之一是 follower replica 上的 I/O 瓶颈，导致它持久化日志的时间比它从 leader 消费消息的时间长；
+- **卡住副本（Stuck replica）**：follower replica 在很长一段时间内停止从 leader 获取消息。这可能是以为 GC 停顿，或者副本出现故障；
+- **刚启动副本（Bootstrap replica）**：当用户给某个主题增加副本因子时，新的follower replicas 是不同步的，直到它跟上 leader 的日志。
+
+当副本落后于 leader分区时，这个副本认为是不同步或滞后的。在Kafka中，副本的滞后于 Leader 是根据`replica.lag.time.max.ms`来衡量的。
+
+
+
+**如何确认某个副本处于滞后状态**
+
+通过`replica.lag.time.max.ms`来检测卡住副本（Stuck replica）在所有情况下都能很好的工作。它跟踪follower副本没有向 leader发送获取请求的时间，通过这个判断可以推断 follower是否正常。另一方面，使用消息数量检测不同步慢副本（Slow replica）的模型只有在为单个主题或具有同类流量模式的多个主题设置这些参数时才能很好的工作，但发现它不能扩展到生产集群中所有主题。
 
 ## 6.4 一致性保证
 
