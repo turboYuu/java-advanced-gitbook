@@ -3857,7 +3857,7 @@ Kafka 1.0.2将consumer的位移信息保存在Kakfa内部的topic中，即__cons
    ...
    ```
 
-   可以看到 __consumer_offsets topic的每一日志项的格式都是：[Group, Topic, Partition]::[OffsetMetadata[Offset, Metadata],CommitTime, ExpirationTime]。
+   可以看到 __consumer_offsets topic的每一日志项的格式都是：[Group, Topic, Partition]::[OffsetMetadata[Offset, Metadata], CommitTime, ExpirationTime]。
 
    
 
@@ -3884,6 +3884,22 @@ SystemTime会取出queue中的TimeTaskList，根据expiration将currentTime往�
 ## 7.1 延迟操作接口
 
 # 8 重试队列
+
+Kafka没有重试机制，不支持消息重试，也没有死信队列，因此使用Kafka做消息队列时，需要自己实现消息重试的功能。
+
+**实现**
+
+创建新的Kafka主题作为重试队列：
+
+1. 创建一个topic作为重试topic，用于接收等待重试的消息；
+2. 普通topic消费者设置待重试消息的下一个重试topic；
+3. 从重试topic获取重试消息存储到redis的zset中，并以下一次消息时间排序；
+4. 定时任务从redis获取到达消费时间的消息，并把消息发送到对应的topic；
+5. 同一个消息重试次数过多则不再重试。
+
+
+
+**代码实现**
 
 ## 8.1 消费端的消息发送到重试队列
 
