@@ -306,9 +306,7 @@ vim /opt/kafka_2.12-1.0.2/bin/kafka-server-start.sh
 
 ### 3.1.2 使用JConsole连接JMX端口
 
-win/mac，找到jconsole⼯具并打开，  在 `${JAVA_HOEM}/bin/`<br>Mac电脑可以直接命令⾏输⼊`jconsole`
-
-
+win/mac，找到jconsole⼯具并打开，  在 `${JAVA_HOEM}/bin/`<br>win也可以在cmd中直接输入`jconsole`<br>Mac电脑可以直接命令⾏输⼊`jconsole`
 
 ![image-20211214175900802](assest/image-20211214175900802.png)
 
@@ -597,33 +595,4 @@ ke.sh start
 
 会提示登陆地址和账号密码。
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+![image-20211215110232406](assest/image-20211215110232406.png)

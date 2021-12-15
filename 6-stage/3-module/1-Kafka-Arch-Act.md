@@ -293,15 +293,11 @@ LEO是 Log End Offset的缩写，它表示了当前日志文件中**下一条待
    vim zoo.cfg
    ```
 
-   
-
 3. 修改Zookeeper保存数据的目录，dataDir：
 
    ```properties
    dataDir=/var/turbo/zookeeper/data
    ```
-
-   
 
 4. 编辑/etc/profile
 
@@ -315,21 +311,19 @@ LEO是 Log End Offset的缩写，它表示了当前日志文件中**下一条待
    export ZOO_LOG_DIR=/var/turbo/zookeeper/log
    ```
 
-   
-
 5. 使配置生效
 
    ```shell
    source /etc/profile
    ```
 
-   
-
 6. 验证
 
    ![image-20211121161809456](assest/image-20211121161809456.png)
 
 ## 2.3 Kafka的安装与配置
+
+![image-20211215112811794](assest/image-20211215112811794.png)
 
 1. 上传kafka_2.12-1.0.2.tgz到服务器并解压
 
@@ -420,9 +414,6 @@ LEO是 Log End Offset的缩写，它表示了当前日志文件中**下一条待
 
    
 
-   
-
-   
 
 ## 2.4 生产与消费
 
