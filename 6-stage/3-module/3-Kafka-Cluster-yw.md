@@ -583,8 +583,8 @@ export PATH=$PATH:$KE_HOME/bin
 ```
 
 ```shell
-# 创建Eagle的存储目录
-mkdir -p /root/hadoop/kafka-eagle/db/ke.db
+# 创建Eagle的存储目录(不要包括ke.db)
+mkdir -p /root/hadoop/kafka-eagle/db
 ```
 
 启动kafka-eagle
@@ -594,5 +594,7 @@ ke.sh start
 ```
 
 会提示登陆地址和账号密码。
+
+![image-20211215194719790](assest/image-20211215194719790.png)
 
 ![image-20211215110232406](assest/image-20211215110232406.png)
