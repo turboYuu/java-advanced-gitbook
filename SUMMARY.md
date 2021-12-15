@@ -80,4 +80,5 @@
         * [第一部分 Kafka架构与实战](6-stage/3-module/1-Kafka-Arch-Act.md)
         * [第二部分 Kafka高级特性解析](6-stage/3-module/2-Kafka-Ad-Feature-Ana.md)
         * [第三部分 Kafka集群与运维](6-stage/3-module/3-Kafka-Cluster-yw.md)
+        * [第四部分 Kafka源码剖析](6-stage/3-module/4-Kafka-SourceCode-Ana.md)
 
