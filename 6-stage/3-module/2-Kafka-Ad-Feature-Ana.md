@@ -1300,7 +1300,9 @@ Error while executing topic command : The number of partitions for a topic can o
 1. 第一个分区副本通过轮询的方式挑选一个broker，进行分配。该轮询从broker列表的最忌位置进行轮询。
 2. 其余副本通过增加偏移进行分配。
 
-分配案例：
+**分配案例**：
+
+![AdminUtils#assignReplicasToBrokers](assest/image-20211216155251273.png)
 
 
 
@@ -1685,30 +1687,28 @@ Kafka中Leader分区选举，通过维护一个动态变化的***ISR***集合来
      zookeeper.connect=node1:2181/myKafka
      ```
 
-     
-
    - vim /etc/profile
 
      ```properties
-     export JAVA_HOME=/usr/java/jdk1.8.0_261-amd64
+  export JAVA_HOME=/usr/java/jdk1.8.0_261-amd64
      export PATH=$PATH:$JAVA_HOME/bin
      
      export KAFKA_HOME=/opt/kafka_2.12-1.0.2
      export PATH=$PATH:$KAFKA_HOME/bin
      ```
-
+   
      生效环境变量：
 
      ```shell
-     . /etc/profile
+  . /etc/profile
      ```
-
+   
    - 启动node11上的 Kafka
 
      ```shell
-     [root@node11 ~]# kafka-server-start.sh /opt/kafka_2.12-1.0.2/config/server.properties
+  [root@node11 ~]# kafka-server-start.sh /opt/kafka_2.12-1.0.2/config/server.properties
      ```
-
+   
    注意观察node11上节点启动的时候的ClusterId，看和zookeeper节点上的ClusterId是否一致，如果是，证明node11和node1在同一个集群中。
 
    node11启动的ClusterID:
