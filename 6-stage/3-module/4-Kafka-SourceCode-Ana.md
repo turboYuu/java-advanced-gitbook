@@ -363,15 +363,112 @@ producer.send(record,(recordMetadata,e)->{
 
 org.apache.kafka.clients.producer.KafkaProducer#KafkaProducer(org.apache.kafka.clients.producer.ProducerConfig, org.apache.kafka.common.serialization.Serializer<K>, org.apache.kafka.common.serialization.Serializer<V>)
 
+## 4.3 消息发送过程
 
+### 4.3.1 拦截器
+
+### 4.3.2 拦截器核心逻辑
+
+### 4.3.3 发送五步骤
+
+### 4.3.4 MetaData更新机制
 
 # 5 Consumer消费者流程
+
+## 5.1 Consumer示例
+
+KafkaConsumer
+
+消费者的根本目的是从Kafka服务端拉取消息，并交给业务逻辑进行处理。
+
+开发人员不必关心与Kafka服务端之间网络连接的管理、心跳检测、请求超时重试等底层操作，也不必关心订阅Topic的分区数量、分区Leader副本的网络拓扑以及消费组的Rebalance等细节，另外还提供了自动提交offset的功能。
+
+```java
+public class MyConsumer3 {
+    public static void main(String[] args) throws InterruptedException {
+        // 是否⾃动提交
+        Boolean autoCommit = false;
+        // 是否异步提交
+        Boolean isSync = true;
+        Properties props = new Properties();
+        // kafka地址,列表格式为host1:port1,host2:port2,…，⽆需添加所有的集群地址，kafka会根据 提供的地址发现其他的地址（建议多提供⼏个，以防提供的服务器关闭）
+        props.put("bootstrap.servers", "localhost:9092");
+        // 消费组
+        props.put("group.id", "test");
+        // 开启⾃动提交offset
+        props.put("enable.auto.commit", autoCommit.toString());
+        // 1s⾃动提交
+        props.put("auto.commit.interval.ms", "1000");
+        // 消费者和群组协调器的最⼤⼼跳时间，如果超过该时间则认为该消费者已经死亡或者故障，需要踢出 消费者组
+        props.put("session.timeout.ms", "60000");
+        // ⼀次poll间隔最⼤时间
+        props.put("max.poll.interval.ms", "1000");
+        // 当消费者读取偏移量⽆效的情况下，需要重置消费起始位置，默认为latest（从消费者启动后⽣成的 记录），另外⼀个选项值是 earliest，将从有效的最⼩位移位置开始消费
+        props.put("auto.offset.reset", "latest");
+        // consumer端⼀次拉取数据的最⼤字节数
+        props.put("fetch.max.bytes", "1024000");
+        // key序列化⽅式
+        props.put("key.deserializer",
+                "org.apache.kafka.common.serialization.StringDeserializer");
+        // value序列化⽅式
+        props.put("value.deserializer",
+                "org.apache.kafka.common.serialization.StringDeserializer");
+
+        KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props);
+        String topic = "turbine_grp";
+        // 订阅topic列表
+        consumer.subscribe(Arrays.asList(topic));
+        while (true) {
+            // 消息拉取
+            ConsumerRecords<String, String> records = consumer.poll(100);
+
+            for (ConsumerRecord<String, String> record : records) {
+                    System.out.printf("offset = %d, key = %s, value = %s%n",
+                            record.offset(), record.key(), record.value());
+            }
+            if (!autoCommit) {
+                if (isSync) {
+                    // 处理完成单次消息以后，提交当前的offset，如果失败会⼀直重试直⾄成功
+                    consumer.commitSync();
+                } else {
+                    // 异步提交
+                    consumer.commitAsync((offsets, exception) -> {
+                        exception.printStackTrace();
+                        System.out.println(offsets.size());
+                    });
+                }
+            }
+            TimeUnit.SECONDS.sleep(3);
+        }
+    }
+}
+```
+
+
+
+## 5.2 KafkaConsumer实例化
 
 
 
 # 6 消息存储机制
 
+log.dirs/<topic_name>-<partition_no>/{.index, .timeindex, .log}
 
+首先查看Kafka如何处理产生的消息：
+
+![image-20211216210202892](assest/image-20211216210202892.png)
+
+调用副本管理器，将记录追加到分区的副本中。
+
+![image-20211216210012189](assest/image-20211216210012189.png)
+
+将数据追加到本地Log日志中：
+
+![image-20211216210644748](assest/image-20211216210644748.png)
+
+追加消息的实现：
+
+![image-20211216210950993](assest/image-20211216210950993.png)
 
 # 7 SocketServer
 
