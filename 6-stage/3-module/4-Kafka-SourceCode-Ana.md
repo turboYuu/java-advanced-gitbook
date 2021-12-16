@@ -114,7 +114,7 @@ idea导入源码：
 
 ![image-20211215143612610](assest/image-20211215143612610.png)
 
-
+在Idea中配置gradle user home和gradle home，否则会重新开始下载gradle -4.8。
 
 # 2 Broker启动流程
 
@@ -122,9 +122,246 @@ idea导入源码：
 
 # 3 Topic创建流程
 
+## 3.1 Topic创建
 
+有两种创建方式：自动创建、手动创建。在server.properties中配置`auto.create.topics.enable=true`时，Kafka在发现该topic不存在的时候会按照默认配置自动创建topic，触发自动创建topic有以下两种情况：
+
+1. Producer向某个不存在的Topic写入消息
+2. Consumer从某个不存在的Topic读取消息
+
+## 3.2 手动创建
+
+当`auto.create.topics.enable=false`时，需要手动创建topic，否则消息会发送失败。手动创建topic的方式如下：
+
+```shell
+kafka-topics.sh --create --zookeeper localhost:2181 --replication-factor 1 --partitions 10 --topic kafka_test
+```
+
+--replication-factor：副本数目
+
+--partitions：分区数
+
+--topic：topic名字
+
+## 3.3 查看Topic入口
+
+查看脚本文件`kafka-topics.sh`
+
+```sh
+exec $(dirname $0)/kafka-run-class.sh kafka.admin.TopicCommand "$@"
+```
+
+最终还是调用的`TopicCommand`类：首先判断参数是否为空，并且create、list、alter、describe、delete只允许存在一个，进行参数验证，创建`zookeeper`连接，如果参数中包含`create`则开始创建topic，其他情况类似。
+
+```scala
+// kafka.admin.TopicCommand#main
+def main(args: Array[String]): Unit = {
+
+    // 负责解析参数
+    val opts = new TopicCommandOptions(args)
+
+    if(args.length == 0)
+      CommandLineUtils.printUsageAndDie(opts.parser, "Create, delete, describe, or change a topic.")
+
+    // should have exactly one action
+    val actions = Seq(opts.createOpt, opts.listOpt, opts.alterOpt, opts.describeOpt, opts.deleteOpt).count(opts.options.has _)
+    if(actions != 1)
+      CommandLineUtils.printUsageAndDie(opts.parser, "Command must include exactly one action: --list, --describe, --create, --alter or --delete")
+
+    opts.checkArgs()
+
+    val zkUtils = ZkUtils(opts.options.valueOf(opts.zkConnectOpt),
+                          30000,
+                          30000,
+                          JaasUtils.isZkSecurityEnabled())
+    var exitCode = 0
+    try {
+      if(opts.options.has(opts.createOpt))
+        // 创建topic
+        createTopic(zkUtils, opts)
+      else if(opts.options.has(opts.alterOpt))
+        alterTopic(zkUtils, opts)
+      else if(opts.options.has(opts.listOpt))
+        listTopics(zkUtils, opts)
+      else if(opts.options.has(opts.describeOpt))
+        describeTopic(zkUtils, opts)
+      else if(opts.options.has(opts.deleteOpt))
+        deleteTopic(zkUtils, opts)
+    } catch {
+      case e: Throwable =>
+        println("Error while executing topic command : " + e.getMessage)
+        error(Utils.stackTrace(e))
+        exitCode = 1
+    } finally {
+      zkUtils.close()
+      Exit.exit(exitCode)
+    }
+
+  }
+```
+
+
+
+## 3.4 创建Topic
+
+下面主要看一下`createTopic`的执行过程：
+
+```scala
+// kafka.admin.TopicCommand#createTopic
+def createTopic(zkUtils: ZkUtils, opts: TopicCommandOptions) {
+    // 获取参数中指定的主题名称
+    val topic = opts.options.valueOf(opts.topicOpt)
+    // 获取参数中给当前要创建的主题指定的参数 --config max.message.bytes = 1048576 --config segment.bytes=104857600
+    val configs = parseTopicConfigsToBeAdded(opts)
+    // --if-not-exists选项，判断有无该选项
+    val ifNotExists = opts.options.has(opts.ifNotExistsOpt)
+    if (Topic.hasCollisionChars(topic))
+      println("WARNING: Due to limitations in metric names, topics with a period ('.') or underscore ('_') could collide. To avoid issues it is best to use either, but not both.")
+    try {
+      // 看有没有手动指定当前要创建的主题副本分区的分配
+      if (opts.options.has(opts.replicaAssignmentOpt)) {
+        // 解析用户手动指定的副本分区分配，
+        val assignment = parseReplicaAssignment(opts.options.valueOf(opts.replicaAssignmentOpt))
+        // 将该副本分区的分配写到zookeeper中
+        AdminUtils.createOrUpdateTopicPartitionAssignmentPathInZK(zkUtils, topic, assignment, configs, update = false)
+      } else {
+        // 检查有没有指定必要的参数：解析器，选项，分区个数，副本因子
+        CommandLineUtils.checkRequiredArgs(opts.parser, opts.options, opts.partitionsOpt, opts.replicationFactorOpt)
+        // 从选项中获取分区个数
+        val partitions = opts.options.valueOf(opts.partitionsOpt).intValue
+        // 获取分区副本因子
+        val replicas = opts.options.valueOf(opts.replicationFactorOpt).intValue
+        // 是否机架敏感的
+        val rackAwareMode = if (opts.options.has(opts.disableRackAware)) RackAwareMode.Disabled
+                            else RackAwareMode.Enforced
+        // 创建主题
+        AdminUtils.createTopic(zkUtils, topic, partitions, replicas, configs, rackAwareMode)
+      }
+      println("Created topic \"%s\".".format(topic))
+    } catch  {
+      case e: TopicExistsException => if (!ifNotExists) throw e
+    }
+  }
+```
+
+1. 如果客户端指定了topic的partition的replicas分配情况，则直接把所有topic的元数据信息持久化写入zookeeper，topic的properties写入到`/<Kafka_ROOT>/config/topics/[topic]`目录，topic的PartitionAssignment写入`<kafka_root>/brokers/topics/[topic]/partitions/[partition]/state`目录。
+
+2. 根据分区数量、副本集、是否指定机架来自动生成topic分区数据
+
+3. 下面继续来看`AdminUtils.createTopic`方法
+
+   ```scala
+   def createTopic(zkUtils: ZkUtils,
+                     topic: String,
+                     partitions: Int,
+                     replicationFactor: Int,
+                     topicConfig: Properties = new Properties,
+                     rackAwareMode: RackAwareMode = RackAwareMode.Enforced) {
+       // 获取broker元数据
+       val brokerMetadatas = getBrokerMetadatas(zkUtils, rackAwareMode)
+       // 将副本分区分配给broker
+       val replicaAssignment = AdminUtils.assignReplicasToBrokers(brokerMetadatas, partitions, replicationFactor)
+       // 将主题的分区分配情况xi写到zookeeper中
+       AdminUtils.createOrUpdateTopicPartitionAssignmentPathInZK(zkUtils, topic, replicaAssignment, topicConfig)
+       // 到此创建主题的过程结束
+     }
+   ```
+
+4. 继续看`AdminUtils.assignReplicasToBrokers`方法
 
 # 4 Producer生产者流程
+
+## 4.1 Producer示例
+
+下面代码展示`KafkaProducer`的使用方法，在下面示例中，使用`KafkaProducer`实现向Kafka发送消息的功能。
+
+```java
+public class MyProducer3 {
+    public static void main(String[] args) throws InterruptedException {
+
+        Properties props = new Properties();
+        // 客户端id
+        props.put(ProducerConfig.CLIENT_ID_CONFIG,"kafkaProducerDemo");
+        // kafka地址，列表格式为host1:port1,host2:port2,…，
+        // ⽆需添加所有的集群地址，kafka会根据 提供的地址发现其他的地址（建议多提供⼏个，以防提供的服务器关闭）
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,"node1:9092");
+        // 发送返回应答⽅式
+        // 0:Producer 往集群发送数据不需要等到集群的返回，不确保消息发送成功。安全性最低但是效率最 ⾼。
+        // 1:Producer 往集群发送数据只要 Leader 应答就可以发送下⼀条，只确保Leader接收成功。
+        // -1或者all：Producer 往集群发送数据需要所有的ISR Follower都完成从Leader的同步才会发送下⼀条，
+        // 确保Leader发送成功和所有的副本都成功接收。安全性最⾼，但是效率最低。
+        props.put(ProducerConfig.ACKS_CONFIG,"all");
+        // 重试次数
+        props.put("retries",0);
+        // 重试间隔时间
+        props.put(ProducerConfig.RETRY_BACKOFF_MS_CONFIG,0);
+        // 批量发送的⼤⼩
+        props.put(ProducerConfig.BATCH_SIZE_CONFIG,16384);
+        // ⼀个Batch被创建之后，最多过多久，不管这个Batch有没有写满，都必须发送出去
+        props.put(ProducerConfig.LINGER_MS_CONFIG,10);
+        // 缓冲区⼤⼩
+        props.put(ProducerConfig.BUFFER_MEMORY_CONFIG,33554432);
+        // key序列化⽅式
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        // value序列化⽅式
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,StringSerializer.class);
+        // topic
+        String topic = "turbine_grp";
+
+        Producer<String,String> producer = new KafkaProducer<String, String>(props);
+        AtomicInteger count = new AtomicInteger();
+        while (true){
+            int num = count.get();
+            String key = Integer.toString(num);
+            String value = Integer.toString(num);
+            ProducerRecord<String,String> record = new ProducerRecord<>(topic,key,value);
+            if(num%2==0){
+                // 偶数异步发送
+                // 第一个参数record封装了topic、key、value
+                // 第二个参数是一个callback对象，当生产者收到kafka发来的ACK确认消息时，会调用此CallBack对象的onComplete方法
+                producer.send(record,(recordMetadata,e)->{
+                    System.out.println("num:"+num
+                                +"\t topic:"+recordMetadata.topic()
+                                +"\t offset:"+recordMetadata.offset());
+                });
+            }else {
+                // 同步发送
+                // KafkaProducer.send方法返回的类型是Future<RecordMetadata>，通过get方法阻塞当前线程，等待Kafka服务端ack响应
+                final RecordMetadata recordMetadata = producer.send(record).get();
+            }
+            count.incrementAndGet();
+            TimeUnit.MILLISECONDS.sleep(100);
+        }
+    }
+}
+```
+
+### 4.1.1 同步发送
+
+1. KafkaProducer.send方法返回的类型是Future<RecordMetadata_>，通过get方法阻塞当前线程，等待Kafka服务端ACK响应。
+
+   ```java
+   producer.send(record).get();
+   ```
+
+### 4.1.2 异步发送
+
+1. 第一个参数record封装了topic、key、value
+2. 第二个参数是一个callback对象，当生产者收到kafka发来的ACK确认消息时，会调用此CallBack对象的onComplete方法
+
+```java
+producer.send(record,(recordMetadata,e)->{
+                    System.out.println("num:"+num
+                                +"\t topic:"+recordMetadata.topic()
+                                +"\t offset:"+recordMetadata.offset());
+                });
+```
+
+## 4.2 KafkaProducer实例化
+
+了解`KafkaProducer`的基本使用，开始深入了解KafkaProducer原理和实现，先看一下构造方法核心逻辑
+
+org.apache.kafka.clients.producer.KafkaProducer#KafkaProducer(org.apache.kafka.clients.producer.ProducerConfig, org.apache.kafka.common.serialization.Serializer<K>, org.apache.kafka.common.serialization.Serializer<V>)
 
 
 
