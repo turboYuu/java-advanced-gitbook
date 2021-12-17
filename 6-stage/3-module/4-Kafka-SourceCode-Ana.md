@@ -486,5 +486,41 @@ log.dirs/<topic_name>-<partition_no>/{.index, .timeindex, .log}
 
 
 
+# 11 OffsetManager
+
+
+
+# 12 KafkaApis
+
+
+
+# 13 KafkaController
+
+
+
+# 14 KafkaHealthcheck
+
+
+
+# 15 DynamicConfigManager
+
+
+
+# 16 分区消费模式
+
+
+
+# 17 组消费模式
+
+
+
+# 18 同步发送模式
+
+
+
+# 19 异步发送模式
+
+
+
 
 
