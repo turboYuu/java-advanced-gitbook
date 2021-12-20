@@ -448,6 +448,171 @@ public class MyConsumer3 {
 
 ## 5.2 KafkaConsumer实例化
 
+了解了`KafkaConsumer`的基本使用，开始深入了解`KafkaConsumer`原理和实现，先看一下构造方法核心逻辑：
+
+```java
+private KafkaConsumer(ConsumerConfig config,
+                          Deserializer<K> keyDeserializer,
+                          Deserializer<V> valueDeserializer) {
+        try {
+            // 获取客户端id，如果没有设置，则生成一个
+            String clientId = config.getString(ConsumerConfig.CLIENT_ID_CONFIG);
+            if (clientId.isEmpty())
+                clientId = "consumer-" + CONSUMER_CLIENT_ID_SEQUENCE.getAndIncrement();
+            this.clientId = clientId;
+            // 获取消费组id
+            String groupId = config.getString(ConsumerConfig.GROUP_ID_CONFIG);
+
+            LogContext logContext = new LogContext("[Consumer clientId=" + clientId + ", groupId=" + groupId + "] ");
+            this.log = logContext.logger(getClass());
+
+            log.debug("Initializing the Kafka consumer");
+            this.requestTimeoutMs = config.getInt(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG);
+            int sessionTimeOutMs = config.getInt(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG);
+            int fetchMaxWaitMs = config.getInt(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG);
+            if (this.requestTimeoutMs <= sessionTimeOutMs || this.requestTimeoutMs <= fetchMaxWaitMs)
+                throw new ConfigException(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG + " should be greater than " + ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG + " and " + ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG);
+            this.time = Time.SYSTEM;
+
+            Map<String, String> metricsTags = Collections.singletonMap("client-id", clientId);
+            MetricConfig metricConfig = new MetricConfig().samples(config.getInt(ConsumerConfig.METRICS_NUM_SAMPLES_CONFIG))
+                    .timeWindow(config.getLong(ConsumerConfig.METRICS_SAMPLE_WINDOW_MS_CONFIG), TimeUnit.MILLISECONDS)
+                    .recordLevel(Sensor.RecordingLevel.forName(config.getString(ConsumerConfig.METRICS_RECORDING_LEVEL_CONFIG)))
+                    .tags(metricsTags);
+            List<MetricsReporter> reporters = config.getConfiguredInstances(ConsumerConfig.METRIC_REPORTER_CLASSES_CONFIG,
+                    MetricsReporter.class);
+            reporters.add(new JmxReporter(JMX_PREFIX));
+            this.metrics = new Metrics(metricConfig, reporters, time);
+            this.retryBackoffMs = config.getLong(ConsumerConfig.RETRY_BACKOFF_MS_CONFIG);
+
+            // load interceptors and make sure they get clientId
+            // 获取用户设置的参数
+            Map<String, Object> userProvidedConfigs = config.originals();
+            // 设置客户端id
+            userProvidedConfigs.put(ConsumerConfig.CLIENT_ID_CONFIG, clientId);
+            // 设置拦截器
+            List<ConsumerInterceptor<K, V>> interceptorList = (List) (new ConsumerConfig(userProvidedConfigs, false)).getConfiguredInstances(ConsumerConfig.INTERCEPTOR_CLASSES_CONFIG,
+                    ConsumerInterceptor.class);
+            // 如果没有设置拦截器，就是null，否则设置拦截器
+            this.interceptors = interceptorList.isEmpty() ? null : new ConsumerInterceptors<>(interceptorList);
+            // key的反序列化
+            if (keyDeserializer == null) {
+                this.keyDeserializer = config.getConfiguredInstance(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
+                        Deserializer.class);
+                this.keyDeserializer.configure(config.originals(), true);
+            } else {
+                config.ignore(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG);
+                this.keyDeserializer = keyDeserializer;
+            }
+            // value的反序列化
+            if (valueDeserializer == null) {
+                this.valueDeserializer = config.getConfiguredInstance(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
+                        Deserializer.class);
+                this.valueDeserializer.configure(config.originals(), false);
+            } else {
+                config.ignore(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG);
+                this.valueDeserializer = valueDeserializer;
+            }
+            ClusterResourceListeners clusterResourceListeners = configureClusterResourceListeners(keyDeserializer, valueDeserializer, reporters, interceptorList);
+            this.metadata = new Metadata(retryBackoffMs, config.getLong(ConsumerConfig.METADATA_MAX_AGE_CONFIG),
+                    true, false, clusterResourceListeners);
+            List<InetSocketAddress> addresses = ClientUtils.parseAndValidateAddresses(config.getList(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG));
+            // 更新集群元数据
+            this.metadata.update(Cluster.bootstrap(addresses), Collections.<String>emptySet(), 0);
+            String metricGrpPrefix = "consumer";
+            ConsumerMetrics metricsRegistry = new ConsumerMetrics(metricsTags.keySet(), "consumer");
+            // 创建Channel的构建起
+            ChannelBuilder channelBuilder = ClientUtils.createChannelBuilder(config);
+
+            // 设置隔离级别
+            IsolationLevel isolationLevel = IsolationLevel.valueOf(
+                    config.getString(ConsumerConfig.ISOLATION_LEVEL_CONFIG).toUpperCase(Locale.ROOT));
+            Sensor throttleTimeSensor = Fetcher.throttleTimeSensor(metrics, metricsRegistry.fetcherMetrics);
+
+            // 实例化网络客户端
+            NetworkClient netClient = new NetworkClient(
+                    new Selector(config.getLong(ConsumerConfig.CONNECTIONS_MAX_IDLE_MS_CONFIG), metrics, time, metricGrpPrefix, channelBuilder, logContext),
+                    this.metadata,
+                    clientId,
+                    100, // a fixed large enough value will suffice for max in-flight requests
+                    config.getLong(ConsumerConfig.RECONNECT_BACKOFF_MS_CONFIG),
+                    config.getLong(ConsumerConfig.RECONNECT_BACKOFF_MAX_MS_CONFIG),
+                    config.getInt(ConsumerConfig.SEND_BUFFER_CONFIG),
+                    config.getInt(ConsumerConfig.RECEIVE_BUFFER_CONFIG),
+                    config.getInt(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG),
+                    time,
+                    true,
+                    new ApiVersions(),
+                    throttleTimeSensor,
+                    logContext);
+            // 实例化消费者网络客户端
+            this.client = new ConsumerNetworkClient(
+                    logContext,
+                    netClient,
+                    metadata,
+                    time,
+                    retryBackoffMs,
+                    config.getInt(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG));
+            OffsetResetStrategy offsetResetStrategy = OffsetResetStrategy.valueOf(config.getString(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG).toUpperCase(Locale.ROOT));
+            // 创建订阅的对象，用于封装订阅信息
+            this.subscriptions = new SubscriptionState(offsetResetStrategy);
+            // 消费组和主题分区分配器
+            this.assignors = config.getConfiguredInstances(
+                    ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG,
+                    PartitionAssignor.class);
+            // 协调器，协调再平衡的协调器
+            this.coordinator = new ConsumerCoordinator(logContext,
+                    this.client,
+                    groupId,
+                    config.getInt(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG),
+                    config.getInt(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG),
+                    config.getInt(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG),
+                    assignors,
+                    this.metadata,
+                    this.subscriptions,
+                    metrics,
+                    metricGrpPrefix,
+                    this.time,
+                    retryBackoffMs,
+                    config.getBoolean(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG),
+                    config.getInt(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG),
+                    this.interceptors,
+                    config.getBoolean(ConsumerConfig.EXCLUDE_INTERNAL_TOPICS_CONFIG),
+                    config.getBoolean(ConsumerConfig.LEAVE_GROUP_ON_CLOSE_CONFIG));
+            // 通过网络获取消息的对象
+            this.fetcher = new Fetcher<>(
+                    logContext,
+                    this.client,
+                    config.getInt(ConsumerConfig.FETCH_MIN_BYTES_CONFIG),
+                    config.getInt(ConsumerConfig.FETCH_MAX_BYTES_CONFIG),
+                    config.getInt(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG),
+                    config.getInt(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG),
+                    config.getInt(ConsumerConfig.MAX_POLL_RECORDS_CONFIG),
+                    config.getBoolean(ConsumerConfig.CHECK_CRCS_CONFIG),
+                    this.keyDeserializer,
+                    this.valueDeserializer,
+                    this.metadata,
+                    this.subscriptions,
+                    metrics,
+                    metricsRegistry.fetcherMetrics,
+                    this.time,
+                    this.retryBackoffMs,
+                    isolationLevel);
+
+            config.logUnused();
+            AppInfoParser.registerAppInfo(JMX_PREFIX, clientId, metrics);
+
+            log.debug("Kafka consumer initialized");
+        } catch (Throwable t) {
+            // call close methods if internal objects are already constructed
+            // this is to prevent resource leak. see KAFKA-2121
+            close(0, true);
+            // now propagate the exception
+            throw new KafkaException("Failed to construct kafka consumer", t);
+        }
+    }
+```
+
 
 
 # 6 消息存储机制
