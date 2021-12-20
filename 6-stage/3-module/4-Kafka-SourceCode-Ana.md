@@ -791,15 +791,253 @@ replicaManager.tryCompleteDelayedFetch(TopicPartitionOperationKey(this.topic, th
 
 `log.appendAsLeader(records, leaderEpoch = this.leaderEpoch, isFromClient)`的实现：
 
+![image-20211220142440246](assest/image-20211220142440246.png)
+
+![image-20211220143306548](assest/image-20211220143306548.png)
+
 
 
 # 7 SocketServer
+
+线程模型：
+
+1. 当前broker上配置了多少个listener，就有多少个Acceptor，用于新建连接
+2. 每个Acceptor对应N个线程的处理器（Processor），用于接收客户端请求
+3. 每个处理器对应M个线程的处理程序（Handler），处理用户请求，并将响应发送给等待客户写响应的处理器线程。
+
+
+
+在启动KafkaServer的startup方法中启动SocketServer：
+
+![image-20211220160100880](assest/image-20211220160100880.png)
+
+每个listener就是一个端点，每个端点创建多个处理程序。
+
+![image-20211220160627766](assest/image-20211220160627766.png)
+
+究竟启动多少了处理程序？
+
+processor个数为numProcessorThreads个。上图中for循环为从`processorBeginIndex`到`processorEndIndex`（不包括）。
+
+numProcessorThread为：
+
+![image-20211220161146693](assest/image-20211220161146693.png)
+
+![image-20211220161255389](assest/image-20211220161255389.png)
+
+![image-20211220161347959](assest/image-20211220161347959.png)
+
+
+
+
+
+accptor的启动过程：
+
+![image-20211220161532030](assest/image-20211220161532030.png)
+
+KafkaThread：
+
+![image-20211220161957902](assest/image-20211220161957902.png)
+
+![image-20211220162112370](assest/image-20211220162112370.png)
+
+调用Thread的构造器：
+
+![image-20211220162219106](assest/image-20211220162219106.png)
+
+![image-20211220162303073](assest/image-20211220162303073.png)
+
+KafkaThread的start方法即是 Thread的start方法，此时调用的是acceptor的run方法：
+
+```scala
+/**
+   * Accept loop that checks for new connection attempts
+    * 使用Java的NIO
+    * 循环检查是否有新的连接尝试
+    * 轮询的方式将请求交给各个processor来处理
+   */
+  def run() {
+    serverChannel.register(nioSelector, SelectionKey.OP_ACCEPT)
+    startupComplete()
+    try {
+      var currentProcessor = 0
+      while (isRunning) {
+        try {
+          val ready = nioSelector.select(500)
+          if (ready > 0) {
+            val keys = nioSelector.selectedKeys()
+            val iter = keys.iterator()
+            while (iter.hasNext && isRunning) {
+              try {
+                val key = iter.next
+                iter.remove()
+                if (key.isAcceptable)
+                  // 指定一个processor处理请求
+                  accept(key, processors(currentProcessor))
+                else
+                  throw new IllegalStateException("Unrecognized key state for acceptor thread.")
+
+                // round robin to the next processor thread
+                // 通过轮询的方式找到下一个processor线程
+                currentProcessor = (currentProcessor + 1) % processors.length
+              } catch {
+                case e: Throwable => error("Error while accepting connection", e)
+              }
+            }
+          }
+        }
+        catch {
+          // We catch all the throwables to prevent the acceptor thread from exiting on exceptions due
+          // to a select operation on a specific channel or a bad request. We don't want
+          // the broker to stop responding to requests from other clients in these scenarios.
+          case e: ControlThrowable => throw e
+          case e: Throwable => error("Error occurred", e)
+        }
+      }
+    } finally {
+      debug("Closing server socket and selector.")
+      swallowError(serverChannel.close())
+      swallowError(nioSelector.close())
+      shutdownComplete()
+    }
+  }
+```
+
+Acceptor建立建立，处理请求：
+
+```scala
+/*
+   * Accept a new connection
+   * 建立一个连接
+   */
+  def accept(key: SelectionKey, processor: Processor) {
+    // 服务端
+    val serverSocketChannel = key.channel().asInstanceOf[ServerSocketChannel]
+    // 客户端
+    val socketChannel = serverSocketChannel.accept()
+    try {
+      connectionQuotas.inc(socketChannel.socket().getInetAddress)
+      // 非阻塞
+      socketChannel.configureBlocking(false)
+      socketChannel.socket().setTcpNoDelay(true)
+      socketChannel.socket().setKeepAlive(true)
+      // 设置发送缓冲大小
+      if (sendBufferSize != Selectable.USE_DEFAULT_BUFFER_SIZE)
+        socketChannel.socket().setSendBufferSize(sendBufferSize)
+
+      debug("Accepted connection from %s on %s and assigned it to processor %d, sendBufferSize [actual|requested]: [%d|%d] recvBufferSize [actual|requested]: [%d|%d]"
+            .format(socketChannel.socket.getRemoteSocketAddress, socketChannel.socket.getLocalSocketAddress, processor.id,
+                  socketChannel.socket.getSendBufferSize, sendBufferSize,
+                  socketChannel.socket.getReceiveBufferSize, recvBufferSize))
+      // 调用Processor的accept方法，由processor处理请求
+      processor.accept(socketChannel)
+    } catch {
+      case e: TooManyConnectionsException =>
+        info("Rejected connection from %s, address already has the configured maximum of %d connections.".format(e.ip, e.count))
+        close(socketChannel)
+    }
+  }
+```
+
+Processor将连接加入缓冲队列，同时唤醒处理线程：
+
+![image-20211220165451778](assest/image-20211220165451778.png)
+
+Processor的run方法从newConnections中取出请求的channel，解析封装请求，交给handler处理：
+
+![image-20211220170804551](assest/image-20211220170804551.png)
+
+![image-20211220170933509](assest/image-20211220170933509.png)
+
+将请求消息放到请求队列中：
+
+在KafkaServer的startup方法中实例化KafkaRequestHandlerPool，该类会立即初始化numIoThreads个线程用于执行KafkaRequestHandler处理请求的逻辑。
+
+![image-20211220171702337](assest/image-20211220171702337.png)
+
+KafkaRequestHandlerPool以多线程的方式启动多个KafkaRequesthandler：
+
+![image-20211220172535362](assest/image-20211220172535362.png)
+
+KafkaRequestHandler的run方法中，receiveRequest方法从请求队列获取请求：
+
+![image-20211220172836171](assest/image-20211220172836171.png)
+
+具体实现：
+
+![image-20211220173007154](assest/image-20211220173007154.png)
+
+KafkaRequestHandler的run方法中使用模式匹配：
+
+![image-20211220173154268](assest/image-20211220173154268.png)
+
+上图中，apis的handler方法处理请求：
+
+```scala
+/**
+   * Top-level method that handles all requests and multiplexes to the right api
+    * 处理所有请求的顶级方法，使用模式匹配，交给具体的api来处理
+   */
+  def handle(request: RequestChannel.Request) {
+    try {
+      trace(s"Handling request:${request.requestDesc(true)} from connection ${request.context.connectionId};" +
+        s"securityProtocol:${request.context.securityProtocol},principal:${request.context.principal}")
+      request.header.apiKey match {
+          // 消息生产请求的处理逻辑
+        case ApiKeys.PRODUCE => handleProduceRequest(request)
+        // 处理
+        case ApiKeys.FETCH => handleFetchRequest(request)
+        case ApiKeys.LIST_OFFSETS => handleListOffsetRequest(request)
+        case ApiKeys.METADATA => handleTopicMetadataRequest(request)
+        case ApiKeys.LEADER_AND_ISR => handleLeaderAndIsrRequest(request)
+        case ApiKeys.STOP_REPLICA => handleStopReplicaRequest(request)
+        case ApiKeys.UPDATE_METADATA => handleUpdateMetadataRequest(request)
+        case ApiKeys.CONTROLLED_SHUTDOWN => handleControlledShutdownRequest(request)
+        case ApiKeys.OFFSET_COMMIT => handleOffsetCommitRequest(request)
+        case ApiKeys.OFFSET_FETCH => handleOffsetFetchRequest(request)
+        case ApiKeys.FIND_COORDINATOR => handleFindCoordinatorRequest(request)
+        case ApiKeys.JOIN_GROUP => handleJoinGroupRequest(request)
+        case ApiKeys.HEARTBEAT => handleHeartbeatRequest(request)
+        case ApiKeys.LEAVE_GROUP => handleLeaveGroupRequest(request)
+        case ApiKeys.SYNC_GROUP => handleSyncGroupRequest(request)
+        case ApiKeys.DESCRIBE_GROUPS => handleDescribeGroupRequest(request)
+        case ApiKeys.LIST_GROUPS => handleListGroupsRequest(request)
+        case ApiKeys.SASL_HANDSHAKE => handleSaslHandshakeRequest(request)
+        case ApiKeys.API_VERSIONS => handleApiVersionsRequest(request)
+        case ApiKeys.CREATE_TOPICS => handleCreateTopicsRequest(request)
+        case ApiKeys.DELETE_TOPICS => handleDeleteTopicsRequest(request)
+        case ApiKeys.DELETE_RECORDS => handleDeleteRecordsRequest(request)
+        case ApiKeys.INIT_PRODUCER_ID => handleInitProducerIdRequest(request)
+        case ApiKeys.OFFSET_FOR_LEADER_EPOCH => handleOffsetForLeaderEpochRequest(request)
+        case ApiKeys.ADD_PARTITIONS_TO_TXN => handleAddPartitionToTxnRequest(request)
+        case ApiKeys.ADD_OFFSETS_TO_TXN => handleAddOffsetsToTxnRequest(request)
+        case ApiKeys.END_TXN => handleEndTxnRequest(request)
+        case ApiKeys.WRITE_TXN_MARKERS => handleWriteTxnMarkersRequest(request)
+        case ApiKeys.TXN_OFFSET_COMMIT => handleTxnOffsetCommitRequest(request)
+        case ApiKeys.DESCRIBE_ACLS => handleDescribeAcls(request)
+        case ApiKeys.CREATE_ACLS => handleCreateAcls(request)
+        case ApiKeys.DELETE_ACLS => handleDeleteAcls(request)
+        case ApiKeys.ALTER_CONFIGS => handleAlterConfigsRequest(request)
+        case ApiKeys.DESCRIBE_CONFIGS => handleDescribeConfigsRequest(request)
+        case ApiKeys.ALTER_REPLICA_LOG_DIRS => handleAlterReplicaLogDirsRequest(request)
+        case ApiKeys.DESCRIBE_LOG_DIRS => handleDescribeLogDirsRequest(request)
+        case ApiKeys.SASL_AUTHENTICATE => handleSaslAuthenticateRequest(request)
+        case ApiKeys.CREATE_PARTITIONS => handleCreatePartitionsRequest(request)
+      }
+    } catch {
+      case e: FatalExitError => throw e
+      case e: Throwable => handleError(request, e)
+    } finally {
+      request.apiLocalCompleteTimeNanos = time.nanoseconds
+    }
+  }
+```
 
 
 
 # 8 KafkaRequestHandlerPool
 
-
+KafkaRequestHandlerPool的作用是创建
 
 # 9 LogManager
 
