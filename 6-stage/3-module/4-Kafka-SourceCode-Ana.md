@@ -750,6 +750,49 @@ log.dirs/<topic_name>-<partition_no>/{.index, .timeindex, .log}
 
 ![image-20211216210950993](assest/image-20211216210950993.png)
 
+遍历需要追加的每个主题分区的消息：
+
+![image-20211220140210216](assest/image-20211220140210216.png)
+
+调用partition的方法将记录追加到该分区的leader分区中：
+
+![image-20211220140545538](assest/image-20211220140545538.png)
+
+如果在本地找到了该分区的Leader：
+
+![image-20211220141148628](assest/image-20211220141148628.png)
+
+执行下述逻辑将消息追加到leader分区：
+
+```scala
+// 获取该分区的log
+val log = leaderReplica.log.get
+// 获取最小ISR副本数
+val minIsr = log.config.minInSyncReplicas
+// 计算同步副本的个数
+val inSyncSize = inSyncReplicas.size
+
+// Avoid writing to leader if there are not enough insync replicas to make it safe
+// 如果同步副本的个数小于要求的最小副本数，并且acks设置的是-1，则不追加消息
+if (inSyncSize < minIsr && requiredAcks == -1) {
+    throw new NotEnoughReplicasException("Number of insync replicas for partition %s is [%d], below required minimum [%d]"
+              .format(topicPartition, inSyncSize, minIsr))
+}
+
+// 追加消息到leader
+val info = log.appendAsLeader(records, leaderEpoch = this.leaderEpoch, isFromClient)
+// probably unblock some follower fetch requests since log end offset has been updated
+// 尝试锁定follower获取消息的请求，因为此时leader正在更新 LEO
+replicaManager.tryCompleteDelayedFetch(TopicPartitionOperationKey(this.topic, this.partitionId))
+// we may need to increment high watermark since ISR could be down to 1
+// 如果ISR只有一个元素的话，需要 HW+1
+(info, maybeIncrementLeaderHW(leaderReplica))
+```
+
+`log.appendAsLeader(records, leaderEpoch = this.leaderEpoch, isFromClient)`的实现：
+
+
+
 # 7 SocketServer
 
 
