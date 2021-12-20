@@ -451,6 +451,12 @@ public class MyConsumer3 {
 了解了`KafkaConsumer`的基本使用，开始深入了解`KafkaConsumer`原理和实现，先看一下构造方法核心逻辑：
 
 ```java
+org.apache.kafka.clients.consumer.KafkaConsumer#KafkaConsumer(org.apache.kafka.clients.consumer.ConsumerConfig, org.apache.kafka.common.serialization.Deserializer<K>, org.apache.kafka.common.serialization.Deserializer<V>)
+```
+
+
+
+```java
 private KafkaConsumer(ConsumerConfig config,
                           Deserializer<K> keyDeserializer,
                           Deserializer<V> valueDeserializer) {
@@ -612,6 +618,115 @@ private KafkaConsumer(ConsumerConfig config,
         }
     }
 ```
+
+1. 初始化参数配置
+
+   client.id、group.id、消费者拦截器、key/value序列化、事务隔离级别
+
+2. 初始化网络客户端`NetworkClient`
+
+3. 初始化消费者网络客户端`ConsumerNetworkClient`
+
+4. 初始化offset提交策略，默认自动提交
+
+5. 初始化消费者协调器`ConsumerCoordinator`
+
+6. 初始化拉取器`Fetcher`
+
+## 5.3 订阅Topic
+
+下面先看一下subscribe方法都有哪些逻辑：
+
+```java
+public void subscribe(Collection<String> topics, ConsumerRebalanceListener listener) {
+    // 轻量级锁
+    acquireAndEnsureOpen();
+    try {
+        if (topics == null) {
+            throw new IllegalArgumentException("Topic collection to subscribe to cannot be null");
+        } else if (topics.isEmpty()) {
+            // topic为空，则开始取消订阅的逻辑
+            // treat subscribing to empty topic list as the same as unsubscribing
+            this.unsubscribe();
+        } else {
+            // topic合法性判断，包含null或者空字符串直接抛异常
+            for (String topic : topics) {
+                if (topic == null || topic.trim().isEmpty())
+                    throw new IllegalArgumentException("Topic collection to subscribe to cannot contain null or empty topic");
+            }
+			// 如果没有消费协调者直接抛异常
+            throwIfNoAssignorsConfigured();
+            log.debug("Subscribed to topic(s): {}", Utils.join(topics, ", "));
+            // 开始订阅
+            this.subscriptions.subscribe(new HashSet<>(topics), listener);
+            // 更新元数据，如果metadata当前不包括所有的topics则标记更新
+            metadata.setTopics(subscriptions.groupSubscription());
+        }
+    } finally {
+        release();
+    }
+}
+```
+
+![image-20211220114455175](assest/image-20211220114455175.png)
+
+![image-20211220115422383](assest/image-20211220115422383.png)
+
+1. KafkaConsumer不是线程安全类，开启轻量级锁，topics为空抛异常，topics是空集合开始取消订阅，再次判断topics集合中是否有非法数据，判断消费者协调者是否为空。开始订阅对应topic。listener默认为`NoOpConsumerRebalanceListener`，一个空操作
+
+   > 轻量级锁：分别记录了当前使用KafkaConsumer的线程id和重入次数，KafkaConsumer的acquire()和release()方法实现了一个"轻量级锁"，它并非真正的锁，紧时检测是否有多线程并发操作KafkaConsumer而已。
+
+2. 每一个KafkaConsumer实例内部都拥有一个`SubscriptionState`对象，subscribe内部调用了subscribe方法，subscribe方法订阅信息记录到`SubscriptionState`，多次订阅会覆盖旧数据。
+
+3. 更新metadata，判断如果metadata中不包含当前`groupSubscription`，开始标记更新（后面会有更新的逻辑，并且消费者侧的topic不会过期）
+
+
+
+## 5.4 消息消费过程
+
+### 5.4.1 poll
+
+
+
+### 5.4.2 pollOnce
+
+#### 5.4.2.1 coordinator.poll()
+
+
+
+#### 5.4.2.2 updateFetchPositions()
+
+
+
+#### 5.4.2.3 fetcher.fetchdRecords()
+
+
+
+#### 5.4.2.4 fetcher.sendFecthes()
+
+
+
+#### 5.4.2.5 client.poll()
+
+
+
+#### 5.4.2.6 coordinator.needRejoin()
+
+
+
+## 5.5 自动提交
+
+
+
+## 5.6 手动提交
+
+
+
+### 5.6.1 同步提交
+
+
+
+### 5.6.2 异步提交
 
 
 
