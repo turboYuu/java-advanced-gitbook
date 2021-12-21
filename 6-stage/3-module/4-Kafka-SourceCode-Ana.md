@@ -827,7 +827,7 @@ numProcessorThread为：
 
 ![image-20211220161347959](assest/image-20211220161347959.png)
 
-
+![image-20211221112931228](assest/image-20211221112931228.png)
 
 
 
@@ -1037,13 +1037,438 @@ KafkaRequestHandler的run方法中使用模式匹配：
 
 # 8 KafkaRequestHandlerPool
 
-KafkaRequestHandlerPool的作用是创建
+KafkaRequestHandlerPool的作用是创建numThreads个KafkaRequestHandler实例，使用numThreads个线程启动KafkaRequestHandler。
+
+每个KafkaRequestHandler包含了id，brokerId，线程数，请求的channel，处理请求的api等信息。
+
+只要该类进行实例化，就执行创建KafkaRequestHandler实例并启动的逻辑。
+
+`kafka.server.KafkaRequestHandlerPool`
+
+```scala
+/**
+  * @param brokerId
+  * @param requestChannel
+  * @param apis 处理具体请求和响应的api
+  * @param time
+  * @param numThreads 运行KafkaRequestHandler的线程数
+  */
+class KafkaRequestHandlerPool(val brokerId: Int,
+                              val requestChannel: RequestChannel,
+                              val apis: KafkaApis,
+                              time: Time,
+                              numThreads: Int) extends Logging with KafkaMetricsGroup {
+
+  /* a meter to track the average free capacity of the request handlers */
+  private val aggregateIdleMeter = newMeter("RequestHandlerAvgIdlePercent", "percent", TimeUnit.NANOSECONDS)
+
+  this.logIdent = "[Kafka Request Handler on Broker " + brokerId + "], "
+  // 创建包含numThreads个元素的数组
+  val runnables = new Array[KafkaRequestHandler](numThreads)
+  // 循环numThreads次，初始化KafkaRequestHandler实例numThreads个
+  for(i <- 0 until numThreads) {
+    // 赋值：每个KafkaRequestHandler中包含了kafkaRequestHandler的id，brokerId，线程数，请求的channel，处理请求的api等。
+    runnables(i) = new KafkaRequestHandler(i, brokerId, aggregateIdleMeter, numThreads, requestChannel, apis, time)
+    // 启动这些KafkaRequestHandler线程用于请求的处理
+    KafkaThread.daemon("kafka-request-handler-" + i, runnables(i)).start()
+  }
+}  
+```
+
+KafkaThread的start方法即是调用Thread的start方法，而start执行run方法，即此处执行的是KafkaThread的run方法：
+
+`kafka.server.KafkaRequestHandler#run`
+
+```
+def run() {
+    while(true) {
+      // We use a single meter for aggregate idle percentage for the thread pool.
+      // Since meter is calculated as total_recorded_value / time_window and
+      // time_window is independent of the number of threads, each recorded idle
+      // time should be discounted by # threads.
+      val startSelectTime = time.nanoseconds
+      // 获取请求
+      val req = requestChannel.receiveRequest(300)
+      val endTime = time.nanoseconds
+      val idleTime = endTime - startSelectTime
+      aggregateIdleMeter.mark(idleTime / totalHandlerThreads)
+
+      req match {
+        case RequestChannel.ShutdownRequest =>
+          debug(s"Kafka request handler $id on broker $brokerId received shut down command")
+          latch.countDown()
+          return
+
+        case request: RequestChannel.Request =>
+          try {
+            request.requestDequeueTimeNanos = endTime
+            trace(s"Kafka request handler $id on broker $brokerId handling request $request")
+            // 对于其他请求，直接交给apis来负责处理。
+            apis.handle(request)
+          } catch {
+            case e: FatalExitError =>
+              latch.countDown()
+              Exit.exit(e.statusCode)
+            case e: Throwable => error("Exception when handling request", e)
+          } finally {
+              request.releaseBuffer()
+          }
+
+        case null => // continue
+      }
+    }
+  }
+```
+
+该类包含了关闭KafkaRequestHandler的方法：
+
+具体的方法：
+
+首先发送停止的请求，等待用户请求处理的结束`latch.await()`。
+
+优雅停机。
+
+将请求直接放到requestQueue中。其中处理ShudownRequest的处理逻辑：
+
+![image-20211221104225122](assest/image-20211221104225122.png)
 
 # 9 LogManager
 
+1. Kafka日志管理子系统的入口。日志管理器负责日志的创建、抽取和清理。
+2. 所有的读写操作都代理给具体的Log实例。
+3. 日志管理器在一个或多个目录维护日志。新的日志创建到拥有最少log的目录中。
+4. 分区不移动
+5. 通过一个后台线程通过定期截断多余的日志段来处理日志保留
 
+
+
+启动Kafka服务器的脚本：
+
+![image-20211221104823520](assest/image-20211221104823520.png)
+
+main方法中创建KafkaServerStartable对象：
+
+![image-20211221105046794](assest/image-20211221105046794.png)
+
+该类中包含KafkaServer对象，startup方法调用的是KafkaServer的startup方法：
+
+![image-20211221105501788](assest/image-20211221105501788.png)
+
+KafkaServer的startup方法中，启动了LogManager
+
+![image-20211221105931870](assest/image-20211221105931870.png)
+
+LogManager的startup方法：
+
+`kafka.log.LogManager#startup`
+
+```scala
+/**
+   *  Start the background threads to flush logs and do log cleanup
+    *  启动后台线程 用于将日志刷盘以及日志的清理
+   */
+  def startup() {
+    /* Schedule the cleanup task to delete old logs */
+    if (scheduler != null) {
+      info("Starting log cleanup with a period of %d ms.".format(retentionCheckMs))
+      // 用于清除日志片段的调度任务，没有压缩，周期性执行
+      scheduler.schedule("kafka-log-retention",
+                         cleanupLogs _,
+                         delay = InitialTaskDelayMs,
+                         period = retentionCheckMs,
+                         TimeUnit.MILLISECONDS)
+      info("Starting log flusher with a default period of %d ms.".format(flushCheckMs))
+      // 用于日志片段刷盘的调度任务，周期性执行
+      scheduler.schedule("kafka-log-flusher",
+                         flushDirtyLogs _,
+                         delay = InitialTaskDelayMs,
+                         period = flushCheckMs,
+                         TimeUnit.MILLISECONDS)
+      // 用于将当前broker上各个分区的恢复点写到文本文件的调度任务，周期性执行
+      scheduler.schedule("kafka-recovery-point-checkpoint",
+                         checkpointLogRecoveryOffsets _,
+                         delay = InitialTaskDelayMs,
+                         period = flushRecoveryOffsetCheckpointMs,
+                         TimeUnit.MILLISECONDS)
+      // 用于将当前broker上各个分区起始偏移量写到文本文件的调度任务，周期性执行
+      scheduler.schedule("kafka-log-start-offset-checkpoint",
+                         checkpointLogStartOffsets _,
+                         delay = InitialTaskDelayMs,
+                         period = flushStartOffsetCheckpointMs,
+                         TimeUnit.MILLISECONDS)
+      scheduler.schedule("kafka-delete-logs",
+                         deleteLogs _,
+                         delay = InitialTaskDelayMs,
+                         period = defaultConfig.fileDeleteDelayMs,
+                         TimeUnit.MILLISECONDS)
+    }
+    // 如果配置了日志的清理，则启动清理任务
+    if (cleanerConfig.enableCleaner)
+      cleaner.startup()
+  }
+```
+
+## 9.1 清除日志片段
+
+![image-20211221111004680](assest/image-20211221111004680.png)
+
+cleanupLogs 的具体实现：
+
+![image-20211221110915780](assest/image-20211221110915780.png)
+
+deleteOldSegments() 的实现：
+
+![image-20211221111525894](assest/image-20211221111525894.png)
+
+
+
+### 9.1.1 根据时间删除的日志片段数量
+
+![image-20211221113212197](assest/image-20211221113212197.png)
+
+首先找到所有可以删除的日志片段
+
+然后执行删除
+
+![image-20211221113730646](assest/image-20211221113730646.png)
+
+![image-20211221114158622](assest/image-20211221114158622.png)
+
+该方法执行日志片段的异步删除，步骤如下：
+
+1. 将日志片段的信息从map集合移除，之后再也不读了
+2. 在日志片段的索引和log文件名称后追加 `.deleted`，加标记而已
+3. 调度异步删除操作，执行`.deleted`文件的真正删除。
+
+异步删除允许在读取文件的同时执行删除，而不需要进行同步，避免了在读取一个文件的同时物理删除引起的冲突。
+
+
+
+该方法不需要将`IOException`转换为`KafkaStorageException`，因为该方法要么在所有日志加载之前调用，要么在使用中由调用者处理`IOException`。
+
+![image-20211221115706133](assest/image-20211221115706133.png)
+
+### 9.1.2 根据保留策略的日志片段文件大小删除
+
+![image-20211221121112762](assest/image-20211221121112762.png)
+
+shouldDelete 是一个函数，作为deleteOldSegments删除日志片段的判断条件。
+
+
+
+### 9.1.3 根据偏移量删除日志片段
+
+对于当前日志片段是否需要删除，要看它的下一个日志片段的baseOffset是否小于等于日志对外暴露给消费者的日志偏移量，如果小，消费者不用读取，当前日志片段就可以删除。
+
+![image-20211221122407778](assest/image-20211221122407778.png)
+
+## 9.2 日志片段刷盘
+
+在LogManager的startup中，启动了刷盘的线程：
+
+调用flushDirtyLogs方法进行日志刷盘处理。
+
+![image-20211221135432751](assest/image-20211221135432751.png)
+
+Kafka推荐让操作系统后台进行刷盘，使用副本保证数据高可用，这样效率更高。
+
+因此这种方式不推荐。
+
+![image-20211221140751203](assest/image-20211221140751203.png)
+
+执行刷盘的方法：
+
+![image-20211221141350910](assest/image-20211221141350910.png)
+
+## 9.3 将当前broker上各个分区的恢复点写到文本文件
+
+![image-20211221141610107](assest/image-20211221141610107.png)
+
+方法实现：
+
+![image-20211221141829356](assest/image-20211221141829356.png)
+
+方法实现：
+
+![image-20211221142203101](assest/image-20211221142203101.png)
+
+## 9.4 将当前broker上各个分区起始偏移量写到文本文件
+
+![image-20211221142324358](assest/image-20211221142324358.png)
+
+方法实现：
+
+![image-20211221142902035](assest/image-20211221142902035.png)
+
+写文本文件：
+
+![image-20211221143153999](assest/image-20211221143153999.png)
+
+## 9.5 删除日志片段
+
+![image-20211221143336880](assest/image-20211221143336880.png)
+
+对标记为删除的日志执行删除的动作：
+
+![image-20211221143653538](assest/image-20211221143653538.png)
+
+![image-20211221143921787](assest/image-20211221143921787.png)
+
+
+
+## 9.6 clearner
+
+如果配置了日志清理，则启动清理任务：
+
+![image-20211221144043144](assest/image-20211221144043144.png)
+
+![image-20211221144149221](assest/image-20211221144149221.png)
+
+cleaners是多个CleanerThread集合：
+
+![image-20211221144256162](assest/image-20211221144256162.png)
+
+最终执行清理的是，压缩：
+
+![image-20211221145838330](assest/image-20211221145838330.png)
 
 # 10 ReplicaManager
+
+## 10.1 副本管理器的启动和ISR的收缩和扩展
+
+在启动KafkaServer的时候，运行KafkaServer的startup方法。在该方法中实例化ReplicaManager，并调用ReplicaManager的startup方法：
+
+ReplicaManager的startup方法：
+
+![image-20211221162940981](assest/image-20211221162940981.png)
+
+处理ISR收缩的情况：
+
+![image-20211221163145599](assest/image-20211221163145599.png)
+
+![image-20211221163648361](assest/image-20211221163648361.png)
+
+对于在ISR 集合中的副本，检查有没有需要从 ISR 中移除的：
+
+两种情况需要从 ISR 中移除：
+
+1. 卡主的Follower：如果副本的LEO经过maxLagMs毫秒还没有更新，则Follower卡主了，需要从 ISR 移除；
+2. 慢 Follower：如果副本从 maxLagMs 毫秒之前到现在还没有读到leader 的 LEO，则Follower落后，需要从 ISR 移除。
+
+![image-20211221165132259](assest/image-20211221165132259.png)
+
+处理ISR变动事件广播：
+
+同时startup方法中周期性地调用maybePropagateIsrChanges()方法：
+
+该番薯周期性运行，检查ISR是否需要扩展。两种情况发生 ISR 的广播：
+
+1. 有尚未广播的 ISR 变动
+2. 最近 5s 没有发生 ISR 变动，或者上次 ISR 广播已经过去 60s了。
+
+该方法保证在ISR偶尔发生变动时，几秒之内即可将 ISR 变动广播出去。
+
+避免了当发生大量 ISR 变更时压垮 controller和其他broker。
+
+![image-20211221170212228](assest/image-20211221170212228.png)
+
+处理日志目录异常的失败：
+
+![image-20211221170417404](assest/image-20211221170417404.png)
+
+## 10.2 follower副本如何与leader同步消息
+
+副本管理器类：
+
+![image-20211221150147568](assest/image-20211221150147568.png)
+
+副本管理器类在实例化的时候创建ReplicaFetcherManager对象，该对象是负责从leader拉取消息与leader保持同步的线程管理器：
+
+![image-20211221150501650](assest/image-20211221150501650.png)
+
+方法的具体实现：
+
+创建负责从leader拉取消息与leader保持同步的线程管理器：
+
+![image-20211221150745957](assest/image-20211221150745957.png)
+
+![image-20211221150957807](assest/image-20211221150957807.png)
+
+副本拉取管理器中实现了createFetcherThread方法，该方法返回ReplicaFetcherThread对象：
+
+![image-20211221151338662](assest/image-20211221151338662.png)
+
+ReplicaFetcherThread线程负责从Leader副本拉取消息进行同步
+
+![image-20211221151757620](assest/image-20211221151757620.png)
+
+AbstractFetcherManager中的addFetcherForPartitions方法中的嵌套方法addAndStartFetcherThread创建并启动拉取线程：<br>而其中用到的createFetcherThread方法便是在AbstractFetcherManager的实现类ReplicaFetcherManager中实现的。
+
+![image-20211221152542730](assest/image-20211221152542730.png)
+
+
+
+抽象类AbstractFetcherThread从同一个远程broker上为当前broker上的多个分区follower副本拉取消息。即，在远程同一个broker上有多个leader副本的follower副本在当前broker上。
+
+![image-20211221153119972](assest/image-20211221153119972.png)
+
+ReplicaFetcherThread的start方法实际上就是AbstractFetcherThread中的start方法。
+
+在AbstractFetcherThread中没有start方法，在其父类ShutdownableThread也没有start方法：
+
+![image-20211221153439317](assest/image-20211221153439317.png)
+
+但是ShutdownableThread继承自Thread，Thread中没有start方法，并且start方法要调用run方法，在ShutdownableThread中有run方法。
+
+![image-20211221153813055](assest/image-20211221153813055.png)
+
+该run方法重复调用doWork方法进行数据的拉取。
+
+doWork方法是抽象方法，没有实现。其是现在ShutdownableThread的实现类AbstractFetcherThread中：
+
+![image-20211221154300448](assest/image-20211221154300448.png)
+
+上图中的doWork方法会反复调用，上图中的方法创建拉取请求对象，然后调用processFetchRequest方法进行请求的发送和结果的处理。
+
+![image-20211221155322540](assest/image-20211221155322540.png)
+
+fetch方法的实现在AbstractFetcherThread的子类ReplicaFetcherThread中：
+
+![image-20211221155920779](assest/image-20211221155920779.png)
+
+sendRequest方法在ReplicaFetcherBlockingSend中：
+
+​	![image-20211221160114517](assest/image-20211221160114517.png)
+
+通过NetworkClientUtils发送请求，并等待请求的响应：
+
+![image-20211221160506361](assest/image-20211221160506361.png)
+
+KafkaApis对Fetch的处理：
+
+![image-20211221160659596](assest/image-20211221160659596.png)
+
+![image-20211221160804204](assest/image-20211221160804204.png)
+
+该方法中，Leader从本地日志读取数据，返回：
+
+![image-20211221161216107](assest/image-20211221161216107.png)
+
+总结：
+
+当KafkaServer启动的时候，会实例化副本管理器
+
+![image-20211221161428839](assest/image-20211221161428839.png)
+
+副本管理器实例化的时候会实例化副本拉取器管理器：
+
+![image-20211221161643655](assest/image-20211221161643655.png)
+
+副本管理器中有实现createFetcherThread方法，创建副本拉取器对象
+
+![image-20211221162102785](assest/image-20211221162102785.png)
+
+拉取线程启动起来之后，不断地从leader副本所在的broker拉取消息，以便Follower与Leader保持消息的同步。
 
 
 
