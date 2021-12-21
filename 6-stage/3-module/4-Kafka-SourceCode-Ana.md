@@ -1352,7 +1352,7 @@ ReplicaManager的startup方法：
 
 两种情况需要从 ISR 中移除：
 
-1. 卡主的Follower：如果副本的LEO经过maxLagMs毫秒还没有更新，则Follower卡主了，需要从 ISR 移除；
+1. 卡住的Follower：如果副本的LEO经过maxLagMs毫秒还没有更新，则Follower卡住了，需要从 ISR 移除；
 2. 慢 Follower：如果副本从 maxLagMs 毫秒之前到现在还没有读到leader 的 LEO，则Follower落后，需要从 ISR 移除。
 
 ![image-20211221165132259](assest/image-20211221165132259.png)
