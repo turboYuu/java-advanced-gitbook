@@ -1485,7 +1485,7 @@ KafkaApis对Fetch的处理：
 
 ![image-20211222103039089](assest/image-20211222103039089.png)
 
-handleOffsetCommitRequest的实现：
+**`handleOffsetCommitRequest`的实现**：
 
 ![image-20211222103311894](assest/image-20211222103311894.png)
 
@@ -1526,7 +1526,133 @@ handleOffsetCommitRequest的实现：
 
 
 
-`storeOffsets`
+**`storeOffsets`的实现**：
+
+![image-20211222113443209](assest/image-20211222113443209.png)
+
+需要先计算当前消费组的偏移量需要提交到 `__consumer_offsets` 主题的哪个分区中：
+
+![image-20211222113336415](assest/image-20211222113336415.png)
+
+将消息追加到`__consumer_offsets`主题的指定分区中：
+
+![image-20211222114954184](assest/image-20211222114954184.png)
+
+其中**计算 `__consumer_offsets`分区的实现**：
+
+![image-20211222115456500](assest/image-20211222115456500.png)
+
+上图中的函数，计算方式如下：
+
+获取消费组ID的散列值，取绝对值，然后将此绝对值 对`__consumer_offsets`主题分区个数取模得到。
+
+
+
+**`appendForGroup`方法的实现**：
+
+调用副本管理器的方法将消息追加到 `__consumer_offsets` 主题的指定分区日志中。
+
+![image-20211222120223047](assest/image-20211222120223047.png)
+
+如果偏移量消息追加成功，则调用callback响应客户端：
+
+![image-20211222120805073](assest/image-20211222120805073.png)
+
+缓存偏移量信息：
+
+![image-20211222120904853](assest/image-20211222120904853.png)
+
+`onOffsetCommitAppend`方法具体实现：
+
+![image-20211222121515299](assest/image-20211222121515299.png)
+
+![image-20211222121905304](assest/image-20211222121905304.png)
+
+
+
+![image-20211222122432092](assest/image-20211222122432092.png)
+
+responseCallback最终是KafkaApis中的`sendResponseCallback`，该函数将消费者提交的偏移量追加到日志中并添加到消费组缓存中之后，返回结果给消费者客户端。
+
+![image-20211222122920969](assest/image-20211222122920969.png)
+
+
+
+消费者提交偏移量：KafkaApis，KafkaApis -> GroupCoordinator的handleCommitOffsets 方法 -> GroupMetadataManagerd的storeOffsets方法，不仅需要将消费组的偏移量提交到日志中，还需要在内存中维护该偏移量信息。
+
+对于消费者，获取结果后，也需要在消费者客户端解析该响应，将消费者的偏移量缓存到消费者客户端：<br>消费者客户端消费消息的方法：KafkaCosumer.poll(1_000);<br>调用poll方法拉取消息：该方法调用pollOnce进行消息的拉取：
+
+![image-20211222132823136](assest/image-20211222132823136.png)
+
+pollOnce方法会调用org.apache.kafka.clients.consumer.internals.ConsumerCoordinator#poll方法周期性的提交偏移量：
+
+![image-20211222133125698](assest/image-20211222133125698.png)
+
+其中poll方法的实现：
+
+![image-20211222133500284](assest/image-20211222133500284.png)
+
+poll方法中，最后会判断是否需要自动提交偏移量：
+
+![image-20211222133725262](assest/image-20211222133725262.png)
+
+![image-20211222134027782](assest/image-20211222134027782.png)
+
+![image-20211222134236976](assest/image-20211222134236976.png)
+
+![image-20211222134513187](assest/image-20211222134513187.png)
+
+![image-20211222135645112](assest/image-20211222135645112.png)
+
+
+
+invokeCompletedOffsetCommitCallbacks 方法用于轮询偏移量提交后broker端的响应信息：
+
+![image-20211222135954122](assest/image-20211222135954122.png)
+
+![image-20211222140209997](assest/image-20211222140209997.png)
+
+
+
+![image-20211222140823553](assest/image-20211222140823553.png)
+
+onCommitCompleted的实现：
+
+![image-20211222141316157](assest/image-20211222141316157.png)
+
+lastCommittedOffsets 为：
+
+![image-20211222141916841](assest/image-20211222141916841.png)
+
+
+
+KafkaConsumer -> Broker -> KafkaApis-handle -> GroupCoordinator - handleCommitOffsets ->  GroupMetadataManager-storeOffsets -> GroupMetadata-onOffsetCommitAppend -> ReplicaManager -> log   -> KafkaConsumer  -> lastCommittedOffsets 集合。
+
+在Kafka 1.0.2 之前的版本中有一个OffsetManager负责偏移量的处理。
+
+OffsetManager主要提供对offset的保存和读取，kafka管理topic的偏移量有2中方式：
+
+1. zookeeper，即把偏移量提交至zk上；
+2. kafka，即把偏移量提交至kafka内部，主要有offsets.storage参数决定。1.0.2 版本中默认是Kafka。也就是说如果配置offsets.storage=kafka，则kafka会把这种offsetcommit请求转变为一种Producer，保存至topic为`__consumer_offsets`的log里面。
+
+```scala
+class OffsetManager(val config: OffsetManagerConfig,
+					replicaManager: ReplicaManager, 
+                    zkClient: ZkClient,
+					scheduler: Scheduler) extends Logging with KafkaMetricsGroup {
+	//通过offsetsCache提供对GroupTopicPartition的查询
+	private val offsetsCache = new Pool[GroupTopicPartition, OffsetAndMetadata]
+	//把过时的偏移量刷⼊磁盘，因为这些偏移量⻓时间没有被更新，意味着消费者可能不再消费了，也就不需要了， 因此刷⼊到磁盘
+	scheduler.schedule(name = "offsets-cache-compactor",
+                       fun = compact,
+					   period = config.offsetsRetentionCheckIntervalMs, 
+                       unit = TimeUnit.MILLISECONDS)
+```
+
+主要完成2件事：
+
+1. 提供对topic偏移量的查询
+2. 将偏移量消息刷入`__consumer_offsets`主题的log中
 
 # 12 KafkaApis
 
