@@ -1637,15 +1637,15 @@ OffsetManager主要提供对offset的保存和读取，kafka管理topic的偏移
 
 ```scala
 class OffsetManager(val config: OffsetManagerConfig,
-					replicaManager: ReplicaManager, 
+                    replicaManager: ReplicaManager, 
                     zkClient: ZkClient,
-					scheduler: Scheduler) extends Logging with KafkaMetricsGroup {
-	//通过offsetsCache提供对GroupTopicPartition的查询
-	private val offsetsCache = new Pool[GroupTopicPartition, OffsetAndMetadata]
-	//把过时的偏移量刷⼊磁盘，因为这些偏移量⻓时间没有被更新，意味着消费者可能不再消费了，也就不需要了， 因此刷⼊到磁盘
-	scheduler.schedule(name = "offsets-cache-compactor",
+                    scheduler: Scheduler) extends Logging with KafkaMetricsGroup {
+    //通过offsetsCache提供对GroupTopicPartition的查询
+    private val offsetsCache = new Pool[GroupTopicPartition, OffsetAndMetadata]
+    //把过时的偏移量刷⼊磁盘，因为这些偏移量⻓时间没有被更新，意味着消费者可能不再消费了，也就不需要了， 因此刷⼊到磁盘
+    scheduler.schedule(name = "offsets-cache-compactor",
                        fun = compact,
-					   period = config.offsetsRetentionCheckIntervalMs, 
+                       period = config.offsetsRetentionCheckIntervalMs, 
                        unit = TimeUnit.MILLISECONDS)
 ```
 
