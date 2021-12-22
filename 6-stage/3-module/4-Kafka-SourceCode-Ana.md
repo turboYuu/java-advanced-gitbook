@@ -1656,6 +1656,10 @@ class OffsetManager(val config: OffsetManagerConfig,
 
 # 12 KafkaApis
 
+当启动KafkaServer的时候，在其startup方法中，实例化了KafkaApi，并赋值给KafkaRequestHandlerPool用于执行具体的请求处理逻辑：
+
+![image-20211222144242492](assest/image-20211222144242492.png)
+
 
 
 # 13 KafkaController
