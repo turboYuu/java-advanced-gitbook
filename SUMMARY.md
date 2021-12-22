@@ -81,4 +81,10 @@
         * [第二部分 Kafka高级特性解析](6-stage/3-module/2-Kafka-Ad-Feature-Ana.md)
         * [第三部分 Kafka集群与运维](6-stage/3-module/3-Kafka-Cluster-yw.md)
         * [第四部分 Kafka源码剖析](6-stage/3-module/4-Kafka-SourceCode-Ana.md)
+* [第七阶段 分布式搜索引擎进阶](7-stage/README.md)
+    * [模块二 Elastic Stack（ELK）](7-stage/2-module/README.md)
+        * [第一部分 全文所有引擎 Elasticsearch基础](7-stage/2-module/1-Elasticsearch-basic.md)
+        * [第二部分 Elasticsearch入门使用](7-stage/2-module/2-Elasticsearch-started.md)
+        * [第三部分 Elasticsearch高级应用](7-stage/2-module/3-Elasticsearch-Advance.md)
+        * [第四部分 Elasticsearch企业级高可用分布式集群](7-stage/2-module/4-Elasticsearch-HA-Dis-Cluster.md)
 
