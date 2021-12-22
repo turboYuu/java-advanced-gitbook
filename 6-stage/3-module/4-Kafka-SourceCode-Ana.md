@@ -1660,9 +1660,92 @@ class OffsetManager(val config: OffsetManagerConfig,
 
 ![image-20211222144242492](assest/image-20211222144242492.png)
 
+`KafkaApi`主构造器参数：
+
+![image-20211222172006181](assest/image-20211222172006181.png)
+
+各种请求的处理逻辑入口：
+
+![image-20211222172125494](assest/image-20211222172125494.png)
+
+使用模式匹配：
+
+```scala
+    // 消息生产请求的处理逻辑
+    case ApiKeys.PRODUCE => handleProduceRequest(request)
+    // 处理
+    case ApiKeys.FETCH => handleFetchRequest(request)
+    case ApiKeys.LIST_OFFSETS => handleListOffsetRequest(request)
+    case ApiKeys.METADATA => handleTopicMetadataRequest(request)
+    case ApiKeys.LEADER_AND_ISR => handleLeaderAndIsrRequest(request)
+    case ApiKeys.STOP_REPLICA => handleStopReplicaRequest(request)
+    case ApiKeys.UPDATE_METADATA => handleUpdateMetadataRequest(request)
+    case ApiKeys.CONTROLLED_SHUTDOWN => handleControlledShutdownRequest(request)
+    // 如果是提交偏移量
+    case ApiKeys.OFFSET_COMMIT => handleOffsetCommitRequest(request)
+    case ApiKeys.OFFSET_FETCH => handleOffsetFetchRequest(request)
+    case ApiKeys.FIND_COORDINATOR => handleFindCoordinatorRequest(request)
+    case ApiKeys.JOIN_GROUP => handleJoinGroupRequest(request)
+    case ApiKeys.HEARTBEAT => handleHeartbeatRequest(request)
+    case ApiKeys.LEAVE_GROUP => handleLeaveGroupRequest(request)
+    case ApiKeys.SYNC_GROUP => handleSyncGroupRequest(request)
+    case ApiKeys.DESCRIBE_GROUPS => handleDescribeGroupRequest(request)
+    case ApiKeys.LIST_GROUPS => handleListGroupsRequest(request)
+    case ApiKeys.SASL_HANDSHAKE => handleSaslHandshakeRequest(request)
+    case ApiKeys.API_VERSIONS => handleApiVersionsRequest(request)
+    case ApiKeys.CREATE_TOPICS => handleCreateTopicsRequest(request)
+    case ApiKeys.DELETE_TOPICS => handleDeleteTopicsRequest(request)
+    case ApiKeys.DELETE_RECORDS => handleDeleteRecordsRequest(request)
+    case ApiKeys.INIT_PRODUCER_ID => handleInitProducerIdRequest(request)
+    case ApiKeys.OFFSET_FOR_LEADER_EPOCH => handleOffsetForLeaderEpochRequest(request)
+    case ApiKeys.ADD_PARTITIONS_TO_TXN => handleAddPartitionToTxnRequest(request)
+    case ApiKeys.ADD_OFFSETS_TO_TXN => handleAddOffsetsToTxnRequest(request)
+    case ApiKeys.END_TXN => handleEndTxnRequest(request)
+    case ApiKeys.WRITE_TXN_MARKERS => handleWriteTxnMarkersRequest(request)
+    case ApiKeys.TXN_OFFSET_COMMIT => handleTxnOffsetCommitRequest(request)
+    case ApiKeys.DESCRIBE_ACLS => handleDescribeAcls(request)
+    case ApiKeys.CREATE_ACLS => handleCreateAcls(request)
+    case ApiKeys.DELETE_ACLS => handleDeleteAcls(request)
+    case ApiKeys.ALTER_CONFIGS => handleAlterConfigsRequest(request)
+    case ApiKeys.DESCRIBE_CONFIGS => handleDescribeConfigsRequest(request)
+    case ApiKeys.ALTER_REPLICA_LOG_DIRS => handleAlterReplicaLogDirsRequest(request)
+    case ApiKeys.DESCRIBE_LOG_DIRS => handleDescribeLogDirsRequest(request)
+    case ApiKeys.SASL_AUTHENTICATE => handleSaslAuthenticateRequest(request)
+    case ApiKeys.CREATE_PARTITIONS => handleCreatePartitionsRequest(request)
+```
+
 
 
 # 13 KafkaController
+
+当前broker被选为新的controller的时候，执行如下操作：
+
+1. 注册controller epoch 事件监听
+2. controller epoch + 1
+3. 初始化controller上下文对象，该上下文对象缓存当前所有主题、活跃broker以及所有分区leader的信息
+4. 启动controller channel manager
+5. 启动副本状态机
+6. 启动分区状态机
+
+如果注册为controller的过程中发生了异常，重新注册当前broker为controller，如此则触发新一轮controller选举，以保证永远有一个活跃的controller。
+
+启动Kafka服务器的脚本：
+
+![image-20211222172831332](assest/image-20211222172831332.png)
+
+main方法中创建KafkaServerStartable对象：
+
+![image-20211222173038787](assest/image-20211222173038787.png)
+
+该类中包含KafkaServer对象，startup方法调用的是KafkaServer的startup方法：
+
+![image-20211222173519928](assest/image-20211222173519928.png)
+
+KafkaServer中的startup方法调用了kafkaController的startup方法：
+
+![image-20211222173920439](assest/image-20211222173920439.png)
+
+
 
 
 
