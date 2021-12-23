@@ -1745,6 +1745,147 @@ KafkaServer中的startup方法调用了kafkaController的startup方法：
 
 ![image-20211222173920439](assest/image-20211222173920439.png)
 
+KafkaController的startup方法中，将Startup样例类设置到eventManager中，然后调用eventManager的start方法：
+
+![image-20211223102157713](assest/image-20211223102157713.png)
+
+上图中的eventManager.put(Startup)方法实现：
+
+![image-20211223102401703](assest/image-20211223102401703.png)
+
+上图中的方法将Startup样例类放到queue中：<br>queue的实现：
+
+![image-20211223102535250](assest/image-20211223102535250.png)
+
+Startup样例类：<br>其中的process方法执行controller的选举：
+
+![Startup样例类](assest/image-20211223103028299.png)
+
+上**图中1**的代码表示当session超时的时候处理逻辑，也就是controller到zk连接超时重连，触发该逻辑：
+
+![image-20211223103401735](assest/image-20211223103401735.png)
+
+方法的实现：
+
+![image-20211223103516700](assest/image-20211223103516700.png)
+
+当Controller到zk的连接过期重连的时候，调用方法：
+
+![image-20211223104002059](assest/image-20211223104002059.png)
+
+样例类：Reelect
+
+![image-20211223104300203](assest/image-20211223104300203.png)
+
+![image-20211223104541146](assest/image-20211223104541146.png)
+
+**Startup样例类中的 2 代码**，表示当controller发生变化的时候的处理逻辑：
+
+![image-20211223104943287](assest/image-20211223104943287.png)
+
+方法的实现：
+
+![image-20211223105210732](assest/image-20211223105210732.png)
+
+当controller发生变化的时候的处理逻辑（subscribeDataChanges）：
+
+![image-20211223105533664](assest/image-20211223105533664.png)
+
+调用：
+
+![image-20211223110911307](assest/image-20211223110911307.png)
+
+**Startup样例类中的 3 代码**，表示执行controller的选举：
+
+![image-20211223111834782](assest/image-20211223111834782.png)
+
+KafkaController的startup方法中，调用eventManager的start方法：
+
+![image-20211223102157713](assest/image-20211223102157713.png)
+
+实现：
+
+![image-20211223112640219](assest/image-20211223112640219.png)
+
+thread是ControllerEventThread对象：
+
+> 1. ControllerEventThread的父类是ShutdownableThread，ShutdownableThread的父类是Thread。
+>
+> 2. ControllerEventThread的start方法调用的是Thread的start方法
+> Thread的start方法调用run方法，而run方法实际上是调用，ShutdownableThread的run方法。
+>
+> 3. run方法调用ControllerEventThread的doWork方法。
+
+![image-20211223114155316](assest/image-20211223114155316.png)
+
+ShutdownableThread的实现：
+
+![image-20211223114413823](assest/image-20211223114413823.png)
+
+其中的run方法：
+
+![image-20211223114625123](assest/image-20211223114625123.png)
+
+只要系统正常运行，就会不断调用doWork方法：
+
+![image-20211223114818574](assest/image-20211223114818574.png)
+
+样例类ControllerChange中：
+
+![image-20211223115814436](assest/image-20211223115814436.png)
+
+```scala
+/**
+   * This callback is invoked by the zookeeper leader elector when the current broker resigns as the controller. This is
+   * required to clean up internal controller data structures
+   */
+  def onControllerResignation() {
+    debug("Resigning")
+    // de-register listeners
+    // 取消注册ISR变化通知监听器
+    deregisterIsrChangeNotificationListener()
+    // 取消注册分区重新分配监听器
+    deregisterPartitionReassignmentListener()
+    // 取消注册带偏向的副本leader选举监听器
+    deregisterPreferredReplicaElectionListener()
+    // 取消注册 log.dirs 事件通知监听器
+    deregisterLogDirEventNotificationListener()
+
+    // reset topic deletion manager
+    // 重置主题删除管理器
+    topicDeletionManager.reset()
+
+    // shutdown leader rebalance scheduler
+    // 关闭Kafka的leader再平衡调度器
+    kafkaScheduler.shutdown()
+    offlinePartitionCount = 0
+    preferredReplicaImbalanceCount = 0
+    globalTopicCount = 0
+    globalPartitionCount = 0
+
+    // de-register partition ISR listener for on-going partition reassignment task
+    // 取消注册分区再平衡ISR变化监听器
+    deregisterPartitionReassignmentIsrChangeListeners()
+    // shutdown partition state machine
+    // 关闭分区状态机
+    partitionStateMachine.shutdown()
+    // 取消注册一堆分区修改监听器
+    deregisterTopicChangeListener()
+    partitionModificationsListeners.keys.foreach(deregisterPartitionModificationsListener)
+    // 取消注册主题删除监听器
+    deregisterTopicDeletionListener()
+    // shutdown replica state machine
+    // 关闭副本状态机
+    replicaStateMachine.shutdown()
+    // 取消注册broker变化监听器
+    deregisterBrokerChangeListener()
+    // 重置 controller 上下文
+    resetControllerContext()
+    // 日志：controller辞职不干了
+    info("Resigned")
+  }
+```
+
 
 
 
