@@ -1892,9 +1892,118 @@ ShutdownableThread的实现：
 
 # 14 KafkaHealthcheck
 
+健康检查的初始化和启动
 
+在启动KafkaServer的startup方法中，实例化并启动了健康检查：
+
+![image-20211223121224545](assest/image-20211223121224545.png)
+
+健康检查的startup方法的执行逻辑：
+
+![image-20211223121428945](assest/image-20211223121428945.png)
+
+> **注册状态监听器的具体实现**：
+
+![image-20211223121632912](assest/image-20211223121632912.png)
+
+subscribeStateChanges(listener)的具体实现：<br>调用zookeeper客户端的方法，该方法将监听器对象添加到 `_stateListener`这个Set集合中：
+
+![image-20211223121900634](assest/image-20211223121900634.png)
+
+zookeeper客户端的回调方法：<br>新建会话事件触发监听器：
+
+![image-20211223122150237](assest/image-20211223122150237.png)
+
+如果发生了zk重连，则需要重新在zk中注册当前broker：
+
+![image-20211223122542998](assest/image-20211223122542998.png)
+
+会话建立异常，触发监听器：
+
+![image-20211223132224584](assest/image-20211223132224584.png)
+
+无法建立到zk的连接：
+
+![image-20211223132656462](assest/image-20211223132656462.png)
+
+
+
+状态改变，执行监听器方法：
+
+![image-20211223133032851](assest/image-20211223133032851.png)
+
+只要状态发生改变，就标记当前事件的发生，用于监控。
+
+![image-20211223133212810](assest/image-20211223133212810.png)
+
+> **register方法具体逻辑**
+
+解决端点的主机名端口号，然后调用zkUtil的方法将当前broker的信息注册到zookeeper中：
+
+![image-20211223134520286](assest/image-20211223134520286.png)
+
+registerBrokerInZk的具体逻辑：
+
+![image-20211223135310653](assest/image-20211223135310653.png)
+
+![image-20211223135426226](assest/image-20211223135426226.png)
+
+主要是在zk的/brokers/[0...N] 路径上建立该Broker的信息，并且该节点是ZK中的Ephemeral Node，此时Broker离线的时候，zk上对应的节点也就消失了，那么其他Broker可以即时发现该Broker的异常。
+
+`kafka.server.KafkaHealthcheck`
 
 # 15 DynamicConfigManager
+
+工作流程如下：
+
+配置存储于 /<Kafka_ROOT>/config/entityType/entityName，如/<Kafka_ROOT>/config/topics/<topic_name> 以及 /<Kafka_ROOT>/config/clients/<clientId>
+
+默认配置存储与各自的<default>节点种，上述节点中保存的是覆盖默认配置的数据，以properties的格式。
+
+可以使用分级路径同时指定多个实体的名称，如：/config/users/<user>/clients/<clientId>
+
+设置通知路径 /config/changes，避免对所有主题进行监控，有事通知。DynamicConfigManager监控该路径。
+
+
+
+更新配置的第一步是更新配置的properties。
+
+之后，在/config/changes/下创建一个新的序列znode，类似于/config/changes/config_change_12231，该节点保存了实体类型和实体名称。
+
+序列znode包含的数据形式：{"version":1, "entity_type":"topic/client", "entity_name":"topic_name/client_id"}
+
+这只是一个通知，真正的配置数据存储于 /config/entityType/entityName 节点
+
+版本2的通知格式：{"version":2, "entity_path":"entity_type/entity_name"}
+
+可以使用分级路径指定多个实体：如，user/<user>/clinet/<clientId>
+
+
+
+该类对所有的broker设置监视器。监视器工作流程如下：
+
+1. 监视器读取所有的配置更改通知。
+2. 监视器跟踪它应用过的后缀数字最高的配置更新。
+3. 监视器先前处理过的通知，15min之后监视器将其删除。
+4. 对于新的更改，监视器读取新的配置，将新的配置和默认配置整合，然后更新现有的配置。
+
+配置永远从zk配置路径读取，通知仅用于触发该动作。
+
+如果一个broker宕机，错过了一个更新，没问题 —— 当broker重启的时候，加载所有的配置。
+
+注意：如果有两个连续的配置更新，可能只有最后一个会处理（因为在broker读取配置信息的时候，可能两个更新都处理过了）。
+
+此时，broker不需要进行两次配置更新，虽然人畜无害。
+
+DynamicConfigManager重启的时候，重新处理所有的通知。可能有点儿浪费资源，但是它避免了丢失配置更新。
+
+但要避免在启动时出现任何竞争情况，因为这些情况可能会丢失**初始配置加载**与**注册更改通知**之间的更改。
+
+
+
+KafkaServer启动的时候，在startup方法中，配置动态配置管理，并启动动态配置管理器：
+
+![image-20211223150815926](assest/image-20211223150815926.png)
 
 
 
