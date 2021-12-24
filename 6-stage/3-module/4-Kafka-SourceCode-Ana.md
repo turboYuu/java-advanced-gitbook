@@ -2121,15 +2121,171 @@ def processConfigChanges(topic: String, topicConfig: Properties) {
 
 ![image-20211224122915696](assest/image-20211224122915696.png)
 
+![image-20211224141729078](assest/image-20211224141729078.png)
+
+getEntityConfigRootPath(entityType) 的具体实现：
+
+![image-20211224142046809](assest/image-20211224142046809.png)
+
+其中，主题配置管理器TopicConfigHandler：
+
+![image-20211224143102220](assest/image-20211224143102220.png)
+
+```scala
+def processConfigChanges(topic: String, topicConfig: Properties) {
+    // Validate the configurations.
+    // 找出要排除的配置条目
+    val configNamesToExclude = excludedConfigs(topic, topicConfig)
+    // 过滤出当前指定主题的所有分区日志
+    val logs = logManager.logsByTopicPartition.filterKeys(_.topic == topic).values.toBuffer
+    // 如果日志非空
+    if (logs.nonEmpty) {
+      /* combine the default properties with the overrides in zk to create the new LogConfig */
+      // 整合默认配置和zk中覆盖默认的配置，创建新的Log配置信息
+      val props = new Properties()
+      // 添加默认配置
+      props ++= logManager.defaultConfig.originals.asScala
+      // 遍历覆盖默认配置的条目，如果该条目不在要排除的集合中，则直接put到props中
+      // 该操作会覆盖默认相同key的配置
+      topicConfig.asScala.foreach { case (key, value) =>
+        if (!configNamesToExclude.contains(key)) props.put(key, value)
+      }
+      // 实例化新的logConfig
+      val logConfig = LogConfig(props)
+      if ((topicConfig.containsKey(LogConfig.RetentionMsProp) 
+        || topicConfig.containsKey(LogConfig.MessageTimestampDifferenceMaxMsProp))
+        && logConfig.retentionMs < logConfig.messageTimestampDifferenceMaxMs)
+        warn(s"${LogConfig.RetentionMsProp} for topic $topic is set to ${logConfig.retentionMs}. It is smaller than " + 
+          s"${LogConfig.MessageTimestampDifferenceMaxMsProp}'s value ${logConfig.messageTimestampDifferenceMaxMs}. " +
+          s"This may result in frequent log rolling.")
+      // 更新当前主题所有分区日志的配置信息
+      logs.foreach(_.config = logConfig)
+    }
+
+    def updateThrottledList(prop: String, quotaManager: ReplicationQuotaManager) = {
+      if (topicConfig.containsKey(prop) && topicConfig.getProperty(prop).length > 0) {
+        val partitions = parseThrottledPartitions(topicConfig, kafkaConfig.brokerId, prop)
+        quotaManager.markThrottled(topic, partitions)
+        logger.debug(s"Setting $prop on broker ${kafkaConfig.brokerId} for topic: $topic and partitions $partitions")
+      } else {
+        quotaManager.removeThrottle(topic)
+        logger.debug(s"Removing $prop from broker ${kafkaConfig.brokerId} for topic $topic")
+      }
+    }
+    updateThrottledList(LogConfig.LeaderReplicationThrottledReplicasProp, quotas.leader)
+    updateThrottledList(LogConfig.FollowerReplicationThrottledReplicasProp, quotas.follower)
+  }
+```
+
 
 
 # 16 分区消费模式
 
+在分区消费模式，需要手动指定消费者要消费的主题和主题的分区信息。
 
+可以设置从分区的哪个偏移量开始消费。
+
+典型的分区消费：
+
+```java
+Map<String, Object> configs = new HashMap<>();
+configs.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "node1:9092");
+configs.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+
+configs.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+configs.put(ConsumerConfig.CLIENT_ID_CONFIG, "mycsmr" + System.currentTimeMillis()); configs.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+// 设置消费组id
+// configs.put(ConsumerConfig.GROUP_ID_CONFIG, "csmr_grp_01");
+KafkaConsumer<String, String> consumer = new KafkaConsumer<String, String>(configs);
+TopicPartition tp0 = new TopicPartition("tp_demo_01", 0);
+TopicPartition tp1 = new TopicPartition("tp_demo_01", 1);
+TopicPartition tp2 = new TopicPartition("tp_demo_01", 2);
+/*
+* 如果不设置消费组ID，则系统不会⾃动给消费者分配主题分区 * 此时需要⼿动指定消费者消费哪些分区数据。
+*/
+consumer.assign(Arrays.asList(tp0, tp1, tp2));
+consumer.seek(tp0, 0);
+consumer.seek(tp1, 0);
+consumer.seek(tp2, 0);
+ConsumerRecords<String, String> records = consumer.poll(1000); 
+records.forEach(record -> {
+    System.out.println(record.topic() + "\t" 
+                       + record.partition() + "\t"
+                       + record.offset() + "\t" 
+                       + record.key() + "\t" 
+                       + record.value());
+});
+// 最后关闭消费者 
+consumer.close();
+```
+
+
+
+上面代码中的assign方法的实现：
+
+![image-20211224144552214](assest/image-20211224144552214.png)
+
+assignFromUser的实现：
+
+![image-20211224150324541](assest/image-20211224150324541.png)
+
+调用seek方法指定各个主题分区从哪个偏移量开始消费：
+
+![image-20211224150544168](assest/image-20211224150544168.png)
+
+subscriptions的seek方法实现：
+
+![image-20211224150651645](assest/image-20211224150651645.png)
+
+上图中seek的实现：
+
+![image-20211224150826896](assest/image-20211224150826896.png)
+
+此时poll方法的调用为：
+
+![image-20211224151036755](assest/image-20211224151036755.png)
+
+pollOnce方法的实现：
+
+发起请求：
+
+![image-20211224151144804](assest/image-20211224151144804.png)
+
+该方法的实现：
+
+创建需要发送的请求对象并发起请求：
+
+![image-20211224151835869](assest/image-20211224151835869.png)
+
+client.send方法添加监听器，等待broker端的响应：
+
+![image-20211224152647709](assest/image-20211224152647709.png)
+
+监听的逻辑：
+
+![image-20211224153001350](assest/image-20211224153001350.png)
+
+
+
+上面方法中createFetchRequests用于创建需要发起的请求：
+
+![image-20211224154456062](assest/image-20211224154456062.png)
+
+![image-20211224154714133](assest/image-20211224154714133.png)
+
+
+
+fetchablePartitions方法的实现：
+
+![image-20211224155200155](assest/image-20211224155200155.png)
+
+最终，pollOnce方法返回拉取的结果：
+
+![image-20211224155443268](assest/image-20211224155443268.png)
 
 # 17 组消费模式
 
-
+组消费模式
 
 # 18 同步发送模式
 
