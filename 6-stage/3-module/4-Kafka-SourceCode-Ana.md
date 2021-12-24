@@ -2005,6 +2005,122 @@ KafkaServer启动的时候，在startup方法中，配置动态配置管理，�
 
 ![image-20211223150815926](assest/image-20211223150815926.png)
 
+DynamicConfigManager的startup方法的逻辑：<br>在动态配置管理器启动的时候，首先执行一遍配置更新。
+
+![image-20211224110708898](assest/image-20211224110708898.png)
+
+**`configChangeListener.init()`方法的具体实现**：
+
+![image-20211224112048383](assest/image-20211224112048383.png)
+
+上图中`subscribeChildChanges`订阅子节点个数变化监听器，具体实现：
+
+![image-20211224112620318](assest/image-20211224112620318.png)
+
+上图中标红框的是订阅子节点个数变化监听器，只要子节点个数发生变化，就回调listener（即：NodeChangeListener）。
+
+![image-20211224112907048](assest/image-20211224112907048.png)
+
+**`NodeChangeListener`的具体实现**：
+
+![image-20211224113326756](assest/image-20211224113326756.png)
+
+处理通知的实现：
+
+![image-20211224114149961](assest/image-20211224114149961.png)
+
+**`notificationHandler.processNotification(data)`的实现**：
+
+首先 notificationHandler 是哪个？
+
+![image-20211224114553520](assest/image-20211224114553520.png)
+
+该类在哪里实例化？
+
+![image-20211224115032686](assest/image-20211224115032686.png)
+
+![image-20211224115122811](assest/image-20211224115122811.png)
+
+即notificationHandler就是ConfigChangedNotificationHandler类。
+
+`notificationHandler.processNotification(data)`的实现：
+
+![image-20211224115450902](assest/image-20211224115450902.png)
+
+![image-20211224115646952](assest/image-20211224115646952.png)
+
+如果版本1，则：
+
+![image-20211224115826139](assest/image-20211224115826139.png)
+
+如果版本2，则：
+
+![image-20211224115949206](assest/image-20211224115949206.png)
+
+具体实现：
+
+`kafka.server.TopicConfigHandler#processConfigChanges`
+
+```scala
+def processConfigChanges(topic: String, topicConfig: Properties) {
+    // Validate the configurations.
+    // 找出要排除的配置条目
+    val configNamesToExclude = excludedConfigs(topic, topicConfig)
+    // 过滤出当前指定主题的所有分区日志
+    val logs = logManager.logsByTopicPartition.filterKeys(_.topic == topic).values.toBuffer
+    // 如果日志非空
+    if (logs.nonEmpty) {
+      /* combine the default properties with the overrides in zk to create the new LogConfig */
+      // 整合默认配置和zk中覆盖默认的配置，创建新的Log配置信息
+      val props = new Properties()
+      // 添加默认配置
+      props ++= logManager.defaultConfig.originals.asScala
+      // 遍历覆盖默认配置的条目，如果该条目不在要排除的集合中，则直接put到props中
+      // 该操作会覆盖默认相同key的配置
+      topicConfig.asScala.foreach { case (key, value) =>
+        if (!configNamesToExclude.contains(key)) props.put(key, value)
+      }
+      // 实例化新的logConfig
+      val logConfig = LogConfig(props)
+      if ((topicConfig.containsKey(LogConfig.RetentionMsProp) 
+        || topicConfig.containsKey(LogConfig.MessageTimestampDifferenceMaxMsProp))
+        && logConfig.retentionMs < logConfig.messageTimestampDifferenceMaxMs)
+        warn(s"${LogConfig.RetentionMsProp} for topic $topic is set to ${logConfig.retentionMs}. It is smaller than " + 
+          s"${LogConfig.MessageTimestampDifferenceMaxMsProp}'s value ${logConfig.messageTimestampDifferenceMaxMs}. " +
+          s"This may result in frequent log rolling.")
+      // 更新当前主题所有分区日志的配置信息
+      logs.foreach(_.config = logConfig)
+    }
+
+    def updateThrottledList(prop: String, quotaManager: ReplicationQuotaManager) = {
+      if (topicConfig.containsKey(prop) && topicConfig.getProperty(prop).length > 0) {
+        val partitions = parseThrottledPartitions(topicConfig, kafkaConfig.brokerId, prop)
+        quotaManager.markThrottled(topic, partitions)
+        logger.debug(s"Setting $prop on broker ${kafkaConfig.brokerId} for topic: $topic and partitions $partitions")
+      } else {
+        quotaManager.removeThrottle(topic)
+        logger.debug(s"Removing $prop from broker ${kafkaConfig.brokerId} for topic $topic")
+      }
+    }
+    updateThrottledList(LogConfig.LeaderReplicationThrottledReplicasProp, quotas.leader)
+    updateThrottledList(LogConfig.FollowerReplicationThrottledReplicasProp, quotas.follower)
+  }
+```
+
+删除过期配置更新通知节点。通知时间对比，过期时间为：15min。
+
+![image-20211224121627624](assest/image-20211224121627624.png)
+
+
+
+![image-20211224122053276](assest/image-20211224122053276.png)
+
+
+
+获取指定实体类型中各个实体的配置信息：
+
+![image-20211224122915696](assest/image-20211224122915696.png)
+
 
 
 # 16 分区消费模式
