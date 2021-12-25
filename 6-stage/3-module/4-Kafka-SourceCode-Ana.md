@@ -2285,7 +2285,152 @@ fetchablePartitions方法的实现：
 
 # 17 组消费模式
 
-组消费模式
+组消费模式指的是再消费者消费消息的时候，是u哦那个组协调器的再平衡机制自动分配要消费的分区（们）。
+
+此时需要在消费者的配置中指定消费组ID，同时如果需要，设置偏移量重置的策略。
+
+然后消费者订阅主题，就可以消费消息了。
+
+```java
+Map<String, Object> configs = new HashMap<>();
+configs.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "node1:9092");
+configs.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+configs.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+configs.put(ConsumerConfig.CLIENT_ID_CONFIG, "mycsmr" + System.currentTimeMillis()); configs.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+// 设置消费组id
+configs.put(ConsumerConfig.GROUP_ID_CONFIG, "csmr_grp_01");
+KafkaConsumer<String, String> consumer = new KafkaConsumer<String, String>(configs); consumer.subscribe(Collections.singleton("tp_demo_01"));
+ConsumerRecords<String, String> records = consumer.poll(1000); 
+records.forEach(record -> {
+	System.out.println(record.topic() + "\t" 
+		+ record.partition() + "\t"
+		+ record.offset() + "\t" 
+		+ record.key() + "\t" 
+		+ record.value());
+});
+// 最后关闭消费者 
+consumer.close();
+```
+
+
+
+`consumer.subscribe`方法的实现：
+
+![image-20211225140401515](assest/image-20211225140401515.png)
+
+上面方法中第一个参数是订阅的主题集合，第二个参数是一个监听器，当发送再平衡的时候消费者想要执行的操作。默认是NoOpConsumerRebalanceListener，即什么都不做，NoOpConsumerRebalanceListener的实现：
+
+![image-20211225140723040](assest/image-20211225140723040.png)
+
+订阅方法的实现：
+
+![image-20211225141255674](assest/image-20211225141255674.png)
+
+
+
+subscriptions的订阅操作实现：
+
+![image-20211225141437994](assest/image-20211225141437994.png)
+
+就是对SubscriptionState的操作：
+
+![image-20211225141616035](assest/image-20211225141616035.png)
+
+
+
+用户的poll的操作调用pollOnce方法：
+
+![image-20211225142030044](assest/image-20211225142030044.png)
+
+
+
+pollOnce的实现：
+
+![image-20211225142744289](assest/image-20211225142744289.png)
+
+
+
+coordinator.poll 负责周期性向broker提交偏移量信息。
+
+上面方法中updateFetchPositions方法表示：如果订阅的主题分区没有偏移量信息，则更新主题分区的偏移量信息，这样就知道消费的时候从那么开始消费了：
+
+![image-20211225143235678](assest/image-20211225143235678.png)
+
+上图中的fetcher.resetOffsetsIfNeeded方法的实现：
+
+![image-20211225143906771](assest/image-20211225143906771.png)
+
+上图中 259行 resetOffsets 的具体实现：
+
+![image-20211225144734726](assest/image-20211225144734726.png)
+
+![image-20211225145106155](assest/image-20211225145106155.png)
+
+上述的实现表示：首先根据重置策略重置主题分区的偏移量请求类型，然后发送请求，真正从主题的分区中获取偏移量。
+
+
+
+其中上图中的
+
+![image-20211225145423520](assest/image-20211225145423520.png)
+
+需要向broker发送请求，获取主题分区的偏移量，更新偏移量的值：
+
+![image-20211225145820439](assest/image-20211225145820439.png)
+
+发送请求的实现：
+
+![image-20211225150233806](assest/image-20211225150233806.png)
+
+发送的请求是ListOffsetRequest请求：
+
+![image-20211225151024156](assest/image-20211225151024156.png)——
+
+该请求在Broker中的处理：
+
+![image-20211225151253373](assest/image-20211225151253373.png)
+
+具体处理：
+
+![image-20211225151510396](assest/image-20211225151510396.png)
+
+该方法的实现：
+
+![image-20211225151627088](assest/image-20211225151627088.png)
+
+如果是最晚的，直接设置最晚的偏移量，如果不是最晚的，则需要根据主题分区以及时间戳查找：
+
+![image-20211225153348365](assest/image-20211225153348365.png)
+
+查找的逻辑：
+
+![image-20211225160938467](assest/image-20211225160938467.png)
+
+对于消费者，向指定的broker发送ListOffsetRequest请求，获取指定主题分区的偏移量和时间戳信息：
+
+![image-20211225151024156](assest/image-20211225151024156.png)
+
+调用handleListOffsetResponse处理获取的偏移量信息：
+
+![image-20211225161829122](assest/image-20211225161829122.png)
+
+![image-20211225163905397](assest/image-20211225163905397.png)
+
+
+
+complete方法用于完成请求。当complete方法调用之后，success方法返回true。
+
+同时偏移量信息可以通过value方法获取：
+
+![image-20211225164949862](assest/image-20211225164949862.png)
+
+即：变量offsetByTimes的值就是下图中future.value()的值。此时各个主题分区的偏移量已经设置好了：
+
+![image-20211225165750075](assest/image-20211225165750075.png)
+
+![image-20211225165949046](assest/image-20211225165949046.png)
+
+
 
 # 18 同步发送模式
 
