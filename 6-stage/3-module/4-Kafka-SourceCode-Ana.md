@@ -2191,9 +2191,10 @@ def processConfigChanges(topic: String, topicConfig: Properties) {
 Map<String, Object> configs = new HashMap<>();
 configs.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "node1:9092");
 configs.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-
 configs.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-configs.put(ConsumerConfig.CLIENT_ID_CONFIG, "mycsmr" + System.currentTimeMillis()); configs.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+configs.put(ConsumerConfig.CLIENT_ID_CONFIG, "mycsmr" + System.currentTimeMillis()); 
+configs.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+
 // 设置消费组id
 // configs.put(ConsumerConfig.GROUP_ID_CONFIG, "csmr_grp_01");
 KafkaConsumer<String, String> consumer = new KafkaConsumer<String, String>(configs);
@@ -2296,10 +2297,13 @@ Map<String, Object> configs = new HashMap<>();
 configs.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "node1:9092");
 configs.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
 configs.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-configs.put(ConsumerConfig.CLIENT_ID_CONFIG, "mycsmr" + System.currentTimeMillis()); configs.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+configs.put(ConsumerConfig.CLIENT_ID_CONFIG, "mycsmr" + System.currentTimeMillis()); 
+configs.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+
 // 设置消费组id
 configs.put(ConsumerConfig.GROUP_ID_CONFIG, "csmr_grp_01");
-KafkaConsumer<String, String> consumer = new KafkaConsumer<String, String>(configs); consumer.subscribe(Collections.singleton("tp_demo_01"));
+KafkaConsumer<String, String> consumer = new KafkaConsumer<String, String>(configs); 
+consumer.subscribe(Collections.singleton("tp_demo_01"));
 ConsumerRecords<String, String> records = consumer.poll(1000); 
 records.forEach(record -> {
 	System.out.println(record.topic() + "\t" 
