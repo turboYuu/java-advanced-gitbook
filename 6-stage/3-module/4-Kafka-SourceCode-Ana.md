@@ -2436,9 +2436,93 @@ complete方法用于完成请求。当complete方法调用之后，success方法
 
 
 
+pollOnce方法：
+
+![image-20211227101841188](assest/image-20211227101841188.png)
+
+在更新主题分区的偏移量之后，就可以发送请求消费消息了：
+
+![image-20211227102113183](assest/image-20211227102113183.png)
+
+对于组消费，还需要定期将偏移量提交到`__consumer_offsets`主题中：
+
+![image-20211227102242929](assest/image-20211227102242929.png)
+
+`coordinator.poll`方法的实现：
+
+![image-20211227102621421](assest/image-20211227102621421.png)
+
+如果是自动提交消费者偏移量到broker的`__consumer_offsets`主题，则maybeAutoCommitOffsetsAsync的实现：
+
+![image-20211227102902796](assest/image-20211227102902796.png)
+
+doAutoCommitOffsetsAsync的实现：
+
+![image-20211227103126144](assest/image-20211227103126144.png)
+
+commitOffsetsAsync的实现：
+
+![image-20211227103435759](assest/image-20211227103435759.png)
+
+在异步提交消费者偏移量的时候，如果组协调器已知，直接发送<br>如果未知，则异步提交等待，查找组协调器，等找到之后，异步提交消费者偏移量：
+
+![image-20211227111537891](assest/image-20211227111537891.png)
+
+![image-20211227110548207](assest/image-20211227110548207.png)
+
+上图中sendOffsetCommitRequest的实现：
+
+1. 首先查找消费组协调器
+2. 然后创建偏移量提交请求对象
+3. 发送请求
+
+![image-20211227112213451](assest/image-20211227112213451.png)
+
+![image-20211227112553225](assest/image-20211227112553225.png)
+
+
+
+在KafkaServer处理的时候：
+
+![image-20211227112725563](assest/image-20211227112725563.png)
+
+handleOffsetCommitRequest的实现：
+
+![image-20211227112815146](assest/image-20211227112815146.png)
+
+![image-20211227112949148](assest/image-20211227112949148.png)
+
+消费组协调器的处理：
+
+![image-20211227113136860](assest/image-20211227113136860.png)
+
+![image-20211227113259328](assest/image-20211227113259328.png)
+
+doCommitOffsets的实现：
+
+![image-20211227113509893](assest/image-20211227113509893.png)
+
+![image-20211227113832036](assest/image-20211227113832036.png)
+
+storeOffsets的实现：
+
+其中：
+
+![image-20211227114022416](assest/image-20211227114022416.png)
+
+![image-20211227115058784](assest/image-20211227115058784.png)
+
+![image-20211227115147503](assest/image-20211227115147503.png)
+
+appendForGroup的实现如下，将当前消费组的偏移量消息追加到`__consumer_offsets`的指定分区中：
+
+![image-20211227115319692](assest/image-20211227115319692.png)
+
+
+
 # 18 同步发送模式
 
-
+消息
 
 # 19 异步发送模式
 
