@@ -6,13 +6,25 @@ Elasticsearch简称ES，是一个开源的可扩展的分布式的**全文搜索
 
 Elasticsearch官网：https://www.elastic.co/cn/elasticsearch/
 
+![image-20211227172259811](assest/image-20211227172259811.png)
+
 ![image-20211227171646490](assest/image-20211227171646490.png)
 
 起源：Shay Banon，2004年失业，陪wife去伦敦学习厨师。事业在家帮wife写一个菜谱搜索引擎。封装了lucene，做出了开源项目compass。找到工作后，做分布式高性能项目，再封装compass，写出来elasticsearch，使得lucene支持分布式。现在Elasticsearch创建人，兼Elastic首席执行官。
 
 # 2 Elasticsearch的功能
 
+- 分布式的搜索引擎
+- 全文检索
+- 数据分析引擎（分组聚合）
+- 对海量数据进行实时的处理
+
 # 3 Elasticsearch的特点
+
+> Elasticsearch的特点是它提供了一个极速的搜索体验。这源于它的高速（**speed**）。相比较一些大数据引擎，Elasticsearch可以实现秒级的搜索，速度非常有优势。Elasticsearch的cluster是一种分布式的部署，极易扩展（**scale**）这样很容易使它处理PB级的数据库容量。最重要的是Elasticsearch的搜索结果可以按照分数进行排序，它能提供相关的搜索结果（**relevance**）。
+
+1. 安装方便：没有其他依赖，下载后安装非常方便。只用修改几个参数就可以搭建起来一个集群
+2. JSON：
 
 # 4 Elasticsearch企业使用场景
 
