@@ -6,8 +6,6 @@ Elasticsearch简称ES，是一个开源的可扩展的分布式的**全文搜索
 
 Elasticsearch官网：https://www.elastic.co/cn/elasticsearch/
 
-![image-20211227172259811](assest/image-20211227172259811.png)
-
 ![image-20211227171646490](assest/image-20211227171646490.png)
 
 起源：Shay Banon，2004年失业，陪wife去伦敦学习厨师。事业在家帮wife写一个菜谱搜索引擎。封装了lucene，做出了开源项目compass。找到工作后，做分布式高性能项目，再封装compass，写出来elasticsearch，使得lucene支持分布式。现在Elasticsearch创建人，兼Elastic首席执行官。
