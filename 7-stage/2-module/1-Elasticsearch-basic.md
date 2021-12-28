@@ -82,7 +82,47 @@ Lucene、Solr、Elasticsearch是目前主流的全文搜索方案，基于**倒�
 
 Elasticsearch 主流版本为 5.x，6.x 及 7.x 版本
 
-> 
+> 7.x 更新的内容如下
+
+1. 集群连接变化：TransportClient
+
+   ```
+   以至于，es7的java代码，只能使用restclient。对于java编程，建议采用High-level-restclient 的方式操作ES集群。
+   High-level RESt client 已删除接收Header参数的API方法，Cluster Health API 默认为集群级别。
+   ```
+
+2. ES数据存储结构变化：简化了Type 默认使用_doc
+
+   ```
+   es6时，官方就提到了es7会逐渐删除索引type，并且es6时已经规定每一个index只能有一个type。
+   在es7中使用默认的_doc作为type，官方说在8.x版本会彻底移除type。
+   api请求方式也发生变化，如获得某索引得某ID的文档：GET index/_doc/id其中index和id为具体的值。
+   ```
+
+3. ES程序包默认打包jdk：以至于7.x版本的程序包大小突然增大了200MB+，对比6.x发现，包大了200MB+，正是JDK的大小
+
+4. 默认配置变化：默认节点名称为主机名，默认分片数改为1，不再是5。
+
+5. Lucene升级为Lucene 8 查询相关性速度优化：Weak-AND算法
+
+   es可以看作是分布式lucene，lucene的性能直接决定es的性能。lucene 8 在top k及其他查询上有很大的性能提升。
+
+   ```
+   weak-and算法 核心原理：取TOP N结果集，估算命中记录数。
+   TOP N的时候会跳过得分低于10000的文档来达到更快的性能。
+   ```
+
+6. 间隔查询（Intervals queries）：intervals query 允许用户精确控制查询词在文档中出现的先后关系，实现对terms顺序、terms之间的距离以及它们之间的包含关系的灵活控制。
+
+7. 引入新的集群协调子系统 移除 minimum_master_nodes 参数，让Elasticsearch 自己选择可以形成仲裁的节点。
+
+8. 7.0 将不会再有OOM的情况，JVM引入了新的circuit breaker（熔断）机制，当查询或聚合的数据量超出单机处理的最大内存限制时会被截断。
+
+   设置`indices.breaker.fielddata.limit`的默认值已经从JVM堆大小的60%降低到40%。
+
+9. 分片搜索空闲时跳过refresh
+
+   以前版本的数据插入，每一秒都会有refresh动作，这使得es能成为一个近实时的搜索引擎。但是当没有查询需求的时候，该动作会使得es的资源得到较大的浪费。
 
 ## 6.2 Elasticsearch与其他软件兼容
 
