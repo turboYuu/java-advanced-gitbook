@@ -684,11 +684,116 @@ public void subscribe(Collection<String> topics, ConsumerRebalanceListener liste
 
 ## 5.4 消息消费过程
 
+下面KafkaConsumer的核心方法poll是如何拉取消息的
+
 ### 5.4.1 poll
 
+`org.apache.kafka.clients.consumer.KafkaConsumer#poll`
 
+```java
+public ConsumerRecords<K, V> poll(long timeout) {
+    //  对资源加锁，主要是网络
+    acquireAndEnsureOpen();
+    try {
+        // 超时时间小于0抛异常
+        if (timeout < 0)
+            throw new IllegalArgumentException("Timeout must not be negative");
+        // 订阅类型为NONE抛异常，表示当前消费者没有订阅任何topic或者没有分区分配
+        if (this.subscriptions.hasNoSubscriptionOrUserAssignment())
+            throw new IllegalStateException("Consumer is not subscribed to any topics or assigned any partitions");
+
+        // poll for new data until the timeout expires
+        long start = time.milliseconds();
+        long remaining = timeout;
+        do {
+            // 核心方法，拉取消息
+            Map<TopicPartition, List<ConsumerRecord<K, V>>> records = pollOnce(remaining);
+            if (!records.isEmpty()) {
+                // before returning the fetched records, we can send off the next round of fetches
+                // and avoid block waiting for their responses to enable pipelining while the user
+                // is handling the fetched records.
+                //
+                // NOTE: since the consumed position has already been updated, we must not allow
+                // wakeups or any other errors to be triggered prior to returning the fetched records.
+                // 如果拉取到了消息，发送一次消息拉取的请求，不会阻塞不会中断
+                // 在返回数据之前，发送下次的fetch请求，避免用户在下次获取数据时线程block
+                if (fetcher.sendFetches() > 0 || client.hasPendingRequests())
+                    client.pollNoWakeup();
+
+                // 经过拦截器处理后返回
+                if (this.interceptors == null)
+                    return new ConsumerRecords<>(records);
+                else
+                    // 消费的消息经过拦截器处理，返回给用户的逻辑
+                    return this.interceptors.onConsume(new ConsumerRecords<>(records));
+            }
+
+            long elapsed = time.milliseconds() - start;
+            // 拉取超时就结束
+            remaining = timeout - elapsed;
+        } while (remaining > 0);
+
+        return ConsumerRecords.empty();
+    } finally {
+        release();
+    }
+}
+```
+
+1. 使用轻量级锁检测kafkaConsumer是否被其他线程使用
+2. 检查超时时间是否小于0，小于0抛出异常，停止消费
+3. 检查这个consumer是否订阅了相应的topic-partition
+4. 调用pollOnce()方法获取相应的records
+5. 在返回获取的records前，发送下一次的fetch请求，避免用户在下次请求时线程block在pollOnce()方法中
+6. 如果在给定的时间（timeout）内获取不到可用的records，返回空数据
+
+这里可以看出，poll方法真正实现是在pollOnce方法中，poll方法通过pollOnce方法获取可用的数据
 
 ### 5.4.2 pollOnce
+
+```java
+// 除了获取新数据外，还会做一些必要的 offset-commit和reset-offset的操作
+private Map<TopicPartition, List<ConsumerRecord<K, V>>> pollOnce(long timeout) {
+    client.maybeTriggerWakeup();
+    // 1.
+    coordinator.poll(time.milliseconds(), timeout);
+
+    // fetch positions if we have partitions we're subscribed to that we
+    // don't know the offset for
+    // 如果没有指定从哪里开始消费的偏移量，自动补全
+    if (!subscriptions.hasAllFetchPositions())
+        updateFetchPositions(this.subscriptions.missingFetchPositions());
+
+    // if data is available already, return it immediately
+    Map<TopicPartition, List<ConsumerRecord<K, V>>> records = fetcher.fetchedRecords();
+    if (!records.isEmpty())
+        return records;
+
+    // send any new fetches (won't resend pending fetches)
+    fetcher.sendFetches();
+
+    long now = time.milliseconds();
+    long pollTimeout = Math.min(coordinator.timeToNextPoll(now), timeout);
+
+    client.poll(pollTimeout, now, new PollCondition() {
+        @Override
+        public boolean shouldBlock() {
+            // since a fetch might be completed by the background thread, we need this poll condition
+            // to ensure that we do not block unnecessarily in poll()
+            return !fetcher.hasCompletedFetches();
+        }
+    });
+
+    // after the long poll, we should check whether the group needs to rebalance
+    // prior to returning data so that the group can stabilize faster
+    if (coordinator.needRejoin())
+        return Collections.emptyMap();
+
+    return fetcher.fetchedRecords();
+}
+```
+
+
 
 #### 5.4.2.1 coordinator.poll()
 
@@ -813,7 +918,7 @@ replicaManager.tryCompleteDelayedFetch(TopicPartitionOperationKey(this.topic, th
 
 每个listener就是一个端点，每个端点创建多个处理程序。
 
-![image-20211220160627766](assest/image-20211220160627766.png)
+![image-20211229105538762](assest/image-20211229105538762.png)
 
 究竟启动多少了处理程序？
 
