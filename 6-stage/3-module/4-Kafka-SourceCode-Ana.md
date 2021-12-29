@@ -755,26 +755,25 @@ public ConsumerRecords<K, V> poll(long timeout) {
 // 除了获取新数据外，还会做一些必要的 offset-commit和reset-offset的操作
 private Map<TopicPartition, List<ConsumerRecord<K, V>>> pollOnce(long timeout) {
     client.maybeTriggerWakeup();
-    // 1.
+    // 1.获取GroupCoordinator地址并连接，加入 Group、sync Group、自动 commit，join及sync期间group会进行rebalance
     coordinator.poll(time.milliseconds(), timeout);
 
-    // fetch positions if we have partitions we're subscribed to that we
-    // don't know the offset for
-    // 如果没有指定从哪里开始消费的偏移量，自动补全
+    // 2.更新订阅的 topic-partition 的 offset（如果订阅的 topic-partition list 没有有效的 offset 的情况下）
     if (!subscriptions.hasAllFetchPositions())
         updateFetchPositions(this.subscriptions.missingFetchPositions());
 
-    // if data is available already, return it immediately
+    // 3.获取 fetcher 已经拉取到的数据
     Map<TopicPartition, List<ConsumerRecord<K, V>>> records = fetcher.fetchedRecords();
     if (!records.isEmpty())
         return records;
 
-    // send any new fetches (won't resend pending fetches)
+    // 4.发送fetch请求，会从多个topic-partition拉取数据（只要对应的 topic-partition 没有未完成的请求）
     fetcher.sendFetches();
 
     long now = time.milliseconds();
     long pollTimeout = Math.min(coordinator.timeToNextPoll(now), timeout);
-
+	
+    // 5.调用 poll 方法发送请求（底层发送请求的接口）
     client.poll(pollTimeout, now, new PollCondition() {
         @Override
         public boolean shouldBlock() {
@@ -784,44 +783,239 @@ private Map<TopicPartition, List<ConsumerRecord<K, V>>> pollOnce(long timeout) {
         }
     });
 
-    // after the long poll, we should check whether the group needs to rebalance
-    // prior to returning data so that the group can stabilize faster
+    // 6.如果 group需要rebalance，直接返回空数据，这样更快地让group进入稳定状态
     if (coordinator.needRejoin())
         return Collections.emptyMap();
-
+	// 获取到请求地结果
     return fetcher.fetchedRecords();
+}
+```
+
+pollOnce可以简单分为6步：
+
+#### 5.4.2.1 coordinator.poll()
+
+获取GroupCoordinator的地址，并建立相应 tcp 连接，发送 join-group、sync-group，之后才真正加入到了一个group中，这时会获取其要消费的 topic-partition 列表，如果设置了自动 commit，也会在这一步进行commit。总之，对于一个新建的group，group状态会从Empty -> PreparingRebalance -> AwaitSync -> Stable；
+
+1. 获取GroupCoordinator的地址，并建立相应的tcp 连接；
+2. 发送join-group请求，然后group将会进行rebalance；
+3. 发送sync-group请求，之后才真正到了一个group中，这时会通过请求获取其要消费的topic-partition列表
+4. 如果设置了自动commit，也会在这一步进行commit offset
+
+#### 5.4.2.2 updateFetchPositions()
+
+这个方法主要是用来更新这个 consumer 实例订阅的 topic-partition 列表的 fetch-offset 信息。目的就是为了获取器订阅的每个 topic-partition 对应的 position，这样Fetcher才知道从哪个 offset 开始去拉取这个topic-partition的数据。
+
+`org.apache.kafka.clients.consumer.KafkaConsumer#updateFetchPositions`
+
+```java
+private void updateFetchPositions(Set<TopicPartition> partitions) {
+    // 先重置那些调用 seekToBegin 和 seekToEnd 的 offset 的 tp，设置其 the fetch position的offset
+    fetcher.resetOffsetsIfNeeded(partitions);
+
+    if (!subscriptions.hasAllFetchPositions(partitions)) {
+        // 获取所有分配tp的offset，即 committed offset,更新到 TopicPartitionState 中的 committed offset中
+        coordinator.refreshCommittedOffsetsIfNeeded();
+
+        // 如果the fetch position值无效，则将上步获取的committed offset设置为the fetch position
+        fetcher.updateFetchPositions(partitions);
+    }
+}
+```
+
+在Fetcher中，这个consumer实例订阅的每个 topic-partition 都会有一个对应的TopicPartitionState对象，在这个对象中会记录以下这些内容：
+
+```java
+private static class TopicPartitionState {
+    // Fetcher 下次取拉取时的 offset, Fetcher 在拉取时需要知道这个值
+    private Long position; // last consumed position
+    // 最后一次获取的高水位标记
+    private Long highWatermark; // the high watermark from last fetch
+    private Long lastStableOffset;
+    // consumer已经处理完的最新一条消息的 offset, consumer主动调用offset-commit时会更新这个值
+    private OffsetAndMetadata committed;  // last committed position
+    // 是否暂停
+    private boolean paused;  // whether this partition has been paused by the user
+    // 这topic-partition offset 重置策略，重置之后，这个策略就会改为null，防止再次操作
+    private OffsetResetStrategy resetStrategy;  // the strategy to use if the offset needs resetting
 }
 ```
 
 
 
-#### 5.4.2.1 coordinator.poll()
-
-
-
-#### 5.4.2.2 updateFetchPositions()
-
-
-
 #### 5.4.2.3 fetcher.fetchdRecords()
+
+返回其 fetched records，并更新其fetch-position offset，只有在offset-commit时（自动commit时，是在第一步实现的），才会更新其committed offset；
+
+`org.apache.kafka.clients.consumer.internals.Fetcher#fetchedRecords`
+
+```java
+public Map<TopicPartition, List<ConsumerRecord<K, V>>> fetchedRecords() {
+    Map<TopicPartition, List<ConsumerRecord<K, V>>> fetched = new HashMap<>();
+    // 在max.poll.records 中设置单次最大的拉取条数
+    int recordsRemaining = maxPollRecords;
+
+    try {
+        while (recordsRemaining > 0) {
+            if (nextInLineRecords == null || nextInLineRecords.isFetched) {
+                // 从队列中获取但不移除此队列的头；如果此队列为空，返回null
+                CompletedFetch completedFetch = completedFetches.peek();
+                if (completedFetch == null) break;
+
+                nextInLineRecords = parseCompletedFetch(completedFetch);
+                // 获取下一个要处理的 nextInLineRecords
+                completedFetches.poll();
+            } else {
+                // 拉取records，更新 position
+                List<ConsumerRecord<K, V>> records = fetchRecords(nextInLineRecords, recordsRemaining);
+                TopicPartition partition = nextInLineRecords.partition;
+                if (!records.isEmpty()) {
+                    List<ConsumerRecord<K, V>> currentRecords = fetched.get(partition);
+                    if (currentRecords == null) {
+                        fetched.put(partition, records);
+                    } else {
+                        // this case shouldn't usually happen because we only send one fetch at a time per partition,
+                        // but it might conceivably happen in some rare cases (such as partition leader changes).
+                        // we have to copy to a new list because the old one may be immutable
+                        List<ConsumerRecord<K, V>> newRecords = new ArrayList<>(records.size() + currentRecords.size());
+                        newRecords.addAll(currentRecords);
+                        newRecords.addAll(records);
+                        fetched.put(partition, newRecords);
+                    }
+                    recordsRemaining -= records.size();
+                }
+            }
+        }
+    } catch (KafkaException e) {
+        if (fetched.isEmpty())
+            throw e;
+    }
+    return fetched;
+}
+
+private List<ConsumerRecord<K, V>> fetchRecords(PartitionRecords partitionRecords, int maxRecords) {
+    if (!subscriptions.isAssigned(partitionRecords.partition)) {
+        // this can happen when a rebalance happened before fetched records are returned to the consumer's poll call
+        log.debug("Not returning fetched records for partition {} since it is no longer assigned",
+                  partitionRecords.partition);
+    } else {
+        // note that the consumed position should always be available as long as the partition is still assigned
+        // 这个 tp不能来消费了，比如调用pause方法暂停消费
+        long position = subscriptions.position(partitionRecords.partition);
+        if (!subscriptions.isFetchable(partitionRecords.partition)) {
+            // this can happen when a partition is paused before fetched records are returned to the consumer's poll call
+            log.debug("Not returning fetched records for assigned partition {} since it is no longer fetchable",
+                      partitionRecords.partition);
+        } else if (partitionRecords.nextFetchOffset == position) {
+            // 获取该 tp对应的records，并更新 partitionRecords的fetchOffset(用于判断是否顺序)
+            List<ConsumerRecord<K, V>> partRecords = partitionRecords.fetchRecords(maxRecords);
+
+            long nextOffset = partitionRecords.nextFetchOffset;
+            log.trace("Returning fetched records at offset {} for assigned partition {} and update " +
+                      "position to {}", position, partitionRecords.partition, nextOffset);
+            // 更新消费到 offset(the fetch position)
+            subscriptions.position(partitionRecords.partition, nextOffset);
+            // 获取Lag（即position与hw之间差值），hw为null时，才返回null
+            Long partitionLag = subscriptions.partitionLag(partitionRecords.partition, isolationLevel);
+            if (partitionLag != null)
+                this.sensors.recordPartitionLag(partitionRecords.partition, partitionLag);
+
+            return partRecords;
+        } else {
+            // these records aren't next in line based on the last consumed position, ignore them
+            // they must be from an obsolete request
+            log.debug("Ignoring fetched records for {} at offset {} since the current position is {}",
+                      partitionRecords.partition, partitionRecords.nextFetchOffset, position);
+        }
+    }
+
+    partitionRecords.drain();
+    return emptyList();
+}
+```
 
 
 
 #### 5.4.2.4 fetcher.sendFecthes()
 
+只要订阅的topic-partition list没有未处理的fetch请求，就发送对这个topic-partition的fecth请求，在真正发送时，还是会按node级别去发送，leader是同一个node的topic-partiton会合成一个请求去发送；
 
+`org.apache.kafka.clients.consumer.internals.Fetcher#sendFetches`
+
+```java
+// 向订阅的所有partition(只要该leader暂时没有拉取请求)所在leader发送fetch请求
+public int sendFetches() {
+    // 1.创建 Fetch Request
+    // 创建一个map集合，其中的信息是对应于节点的FetchRequest建造器对象
+    Map<Node, FetchRequest.Builder> fetchRequestMap = createFetchRequests();
+    for (Map.Entry<Node, FetchRequest.Builder> fetchEntry : fetchRequestMap.entrySet()) {
+        final FetchRequest.Builder request = fetchEntry.getValue();
+        final Node fetchTarget = fetchEntry.getKey();
+
+        log.debug("Sending {} fetch for partitions {} to broker {}", isolationLevel, request.fetchData().keySet(),
+                  fetchTarget);
+        // 2.发送Fetch Request
+        client.send(fetchTarget, request)
+            .addListener(new RequestFutureListener<ClientResponse>() {
+                @Override
+                public void onSuccess(ClientResponse resp) {
+                    FetchResponse response = (FetchResponse) resp.responseBody();
+                    if (!matchesRequestedPartitions(request, response)) {
+                        // obviously we expect the broker to always send us valid responses, so this check
+                        // is mainly for test cases where mock fetch responses must be manually crafted.
+                        log.warn("Ignoring fetch response containing partitions {} since it does not match " +
+                                 "the requested partitions {}", response.responseData().keySet(),
+                                 request.fetchData().keySet());
+                        return;
+                    }
+
+                    Set<TopicPartition> partitions = new HashSet<>(response.responseData().keySet());
+                    FetchResponseMetricAggregator metricAggregator = new FetchResponseMetricAggregator(sensors, partitions);
+
+                    for (Map.Entry<TopicPartition, FetchResponse.PartitionData> entry : response.responseData().entrySet()) {
+                        TopicPartition partition = entry.getKey();
+                        long fetchOffset = request.fetchData().get(partition).fetchOffset;
+                        FetchResponse.PartitionData fetchData = entry.getValue();
+
+                        log.debug("Fetch {} at offset {} for partition {} returned fetch data {}",
+                                  isolationLevel, fetchOffset, partition, fetchData);
+                        completedFetches.add(new CompletedFetch(partition, fetchOffset, fetchData, metricAggregator,
+                                                                resp.requestHeader().apiVersion()));
+                    }
+
+                    sensors.fetchLatency.record(resp.requestLatencyMs());
+                }
+
+                @Override
+                public void onFailure(RuntimeException e) {
+                    log.debug("Fetch request {} to {} failed", request.fetchData(), fetchTarget, e);
+                }
+            });
+    }
+    return fetchRequestMap.size();
+}
+```
+
+1. createFetchRequests()：为订阅的所有topic-partition list 创建 fetch 请求（只要该topic-partition 没有还在处理的请求），创建的fetch请求依然按照node级别创建的；
+2. client.send()：发送fetch请求，并设置相应的：Listener，请求处理成功的话，就加入到completedFetches中，在加入这个completedFetches集合时，是按照topic-partition级别去加入，这样也就方便了后续的处理。
+
+从这里可以看出，在每次发送fetch请求时，都会向所有可能发送的topic-partition发送fetch请求，调用一次fetcher.sendFetches，拉取到的数据，可需要多次pollOnce循环才能处理完，因为Fetcher线程是在后台运行，这也保证了尽可能少的阻塞用户的处理线程，因为如果Fetcher中没有可处理的数据，用户的线程是会阻塞在poll方法中的
 
 #### 5.4.2.5 client.poll()
 
-
+调用底层 NetworkClient提供的接口去发送相应的请求；
 
 #### 5.4.2.6 coordinator.needRejoin()
 
-
+如果当前实例分配的 topic-partition 列表发生了变化，那么这个consumer group就需要进行rebalance。
 
 ## 5.5 自动提交
 
+最简单的提交偏移量的方式是让消费者自动提交偏移量。如果`enable.auto.commit`被设置为true，消费者会自动把从poll()方法接收到的最大偏移量提交上去。提交时间间隔由`auto.commit.interval.ms`控制，默认值是5s。与消费者里的其他东西一样，自动提交也是在轮询（`poll()`）里进行的。消费者每次在进行轮询时会检查是否该提交偏移量了，如果是，那么就会提交从上一次轮询返回的偏移量。
 
+不过这种简单的返回是也会带来一些问题：
+
+假设仍然使用默认的 5s 提交时间间隔，在最近一次提交之后的 3s 发生了再平衡，***再平衡之后，消费者从最后一次提交的偏移量位置开始读取消息***。这个时候偏移量已经落后了 3s，所以在这 3s 内到达的消息会被重复处理。可以通过修改提交时间间隔更频繁的提交偏移量，减小可能出现重复消息的时间窗，不过这种情况也是无法完全避免的。
 
 ## 5.6 手动提交
 
