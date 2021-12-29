@@ -1308,6 +1308,8 @@ KafkaRequestHandler的run方法中使用模式匹配：
 
 上图中，apis的handler方法处理请求：
 
+`kafka.server.KafkaApis#handle`
+
 ```scala
 /**
    * Top-level method that handles all requests and multiplexes to the right api
