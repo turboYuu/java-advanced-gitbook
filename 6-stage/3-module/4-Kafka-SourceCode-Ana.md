@@ -1284,6 +1284,8 @@ Processor的run方法从newConnections中取出请求的channel，解析封装�
 
 将请求消息放到请求队列中：
 
+![image-20211229192058948](assest/image-20211229192058948.png)
+
 在KafkaServer的startup方法中实例化KafkaRequestHandlerPool，该类会立即初始化numIoThreads个线程用于执行KafkaRequestHandler处理请求的逻辑。
 
 ![image-20211220171702337](assest/image-20211220171702337.png)
