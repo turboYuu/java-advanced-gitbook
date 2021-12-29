@@ -1015,17 +1015,51 @@ public int sendFetches() {
 
 不过这种简单的返回是也会带来一些问题：
 
-假设仍然使用默认的 5s 提交时间间隔，在最近一次提交之后的 3s 发生了再平衡，***再平衡之后，消费者从最后一次提交的偏移量位置开始读取消息***。这个时候偏移量已经落后了 3s，所以在这 3s 内到达的消息会被重复处理。可以通过修改提交时间间隔更频繁的提交偏移量，减小可能出现重复消息的时间窗，不过这种情况也是无法完全避免的。
+假设仍然使用默认的 5s 提交时间间隔，在最近一次提交之后的 3s 发生了再平衡，***再平衡之后，消费者从最后一次提交的偏移量位置开始读取消息***。这个时候偏移量已经落后了 3s，所以在这 3s 内到达的消息会被重复处理。可以通过修改提交时间间隔更频繁的提交偏移量，减小可能出现重复消息的时间窗，不过这种情况也不是无法完全避免的。
 
 ## 5.6 手动提交
 
-
-
 ### 5.6.1 同步提交
+
+取消自动提交，把`enable.auto.commit`设置为false，让应用程序决定何时提交偏移量，使用()提交偏移量最简单也最可靠。这个API会提交由`poll()`方法返回的最新偏移量，提交成功后马上返回，如果提交失败就抛异常。
+
+```java
+while (true) {
+    // 消息拉取
+    ConsumerRecords<String, String> records = consumer.poll(100);
+
+    for (ConsumerRecord<String, String> record : records) {
+            System.out.printf("offset = %d, key = %s, value = %s%n",
+                    record.offset(), record.key(), record.value());
+    }
+    // 处理完成单次消息以后，提交当前的offset，如果失败会抛异常
+    consumer.commitSync(); 
+}
+```
 
 
 
 ### 5.6.2 异步提交
+
+同步提交有一个不足之处，在broker对提交请求做出响应之前，应用程序会一直阻塞，这样会限制应用程序的吞吐量。可以通过降低提交频率来提升吞吐量，但如果发生了再均衡，会增加重复消息的数量。这个时候可以使用异步提交API。只管发送提交请求，无需等待broker的响应。
+
+```java
+while (true) {
+    // 消息拉取
+    ConsumerRecords<String, String> records = consumer.poll(100);
+
+    for (ConsumerRecord<String, String> record : records) {
+        System.out.printf("offset = %d, key = %s, value = %s%n",
+                          record.offset(), record.key(), record.value());
+    }
+
+    // 异步提交
+    consumer.commitAsync((offsets, exception) -> {
+        exception.printStackTrace();
+        System.out.println(offsets.size());
+    });
+}
+```
 
 
 
