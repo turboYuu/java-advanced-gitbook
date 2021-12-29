@@ -126,8 +126,41 @@ Elasticsearch 主流版本为 5.x，6.x 及 7.x 版本
 
 ## 6.2 Elasticsearch与其他软件兼容
 
+[Elasticsearch与操作系统](https://www.elastic.co/cn/support/matrix#matrix_os)
+
+[Elasticsearch and JVM](https://www.elastic.co/cn/support/matrix#matrix_jvm)
+
 # 7 Elasticsearch Single-Node Mode 快速部署
+
+Elasticsearch是一个分布式全文搜索引擎，支持单节点模式（Single-Node Mode）和集群模式（Cluster Mode）部署，一般来说，小公司的业务场景往往使用Single-Node Mode部署即可。
+
+
 
 ## 7.1 虚拟机环境准备
 
+- 准备一台虚拟机
+
+  - 操作系统：Centos 7.x 64bit
+
+- 关闭虚拟机防火墙
+
+  ```
+  
+  ```
+
+  
+
 ## 7.2 Elasticsearch single-Node Mode 部署
+
+在虚拟机上部署Single-Node Mode Elasticsearch
+
+下载Elasticsearch
+
+https://www.elastic.co/cn/downloads/elasticsearch 最新版本
+
+https://www.elastic.co/cn/downloads/past-releases/elasticsearch-7-3-0 版本
+
+选择Linux版本下载：
+
+![image-20211228120527695](assest/image-20211228120527695.png)
+
