@@ -150,7 +150,6 @@ Elasticsearch是一个分布式全文搜索引擎，支持单节点模式（Sing
 firewall-cmd --state    # 查看防火墙
   ```
   
-  
 
 ## 7.2 Elasticsearch single-Node Mode 部署
 
