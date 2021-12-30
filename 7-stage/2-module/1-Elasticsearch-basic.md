@@ -145,14 +145,9 @@ Elasticsearch是一个分布式全文搜索引擎，支持单节点模式（Sing
 - 关闭虚拟机防火墙
 
   ```shell
-  #停止firewall
-  systemctl stop firewalld.service
-#禁止firewall开机启动
-  systemctl disable firewalld.service
-  # 查看防火墙
-  firewall-cmd --state
-  ```
   
+  ```
+
   
 
 ## 7.2 Elasticsearch single-Node Mode 部署
