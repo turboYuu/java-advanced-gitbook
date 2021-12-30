@@ -2293,11 +2293,11 @@ registerBrokerInZk的具体逻辑：
 
 工作流程如下：
 
-配置存储于 /<Kafka_ROOT>/config/entityType/entityName，如/<Kafka_ROOT>/config/topics/<topic_name> 以及 /<Kafka_ROOT>/config/clients/<clientId>
+配置存储于 /<Kafka_ROOT>/config/entityType/entityName，如/<Kafka_ROOT>/config/topics/<topic_name> 以及 /<Kafka_ROOT>/config/clients/< clientId>
 
-默认配置存储与各自的<default>节点种，上述节点中保存的是覆盖默认配置的数据，以properties的格式。
+默认配置存储与各自的< default>节点种，上述节点中保存的是覆盖默认配置的数据，以properties的格式。
 
-可以使用分级路径同时指定多个实体的名称，如：/config/users/<user>/clients/<clientId>
+可以使用分级路径同时指定多个实体的名称，如：/config/users/< user>/clients/< clientId>
 
 设置通知路径 /config/changes，避免对所有主题进行监控，有事通知。DynamicConfigManager监控该路径。
 
@@ -2313,7 +2313,7 @@ registerBrokerInZk的具体逻辑：
 
 版本2的通知格式：{"version":2, "entity_path":"entity_type/entity_name"}
 
-可以使用分级路径指定多个实体：如，user/<user>/clinet/<clientId>
+可以使用分级路径指定多个实体：如，user/< user>/clinet/< clientId>
 
 
 
