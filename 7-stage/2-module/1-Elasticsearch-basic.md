@@ -158,5 +158,6 @@ https://www.elastic.co/cn/downloads/elasticsearch 最新版本
 https://www.elastic.co/cn/downloads/past-releases/elasticsearch-7-3-0 版本
 
 选择Linux版本下载：
+
 ![image-20211228120527695](assest/image-20211228120527695.png)
 
