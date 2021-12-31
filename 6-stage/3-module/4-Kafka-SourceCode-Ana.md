@@ -338,7 +338,7 @@ public class MyProducer3 {
 
 ### 4.1.1 同步发送
 
-1. KafkaProducer.send方法返回的类型是Future<RecordMetadata_>，通过get方法阻塞当前线程，等待Kafka服务端ACK响应。
+1. KafkaProducer.send方法返回的类型是Future< RecordMetadata>，通过get方法阻塞当前线程，等待Kafka服务端ACK响应。
 
    ```java
    producer.send(record).get();
@@ -363,11 +363,205 @@ producer.send(record,(recordMetadata,e)->{
 
 org.apache.kafka.clients.producer.KafkaProducer#KafkaProducer(org.apache.kafka.clients.producer.ProducerConfig, org.apache.kafka.common.serialization.Serializer<K>, org.apache.kafka.common.serialization.Serializer<V>)
 
+```java
+private KafkaProducer(ProducerConfig config, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
+    try {
+        // 获取用户传递的参数
+        Map<String, Object> userProvidedConfigs = config.originals();
+        this.producerConfig = config;
+        // 系统时间
+        this.time = Time.SYSTEM;
+        // 获取用户设置的client.id
+        String clientId = config.getString(ProducerConfig.CLIENT_ID_CONFIG);
+        // 如果用户没有指定client.id，则自动生成，proucer-<num>,num递增
+        if (clientId.length() <= 0)
+            clientId = "producer-" + PRODUCER_CLIENT_ID_SEQUENCE.getAndIncrement();
+        this.clientId = clientId;
+
+        // 获取事务id,如果用户没有设置，则设置为null.
+        String transactionalId = userProvidedConfigs.containsKey(ProducerConfig.TRANSACTIONAL_ID_CONFIG) ?
+            (String) userProvidedConfigs.get(ProducerConfig.TRANSACTIONAL_ID_CONFIG) : null;
+        LogContext logContext;
+        if (transactionalId == null)
+            logContext = new LogContext(String.format("[Producer clientId=%s] ", clientId));
+        else
+            logContext = new LogContext(String.format("[Producer clientId=%s, transactionalId=%s] ", clientId, transactionalId));
+        log = logContext.logger(KafkaProducer.class);
+        log.trace("Starting the Kafka producer");
+		
+        // 创建client-id监控map
+        Map<String, String> metricTags = Collections.singletonMap("client-id", clientId);
+        // 设置监控配置，包含样本量、取样时间窗口、记录级别
+        MetricConfig metricConfig = new MetricConfig().samples(config.getInt(ProducerConfig.METRICS_NUM_SAMPLES_CONFIG))
+            .timeWindow(config.getLong(ProducerConfig.METRICS_SAMPLE_WINDOW_MS_CONFIG), TimeUnit.MILLISECONDS)
+            .recordLevel(Sensor.RecordingLevel.forName(config.getString(ProducerConfig.METRICS_RECORDING_LEVEL_CONFIG)))
+            .tags(metricTags);
+        // 监控数据上报类
+        List<MetricsReporter> reporters = config.getConfiguredInstances(ProducerConfig.METRIC_REPORTER_CLASSES_CONFIG,
+                                                                        MetricsReporter.class);
+        reporters.add(new JmxReporter(JMX_PREFIX));
+        this.metrics = new Metrics(metricConfig, reporters, time);
+        // 生成生产者监控
+        ProducerMetrics metricsRegistry = new ProducerMetrics(this.metrics);
+        // 获取用户设置的分区器
+        this.partitioner = config.getConfiguredInstance(ProducerConfig.PARTITIONER_CLASS_CONFIG, Partitioner.class);
+        // 重试时间 retry.backoff.ms 默认 100ms
+        long retryBackoffMs = config.getLong(ProducerConfig.RETRY_BACKOFF_MS_CONFIG);
+        // 设置key的序列化器
+        if (keySerializer == null) {
+            this.keySerializer = ensureExtended(config.getConfiguredInstance(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
+                                                                             Serializer.class));
+            this.keySerializer.configure(config.originals(), true);
+        } else {
+            config.ignore(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG);
+            this.keySerializer = ensureExtended(keySerializer);
+        }
+        // value的序列化器
+        if (valueSerializer == null) {
+            this.valueSerializer = ensureExtended(config.getConfiguredInstance(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+                                                                               Serializer.class));
+            this.valueSerializer.configure(config.originals(), false);
+        } else {
+            config.ignore(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG);
+            this.valueSerializer = ensureExtended(valueSerializer);
+        }
+
+        // load interceptors and make sure they get clientId
+        // 确认client.id添加到用户的配置里面
+        userProvidedConfigs.put(ProducerConfig.CLIENT_ID_CONFIG, clientId);
+        // 获取用户设置的拦截器，如果没有，则为空
+        List<ProducerInterceptor<K, V>> interceptorList = (List) (new ProducerConfig(userProvidedConfigs, false)).getConfiguredInstances(ProducerConfig.INTERCEPTOR_CLASSES_CONFIG,
+                                                                                                                                         ProducerInterceptor.class);
+        this.interceptors = interceptorList.isEmpty() ? null : new ProducerInterceptors<>(interceptorList);
+        // 集群资源监听器，在元数据变更时会有通知
+        ClusterResourceListeners clusterResourceListeners = configureClusterResourceListeners(keySerializer, valueSerializer, interceptorList, reporters);
+        // 生产者每隔一段时间都要去更新一下集群的元数据，默认5分钟
+        this.metadata = new Metadata(retryBackoffMs, config.getLong(ProducerConfig.METADATA_MAX_AGE_CONFIG),
+                                     true, true, clusterResourceListeners);
+        // 生产者往服务端发送消息的时候，规定一条消息最大多大
+        // 比如你超过了这个规定消息的大小，你的消息就不能发送过去
+        // 默认是1M，这个值偏小，在生产环境中，我们需要修改这个值
+        // 经验值是10M。但是大家也可以根据自己的情况来
+        // 一个请求的大小字节
+        this.maxRequestSize = config.getInt(ProducerConfig.MAX_REQUEST_SIZE_CONFIG);
+        // 缓存总大小
+        // 默认值是32M，这个值一般是够用的，如果有特殊情况的时候，可以去修改这个值
+        this.totalMemorySize = config.getLong(ProducerConfig.BUFFER_MEMORY_CONFIG);
+		// kafka是支持压缩数据的，可以设置压缩格式，默认是不压缩，支持gzip、snappy、lz4
+        // 一次发送出去的消息就更多。生产者这会儿会消耗更多的cpu
+        // 压缩类型
+        this.compressionType = CompressionType.forName(config.getString(ProducerConfig.COMPRESSION_TYPE_CONFIG));
+		// 配置控制了KafkaProducer.send()，并将KafkaProducer.partitionsFor()被阻塞多长时间，由于缓冲区已满或元数据不可用，这些方法可能会被阻塞中
+        this.maxBlockTimeMs = config.getLong(ProducerConfig.MAX_BLOCK_MS_CONFIG);
+        // 控制客户端等待请求响应的最长时间。如果在超时过去之前未收到响应，客户端将在必要时重新发送请求，或者如果重试耗尽，请求失败
+        this.requestTimeoutMs = config.getInt(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG);
+        // 事务管理器
+        this.transactionManager = configureTransactionState(config, logContext, log);
+        // 重试次数
+        int retries = configureRetries(config, transactionManager != null, log);
+        // 正在等待请求结果的请求数
+        int maxInflightRequests = configureInflightRequests(config, transactionManager != null);
+        // acks 1 0 -1
+        short acks = configureAcks(config, transactionManager != null, log);
+
+        this.apiVersions = new ApiVersions();
+        // 用户发送消息的收集器
+        // 创建核心组件：记录累加器
+        this.accumulator = new RecordAccumulator(logContext,
+                                                 config.getInt(ProducerConfig.BATCH_SIZE_CONFIG),
+                                                 this.totalMemorySize,
+                                                 this.compressionType,
+                                                 config.getLong(ProducerConfig.LINGER_MS_CONFIG),
+                                                 retryBackoffMs,
+                                                 metrics,
+                                                 time,
+                                                 apiVersions,
+                                                 transactionManager);
+        // 解析bootstrap servers
+        List<InetSocketAddress> addresses = ClientUtils.parseAndValidateAddresses(config.getList(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG));
+        // 连接集群，更新集群元数据
+        this.metadata.update(Cluster.bootstrap(addresses), Collections.<String>emptySet(), time.milliseconds());
+        // Channel构建器
+        ChannelBuilder channelBuilder = ClientUtils.createChannelBuilder(config);
+        Sensor throttleTimeSensor = Sender.throttleTimeSensor(metricsRegistry.senderMetrics);
+        // 真正发送消息的网络客户端
+        // 初始化了一个重要的管理网络的组件
+        // connections.max.idle.ms：默认值是9分钟，一个网络连接最多空闲多久，超过这个空闲时间，就关闭网络连接
+        // max.in.flight.requests.per.connection：默认是5，producer向broker发送数据的时候，其实有多个网络连接。每隔网络连接可以忍受 producer端发送给broker,
+        NetworkClient client = new NetworkClient(
+            new Selector(config.getLong(ProducerConfig.CONNECTIONS_MAX_IDLE_MS_CONFIG),
+                         this.metrics, time, "producer", channelBuilder, logContext),
+            this.metadata,
+            clientId,
+            maxInflightRequests,
+            config.getLong(ProducerConfig.RECONNECT_BACKOFF_MS_CONFIG),
+            config.getLong(ProducerConfig.RECONNECT_BACKOFF_MAX_MS_CONFIG),
+            config.getInt(ProducerConfig.SEND_BUFFER_CONFIG),
+            config.getInt(ProducerConfig.RECEIVE_BUFFER_CONFIG),
+            this.requestTimeoutMs,
+            time,
+            true,
+            apiVersions,
+            throttleTimeSensor,
+            logContext);
+        // sender 发送者，调用NetworkClient的方法进行消息的发送 TCP请求
+        this.sender = new Sender(logContext,
+                                 client,
+                                 this.metadata,
+                                 this.accumulator,
+                                 maxInflightRequests == 1,
+                                 config.getInt(ProducerConfig.MAX_REQUEST_SIZE_CONFIG),
+                                 acks,
+                                 retries,
+                                 metricsRegistry.senderMetrics,
+                                 Time.SYSTEM,
+                                 this.requestTimeoutMs,
+                                 config.getLong(ProducerConfig.RETRY_BACKOFF_MS_CONFIG),
+                                 this.transactionManager,
+                                 apiVersions);
+        // 线程名称
+        String ioThreadName = NETWORK_THREAD_PREFIX + " | " + clientId;
+        // 守护线程
+        this.ioThread = new KafkaThread(ioThreadName, this.sender, true);
+        // 启动发送消息的线程
+        this.ioThread.start();
+        this.errors = this.metrics.sensor("errors");
+        // 把用户配置的参数，但是没有用到的打印出来
+        config.logUnused();
+        AppInfoParser.registerAppInfo(JMX_PREFIX, clientId, metrics);
+        log.debug("Kafka producer started");
+    } catch (Throwable t) {
+        // call close methods if internal objects are already constructed this is to prevent resource leak. see KAFKA-2121
+        close(0, TimeUnit.MILLISECONDS, true);
+        // now propagate the exception
+        throw new KafkaException("Failed to construct kafka producer", t);
+    }
+}
+```
+
+
+
 ## 4.3 消息发送过程
+
+Kafka消息实际发送以`send`方法为入口：
+
+![image-20211231181903638](assest/image-20211231181903638.png)
+
+
 
 ### 4.3.1 拦截器
 
+首先方法会先进入拦截器集合`ProducerInterceptors`，`onSend`方法是遍历拦截器`onSend`方法，拦截器的目的是将数据处理加工，`Kafka`本身并没有给出默认的拦截器的实现。如果需要使用拦截器功能，必须自己实现**ProducerInterceptor**接口。
+
+![image-20211231184028354](assest/image-20211231184028354.png)
+
 ### 4.3.2 拦截器核心逻辑
+
+`ProducerInterceptor`接口包括三个方法：
+
+1. `onSend(ProducerRecord<K, V> record)`：
+2. `onAcknowledgement(RecordMetadata , Exception)`：
+3. `close()`
 
 ### 4.3.3 发送五步骤
 
