@@ -134,8 +134,6 @@ Elasticsearch 主流版本为 5.x，6.x 及 7.x 版本
 
 Elasticsearch是一个分布式全文搜索引擎，支持单节点模式（Single-Node Mode）和集群模式（Cluster Mode）部署，一般来说，小公司的业务场景往往使用Single-Node Mode部署即可。
 
-
-
 ## 7.1 虚拟机环境准备
 
 - 准备一台虚拟机
@@ -147,9 +145,7 @@ Elasticsearch是一个分布式全文搜索引擎，支持单节点模式（Sing
   ```
   #停止firewall
   systemctl stop firewalld.service
-```
-
-say goodbye
+  ```
 
 ## 7.2 Elasticsearch single-Node Mode 部署
 
@@ -162,6 +158,5 @@ https://www.elastic.co/cn/downloads/elasticsearch 最新版本
 https://www.elastic.co/cn/downloads/past-releases/elasticsearch-7-3-0 版本
 
 选择Linux版本下载：
-
 ![image-20211228120527695](assest/image-20211228120527695.png)
 
