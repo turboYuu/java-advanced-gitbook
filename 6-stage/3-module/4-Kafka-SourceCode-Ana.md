@@ -559,9 +559,10 @@ Kafka消息实际发送以`send`方法为入口：
 
 `ProducerInterceptor`接口包括三个方法：
 
-1. `onSend(ProducerRecord<K, V> record)`：该方法封装进KafkaProducer.send方法中，即它运行在瀛湖主线程中。Producer确保在消息被序列化以算分区前调用该方法。用户可以在该方法中对消息做任何操作，
-2. `onAcknowledgement(RecordMetadata , Exception)`：
-3. `close()`
+1. `onSend(ProducerRecord<K, V> record)`：该方法封装进KafkaProducer.send方法中，即它运行在瀛湖主线程中。Producer确保在消息被序列化以算分区前调用该方法。用户可以在该方法中对消息做任何操作，但最好保证不要修改消息所属的topic和分区。否则会影响目标分区的计算。
+2. `onAcknowledgement(RecordMetadata , Exception)`：该方法会在消息被应答之前或消息发送失败时调用，并且通常都是在producer回调逻辑触发之前。onAcknowledgement运行在producer的IO线程中，因此不要在该方法中放入很重的逻辑，否则会拖慢producer的消息发送效率
+3. `close()`：关闭interceptor，主要用于执行一些资源清理工作
+4. 拦截器可能被运行在多个线程中，因此在具体实现时用户需要自行确保线程安全。另外倘若指定了多个interceptor，则producer将按照指定顺序调用它们，并仅仅是捕获每隔interceptor可能抛出的异常记录到错误日志中而非在向上传递。
 
 ### 4.3.3 发送五步骤
 
