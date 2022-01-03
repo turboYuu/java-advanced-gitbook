@@ -566,6 +566,110 @@ Kafka消息实际发送以`send`方法为入口：
 
 ### 4.3.3 发送五步骤
 
+下面仔细看一下`doSend`方法的运行过程：
+
+`org.apache.kafka.clients.producer.KafkaProducer#doSend`
+
+```java
+private Future<RecordMetadata> doSend(ProducerRecord<K, V> record, Callback callback) {
+    // 首先创建一个主题分区类
+    TopicPartition tp = null;
+    try {
+        // first make sure the metadata for the topic is available
+        // 首先确保该topic的元数据可用
+        ClusterAndWaitTime clusterAndWaitTime = waitOnMetadata(record.topic(), record.partition(), maxBlockTimeMs);
+        long remainingWaitMs = Math.max(0, maxBlockTimeMs - clusterAndWaitTime.waitedOnMetadataMs);
+        Cluster cluster = clusterAndWaitTime.cluster;
+        // 序列化 record的key和value
+        byte[] serializedKey;
+        try {
+            // key的序列化
+            serializedKey = keySerializer.serialize(record.topic(), record.headers(), record.key());
+        } catch (ClassCastException cce) {
+            throw new SerializationException("Can't convert key of class " + record.key().getClass().getName() +
+                                             " to class " + producerConfig.getClass(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG).getName() +
+                                             " specified in key.serializer", cce);
+        }
+        byte[] serializedValue;
+        try {
+            // value的序列化
+            serializedValue = valueSerializer.serialize(record.topic(), record.headers(), record.value());
+        } catch (ClassCastException cce) {
+            throw new SerializationException("Can't convert value of class " + record.value().getClass().getName() +
+                                             " to class " + producerConfig.getClass(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG).getName() +
+                                             " specified in value.serializer", cce);
+        }
+        // 指定分区，调用分区器，进行分区的分配
+        int partition = partition(record, serializedKey, serializedValue, cluster);
+        // 将消息发送到哪个主题哪个分区
+        tp = new TopicPartition(record.topic(), partition);
+
+        // 给header设置只读
+        setReadOnly(record.headers());
+        Header[] headers = record.headers().toArray();
+
+        int serializedSize = AbstractRecords.estimateSizeInBytesUpperBound(apiVersions.maxUsableProduceMagic(),
+                                                                           compressionType, serializedKey, serializedValue, headers);
+        ensureValidRecordSize(serializedSize);
+        long timestamp = record.timestamp() == null ? time.milliseconds() : record.timestamp();
+        log.trace("Sending record {} with callback {} to topic {} partition {}", record, callback, record.topic(), partition);
+        // producer callback will make sure to call both 'callback' and interceptor callback
+        // 消息从broker确认之后，要调用的拦截器 顺序按照拦截器设置的顺序调用
+        Callback interceptCallback = this.interceptors == null ? callback : new InterceptorCallback<>(callback, this.interceptors, tp);
+
+        // 如果是事务的消息发送，则设置事务
+        if (transactionManager != null && transactionManager.isTransactional())
+            transactionManager.maybeAddPartitionToTransaction(tp);
+
+        // 将消息追加到消息累加器，数据会先进行缓存
+        RecordAccumulator.RecordAppendResult result = accumulator.append(tp, timestamp, serializedKey,
+                                                                         serializedValue, headers, interceptCallback, remainingWaitMs);
+        // 如果消息累加器对应的分区中，够一个批次，则唤醒发送线程
+        // 如果linger.ms，如果时间到了，则需要创建新的批次，则需要唤醒发送线程
+        if (result.batchIsFull || result.newBatchCreated) {
+            log.trace("Waking up the sender since topic {} partition {} is either full or getting a new batch", record.topic(), partition);
+            this.sender.wakeup();
+        }
+        // 方法返回future对象
+        return result.future;
+        // handling exceptions and record the errors;
+        // for API exceptions return them in the future,
+        // for other exceptions throw directly
+    } catch (ApiException e) {
+        log.debug("Exception occurred during message send:", e);
+        if (callback != null)
+            callback.onCompletion(null, e);
+        this.errors.record();
+        if (this.interceptors != null)
+            this.interceptors.onSendError(record, tp, e);
+        return new FutureFailure(e);
+    } catch (InterruptedException e) {
+        this.errors.record();
+        if (this.interceptors != null)
+            this.interceptors.onSendError(record, tp, e);
+        throw new InterruptException(e);
+    } catch (BufferExhaustedException e) {
+        this.errors.record();
+        this.metrics.sensor("buffer-exhausted-records").record();
+        if (this.interceptors != null)
+            this.interceptors.onSendError(record, tp, e);
+        throw e;
+    } catch (KafkaException e) {
+        this.errors.record();
+        if (this.interceptors != null)
+            this.interceptors.onSendError(record, tp, e);
+        throw e;
+    } catch (Exception e) {
+        // we notify interceptor about all exceptions, since onSend is called before anything else in this method
+        if (this.interceptors != null)
+            this.interceptors.onSendError(record, tp, e);
+        throw e;
+    }
+}
+```
+
+
+
 ### 4.3.4 MetaData更新机制
 
 # 5 Consumer消费者流程
