@@ -559,7 +559,7 @@ Kafka消息实际发送以`send`方法为入口：
 
 `ProducerInterceptor`接口包括三个方法：
 
-1. `onSend(ProducerRecord<K, V> record)`：
+1. `onSend(ProducerRecord<K, V> record)`：该方法封装进KafkaProducer.send方法中，即它运行在瀛湖主线程中。Producer确保在消息被序列化以算分区前调用该方法。用户可以在该方法中对消息做任何操作，
 2. `onAcknowledgement(RecordMetadata , Exception)`：
 3. `close()`
 
