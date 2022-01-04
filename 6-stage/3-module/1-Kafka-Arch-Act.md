@@ -659,12 +659,284 @@ public class MyConsumer1 {
 代码地址：https://gitee.com/turboYuu/kafka-6-3/tree/master/lab/kafka-demos/demo-02-springboot-kafka
 
 1. pom.xml
+
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+       <modelVersion>4.0.0</modelVersion>
+       <parent>
+           <groupId>org.springframework.boot</groupId>
+           <artifactId>spring-boot-starter-parent</artifactId>
+           <version>2.5.7</version>
+           <relativePath/> <!-- lookup parent from repository -->
+       </parent>
+       <groupId>com.turbo</groupId>
+       <artifactId>demo-02-springboot-kafka</artifactId>
+       <version>0.0.1-SNAPSHOT</version>
+       <name>demo-02-springboot-kafka</name>
+       <description>Demo project for Spring Boot</description>
+       <properties>
+           <java.version>1.8</java.version>
+       </properties>
+       <dependencies>
+           <dependency>
+               <groupId>org.springframework.boot</groupId>
+               <artifactId>spring-boot-starter-web</artifactId>
+           </dependency>
+           <dependency>
+               <groupId>org.springframework.kafka</groupId>
+               <artifactId>spring-kafka</artifactId>
+           </dependency>
+   
+           <dependency>
+               <groupId>org.springframework.boot</groupId>
+               <artifactId>spring-boot-starter-test</artifactId>
+               <scope>test</scope>
+           </dependency>
+           <dependency>
+               <groupId>org.springframework.kafka</groupId>
+               <artifactId>spring-kafka-test</artifactId>
+               <scope>test</scope>
+           </dependency>
+       </dependencies>
+   
+       <build>
+           <plugins>
+               <plugin>
+                   <groupId>org.springframework.boot</groupId>
+                   <artifactId>spring-boot-maven-plugin</artifactId>
+               </plugin>
+           </plugins>
+       </build>
+   
+   </project>
+   ```
+
+   
+
 2. application.properties
+
+   ```properties
+   spring.application.name=springboot-kafka-02
+   server.port=8080
+   
+   # kafka的配置
+   spring.kafka.bootstrap-servers=node1:9092
+   
+   # producer配置
+   spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.IntegerSerializer
+   spring.kafka.producer.value-serializer=org.apache.kafka.common.serialization.StringSerializer
+   # 生产者每个批次最多放多少条记录
+   spring.kafka.producer.batch-size=16384
+   # 生产者一端总的可用发送缓冲区大小，此处设置为32M
+   spring.kafka.producer.buffer-memory=33554432
+   
+   
+   # consumer配置
+   spring.kafka.consumer.key-deserializer=org.apache.kafka.common.serialization.IntegerDeserializer
+   spring.kafka.consumer.value-deserializer=org.apache.kafka.common.serialization.StringDeserializer
+   spring.kafka.consumer.group-id=springboot-consumer02
+   # 如果在kafka中找不到当前消费者的偏移量，则直接将偏移量重置为最早的
+   spring.kafka.consumer.auto-offset-reset=earliest
+   # 消费的偏移量是自动提交，还是手动提交
+   spring.kafka.consumer.enable-auto-commit=true
+   # 消费者偏移量自动提交的时间间隔
+   spring.kafka.consumer.auto-commit-interval=1000
+   ```
+
+   
+
 3. Demo02SpringbootKafkaApplication.java
+
+   ```java
+   package com.turbo;
+   
+   import org.springframework.boot.SpringApplication;
+   import org.springframework.boot.autoconfigure.SpringBootApplication;
+   
+   @SpringBootApplication
+   public class Demo02SpringbootKafkaApplication {
+   
+       public static void main(String[] args) {
+           SpringApplication.run(Demo02SpringbootKafkaApplication.class, args);
+       }
+   }
+   ```
+
+   
+
 4. KafkaConfig.java
+
+   ```java
+   package com.turbo.kafka.demo.config;
+   
+   import org.apache.kafka.clients.admin.NewTopic;
+   import org.apache.kafka.clients.producer.ProducerConfig;
+   import org.springframework.beans.factory.annotation.Autowired;
+   import org.springframework.context.annotation.Bean;
+   import org.springframework.context.annotation.Configuration;
+   import org.springframework.kafka.core.KafkaAdmin;
+   import org.springframework.kafka.core.KafkaTemplate;
+   import org.springframework.kafka.core.ProducerFactory;
+   
+   import java.util.HashMap;
+   import java.util.Map;
+   
+   @Configuration
+   public class KafkaConfig {
+   
+       @Bean
+       public NewTopic topic1(){
+           return new NewTopic("nptc-01",3, (short) 1);
+       }
+   
+       @Bean
+       public NewTopic topic2(){
+           return new NewTopic("nptc-02",5, (short) 1);
+       }
+   
+       public KafkaAdmin kafkaAdmin(){
+           Map<String,Object> configs = new HashMap<>();
+           configs.put("bootstrap.servers","node1:9092");
+   
+           KafkaAdmin admin = new KafkaAdmin(configs);
+           return admin;
+       }
+   
+   
+       @Bean
+       @Autowired
+       public KafkaTemplate<Integer,String> kafkaTemplate(ProducerFactory<Integer,String> producerFactory){
+           // 覆盖producerFactory原有设置
+           Map<String,Object> configs = new HashMap<>();
+           configs.put(ProducerConfig.BATCH_SIZE_CONFIG,200);
+           KafkaTemplate<Integer,String> template = new KafkaTemplate<>(
+               producerFactory,configs
+           );
+   
+           return template;
+       }
+   }
+   ```
+
 5. KafkaSyncProducerController.java
+
+   ```java
+   package com.turbo.kafka.demo.contorller;
+   
+   import org.apache.kafka.clients.producer.RecordMetadata;
+   import org.apache.kafka.common.protocol.Message;
+   import org.springframework.beans.factory.annotation.Autowired;
+   import org.springframework.kafka.core.KafkaTemplate;
+   import org.springframework.kafka.support.SendResult;
+   import org.springframework.util.concurrent.ListenableFuture;
+   import org.springframework.web.bind.annotation.PathVariable;
+   import org.springframework.web.bind.annotation.RequestMapping;
+   import org.springframework.web.bind.annotation.RestController;
+   
+   import java.util.concurrent.ExecutionException;
+   
+   @RestController
+   public class KafkaSyncProducerController {
+   
+       @Autowired
+       private KafkaTemplate<Integer,String> template;
+   
+       @RequestMapping("send/sync/{message}")
+       public String send(@PathVariable String message){
+   
+           final ListenableFuture<SendResult<Integer, String>> future = template.send("topic-spring-01", 0, 0, message);
+           // 同步发送消息
+           try {
+               final SendResult<Integer, String> sendResult = future.get();
+               final RecordMetadata metadata = sendResult.getRecordMetadata();
+               System.out.println(metadata.topic() +"\t"+ metadata.partition() +"\t"+ metadata.offset());
+           } catch (InterruptedException e) {
+               e.printStackTrace();
+           } catch (ExecutionException e) {
+               e.printStackTrace();
+           }
+           return "success";
+       }
+   }
+   ```
+
+   
+
 6. KafkaAsyncProducerController.java
+
+   ```java
+   package com.turbo.kafka.demo.contorller;
+   
+   import org.apache.kafka.clients.producer.RecordMetadata;
+   import org.springframework.beans.factory.annotation.Autowired;
+   import org.springframework.kafka.core.KafkaTemplate;
+   import org.springframework.kafka.support.SendResult;
+   import org.springframework.util.concurrent.ListenableFuture;
+   import org.springframework.util.concurrent.ListenableFutureCallback;
+   import org.springframework.web.bind.annotation.PathVariable;
+   import org.springframework.web.bind.annotation.RequestMapping;
+   import org.springframework.web.bind.annotation.RestController;
+   
+   @RestController
+   public class KafkaAsyncProducerController {
+   
+       @Autowired
+       private KafkaTemplate<Integer,String> template;
+   
+       @RequestMapping("send/async/{message}")
+       public String send(@PathVariable String message){
+   
+           final ListenableFuture<SendResult<Integer, String>> future = template.send("topic-spring-01", 0, 1, message);
+   
+           // 设置回调函数，异步等待broker端的返回结果
+           future.addCallback(new ListenableFutureCallback<SendResult<Integer, String>>() {
+               @Override
+               public void onFailure(Throwable ex) {
+                   System.out.println("发送消息失败"+ex.getMessage());
+               }
+   
+               @Override
+               public void onSuccess(SendResult<Integer, String> result) {
+                   final RecordMetadata metadata = result.getRecordMetadata();
+                   System.out.println("发送消息成功："+metadata.topic()+"\t"+metadata.partition()+"\t"+metadata.offset());
+               }
+           });
+   
+           return "success";
+       }
+   
+   }
+   ```
+
+   
+
 7. MyConsumer.java
+
+   ```java
+   package com.turbo.kafka.demo.consumer;
+   
+   import org.apache.kafka.clients.consumer.ConsumerRecord;
+   import org.springframework.kafka.annotation.KafkaListener;
+   import org.springframework.stereotype.Component;
+   
+   @Component
+   public class MyConsumer {
+   
+       @KafkaListener(topics = "topic-spring-01")
+       public void onMessage(ConsumerRecord<Integer,String> record){
+           System.out.println("消费者收到的消息："
+               + record.topic()+"\t"
+               + record.partition() +"\t"
+               + record.offset() + "\t"
+               + record.key() + "\t"
+               + record.value());
+       }
+   }
+   ```
+
+   
 
 # 4 服务端参数配置
 
