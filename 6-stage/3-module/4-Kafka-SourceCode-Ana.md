@@ -668,7 +668,16 @@ private Future<RecordMetadata> doSend(ProducerRecord<K, V> record, Callback call
 }
 ```
 
-
+1. Producer通过`waitOnMetadata()`方法来获取对应的topic的metadata信息，需要先该topic是可用的
+2. Producer端对record的key和value值进行序列化操作，在Consumer端再进行相应的反序列化
+3. 获取partition值，具体分为下面三种情况：
+   - 指明partition的情况，直接将指明的值直接作为partition值
+   - 没有执行partition值但有key的情况下，将key的hash值与topic的partition数进行取余得到partition值
+   - 既没有partition值也没有key值的情况下，第一次调用随机生成一个整数（后面每次调用在这个整数上自增），将这个值与topic可用的partition总数取余得到partition值，也就是常说的round-robin算法
+   - Producer默认使用的partitioner是`org.apache.kafka.clients.producer.internals.DefaultPartitioner`
+4. 向accumulator写数据，先将record写到buffer中，当达到一个batch.size的大小时，再唤起sender线程去发送RecordBatch，这里仔细分析一下Producer是如何向buffer写入数据的
+   - 获取该topic-partition对应的queue，没有的话创建一个空的queue
+   - 向queue中追加数据，先获取queue中最新加入的哪个RecordBatch，
 
 ### 4.3.4 MetaData更新机制
 
