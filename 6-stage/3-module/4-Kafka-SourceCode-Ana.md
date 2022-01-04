@@ -669,17 +669,43 @@ private Future<RecordMetadata> doSend(ProducerRecord<K, V> record, Callback call
 ```
 
 1. Producer通过`waitOnMetadata()`方法来获取对应的topic的metadata信息，需要先该topic是可用的
+
 2. Producer端对record的key和value值进行序列化操作，在Consumer端再进行相应的反序列化
+
 3. 获取partition值，具体分为下面三种情况：
+
    - 指明partition的情况，直接将指明的值直接作为partition值
    - 没有执行partition值但有key的情况下，将key的hash值与topic的partition数进行取余得到partition值
    - 既没有partition值也没有key值的情况下，第一次调用随机生成一个整数（后面每次调用在这个整数上自增），将这个值与topic可用的partition总数取余得到partition值，也就是常说的round-robin算法
    - Producer默认使用的partitioner是`org.apache.kafka.clients.producer.internals.DefaultPartitioner`
+
 4. 向accumulator写数据，先将record写到buffer中，当达到一个batch.size的大小时，再唤起sender线程去发送RecordBatch，这里仔细分析一下Producer是如何向buffer写入数据的
+
    - 获取该topic-partition对应的queue，没有的话创建一个空的queue
-   - 向queue中追加数据，先获取queue中最新加入的哪个RecordBatch，
+   - 向queue中追加数据，先获取queue中最新加入的哪个RecordBatch，如果不存在或者存在但剩余空间不足以添加本条record则返回null，成功写入的话直接返回结果，写入成功
+   - 创建一个新的RecordBatch，初始化内存大小根据max(batch.size, Record.LOG_OVERHEAD + Record.recordSize(key, value))来确定（防止单条record过大的情况）
+   - 向新建的RecordBatch写入record，并将RecordBatch添加到queue中，返回结果，写入成功
+
+5. 发送RecordBatch，当record写入成功后，如果发现RecordBatch已满足发送的条件（通常是queue中有多个batch，那么最先添加的那些batch肯定是可以发送了），那么就会唤醒sender线程，发送`RecordBatch`。sender线程对`RecordBatch`的出路是在run()方法中进行的，该方法具体实现如下：
+
+   - 获取那些已经可以发送的RecordBatch对应的nodes
+   - 如果与node没有连接（如果可以连接，同时初始化该连接），就证明该node暂时不能发送数据，暂时移除该node
+   - 返回该node对应的所有可以发送的RecordBatch组成的batches（key是node.id），并将RecordBatch从对应的queue中移除
+   - 将由于元数据不可用而导致发送超时的RecordBatch移除
+   - 发送RecordBatch
+
+   
 
 ### 4.3.4 MetaData更新机制
+
+1. metadata.requestUpdate()将metadata的needUpdate变量设置为true（强制更新），并返回当前的版本号（version），通过版本号来判断metadata是否完成更新
+2. sender.wakeup()唤醒sender线程，sender线程又会去唤醒NetworkClient线程去更新
+3. metadata.awaitUpdate(version, remainningWaitMs)等待metadata的更新
+4. 所以，每次Producer请求更新metadata时，会有以下几种情况：
+   - 如果node可以发送请求，则直接发送请求
+   - 如果该node正在尽力连接，则直接返回
+   - 如果该node还没建立连接，则向broker初始化连接
+5. NetworkClient的poll方法中判断是否需要更新meta数据，`handleCompletedReceives`处理`metadata`的更新，最终是调用的`DefaultMetadataUpdater`中的`handleCompletedMetadataResponse`方法处理。
 
 # 5 Consumer消费者流程
 
