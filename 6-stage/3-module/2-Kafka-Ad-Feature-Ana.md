@@ -1089,7 +1089,7 @@ consumer group是Kafka提供的可扩展且具有容错性的消费者机制。
 
 #### 2.3.3.1 自动VS手动
 
-Kafka默认定期自动提交位移（`enable.auto.commit=true`），也手动提交位移。另外Kafka会定期把group消费情况保存起来，做成一个offset map，如下所示：
+Kafka默认定期自动提交位移（`enable.auto.commit=true`），也可以手动提交位移。另外Kafka会定期把group消费情况保存起来，做成一个offset map，如下所示：
 
 ![image-20211128144502912](assest/image-20211128144502912.png)
 
@@ -1140,12 +1140,13 @@ Group Coordinator —— 每个消费组分配一个消费者协调器用于组�
 两步：
 
 1. 确定消费组位移信息写入`__consumer_offsets`的哪个分区。具体计算公式：
-   - __consumer_offsets partition #= Math.abs(groupId.hashCode() % groupMetadataTopicPartitionCount) 注意：groupMetadataTopicPartitionCount由 `offsets.topic.num.partitions`指定，默认是50个分区。
+
+   __consumer_offsets partition #= Math.abs(groupId.hashCode() % groupMetadataTopicPartitionCount) 注意：groupMetadataTopicPartitionCount由 `offsets.topic.num.partitions`指定，默认是50个分区。
 2. 该分区leader所在的broker就是协调器。
 
 #### 2.3.4.6 Rebalance Generation
 
-它表示Rebalance之后主题分区到消费组中消费者映射关系的一个版本，主要是用于保护消费组，隔离无效偏移量提交的。如上一个版本的消费者无法提交位移到新版本的消费组中，因为映射关系变了，你消费的或许已经不是原来的那个分区了。每次group进行Rebalance之后，Generation号都会加1，表示消费组和分区的映射关系到了一个新版本，如下所示：Generation 1 时 group 有3个成员，随后成员2退出组，消费者协调器触发Rebalance，消费组进入Generation 2，之后成员4加入，再次触发Rebalance，消费组进入Generation 3。
+它表示Rebalance之后主题分区到消费组中消费者映射关系的一个版本，主要是用于保护消费组，隔离无效偏移量提交的。<br>如上一个版本的消费者无法提交位移到新版本的消费组中，因为映射关系变了，你消费的或许已经不是原来的那个分区了。每次group进行Rebalance之后，Generation号都会加1，表示消费组和分区的映射关系到了一个新版本，如下所示：Generation 1 时 group 有3个成员，随后成员2退出组，消费者协调器触发Rebalance，消费组进入Generation 2，之后成员4加入，再次触发Rebalance，消费组进入Generation 3。
 
 ![image-20211129144157594](assest/image-20211129144157594.png)
 
@@ -1163,7 +1164,7 @@ Kafka提供了5个协议来处理与消费组协调相关的问题：
 
 #### 2.3.4.8 liveness
 
-消费者如何向消费组协调器证明自己还活着？通过定时向消费组协调器发送Heartbeat请求。流过超过了设定的超时时间，那么协调器认为该消费者已挂了。一旦协调器认为某个消费者挂了，那么他就会开启新一轮再均衡，并且在当前其他消费者的心跳**响应中**添加“REBALANCE_IN_PROGRESS”，告诉其他消费者：重新分配分区。
+消费者如何向消费组协调器证明自己还活着？通过定时向消费组协调器发送Heartbeat请求。如果超过了设定的超时时间，那么协调器认为该消费者已挂了。一旦协调器认为某个消费者挂了，那么他就会开启新一轮再均衡，并且在当前其他消费者的心跳**响应中**添加“REBALANCE_IN_PROGRESS”，告诉其他消费者：重新分配分区。
 
 
 
@@ -1206,28 +1207,28 @@ Kafka提供了5个协议来处理与消费组协调相关的问题：
 
 使用kafka.topic.sh脚本：
 
-| 选项                                                         | 说明 |
-| ------------------------------------------------------------ | ---- |
-| --config <String: name=value>                                |      |
-| --create                                                     |      |
-| --delete                                                     |      |
-| --delete-config <String: name>                               |      |
-| --alter                                                      |      |
-| --describe                                                   |      |
-| --disable-rack-aware                                         |      |
-| --force                                                      |      |
-| --help                                                       |      |
-| --if-exists                                                  |      |
-| --if-not-exists                                              |      |
-| --list                                                       |      |
-| --partitions <Integer: # of partitions>                      |      |
-| --replica-assignment <String:  <br/>  broker_id_for_part1_replica1 : <br/>  broker_id_for_part1_replica2 , <br/>  broker_id_for_part2_replica1 : <br/>  broker_id_for_part2_replica2 , ...> |      |
-| --replication-factor <Integer:replication factor>            |      |
-| --topic <String: topic>                                      |      |
-| --topics-with-overrides                                      |      |
-| --unavailable-partitions                                     |      |
-| --under-replicated-partitions                                |      |
-| --zookeeper <String: urls>                                   |      |
+| 选项                                                         | 说明                                                         |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| --config <String: name=value>                                | 为创建的或修改的主题指定配置信息。支持下述配置条目：<br>`cleanup.policy`<br>`compression.type`<br>`delete.retention.ms`<br>`file.delete,delay.ms`<br>`flush.messages`<br>`flush.ms`<br>`follower.replication.throttled.replicas`<br>`index.interval.bytes`<br>`leader.replication.throttled.replicas`<br>`max.message.bytes`<br>`message.format.version`<br>`message.timestamp.difference.max.ms`<br/>`message.timestamp.type`<br/>`min.cleanable.dirty.ratio`<br/>`min.compaction.lag.ms`<br/>`min.insync.replicas`<br>` preallocate`<br>` retention.bytes `<br>`retention.ms`<br/>`segment.bytes`<br/>`segment.index.bytes`<br/>`segment.jitter.ms`<br/>`segment.ms`<br/>`unclean.leader.election.enable` |
+| --create                                                     | 创建一个新主题                                               |
+| --delete                                                     | 删除一个主题                                                 |
+| --delete-config <String: name>                               | 删除现有主题的一个主题配置条目。这些条目就是在`--config`中给出的配置条目。 |
+| --alter                                                      | 更改主题的分区数量，副本分配 和/或 配置条目                  |
+| --describe                                                   | 列出给定主题配置细节                                         |
+| --disable-rack-aware                                         | 禁用副本分配的机架感知                                       |
+| --force                                                      | 抑制控制台提示信息                                           |
+| --help                                                       | 打印帮助信息                                                 |
+| --if-exists                                                  | 如果指定了该选项，则在修改或删除主题的时候，只有主题存在才可以执行 |
+| --if-not-exists                                              | 在创建主题的时候，如果指定了该选项，则只有主题不存在的时候才可以执行命令 |
+| --list                                                       | 列出所有可用的主题                                           |
+| --partitions <Integer: # of partitions>                      | 要创建或修改主题的分区数                                     |
+| --replica-assignment <String:  <br/>  broker_id_for_part1_replica1 : <br/>  broker_id_for_part1_replica2 , <br/>  broker_id_for_part2_replica1 : <br/>  broker_id_for_part2_replica2 , ...> | 当创建或修改主题的时候手动指定partition-to-broker的分配关系。 |
+| --replication-factor <Integer:replication factor>            | 要创建的主题分区副本数。1表示只有一个副本，也就是Leader副本  |
+| --topic <String: topic>                                      | 要创建、修改或描述主题名称。除了创建、修改和描述在这里还可以使用正则表达式。 |
+| --topics-with-overrides                                      | if set when describing topics, only show topics that have overridden                                          configs |
+| --unavailable-partitions                                     | if set when describing topics, only show partitions whose leader is not available |
+| --under-replicated-partitions                                | if set when describing topics, only show under replicated partitions |
+| --zookeeper <String: urls>                                   | REQUIRED: The connection string for  the zookeeper connection in the form host:port. Multiple URLS can be given to allow fail-over.<br>必要的参数：连接zookeeper的字符串，逗号分隔的多个host:port列表。多个URL可以故障转移 |
 
 
 
