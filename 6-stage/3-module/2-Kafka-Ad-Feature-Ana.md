@@ -387,7 +387,7 @@ Producer拦截器（interceptor）和Cosumer端的Interceptor是在Kafka 0.10版
 
 - onSend(ProducerRecord<K, V> record)：该方法封装进KafkaProducer.send方法中，即运行在用户主线程中。Producer确保在消息被序列化以计算分区前调用该方法。用户可以在该方法中对消息做任何操作，但最好不要修改消息所属的topic和分区，否则会影响目标分区的计算。
 - onAcknowledgement(RecordMetadata, Exception)：该方法会在消息被应答之前或消息发送失败时调用，并且通常都是放在Producer回调逻辑触发之前。onAcknowledgement运行在Producer的IO线程中，因此不要在该方法中放入很重的逻辑，否则会拖慢Producer的消息发送效率。
-- close：关闭Interceptor，主要用于执行一些资源清理工作。
+- close()：关闭Interceptor，主要用于执行一些资源清理工作。
 
 如前所述，Interceptor可能被运行在多个线程中，因此在具体实现时，用户需要**自行确保线程安全**。另外倘若指定了多个Interceptor，则Producer将按照指定顺序调用它们，并仅仅是捕获每个Interceptor可能排除的异常记录到错误日志中而非在向上传递。这在使用过程中要特别留意。
 
@@ -572,7 +572,7 @@ broker处理心跳的逻辑在`GroupCoordinator`类中：如果心跳超期，br
 
 > consumer 端：sessionTimeoutMs，rebalanceTimeoutMs参数
 
-如果客户端发现心跳超期，客户端会标记coordinator为不可用，并阻塞心跳线程；如果超过poll消息的间隔超过了rebalanceTimeoutms，则consumer告知broker主动离开消费组，也会触发rebalance。
+如果客户端发现心跳超期，客户端会标记coordinator为不可用，并阻塞心跳线程；如果超过poll消息的间隔超过了rebalanceTimeoutMs，则consumer告知broker主动离开消费组，也会触发rebalance。
 
 `org.apache.kafka.clients.consumer.internals.AbstractCoordinator.HeartbeatThread`
 
@@ -660,7 +660,7 @@ consumer采用pull模式从broker中读取数据。
 
 采用pull模式，consumer可自主控制消息的速率，可以自己控制消费方式（批量消费/逐条消费），还可以选择不同的提交方式从而实现不同的传输语义。
 
-
+`consumer.subscribe(Arrays.asList("topic_1","topic_2"));`
 
 ### 2.2.3 反序列化
 
@@ -668,9 +668,9 @@ Kafka的broker中所有的消息都是字节数组，消费者获取到消息之
 
 消费者的反序列化器包括key的和value的反序列化器。
 
-> key.deserializer
+> key.deserializer = IntegerDeserializer
 >
-> value.deserializer
+> value.deserializer = StringDeserializer
 
 需要实现`org.apache.kafka.common.serialization.Deserializer`接口。
 
@@ -719,7 +719,7 @@ https://gitee.com/turboYuu/kafka-6-3/tree/master/lab/kafka-demos/demo-08-kafka-c
 2. Consumer需要为分配给它的每个分区提交各自的位移数据
 3. 位移提交的由Consumer端负责，Kafka只负责保管。`_consumer_offset`
 4. 位移提交分为自动提交和手动提交
-5. 位移提交(手动提交)分为同步提交和异步提交
+5. 手动提交分为同步提交和异步提交
 
 #### 2.2.4.1 自动提交
 
@@ -1044,11 +1044,11 @@ https://gitee.com/turboYuu/kafka-6-3/tree/master/lab/kafka-demos/demo-10-kafka-c
 | check.crcs                    | 自动计算被消费的消息的CRC32校验值。<br>可以确保在传输过程中或磁盘存储过程中消息没有被破环。<br>它会增加额外的负载，**在追求极致性能的场合禁用**。 |
 | exclude.internal.topics       | 是否内部主题应该暴露给消费者。如果该条目设置为true，则只能先订阅再拉取。 |
 | isolation.level               | 控制如何读取事务消息。<br>如果设置了`read_committed`，消费者的poll()方法只会返回**已经提交的事务消息**。<br>如果设置了`read_uncommitted`（默认值），消费者的poll方法返回所有的消息，即使是**已经取消的事务消息**。<br>非事务消息以上两种情况都返回。<br>消息总是以偏移量的顺序返回。<br>`read_committed`只能返回到达LSO的消息。<br>在LSO之后出现的消息只能等待相关的事务提交之后才能看到。<br>结果，`read_commited`模式，如果有未提交的事务，消费者不能读取到直到HW的消息。<br>`read_committed`的seekToEnd方法返回LSO。 |
-| heartbeat.interval.ms         |                                                              |
-| session.timeout.ms            |                                                              |
-| max.poll.records              |                                                              |
-| max.poll.interval.ms          |                                                              |
-| max.partition.fetch.bytes     |                                                              |
+| heartbeat.interval.ms         | 当使用消费组的时候，该条目指定消费者向消费者协调器发送心跳的时间间隔。<br>心跳是为了确保消费者会话的活跃状态，同时再消费者加入或离开的时候方便进行再平衡。<br>该条目的值必须小于`session.timeout.ms`，也不应该高于`session.timeout.ms`的1/3。<br>可以将其调整得更小，以控制正常重新平衡得预期时间。 |
+| session.timeout.ms            | 当使用Kafka得消费组的时候，消费者周期性的向broker发送心跳数据，表明自己的存在。<br>如果经过该超时时间还没有收到消费者的心跳，则broker将消费者从消费组移除，并启动再平衡。<br>该值必须在broker配置`group.min.session.timeout.ms`和`group.max.session.timeout.ms`之间。 |
+| max.poll.records              | 一次调用poll()方法返回的记录最大数量。                       |
+| max.poll.interval.ms          | 使用消费组的时候调用poll()方法的时间间隔。<br>该条目指定类消费者调用poll()方法的最大时间间隔。<br>如果在此时间内消费者没有调用poll()方法，则broker认为消费者失败，触发再平衡，<br>将分区分配给消费组中其他消费者。 |
+| max.partition.fetch.bytes     | 对每个分区，服务器返回的最大数量。消费者按此拉取数据。<br>如果非空分区的第一个记录大于这个值，批处理依然可以返回，<br>以保证消费者可以进行下去。<br>broker接收批的大小由`message.max.bytes`(broker参数)或`max.message.bytes`(主题参数)指定。<br>`fetch.max.bytes`用于限制消费者单词请求的数据量。 |
 | send.buffer.bytes             |                                                              |
 | retry.backoff.ms              |                                                              |
 | request.timeout.ms            |                                                              |
@@ -1690,7 +1690,7 @@ Kafka中Leader分区选举，通过维护一个动态变化的***ISR***集合来
    - vim /etc/profile
 
      ```properties
-  export JAVA_HOME=/usr/java/jdk1.8.0_261-amd64
+    export JAVA_HOME=/usr/java/jdk1.8.0_261-amd64
      export PATH=$PATH:$JAVA_HOME/bin
      
      export KAFKA_HOME=/opt/kafka_2.12-1.0.2
@@ -1700,13 +1700,13 @@ Kafka中Leader分区选举，通过维护一个动态变化的***ISR***集合来
      生效环境变量：
 
      ```shell
-  . /etc/profile
+    . /etc/profile
      ```
    
    - 启动node11上的 Kafka
 
      ```shell
-  [root@node11 ~]# kafka-server-start.sh /opt/kafka_2.12-1.0.2/config/server.properties
+    [root@node11 ~]# kafka-server-start.sh /opt/kafka_2.12-1.0.2/config/server.properties
      ```
    
    注意观察node11上节点启动的时候的ClusterId，看和zookeeper节点上的ClusterId是否一致，如果是，证明node11和node1在同一个集群中。
