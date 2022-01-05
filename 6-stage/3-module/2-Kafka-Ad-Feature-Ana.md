@@ -1049,17 +1049,17 @@ https://gitee.com/turboYuu/kafka-6-3/tree/master/lab/kafka-demos/demo-10-kafka-c
 | max.poll.records              | 一次调用poll()方法返回的记录最大数量。                       |
 | max.poll.interval.ms          | 使用消费组的时候调用poll()方法的时间间隔。<br>该条目指定类消费者调用poll()方法的最大时间间隔。<br>如果在此时间内消费者没有调用poll()方法，则broker认为消费者失败，触发再平衡，<br>将分区分配给消费组中其他消费者。 |
 | max.partition.fetch.bytes     | 对每个分区，服务器返回的最大数量。消费者按此拉取数据。<br>如果非空分区的第一个记录大于这个值，批处理依然可以返回，<br>以保证消费者可以进行下去。<br>broker接收批的大小由`message.max.bytes`(broker参数)或`max.message.bytes`(主题参数)指定。<br>`fetch.max.bytes`用于限制消费者单词请求的数据量。 |
-| send.buffer.bytes             |                                                              |
-| retry.backoff.ms              |                                                              |
-| request.timeout.ms            |                                                              |
-| reconnect.backoff.ms          |                                                              |
-| reconnect.backoff.max.ms      |                                                              |
-| receive.buffer.bytes          |                                                              |
-| partition.assignment.strategy |                                                              |
-| metrics.sample.window.ms      |                                                              |
-| metrics.log.level             |                                                              |
-| metrics.num.samples           |                                                              |
-| interceptor.classes           |                                                              |
+| send.buffer.bytes             | 用于TCP发送数据时使用的缓冲大小（SO_SNDBUF），<br>-1表示使用OS默认的缓冲区大小。 |
+| retry.backoff.ms              | 在发生失败的时候如果需要重试，则该配置表示客户端等待多长时间再发起重试。<br>该时间的存在避免了密集循环。 |
+| request.timeout.ms            | 客户端等待服务端响应的最大时间，如果该时间超时，<br>则客户端要么重新发起请求，要么如果重试耗尽，请求失败。 |
+| reconnect.backoff.ms          | 重新连接主机的等待时间。避免了重连的密集循环。<br>该等待时间应用于该客户端到broker的所有连接。 |
+| reconnect.backoff.max.ms      | 重新连接到反复连接失败的broker时要等待的最长时间（以毫秒为单位）。<br>如果提供此选项，则对于每个连续的连接失败，每台主机的退避将成倍增加，直至达到此最大值。<br>在计算退避增量之后，添加20%的随机抖动以避免连接风暴。 |
+| receive.buffer.bytes          | TCP连接接收数据的缓存（SO_RCVBUF）。<br>-1表示使用操作系统的默认值。 |
+| partition.assignment.strategy | 当使用消费组的时候，分区分配策略的类名                       |
+| metrics.sample.window.ms      | 计算指标样本的时间窗口                                       |
+| metrics.log.level             | 指标的最高记录级别                                           |
+| metrics.num.samples           | 用于计算指标而维护的样本数量                                 |
+| interceptor.classes           | 拦截器类的列表。默认没有拦截器<br>拦截器是消费者的拦截器，该拦截器需要实现`org.apache.kafka.clients.consumer.ConsumerInterceptor`接口。<br>拦截器可用于对消费者接收到的消息进行拦截处理。 |
 
 
 
