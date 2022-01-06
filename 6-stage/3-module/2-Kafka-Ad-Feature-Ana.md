@@ -1292,7 +1292,7 @@ Error while executing topic command : The number of partitions for a topic can o
 
 副本分配的三个目标：
 
-1. 均衡的将副本分散于各个broker上
+1. 均衡地将副本分散于各个broker上
 2. 对于某个broker上的分配的分区，它的其他副本在其他broker上
 3. 如果所有的broker都有机架信息，尽量将分区的各个副本分配到不同机架上的broker。
 
@@ -1338,7 +1338,25 @@ kafka-topic.sh --config xx=xx --config yy=yy
 
 > 功能与原理介绍
 
+[Kafka官网](https://kafka.apache.org/10/documentation.html#adminapi)：The AdminClient API supports managing and inspecting topics, brokers, acls, and other Kafka objects.
 
+KafkaAdminClient包含了以下几种可能（Kafka 1.0.2 版本）：
+
+1. 创建主题
+2. 删除主题
+3. 列出所有主题
+4. 查询主题
+5. 查询集群信息
+6. 查询配置信息
+7. 修改配置信息
+8. 修改副本的日志目录
+9. 查询节点的日志目录信息
+10. 查询副本的日志目录信息
+11. 增加分区
+
+
+
+其内部原理是使用Kafka自定义的一套二进制协议来实现，详细可以参见Kafka协议。
 
 
 
