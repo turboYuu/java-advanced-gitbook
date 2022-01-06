@@ -2058,13 +2058,13 @@ topic一旦使用不能轻易删除重建，因此动态增加副本因子就成
 
 
 
-**说明**：Kafka 1.0版本配置文件默认没有default.replication.factor=x，因此如果创建topic时，不指定replication-factor想，默认副本因子为1。我们可以在自己的server.properties中配置常用的副本因子，省去手动调整。例如设置default.replication.factor3，详细内容可参考官方文档 https://kafka.apache.org/documentation/#replication
+**说明**：Kafka 1.0版本配置文件默认没有default.replication.factor=x，因此如果创建topic时，不指定replication-factor项，默认副本因子为1。我们可以在自己的server.properties中配置常用的副本因子，省去手动调整。例如设置default.replication.factor=3，详细内容可参考官方文档 https://kafka.apache.org/documentation/#replication
 
 **原因分析**：
 
 假设我们有2个Kafka broker分别broker0，broker1。
 
-1. 当我们创建的topic有2个分区partition时，并且replication-factor为1，基本上一个broker上一个分区。当一个broker宕机了，该topic就无法使用了，因此两个分区只有一个能用。
+1. 当我们创建的topic有2个分区partition时，并且replication-factor为1，基本上一个broker上一个分区。当一个broker宕机了，该topic就无法使用了，因为两个分区只有一个能用。
 
 2. 当我们创建的topic有3个分区partition时，并且replication-factor为2时，可能的分区情况是：
 
@@ -2191,7 +2191,7 @@ RangeAssignor策略的原理是按照消费者总数和分区总数进行整除�
 
 ### 4.6.2 RoundRobinAssignor
 
-RoundRobinAssignor的分配策略是将消费者组内订阅的所有Topic的分区及所有消费者进行排序后尽量均衡的分配（RangeAssignor是针对单个Topic的分区进行排序分配）。如果消费组内，消费者订阅的Topic列表是相同的（每个消费者都订阅了相同的Topic），那么分配结果是尽量均衡的（消费者之间分配到的分区数的插值不会超过1）。如果订阅的Topic列表是不同的，那么分配结果不保证“尽量均衡”，因为某些消费者不参与一些Topic的分配。
+**RoundRobinAssignor的分配策略是将消费者组内订阅的所有Topic的分区及所有消费者进行排序后尽量均衡的分配**（RangeAssignor是针对单个Topic的分区进行排序分配）。如果消费组内，消费者订阅的Topic列表是相同的（每个消费者都订阅了相同的Topic），那么分配结果是尽量均衡的（消费者之间分配到的分区数的插值不会超过1）。如果订阅的Topic列表是不同的，那么分配结果不保证“尽量均衡”，因为某些消费者不参与一些Topic的分配。
 
 ![image-20211201124743270](assest/image-20211201124743270.png)
 
@@ -2297,7 +2297,7 @@ public interface PartitionAssignor {
 
 PartitionAssignor接口中定义了两个内部类：Subscription和Assignment。
 
-Subscription类用来表示消费者的订阅信息，类中有两个属性：topics和userData，分表表示消费者所订阅topic列表和用户自定义信息。PartitionAssignor接口通过subscription()方法来设置消费者自身相关的Subscription信息，注意到此方法中只有一个参数topics，与Subscription类中的topics相呼应，但是并没有有关userData的参数体现。为了增强用户对分配结果的控制，可以在subscription()的方法内部添加一些影响分配的用户自定义信息赋予userData，比如：权重，ip地址，host或者机架(rack) 等等。
+Subscription类用来表示消费者的订阅信息，类中有两个属性：topics和userData，分别表示消费者所订阅topic列表和用户自定义信息。PartitionAssignor接口通过subscription()方法来设置消费者自身相关的Subscription信息，注意到此方法中只有一个参数topics，与Subscription类中的topics相呼应，但是并没有有关userData的参数体现。为了增强用户对分配结果的控制，可以在subscription()的方法内部添加一些影响分配的用户自定义信息赋予userData，比如：权重，ip地址，host或者机架(rack) 等等。
 
 再来说Assignment类，它是用来表示分配结果信息的，类中也有两个属性：partitions和userData，分别表示所分配到的分区集合和用户自定义的数据。可以通过PartitionAssignor接口中的onAssignment()方法（在每个消费者收到消费组leader分配结果时的回调函数）。例如在StickyAssignor策略中就是通过这个方法保存当前的分配方案，以备下次消费组再平衡（Rebalance）时可以提供分配参考依据。
 
@@ -3901,6 +3901,12 @@ SystemTime会取出queue中的TimeTaskList，根据expiration将currentTime往�
 
 
 ## 7.1 延迟操作接口
+
+
+
+总结：
+
+服务端创建的延迟生产操作对象，在尝试完成时根据主副本的最高水位是否等于延迟生产操作对象中元数据的指定偏移量来判断。
 
 # 8 重试队列
 
