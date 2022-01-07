@@ -3699,9 +3699,9 @@ Kafka从0.11引入了`leader epoch`来取代HW值。Leader端使用内存保存L
 
 所谓Leader epoch实际上就是一对值：<epoch,offset>:
 
-1. epoch表示Leader得版本号，从0开始，Leader变更过1次，epoch+1
+1. epoch表示Leader的版本号，从0开始，Leader变更过1次，epoch+1
 
-2. offset对应于该epoch版本得Leader写入第一条消息的offset。因此假设有两对值：
+2. offset对应于该epoch版本的Leader写入的第一条消息的offset。因此假设有两对值：
 
    ```
    <0, 0>
