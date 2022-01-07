@@ -2,7 +2,7 @@
 
 # 1 Elasticsearch是什么
 
-Elasticsearch简称ES，是一个开源的可扩展的分布式的**全文搜索引擎**，它可以近乎实时的存储、检索数据。本身扩展性很好，可扩展到上百台服务器，处理**PB**级别的数据。ES使用Java开发并使用Lucene作为核心来实现索引和搜索的功能，但是它通过简单的**RestfulAPI**和**javaAPI**来隐藏Lucene的复杂性，从而让全文搜索变得简单。
+Elasticsearch简称ES，是一个开源的可扩展的分布式的**全文搜索分析引擎**，它可以近乎实时的存储、检索数据。本身扩展性很好，可扩展到上百台服务器，处理**PB**级别的数据。ES使用Java开发并使用Lucene作为核心来实现索引和搜索的功能，但是它通过简单的**RestfulAPI**和**javaAPI**来隐藏Lucene的复杂性，从而让全文搜索变得简单。
 
 Elasticsearch官网：https://www.elastic.co/cn/elasticsearch/
 
@@ -13,8 +13,13 @@ Elasticsearch官网：https://www.elastic.co/cn/elasticsearch/
 # 2 Elasticsearch的功能
 
 - 分布式的搜索引擎
+
+  分布式：Elasticsearch自动将海量数据分散到多台服务器上去存储和检索
+
 - 全文检索
+
 - 数据分析引擎（分组聚合）
+
 - 对海量数据进行实时的处理
 
 # 3 Elasticsearch的特点
@@ -35,8 +40,13 @@ Elasticsearch官网：https://www.elastic.co/cn/elasticsearch/
 ## 4.1 常见场景
 
 1. 搜索类场景
+
 2. 日志分析场景
+
+   经典的ELK组合（Elasticsearch / Logstash / Kibana）。
+
 3. 数据预警平台及数据分析场景
+
 4. 商业BI（Business Intelligence）系统
 
 ## 4.2 常见案例
@@ -84,7 +94,7 @@ Elasticsearch 主流版本为 5.x，6.x 及 7.x 版本
 
 > 7.x 更新的内容如下
 
-1. 集群连接变化：TransportClient
+1. 集群连接变化：TransportClient被废弃
 
    ```
    以至于，es7的java代码，只能使用restclient。对于java编程，建议采用High-level-restclient 的方式操作ES集群。
@@ -114,7 +124,7 @@ Elasticsearch 主流版本为 5.x，6.x 及 7.x 版本
 
 6. 间隔查询（Intervals queries）：intervals query 允许用户精确控制查询词在文档中出现的先后关系，实现对terms顺序、terms之间的距离以及它们之间的包含关系的灵活控制。
 
-7. 引入新的集群协调子系统 移除 minimum_master_nodes 参数，让Elasticsearch 自己选择可以形成仲裁的节点。
+7. 引入新的集群协调子系统， 移除 minimum_master_nodes 参数，让Elasticsearch 自己选择可以形成仲裁的节点。
 
 8. 7.0 将不会再有OOM的情况，JVM引入了新的circuit breaker（熔断）机制，当查询或聚合的数据量超出单机处理的最大内存限制时会被截断。
 
@@ -128,7 +138,11 @@ Elasticsearch 主流版本为 5.x，6.x 及 7.x 版本
 
 [Elasticsearch与操作系统](https://www.elastic.co/cn/support/matrix#matrix_os)
 
+
+
 [Elasticsearch and JVM](https://www.elastic.co/cn/support/matrix#matrix_jvm)
+
+
 
 # 7 Elasticsearch Single-Node Mode 快速部署
 
@@ -142,9 +156,13 @@ Elasticsearch是一个分布式全文搜索引擎，支持单节点模式（Sing
 
 - 关闭虚拟机防火墙
 
-  ```
+  ```shell
   #停止firewall
   systemctl stop firewalld.service
+  #禁止firewall开机启动
+  systemctl disable firewalld.service
+  # 查看防火墙
+  firewall-cmd --state
   ```
 
 ## 7.2 Elasticsearch single-Node Mode 部署
@@ -161,3 +179,131 @@ https://www.elastic.co/cn/downloads/past-releases/elasticsearch-7-3-0 版本
 
 ![image-20211228120527695](assest/image-20211228120527695.png)
 
+### 7.2.1 JDK 安装
+
+1. 上传jdk-8u261-linux-x64.rpm到服务器并安装
+
+   ```shell
+   rpm -ivh jdk-8u261-linux-x64.rpm 
+   ```
+
+2. 配置环境变量
+
+   ```shell
+   vim /etc/profile
+   
+   export JAVA_HOME=/usr/java/jdk1.8.0_261-amd64
+   export PATH=$PATH:$JAVA_HOME/bin
+   
+   # 生效
+   . /etc/profile
+   # 验证
+   java -version
+   ```
+
+
+### 7.2.2 Elasticsearch安装和配置
+
+1. 上传elasticsearch-7.3.0-linux-x86_64.tar.gz并解压
+
+   ```shell
+   [root@node1 ~]# tar -xvf elasticsearch-7.3.0-linux-x86_64.tar.gz -C /usr
+   [root@node1 usr]# mv elasticsearch-7.3.0 elasticsearch
+   ```
+
+2. 编辑 vim /usr/elasticsearch/config/elasticsearch.yml ，
+
+   ```shell
+   vim /usr/elasticsearch/config/elasticsearch.yml 
+   ```
+
+   单机安装取消注释：node.name: node-1，否则无法正常启动。
+
+   修改网络和端口，取消注释master节点，单机只保留一个node。
+
+   ```yaml
+   node.name: node-1
+   network.host: 192.168.31.71
+   
+   http.port: 9200
+   cluster.initial_master_nodes: ["node-1"]
+   ```
+
+3. 按需修改 vim /usr/elasticsearch/config/jvm.options ，内存设置
+
+   ```shell
+   vim /usr/elasticsearch/config/jvm.options 
+   ```
+
+   > 根据实际情况修改占用内存，默认都是1G，单机1G内存，然后再安装Kibana后启动会占用700m+，基本上无法运行了，运行一会儿就挂掉了，报内存不足。内存设置超出了物理内存，也会无法启动，启动报错。
+
+   ```properties
+   -Xms1g
+   -Xmx1g
+   ```
+
+4. 添加es用户，es默认root用户无法启动，需要改为其他用户
+
+   ```
+   useradd estest
+   
+   修改密码
+   passwd estest
+   ```
+
+   改变es目录拥有者账号
+
+   ```shell
+   chown -R estest /usr/elasticsearch/
+   ```
+
+5. 修改 /etc/sysctl.conf
+
+   ```shell
+   vim /etc/sysctl.conf
+   ```
+
+   末尾添加：vm.max_map_count=655360
+
+   执行sysctl -p 让其生效
+
+   ```shell
+   sysctl -p
+   ```
+
+   ![image-20220107170354173](assest/image-20220107170354173.png)
+
+6. 修改 vim /etc/security/limits.conf 
+
+   ```shell
+   vim /etc/security/limits.conf 
+   ```
+
+   末尾添加：
+
+   ```xml
+   * soft nofile 65536
+   * hard nofile 65536
+   * soft nproc 4096
+   * hard nproc 4096
+   ```
+
+   使用 `ulimit -n ` 或 `ulimit -H -n` 查看配置连接数，不生效可以重新打开连接。
+
+7. 启动 es
+
+   切换刚刚新建的用户
+
+   ```shell
+   su estest
+   ```
+
+   启动命令
+
+   ```shell
+   /usr/elasticsearch/bin/elasticsearch
+   ```
+
+8. 配置完成：浏览器访问测试：ip:9200
+
+![image-20220107180423642](assest/image-20220107180423642.png)

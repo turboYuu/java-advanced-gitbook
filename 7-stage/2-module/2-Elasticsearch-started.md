@@ -1,2 +1,4 @@
 第二部分 Elasticsearch入门使用
 
+Elasticsearch是基于Lucene的全文检索引擎，本质也是存储和检索数据。ES种的很多概念与MySQL类似。
+
