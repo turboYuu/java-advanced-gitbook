@@ -2965,6 +2965,8 @@ KafkaProducer<String,String> kafkaProducer = new KafkaProducer<String, String>(p
 - 消费消息和生产消息并存，比如Consumer & Producer 模式，这种场景是一般Kafka项目中比较常见的模式，需要事务介入；
 - 只有Consumer消费消息，这种操作在实际项目中意义不大，和手动Commit Offsets的结果一样，而且这种场景不是事务的引入目的。
 
+`org.apache.kafka.clients.producer.Producer`
+
 ```java
 public interface Producer<K, V> extends Closeable {
 
@@ -3199,7 +3201,7 @@ Kafka集群上创建的主题，包含若干个分区。
 
 当控制器发现一个broker已经离开集群，那些失去Leader副本分区的Follower分区需要一个新Leader（这些分区的首领刚好是在这个Leader上）。
 
-1. 控制器需要直到哪个broker宕机了？
+1. 控制器需要知道哪个broker宕机了？
 2. 控制器需要知道宕机的broker上负责哪些分区的Leader副本分区？
 
 下图中，`<KafkaChroot>/brokers/ids/0`保存该broker的信息，此节点为临时节点，如果broker节点宕机，该节点丢失。
