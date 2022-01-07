@@ -3271,7 +3271,7 @@ Kafka动态维护一组同步Leader数据副本（ISR），只有这个组的成
 **但是这种方式有几个缺点**：
 
 - split-brain：这是由Zookeeper的特性引起的，虽然Zookeeper能保证所有Watch按顺序触发，但不能保证同一时刻所有Replica“看”到的状态是一样的，这就是可能造成不同Replica响应不一致
-- herd effect：如果宕机的哪个Broker上的Partition比较多，会造成多个Watch被触发，造成集群内大量的调整
+- herd effect：如果宕机的那个Broker上的Partition比较多，会造成多个Watch被触发，造成集群内大量的调整
 - Zookeeper负载过重：每个Replica都要为此在Zookeeper上注册一个Watch，当集群规模增加到几千个Partition时Zookeeper负载过重。
 
 
