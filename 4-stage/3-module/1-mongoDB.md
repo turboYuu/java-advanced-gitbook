@@ -1,6 +1,6 @@
 MongoDB是一款高性能的NoSQL（Not Only SQL 不仅仅SQL）数据库
 
-# 第一部分 MongoDB体系结构
+# 1 MongoDB体系结构
 
 ## 1.1 NoSQL 和 MongoDB
 
@@ -46,7 +46,7 @@ MongoDB中的Document中可以出现的数据类型
 
 ## 1.6 MongoDB在Linux的安装
 
-```
+```shell
 1.下载社区版 mongoDB 4.1.3，上传至linux
 2.解压 tar -xvf mongodb-linux-x86_64-4.1.3.tgz
 3.启动
@@ -57,7 +57,7 @@ MongoDB中的Document中可以出现的数据类型
 
 配置文件样例
 
-```
+```properties
 dbpath=/data/mongo/
 port=27017
 bind_ip=0.0.0.0
@@ -79,7 +79,7 @@ auth=false
 
 ## 1.7 MongoDB启动和参数说明
 
-```
+```xml
 参数			说明
 dbpath		  数据库目录，默认/data/db
 port		  监听端口，默认27017
@@ -93,7 +93,7 @@ config		  指定配置文件
 
 ## 1.8 mongo shell的启动
 
-```
+```shell
 启动mongo shell
 	./bin/mongo
 指定主机和端口的方式启动
@@ -110,7 +110,7 @@ config		  指定配置文件
 
 
 
-# 第二部分 MongoDB命令
+# 2 MongoDB命令
 
 ## 2.1 MongoDB的基本操作
 
@@ -436,7 +436,7 @@ db.lg_resume_preview.mapReduce(
 
 ![image-20210816161510897](assest/image-20210816161510897.png)
 
-# 第三部分 MongoDB索引Index
+# 3 MongoDB索引Index
 
 ## 3.1 什么是索引
 
@@ -782,7 +782,7 @@ B+树的特点：
 - B+树更适合外部存储，也就是磁盘存储，使用B-结构的话，每次磁盘预读中的很多数据是用不上的数据。因此，它没能利用好磁盘预读提供的数据。B+数 由于节点内无data域，每个节点能索引的范围更大更精确。
 - 注意这个区别相当重要，是基于（1）（2）的，**B-数每个节点即保存数据又保存索引，树的深度小，所以磁盘IO次数少**，B+树只有叶子节点保存数据，较B-树而言深度大磁盘IO多，但是区间访问比较好。
 
-# 第四部分 MongoDB应用实战
+# 4 MongoDB应用实战
 
 ## 4.1 MongoDB的适用场景
 
@@ -1007,7 +1007,7 @@ public interface ResumeReposiptry extends MongoRepository<Resume,String> {
 
 
 
-# 第五部分 MongoDB架构
+# 5 MongoDB架构
 
 ## 5.1 MongoDB逻辑结构
 
@@ -1145,7 +1145,7 @@ Cache是基于BTree的，节点是一个page，root page是根节点，internal 
 
 
 
-# 第六部分 MongoDB集群高可用
+# 6 MongoDB集群高可用
 
 ## 6.1 MongoDB主从赋值架构原理和缺陷
 
@@ -1728,7 +1728,7 @@ for(var i=1;i<1000;i++){
 
 ![image-20210819004346433](assest/image-20210819004346433.png)
 
-# 第七部分 MongoDB安全认证
+# 7 MongoDB安全认证
 
 ## 7.1 安全认证概述
 
@@ -2028,7 +2028,7 @@ spring.data.mongodb.password=123456
 
 ![image-20210820020211955](assest/image-20210820020211955.png)
 
-# 第八部分 MongoDB监控和数据备份与恢复
+# 8 MongoDB监控和数据备份与恢复
 
 ## 8.1 MongoDB监控
 
