@@ -100,7 +100,7 @@ Kibana是一个基于Node.js的Elasticsearch索引库数据统计工具，可以
 
    修改端口号，访问ip，elasticsearch服务ip
 
-   ```properties
+   ```yml
    server.port: 5601
    server.host: "0.0.0.0"
    # The URLs of the Elasticsearch instances to use for all your queries
@@ -146,7 +146,57 @@ Kibana是一个基于Node.js的Elasticsearch索引库数据统计工具，可以
 
 ## 4.1 集成IK分词器
 
+IKAnalyzer是一个开源的，基于Java语言开发的轻量级的中文分析工具包。从2006年12月退出1.0版开始，IKAnalyzer已经推出了3个大版本。最初，它是以开源项目Lucene为应用主体的，结合词典分词和文法分析算法的中文分词组件。新版本的IKAnalyzer 3.0 则发证为面向Java的公用分词组件，独立于Lucene项目，同时提供了对Lucene的默认优化实现。
 
+IK分词器 3.0 的特性如下：
+
+1. 采用了特有的“正向迭代最细粒度切分算法”，具有60万/秒的高速处理能力。
+2. 采用了多子处理器分析模式，支持：英文字母（IP地址、Email、URL）、数字（日期，常用中文量词，罗马数字，科学计数法），中文词汇（姓名，地名处理）等分词处理。
+3. 支持个人词条的优化的词典存储，更小的内存占用。
+4. 支持用户词典扩展定义。
+5. 针对Lucene全文检索优化的查询分析器IKQueryParser；采用歧义分析算法优化查询关键字的搜索排列组合，能极大的提高Lucene检索的命中率。
+
+**下载地址**：
+
+https://github.com/medcl/elasticsearch-analysis-ik/releases/tag/v7.3.0
+
+> **下载插件并安装（安装方式一）**
+
+1. 在elasticsearch的bin目录下执行以下命令，es插件管理器会自动帮我们安装，然后等待安装完成：
+
+   ```
+   
+   ```
+
+2. 下载完成后会提示 Continue with installation? 输入`y` 即可完成安装
+
+3. 重启Elasticsearch 和 Kibana
+
+> **上传安装包安装（安装方式二）**
+
+1. 在elasticsearch安装目录的plugins目录下新建 `analysis-ik` 目录
+
+   ```
+   
+   ```
+
+2. 重启Elasticsearch 和 Kibana
+
+
+
+> **测试案例**
+
+IK分词器有两种分词模式：ik_max_word和 ik_smart模式。
+
+1. ik_max_word（常用）
+
+   会将文本做最细粒度的拆分
+
+2. ik_smart
+
+   会做最粗粒度的拆分
+
+   
 
 ## 4.2 扩展词典使用
 
