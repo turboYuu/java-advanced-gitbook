@@ -114,6 +114,8 @@ Kibana是一个基于Node.js的Elasticsearch索引库数据统计工具，可以
    [root@node1 usr]# su estest
    [estest@node1 usr]$ cd kibana/bin/
    [estest@node1 bin]$ ./kibana
+   # root用户启动
+   [root@node1 ~]# /usr/kibana/bin/kibana --allow-root
    ```
 
    没有error错误启动成功：
@@ -164,20 +166,30 @@ https://github.com/medcl/elasticsearch-analysis-ik/releases/tag/v7.3.0
 
 1. 在elasticsearch的bin目录下执行以下命令，es插件管理器会自动帮我们安装，然后等待安装完成：
 
-   ```
-   
+   ```shell
+   [root@node1 ~]# /usr/elasticsearch/bin/elasticsearch-plugin install https://github.com/medcl/elasticsearch-analysis-ik/releases/download/v7.3.0/elasticsearch-analysis-ik-7.3.0.zip
    ```
 
 2. 下载完成后会提示 Continue with installation? 输入`y` 即可完成安装
 
 3. 重启Elasticsearch 和 Kibana
 
+![image-20220108134715299](assest/image-20220108134715299.png)
+
 > **上传安装包安装（安装方式二）**
 
 1. 在elasticsearch安装目录的plugins目录下新建 `analysis-ik` 目录
 
-   ```
-   
+   ```shell
+   #新建analysis-ik文件夹 
+   mkdir analysis-ik
+   #切换至analysis-ik文件夹下 
+   cd analysis-ik
+   #上传资料中的elasticsearch-analysis-ik-7.3.0.zip 
+   #解压
+   unzip elasticsearch-analysis-ik-7.3.3.zip
+   #解压完成后删除zip
+   rm -rf elasticsearch-analysis-ik-7.3.0.zip
    ```
 
 2. 重启Elasticsearch 和 Kibana
@@ -196,17 +208,303 @@ IK分词器有两种分词模式：ik_max_word和 ik_smart模式。
 
    会做最粗粒度的拆分
 
-   
+
+
+先不管语法，先在kibana测试一波，输入下面的请求：
+
+```json
+POST _analyze 
+{
+ "analyzer": "ik_max_word",
+ "text": "南京市长江大桥"
+}
+```
+
+ik_max_word 分析模式运行得到结果
+
+```json
+{
+  "tokens" : [
+    {
+      "token" : "南京市",
+      "start_offset" : 0,
+      "end_offset" : 3,
+      "type" : "CN_WORD",
+      "position" : 0
+    },
+    {
+      "token" : "南京",
+      "start_offset" : 0,
+      "end_offset" : 2,
+      "type" : "CN_WORD",
+      "position" : 1
+    },
+    {
+      "token" : "市长",
+      "start_offset" : 2,
+      "end_offset" : 4,
+      "type" : "CN_WORD",
+      "position" : 2
+    },
+    {
+      "token" : "长江大桥",
+      "start_offset" : 3,
+      "end_offset" : 7,
+      "type" : "CN_WORD",
+      "position" : 3
+    },
+    {
+      "token" : "长江",
+      "start_offset" : 3,
+      "end_offset" : 5,
+      "type" : "CN_WORD",
+      "position" : 4
+    },
+    {
+      "token" : "大桥",
+      "start_offset" : 5,
+      "end_offset" : 7,
+      "type" : "CN_WORD",
+      "position" : 5
+    }
+  ]
+}
+
+```
+
+
+
+```json
+POST _analyze 
+{
+ "analyzer": "ik_smart", 
+ "text": "南京市长江大桥" 
+}
+```
+
+ik_smart分词模式运行得到结果：
+
+```json
+{
+  "tokens" : [
+    {
+      "token" : "南京市",
+      "start_offset" : 0,
+      "end_offset" : 3,
+      "type" : "CN_WORD",
+      "position" : 0
+    },
+    {
+      "token" : "长江大桥",
+      "start_offset" : 3,
+      "end_offset" : 7,
+      "type" : "CN_WORD",
+      "position" : 1
+    }
+  ]
+}
+```
+
+如果现在假如**江大桥**是一个人名，是南京市市长，那么上面的分词显然是不合理的，该怎么办？
+
+
 
 ## 4.2 扩展词典使用
+
+**扩展词**：就是不想让哪些词被分开，让他们分成一个词。比如上面的**江大桥**
+
+**自定义扩展词库**
+
+1. 进入到config/analysis-ik/(**插件命令安装**) 或 plugins/analysis-ik/config (**安装包安装方式**) 目录下，新增自定义词典
+
+   ```shell
+   [root@node1 analysis-ik]# vim turbo_ext_dict.dic
+   ```
+
+   输入：江大桥
+
+2. 将我们自定义的扩展词典文件添加到 IKAnalyzer.cfg.xml 配置中
+
+   vim IKAnalyzer.cfg.xml
+
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+   <properties>
+           <comment>IK Analyzer 扩展配置</comment>
+           <!--用户可以在这里配置自己的扩展字典 -->
+           <entry key="ext_dict">turbo_ext_dict.dic</entry>
+            <!--用户可以在这里配置自己的扩展停止词字典-->
+           <entry key="ext_stopwords"></entry>
+           <!--用户可以在这里配置远程扩展字典 -->
+           <!-- <entry key="remote_ext_dict">words_location</entry> -->
+           <!--用户可以在这里配置远程扩展停止词字典-->
+           <!-- <entry key="remote_ext_stopwords">words_location</entry> -->
+   </properties>
+   ```
+
+3. 重启Elasticsearch
+
+   ik_max_word 分析模式运行得到结果中会出现：江大桥
 
 
 
 ## 4.3 停用词典使用
 
+**停用词**：有些词在文本中出现的频率非常高。但对文本的语义产生不了多大的影响。例如英文的a、an、the、of等，或中文 的、了、呢  等。这样的词称为停用词。停用词经常被过滤掉，不会进行索引。在检索过程中，如果用户的查询中含有停用词，系统会自动过滤掉。停用词可以加快索引的速度，减少索引库文件的大小。
+
+**自定义停用词库**
+
+1. 进入到config/analysis-ik/(**插件命令安装**) 或 plugins/analysis-ik/config (**安装包安装方式**) 目录下，新增自定义词典
+
+   ```shell
+   vim turbo_stop_dict.dic
+   ```
+
+   输入
+
+   ```xml
+   的
+   了
+   啊
+   ```
+
+2. 将自定义的停用词典文件添加到IKAnalyzer.cfg.xml配置中
+
+3. 重启Elasticsearch
+
 
 
 ## 4.4 同义词典使用
+
+很多相同意思的词，称之为同义词。在搜索时，输入“番茄”，但是应该把含有“西红柿”的数据也查出来，这种情况叫 同义词查询。
+
+注意：扩展词和停用词是在索引的时候使用，而同义词是检索时候使用。
+
+**配置IK同义词**
+
+Elasticsearch 自带一个名为 synonym 的同义词filter。为了能让 IK 和 synonym 同时工作，需要定义新的analyzer，用 IK 做 tokenizer，synonym 做 filter。实际只需要加一段配置。
+
+1. 创建 /config/analysis-ik/synonym.txt 文件，输入一些同义词并存为 utf-8（linux默认格式就是 utf-8） 格式。例如
+
+   ```tex
+   turbo,涡轮
+   china,中国
+   ```
+
+2. 创建索引时，使用同义词配置，示例模板如下
+
+   ```json
+   PUT /索引名称
+   {
+     "settings": {
+       "analysis": {
+         "filter": {
+           "word_sync": {
+             "type": "synonym",
+             "synonyms_path": "analysis-ik/synonym.txt"
+           }
+         },
+         "analyzer": {
+           "ik_sync_max_word": {
+             "filter": [
+               "word_sync"
+             ],
+             "type": "custom",
+             "tokenizer": "ik_max_word"
+           },
+           "ik_sync_smart": {
+             "filter": [
+               "word_sync"
+             ],
+             "type": "custom",
+             "tokenizer": "ik_smart"
+           }
+         }
+       }
+     },
+     "mappings": {
+       "properties": {
+         "字段名": {
+           "type": "字段类型",
+           "analyzer": "ik_sync_smart",
+           "search_analyzer": "ik_sync_smart"
+         }
+       }
+     }
+   }
+   ```
+
+   以上配置定义了ik_sync_max_word 和 ik_sync_smart 这两个新的 analyzer，对应 IK 的 ik_max_word 和 ik_smart 两种分词策略。ik_sync_max_word 和 ik_sync_smart 都会使用 synonym filter 实现同义词转换。
+
+3. 到此，索引创建模板中同义词配置完成，搜索时指定分词器为 ik_sync_max_work 或 ik_sync_smart。
+
+4. 案例
+
+   ```json
+   PUT /turbo-es-synonym
+   {
+     "settings": {
+       "analysis": {
+         "filter": {
+           "word_sync": {
+             "type": "synonym",
+             "synonyms_path": "analysis-ik/synonym.txt"
+           }
+         },
+         "analyzer": {
+           "ik_sync_max_word": {
+             "filter": [
+               "word_sync"
+             ],
+             "type": "custom",
+             "tokenizer": "ik_max_word"
+           },
+           "ik_sync_smart": {
+             "filter": [
+               "word_sync"
+             ],
+             "type": "custom",
+             "tokenizer": "ik_smart"
+           }
+         }
+       }
+     },
+     "mappings": {
+       "properties": {
+         "name": {
+           "type": "text",
+           "analyzer": "ik_sync_smart",
+           "search_analyzer": "ik_sync_smart"
+         }
+       }
+     }
+   }
+   ```
+
+   插入数据
+
+   ```json
+   POST /turbo-es-synonym/_doc/1
+   {
+     "name": "涡轮是一种将流动工质的能量转换为机械功的旋转式动力机械"
+   }
+   ```
+
+   使用同义词 "turbo" 或者 "涡轮" 进行搜索
+
+   ```json
+   POST /turbo-es-synonym/_doc/_search
+   {
+     "query": {
+       "match": {
+         "name": "turbo"
+       }
+     }
+   }
+   ```
+
+   ![image-20220108150743482](assest/image-20220108150743482.png)
 
 
 
