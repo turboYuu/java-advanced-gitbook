@@ -275,7 +275,7 @@ ik_max_word 分析模式运行得到结果
 
 
 ```json
-POST _analyze 
+POST _analyze
 {
  "analyzer": "ik_smart", 
  "text": "南京市长江大桥" 
@@ -512,40 +512,650 @@ Elasticsearch 自带一个名为 synonym 的同义词filter。为了能让 IK �
 
 ## 5.1 创建索引库
 
+Elasticsearch采用Rest风格API，因此其API就是一次http请求，可以用任何工具发起http请求
+
+> 语法
+
+```json
+PUT /索引名称 
+{
+ "settings": {
+   "属性名": "属性值" 
+ }
+}
+```
+
+settings：就是索引库设置，其中可以定义索引库的各种属性，比如分片数、副本数等，目前可以不设置，都使用默认。
+
+> 示例
+
+PUT /turbo-company-index
+
+![image-20220108153211836](assest/image-20220108153211836.png)
+
+可以看到索引创建成功了。
+
 ## 5.2 判断索引是否存在
+
+> 语法
+
+```json
+HEAD /索引名称
+```
+
+> 示例
+
+HEAD /turbo-company-index
+
+![image-20220108153417734](assest/image-20220108153417734.png)
+
+
 
 ## 5.3 查看索引
 
+Get 请求可以帮助查看索引的相关属性信息，格式：
+
+- 查看单个索引
+
+  > 语法
+
+  ```
+  GET /索引名称
+  ```
+
+  > 示例
+
+  GET /turbo-company-index
+
+  ![image-20220108153627220](assest/image-20220108153627220.png)
+
+- 批量查看索引
+
+  > 语法
+
+  ```
+  GET /索引名称1,索引名称2,索引名称3,...
+  ```
+
+  > 示例
+
+  GET /turbo-company-index,turbo-employee-index
+
+  ![image-20220108154041740](assest/image-20220108154041740.png)
+
+- 查看所有索引
+
+  > 方式一
+
+  ```
+  GET _all
+  ```
+
+  ![image-20220108154242086](assest/image-20220108154242086.png)
+
+  > 方式二
+
+  ```
+  GET /_cat/indices?v
+  ```
+
+  ![image-20220108154501863](assest/image-20220108154501863.png)
+
+  绿色：索引的所有分片都正常分配。
+
+  黄色：至少有一副没有得到正确的分配。
+
+  红色：至少有一个主分片没有得到正确的分配。
+
 ## 5.4 打开索引
+
+> 语法
+
+```
+POST /索引名称/_open
+```
+
+![image-20220108154816104](assest/image-20220108154816104.png)
 
 ## 5.5 关闭索引
 
+> 语法
+
+```
+POST /索引名称/_close
+```
+
+![image-20220108154945127](assest/image-20220108154945127.png)
+
+
+
 ## 5.6 删除索引
+
+删除索引使用 DELETE 请求
+
+> 语法
+
+```
+DELETE /索引名称1,索引名称2,索引名称3,...
+```
+
+> 示例
+
+![image-20220108155222424](assest/image-20220108155222424.png)
+
+再次查看，返回索引不存在
+
+![image-20220108155505049](assest/image-20220108155505049.png)
+
+
 
 # 6 映射操作
 
+索引创建之后，等于有了关系型数据库中的database。Elasticsearch 7.x 取消了索引type类型的设置，不允许指定类型，默认为 _doc，但字段仍然是有的，我们需要设置字段的约束信息，叫做字段映射（mapping）。
+
+字段的约束包括但不限于：
+
+- 字段的数据类型
+- 是否要存储
+- 是否要索引
+- 分词器
+
 ## 6.1 创建映射字段
+
+> 语法
+
+```json
+PUT /索引库名/_mapping/
+{
+  "properties": {
+    "字段名": {
+      "type": "类型",
+      "index":true,
+      "store":true
+      "analyzer": "分词器"
+    }
+  }
+}
+```
+
+https://www.elastic.co/guide/en/elasticsearch/reference/7.3/mapping-params.html
+
+字段名：任意填写，下面指定许多属性，例如：
+
+- type：类型，可以是 text、long、short、date、integer、object 等
+- index：是否索引，默认为true
+- store：是否存储，默认为false
+- analyzer：指定分词器
+
+> 示例
+
+发起请求
+
+```
+PUT /turbo-company-index
+
+PUT /turbo-company-index/_mapping/
+{
+  "properties": {
+    "name": {
+      "type": "text",
+      "analyzer": "ik_max_word"
+    },
+    "job": {
+      "type": "text",
+      "analyzer": "ik_max_word"
+    },
+    "logo": {
+      "type": "keyword",
+      "index": "false"
+    },
+    "payment": {
+      "type": "float"
+    }
+  }
+}
+```
+
+响应结果：
+
+![image-20220108160707227](assest/image-20220108160707227.png)
+
+上述案例中，就给 turbo-company-index 这个索引库设置了 4 个字段：
+
+- name：企业名称
+- job：需求岗位
+- logo：logo图片地址
+- payment：薪资
+
+并且给这些字段设置了一些属性，以至于这些属性对应的含义，后续详细介绍。
 
 ## 6.2 映射属性详解
 
+> 1 **type**
+
+Elasticsearch 中支持的数据类型非常丰富：
+
+https://www.elastic.co/guide/en/elasticsearch/reference/7.3/mapping-types.html
+
+![image-20220108161808748](assest/image-20220108161808748.png)
+
+说几个关键的：
+
+- String类型，又分为两种：
+
+  - text：可分词，不可参与聚合
+  - keyword：不可分析，数据会作为完整字段进行匹配，可以参与聚合
+
+- Numeric：数值类型，分两类
+
+  - 基本数据类型：long, integer, short, byte, double, float, half_float
+  - 浮点数的高精度类型：scaled_float
+    - 需要指定一个精度因子，比如10或100。elasticsearch会把真实值 乘以这个因子后存储，取出时再还原。
+
+- Date：日期类型
+
+  elasticsearch可以对日期格式化为字符串存储，但是建议我们存储为毫秒值，存储为long，节省空间。
+
+- Array：数组类型
+
+  - 进行匹配时，任意一个元素满足，都认为满足
+  - 排序时，如果升序则用数组中的最小值来排序，如果降序则用数组中的最大值来排序
+
+- Object：对象
+
+  ```json
+  {
+   name:"Jack",
+   age:21,
+   girl:{
+    name:"Rose",age:21
+   }
+  }
+  ```
+
+  如果存储到索引库的是对象类型，例如上面的girl，会把girl变成两个字段：girl.name和girl.age
+
+
+
+> 2 **index**
+
+index影响字段的索引情况。
+
+- true：字段会被索引，则可以用来进行搜索。默认值就是true
+- false：字段不会被索引，不能用来搜索
+
+index的默认值就是true，也就是说你不进行任何配置，所有字段都会被索引。<br>但是有些字段是不希望被索引的，比如企业logo图片地址，就需要手动设置index为false。
+
+
+
+> 3 **store**
+
+是否将数据机型独立存储。
+
+原始的文本会存储在`_source`里面，默认情况下其他提取出来的字段都不是独立存储的，是从`_source`里面提取出来的。当然你也可以独立存储某个字段，只需要设置 store:true 即可，获取独立存储的字段要比从 _source 中解析快得多，但是也会占用更多的空间，索引要根据实际业务需求来设置，默认为false。
+
+
+
+> 4 **analyzer：指定分词器**
+
+一般会处理中文会选择ik分词器	ik_max_word、ik_smart
+
+
+
 ## 6.3 查看映射关系
+
+- 查看单个索引映射关系
+
+  > 语法
+
+  ```
+  GET /索引名称/_mapping
+  ```
+
+  > 示例
+
+  ![image-20220108171222421](assest/image-20220108171222421.png)
+
+- 查看所有索引映射关系
+
+  > 方式一
+
+  ```
+  GET _mapping
+  ```
+
+  > 方式二
+
+  ```
+  GET _all/_mapping
+  ```
+
+- 修改索引映射关系
+
+  > 语法
+
+  ```json
+  PUT /索引库名/_mapping/
+  {
+    "properties": {
+      "字段名": {
+        "type": "类型",
+        "index":true,
+        "store":true
+        "analyzer": "分词器"
+      }
+    }
+  }
+  ```
+
+  注意：修改映射增加字段，做其他更改只能删除索引，重新建立映射
 
 ## 6.4 一次性创建索引和映射
 
+`6.1`中把创建索引个映射分开来做，其实也可以在创建索引库的同时，直接制定索引库中的索引，基本语法：
+
+```json
+put /索引库名称 
+{
+   "settings":{
+       "索引库属性名":"索引库属性值"    
+   },
+   "mappings":{
+       "properties":{            
+       		"字段名":{
+           		"映射属性名":"映射属性值"        
+			}
+		}  
+	}
+}
+```
+
+案例
+
+```json
+PUT /turbo-employee-index
+{
+  "settings": {},
+  "mappings": {
+    "properties": {
+      "name": {
+        "type": "text",
+        "analyzer": "ik_max_word"
+      }
+    }
+  }
+}
+```
+
+![image-20220108172234462](assest/image-20220108172234462.png)
+
 # 7 文档增删改查及局部更新
+
+文档，即索引库中的数据，会根据规则创建索引，将来用于搜索。可以类比做数据库中的一行数据。
+
+
 
 ## 7.1 新建文档
 
+新增文档时，涉及到id的创建方式，手动指定或者自动生成。
+
+- 新增文档（手动指定id）
+
+  > 语法
+
+  ```
+  POST /索引名称/_doc/{id}
+  ```
+
+  > 示例
+
+  ```json
+  POST /turbo-company-index/_doc/1
+  {
+    "name": "百度",
+    "job": "小度用户运营经理",
+    "payment": "30000",
+    "logo": "https://github.com/turboYuu/java-advanced-gitbook/blob/master/7-stage/2-module/assest/image-20211227203143654.png"
+  }
+  ```
+
+  ![image-20220108173048362](assest/image-20220108173048362.png)
+
+  ![image-20220108173454684](assest/image-20220108173454684.png)
+
+- 新增文档（自动生成id）
+
+  > 语法
+
+  ```json
+  POST /索引名称/_doc 
+  {
+  	"field":"value" 
+  }
+  ```
+
+  > 示例
+
+  ![image-20220108173643449](assest/image-20220108173643449.png)
+
+  可以看到结果显示为：`created`，代表创建成功。<br>另外，需要注意的是，在响应结果中有个`_id`字段，这个就是这条文档数据的`唯一标识`，以后的增删改查 都依赖这个 _id 作为位移标识，这里是Elasticsearch帮助随机生成的 id 。
+
 ## 7.2 查看单个文档
+
+> 语法
+
+```
+GET /索引名称/_doc/{id}
+```
+
+> 示例
+
+```
+GET /turbo-company-index/_doc/1
+```
+
+![image-20220108174207787](assest/image-20220108174207787.png)
+
+> 文档元数据解读：
+
+| 元数据项      | 含义                                                         |
+| ------------- | ------------------------------------------------------------ |
+| _index        | document所属 index                                           |
+| _type         | document 所属 type，Elasticsearch 7.x 默认 type 为 _doc      |
+| _id           | 代表 document 的位移标识，与 index 和 type 一起，可以唯一标识和定位一个 document |
+| _version      | document的版本号，Elasticsearch利用 _version（版本号）的方式来确保应用中<br/>相互冲突的变更不会导致数据丢失。需要修改数据时，需要指定想要修改文档的 version 号，<br>如果该版本不是当前版本，请求将会失败 |
+| _seq_no       | 严格递增的顺序号，每个文档一个，Shard级别严格递增，<br>保证后写入的Doc  *seq_no大于先写入的 Doc的*  seq_no |
+| _primary_term | 任何类型的写操作，包括 index、create、update 和 Delete，都会生成一个 _seq_no。 |
+| found         | true/false，是否查找到文档                                   |
+| _source       | 存储原始文档                                                 |
+
+
 
 ## 7.3 查看所有文档
 
+> 语法
+
+```json
+POST /索引名称/_search 
+{
+ "query":{
+   "match_all": {  
+   }
+ }
+}
+```
+
+
+
+```json
+POST /turbo-company-index/_search
+{
+  "query":{
+    "match_all":{
+    }
+  }
+}
+```
+
+
+
+![image-20220108175536073](assest/image-20220108175536073.png)
+
 ## 7.4 _source定制返回结果
+
+某些业务场景下，不需要搜索引擎返回 *source* 中的所有字段，可以使用 source 进行定制，如下，多个字段之间使用逗号分隔。
+
+```
+GET /turbo-company-index/_doc/1?_source=name,job
+```
+
+ ![image-20220108175952194](assest/image-20220108175952194.png)
+
+
 
 ## 7.5 更新文档（全部更新）
 
+把刚才新增的请求方式改为 PUT ，就是修改了，不过修改必须执行id
+
+- id对应文档存在，则修改
+- id对应文档不存在，则新增
+
+比如：id为3，不存在，则应该新增
+
+![image-20220108180426909](assest/image-20220108180426909.png)
+
+可以看到的是`created`，是新增。
+
+再次执行刚才的请求，不过把数据改一下：
+
+![image-20220108180552849](assest/image-20220108180552849.png)
+
+可以看到结果是：`update`，显然是更新数据
+
 ## 7.6 更新文档（局部更新）
+
+Elasticsearch 可以使用PUT 或者 POST 对文档进行更新（全部更新），如果指定ID的文档已经存在，则执行更新操作。
+
+**注意**：Elasticsearch 执行更新操作的时候，Elasticsearch 首先将旧的文档标记为 删除状态，然后添加新文档，旧的文档不会立即消失，但是你也无法访问，Elasticsearch 会在你继续添加更多数据的时候在后台清理已经标记为删除状态的文档。
+
+全部更新，是直接把之前的老数据，标记为删除状态，然后在添加一条更新的（使用 PUT 或 POST）
+
+局部更新，只是修改某个字段（使用 POST）
+
+> 语法
+
+```
+POST /索引名/_update/{id} 
+{
+	"doc":{
+		"field":"value" 
+	}
+}
+```
+
+> 示例
+
+```json
+POST /turbo-company-index/_update/sP0KOX4BUesRrkoH_8eq
+{
+  "doc":{
+    "job":"AI算法工程师"
+  }
+}
+```
+
+![image-20220108181729599](assest/image-20220108181729599.png)
+
+
 
 ## 7.7 删除文档
 
+- 根据 id 进行删除
+
+  > 语法
+
+  ```
+  DELETE /索引名/_doc/{id}
+  ```
+
+  > 示例
+
+  ```
+  DELETE /turbo-company-index/_doc/3
+  ```
+
+  ![image-20220108182037917](assest/image-20220108182037917.png)
+
+  可以看到结果是：`deleted`，显然是删除数据
+
+- 根据查询条件进行删除
+
+  > 语法
+
+  ```json
+  POST  /索引库名/_delete_by_query 
+  {
+   "query": {
+    "match": {
+       "字段名": "搜索关键字"
+    }
+   } 
+  }
+  ```
+
+  > 示例
+
+  ```json
+  POST /turbo-company-index/_delete_by_query
+  {
+    "query":{
+      "match":{
+        "name":"1"
+      }
+    }
+  }
+  ```
+
+  ![image-20220108182524024](assest/image-20220108182524024.png)
+
+- 删除所有文档
+
+  > 语法
+
+  ```
+  POST /索引名称/_delete_by_query
+  {
+    "query":{
+      "match_all":{}
+    }
+  }
+  ```
+
+  > 示例
+
+  ```
+  POST /turbo-company-index/_delete_by_query
+  {
+    "query":{
+      "match_all":{}
+    }
+  }
+  ```
+
+  ![image-20220108182711974](assest/image-20220108182711974.png)
+
 ## 7.8 文档的全量替换、强制创建
+
+- 全量替换
+
+  - 语法与创建文档是一样的，如果文档 id 不存在，那么就是创建；如果文档 id 已经存在，就是全量替换操作，替换文档的json串内容；
+  - 文档是不可变的，如果要修稿文档的内容，第一种方式就是全量替换，直接对文档重新建立索引，替换里面的所有内容，elasticsearch 会将老的文档标记为 deleted，然后新增我们给定的一个文档，当我们创建越来越多文档的时候，elasticsearch 会在适当的时机在后台自动删除标记为deleted的文档。
+
+- 强制创建
+
+  ```
+  PUT /index/_doc/{id}?op_type=create {}，PUT /index/_doc/{id}/_create {}
+  ```
+
+  如果 id 存在就会报错。
+
