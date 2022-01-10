@@ -225,23 +225,187 @@ PUT /user
 
 日期检测可以通过在根对象上设置 date_detection 为 false 来关闭
 
-```
+```json
+PUT /my_index
+{
+  "mappings": {
+    "date_detection": false
+  }
+}
+
+PUT /my_index/_doc/1
+{
+  "note": "2014-01-01"
+}
+
+PUT /my_index/_doc/1
+{
+  "note": "Logged out"
+}
 
 ```
 
+使用这个映射，字符串将始终作为 string 类型。如果需要一个 date 字段，必须手动添加。
 
+Elasticsearch 判断字符串为日期的规则可以通过 dynamic_date_formats setting 来设置。
+
+```json
+PUT /my_index
+{
+  "mappings": {
+    "dynamic_date_formats": "MM/dd/yyyy"
+  }
+}
+
+PUT /my_index/_doc/1
+{
+  "note": "2014-01-01"
+}
+
+PUT /my_index/_doc/1
+{
+  "note": "01/01/2014"
+}
+```
 
 
 
 ### 1.3.2 dynamic templates
 
+使用dynamic_templates 可以完全控制新生成字段的映射，甚至可以通过字段名称或数据类型来应用不同的映射。每个模板都有一个名称，你可以用来描述这个模板的用途，一个 mapping 来直送映射应该怎样使用，以及至少一个参数（如 match）来定义这个模板适用于哪个字段。
+
+模板按照顺序来检测；第一个匹配的模板会被启用，例如，给 string 类型字段定义两个模板：<br>es：以 _es 结尾的字段名需要使用 spanish 分词器。<br>en：所有其他字段使用 english 分词器。<br>将 es 模板放在第一位，因为他比匹配所有字符串字段的 en 模板更特殊：
+
+```json
+PUT /my_index2
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "es": {
+          "match": "*_es",
+          "match_mapping_type": "string",
+          "mapping": {
+            "type": "text",
+            "analyzer": "spanish"
+          }
+        }
+      },
+      {
+        "en": {
+          "match": "*",
+          "match_mapping_type": "string",
+          "mapping": {
+            "type": "text",
+            "analyzer": "english"
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+```json
+PUT /my_index2/_doc/1
+{
+  "name_es": "testes",
+  "name": "es"
+}
+```
+
+1. 匹配字段名以 _es 结尾的字段
+2. 匹配其他所有字符串类型字段
+
+match_mapping_type 允许你应用到特定类型的字段上，就像有标准动态映射规则检测的一样（例如 string 或 long）<br>match 参数只匹配字段名称，patch_match 参数匹配字段在对象上的完整路径，所以 address.*.name 将匹配这样的字段
+
+```json
+{
+  "address": {
+    "city": {
+      "name": "New York"
+    }
+  }
+}
+```
+
+
+
 # 2 Query SQL
+
+https://www.elastic.co/guide/en/elasticsearch/reference/7.3/query-dsl.html
+
+Elasticsearch 提供了基于 JSON 的完整查询 DSL（Domain Specific Language 特定域的语言）来定于查询。将查询 DSL 视为查询的 AST（抽象语法树），它由两种子句组成：
+
+- 叶子查询子句
+
+  叶子查询子句 在特定域中寻找特定的值，如 match，term，或 range 查询。
+
+- 复合查询子句
+
+  复合查询子句包装其他叶子查询或复合查询，并用于以逻辑方式组合多个查询（例如 bool 或 dis_max查询），或更改其行为（例如 constant_score查询）。
+
+我们在使用 Elasticsearch 的时候，避免不了使用DSL语句去查询，就像使用关系型数据库的时候要学会 SQL 语法一样。如果学好了 DSL 语法的使用，那么在日后使用和使用 Java Client 调用时候也会变得非常简单。
+
+> 基本语法
+
+```json
+POST /索引库名/_search
+{
+  "query": {
+    "查询类型": {
+      "查询条件":"查询条件值"
+    }
+  }
+}
+```
+
+这里的query代表一个查询对象，里面可以有不同的查询属性
+
+- 查询类型：
+  - 例如：`match_all`，`match`，`term`，`range`等等
+- 查询条件：查询条件会根据类型的不同，写法也会有差异，后面详细讲解
 
 ## 2.1 查询所有（match_all_query）
 
+> 示例
+
+```json
+POST /lagou-company-index/_search
+{
+  "query": {
+    "match_all": {}
+  }
+}
+```
+
+- `query`：代表查询对象
+- `match_all`：代表查询所有
+
+> 结果
+
+- took：查询花费时间，单位是毫秒
+- time_out：是否超时
+- _shards：分片信息
+- hints：搜索结果总览对象
+  - total：搜索到的总条数
+  - max_score：所有结果中文档得分的最高分
+  - hits：搜索结果的文档对象数组，每个元素是一条搜索到的文档信息
+    - _index：索引库
+    - _type：文档类型
+    - _id：文档id
+    - _score：文档得分
+    - _source：文档的元数据
+
 ## 2.2 全文搜索（full-text query）
 
+全文搜索能够搜索已分析的文本字段，如：电子邮件正文，商品描述。使用索引期间应用于字段的统一分析器处理查询字符串。全文搜索的分类很多，几个典型的如下：
+
 ### 2.2.1 匹配搜索（match query）
+
+全文查询的标准查询，它可以对一个字段进行模糊、短语查询。match queries 接收 text/numerics/dates，对他们进行分词分析，在组织成一个 boolean 查询。可通过 operator 指定 bool 组合操作（or、and 默认是 or）。
+
+现在，索引库中
 
 ### 2.2.2 短语搜索（match phrase query）
 
