@@ -937,13 +937,7 @@ PUT /turbo-employee-index
   > 示例
 
   ```json
-POST /turbo-company-index/_doc
-  {
-    "name": "百度",
-    "job": "算法工程师",
-    "payment": "50000",
-    "logo": "https://github.com/turboYuu/image-3654.png"
-  }
+
   ```
   
   ![image-20220108173643449](assest/image-20220108173643449.png)
