@@ -87,4 +87,7 @@
         * [第二部分 Elasticsearch入门使用](7-stage/2-module/2-Elasticsearch-started.md)
         * [第三部分 Elasticsearch高级应用](7-stage/2-module/3-Elasticsearch-Advance.md)
         * [第四部分 Elasticsearch企业级高可用分布式集群](7-stage/2-module/4-Elasticsearch-HA-Dis-Cluster.md)
+        * [第五部分 Elasticsearch数据模型构建](7-stage/2-module/5-Elasticsearch-Data-Model.md)
+        * [第六部分 Elasticsearch搜索实战](7-stage/2-module/6-Elasticsearch-search-ac.md)
+        * [第七部分 Elasticsearch深度应用及原理剖析](7-stage/2-module/7-Elasticsearch-DeepApp-pa.md)
 
