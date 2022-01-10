@@ -936,8 +936,10 @@ PUT /turbo-employee-index
 
   > 示例
 
+  
+
   ```
-POST /turbo-company-index/_doc
+  POST /turbo-company-index/_doc
   {
     "name": "百度",
     "job": "算法工程师",
