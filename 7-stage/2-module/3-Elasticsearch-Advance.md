@@ -510,13 +510,104 @@ POST /turbo-property/_search
 
 在上面的案例中，不仅会查询到电视，而且与小米相关的都会查询到，多个词之间是 `or` 的关系。
 
+#### 2.2.1.2 and 关系
 
+在某些情况下，我们需要更精准查找，希望这个关系变成 `and`，可以这样做：
 
+```CQL
+POST /turbo-property/_search
+{
+  "query": {
+    "match": {
+      "title": {
+        "query": "小米电视4A",
+        "operator": "and"
+      }
+    }
+  }
+}
+```
 
+结果：
+
+```CQL
+{
+  "took" : 2,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 2.8330114,
+    "hits" : [
+      {
+        "_index" : "turbo-property",
+        "_type" : "_doc",
+        "_id" : "3m_DSH4BmNQQ3AvLPonA",
+        "_score" : 2.8330114,
+        "_source" : {
+          "title" : "小米电视4A",
+          "images" : "http://image.turbo.com/12479122.jpg",
+          "price" : 4288
+        }
+      }
+    ]
+  }
+}
+```
+
+本例中，只有同时包含 `小米` 和`电视`的词条才会被搜索到。
 
 ### 2.2.2 短语搜索（match phrase query）
 
+match_phrase 查询用来对一个字段进行短语查询，可以指定 analyzer，slop 移动因子
+
+```
+GET /turbo-property/_search
+{
+  "query": {
+    "match_phrase": {
+      "title": "小米电视"
+    }
+  }
+}
+
+GET /turbo-property/_search
+{
+  "query": {
+    "match_phrase": {
+      "title": "小米 4A"
+    }
+  }
+}
+
+GET /turbo-property/_search
+{
+  "query": {
+    "match_phrase": {
+      "title": {
+        "query": "小米 4A",
+        "slop": 2
+      }
+    }
+  }
+}
+```
+
+
+
 ### 2.2.3 query_string 查询
+
+> Query String Query 提供了无需指定某字段而对文档进行匹配查询的一个高级查询，同时可以指定在哪些字段上进行匹配。
+
+
 
 ### 2.2.4 多字段匹配搜索（mutilation match query）
 
