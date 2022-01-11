@@ -405,7 +405,114 @@ POST /lagou-company-index/_search
 
 全文查询的标准查询，它可以对一个字段进行模糊、短语查询。match queries 接收 text/numerics/dates，对他们进行分词分析，在组织成一个 boolean 查询。可通过 operator 指定 bool 组合操作（or、and 默认是 or）。
 
-现在，索引库中
+现在，索引库中有2部手机，1台电视：
+
+```CQL
+PUT /turbo-property
+{
+  "settings": {},
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "analyzer": "ik_max_word"
+      },
+      "images": {
+        "type": "keyword"
+      },
+      "price": {
+        "type": "float"
+      }
+    }
+  }
+}
+
+POST /turbo-property/_doc/
+{
+  "title": "小米电视4A",
+  "images": "http://image.turbo.com/12479122.jpg",
+  "price": 4288
+}
+POST /turbo-property/_doc/
+{
+  "title": "小米手机",
+  "images": "http://image.turbo.com/12479622.jpg",
+  "price": 2699
+}
+POST /turbo-property/_doc/
+{
+  "title": "华为手机",
+  "images": "http://image.turbo.com/12479922.jpg",
+  "price": 5699
+}
+```
+
+#### 2.2.1.1 or 关系
+
+`match` 类型查询，会把查询条件进行分词，然后进行查询，多个词条之间是or的关系。
+
+```CQL
+POST /turbo-property/_search
+{
+  "query": {
+    "match": {
+      "title": "小米电视4A"
+    }
+  }
+}
+```
+
+结果
+
+```yaml
+{
+  "took" : 5,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 2,
+      "relation" : "eq"
+    },
+    "max_score" : 2.8330114,
+    "hits" : [
+      {
+        "_index" : "turbo-property",
+        "_type" : "_doc",
+        "_id" : "3m_DSH4BmNQQ3AvLPonA",
+        "_score" : 2.8330114,
+        "_source" : {
+          "title" : "小米电视4A",
+          "images" : "http://image.turbo.com/12479122.jpg",
+          "price" : 4288
+        }
+      },
+      {
+        "_index" : "turbo-property",
+        "_type" : "_doc",
+        "_id" : "32_DSH4BmNQQ3AvLR4mE",
+        "_score" : 0.52354836,
+        "_source" : {
+          "title" : "小米手机",
+          "images" : "http://image.turbo.com/12479622.jpg",
+          "price" : 2699
+        }
+      }
+    ]
+  }
+}
+```
+
+在上面的案例中，不仅会查询到电视，而且与小米相关的都会查询到，多个词之间是 `or` 的关系。
+
+
+
+
 
 ### 2.2.2 短语搜索（match phrase query）
 
