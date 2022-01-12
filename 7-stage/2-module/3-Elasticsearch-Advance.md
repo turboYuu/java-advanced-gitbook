@@ -617,33 +617,383 @@ GET /turbo-property/_search
     }
   }
 }
+# 指定字段
+GET /turbo-property/_search
+{
+  "query": {
+    "query_string": {
+      "default_field": "title",
+      "query": "2699"
+    }
+  }
 
+# 逻辑查询
+GET /turbo-property/_search
+{
+  "query": {
+    "query_string": {
+      "default_field": "title",
+      "query": "手机 OR 小米"
+    }
+  }
+}
+GET /turbo-property/_search
+{
+  "query": {
+    "query_string": {
+      "default_field": "title",
+      "query": "手机 AND 小米"
+    }
+  }
+}
 
+# 模糊查询
+GET /turbo-property/_search
+{
+  "query": {
+    "query_string": {
+      "default_field": "title",
+      "query": "大米~1"
+    }
+  }
+}
+
+# 多字段支持
+GET /turbo-property/_search
+{
+  "query": {
+    "query_string": {
+      "query": "2699",
+      "fields": ["title","price"]
+    }
+  }
+}
 ```
 
 
 
-### 2.2.4 多字段匹配搜索（mutilation match query）
+### 2.2.4 多字段匹配搜索（multi match query）
+
+如果你需要在多个字段上进行文本搜索，可用multi_match。multi_match 在 match 的基础上支持多个字段进行文本查询。
+
+```CQL
+GET /turbo-property/_search
+{
+  "query": {
+    "multi_match": {
+      "query": "2699",
+      "fields": ["title","price"]
+    }
+  }
+}
+```
+
+还可以使用 * 匹配多个字段：
+
+```CQL
+GET /turbo-property/_search
+{
+  "query": {
+    "multi_match": {
+      "query": "http://image.turbo.com/12479622.jpg",
+      "fields": ["title","ima*"]
+    }
+  }
+}
+```
+
+
 
 ## 2.3 词条级搜索（term-level queries）
 
+可以使用 term-level queries 根据结构化数据中的精确值查找文档。结构化数据的值包括日期范围、IP地址、价格或产品ID。
+
+与全文查询不同，term-level queries 不分析搜索词。相反，词条与存储在字段级别中的术语完全匹配。
+
+```
+PUT /turbo_book
+{
+  "settings": {},
+  "mappings": {
+    "properties": {
+      "description": {
+        "type": "text",
+        "analyzer": "ik_max_word"
+      },
+      "name": {
+        "type": "text",
+        "analyzer": "ik_max_word"
+      },
+      "price": {
+        "type": "float"
+      },
+      "timestamp": {
+        "type": "date",
+        "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
+      }
+    }
+  }
+}
+
+PUT /turbo_book/_doc/1
+{
+  "name": "lucene",
+  "description": "Lucene Core is a Java library providing powerful indexing and search features, as well as spellchecking, hit highlighting and advanced analysis/tokenization capabilities. The PyLucene sub project provides Python bindings for Lucene Core. ",
+  "price": 100.45,
+  "timestamp": "2020-08-21 19:11:35"
+}
+
+PUT /turbo_book/_doc/2
+{
+  "name": "solr",
+  "description": "Solr is highly scalable, providing fully fault tolerant distributed indexing, search and analytics. It exposes Lucenes features through easy to use JSON/HTTP interfaces or native clients for Java and other languages.",
+  "price": 320.45,
+  "timestamp": "2020-07-21 17:11:35"
+}
+
+PUT /turbo_book/_doc/3
+{
+  "name": "Hadoop",
+  "description": "The Apache Hadoop software library is a framework that allows for the distributed processing of large data sets across clusters of computers using simple programming models.",
+  "price": 620.45,
+  "timestamp": "2020-08-22 19:18:35"
+}
+
+PUT /turbo_book/_doc/4
+{
+  "name": "ElasticSearch",
+  "description": "Elasticsearch是一个基于Lucene的搜索服务器。它提供了一个分布式多用户能力 的全文搜索引擎，基于RESTful web接口。Elasticsearch是用Java语言开发的，并作为Apache许可条 款下的开放源码发布，是一种流行的企业级搜索引擎。Elasticsearch用于云计算中，能够达到实时搜 索，稳定，可靠，快速，安装使用方便。官方客户端在Java、.NET（C#）、PHP、Python、Apache Groovy、Ruby和许多其他语言中都是可用的。根据DB-Engines的排名显示，Elasticsearch是最受欢 迎的企业搜索引擎，其次是Apache Solr，也是基于Lucene。",
+  "price": 999.99,
+  "timestamp": "2020-08-15 10:11:35"
+}
+```
+
+
+
 ### 2.3.1 词条搜索（term query）
+
+term 查询用于查询指定字段包含某个词项的文档
+
+```
+POST /turbo_book/_search
+{
+  "query": {
+    "term": {
+      "name": "solr"
+    }
+  }
+}
+```
+
+
 
 ### 2.3.2 词条集合搜索（terms query）
 
+term 查询用于查询指定字段包含某些词项的文档
+
+```
+GET /turbo_book/_search
+{
+  "query": {
+    "terms": {
+      "name": ["elasticSearch","solr"]
+    }
+  }
+}
+```
+
+
+
 ### 2.3.3 范围搜索（range query）
+
+- gte：大于等于
+- gt：大于
+- lte：小于等于
+- lt：小于
+- boost：查询权重
+
+```
+GET /turbo_book/_search
+{
+  "query": {
+    "range": {
+      "price": {
+        "gte": 10,
+        "lte": 200,
+        "boost": 2.0
+      }
+    }
+  }
+}
+
+GET /turbo_book/_search
+{
+  "query": {
+    "range": {
+      "timestamp": {
+        "gte": "now-2y/y",
+        "lt": "now/d"
+      }
+    }
+  }
+}
+
+GET /turbo_book/_search
+{
+  "query": {
+    "range": {
+      "timestamp": {
+        "gte": "18/08/2020",
+        "lte": "2022",
+        "format": "dd/MM/yyyy||yyyy"
+      }
+    }
+  }
+}
+```
+
+
 
 ### 2.3.4 不为空搜索（exists query）
 
+查询指定字段值不为空的文档。相当于 SQL 中的 column is not null
+
+```
+GET /turbo_book/_search
+{
+  "query": {
+    "exists": {"field": "price"}
+  }
+}
+```
+
+
+
 ### 2.3.5 词项前缀搜索（prefix query）
+
+```
+GET /turbo_book/_search
+{
+  "query": {
+    "prefix": {
+      "name": "el"
+    }
+  }
+}
+```
+
+
 
 ### 2.3.6 通配符搜索（wildcard query）
 
+```
+GET /turbo_book/_search
+{
+  "query": {
+    "wildcard": {
+      "name": "el*h"
+    }
+  }
+}
+
+GET /turbo_book/_search
+{
+  "query": {
+    "wildcard": {
+      "name": {
+        "value": "lu*",
+        "boost": 2
+      }
+    }
+  }
+}
+```
+
+
+
 ### 2.3.7 正则搜索（regexp query）
+
+regexp允许使用正则表达式进行term查询，注意 regexp 如果使用埠镇古鳄，会给服务器带来很严重的性能压力。比如 .* 开头的查询，将会匹配所有的倒排序索引中的关键字，这几乎相当于全表扫描，会很慢。因此如果可以的话，最好在使用正则前，加上匹配的前缀。
+
+```
+GET /turbo_book/_search
+{
+  "query": {
+    "regexp": {
+      "name": "s.*"
+    }
+  }
+}
+
+GET /turbo_book/_search
+{
+  "query": {
+    "regexp": {
+      "name": {
+        "value": "s.*",
+        "boost": 1.2
+      }
+    }
+  }
+}
+```
+
+
 
 ### 2.3.8 模糊搜索（fuzzy query）
 
+```
+GET /turbo_book/_search
+{
+  "query": {
+    "fuzzy": {
+      "name": "so"
+    }
+  }
+}
+
+GET /turbo_book/_search
+{
+  "query": {
+    "fuzzy": {
+      "name": {
+        "value": "so",
+        "boost": 1.0,
+        "fuzziness": 2
+      }
+    }
+  }
+}
+
+GET /turbo_book/_search
+{
+  "query": {
+    "fuzzy": {
+      "name": {
+        "value": "sorl",
+        "boost": 1.0,
+        "fuzziness": 2
+      }
+    }
+  }
+}
+```
+
+
+
 ### 2.3.9 ids搜索（id集合查询）
+
+```
+GET /turbo_book/_search
+{
+  "query": {
+    "ids": {
+      "type":"_doc",
+      "values": ["1","3"]
+    }
+  }
+}
+```
 
 
 
