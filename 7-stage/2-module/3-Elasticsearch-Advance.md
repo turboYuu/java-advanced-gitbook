@@ -607,6 +607,20 @@ GET /turbo-property/_search
 
 > Query String Query 提供了无需指定某字段而对文档进行匹配查询的一个高级查询，同时可以指定在哪些字段上进行匹配。
 
+```CQL
+# 默认
+GET /turbo-property/_search
+{
+  "query": {
+    "query_string": {
+      "query": "2699"
+    }
+  }
+}
+
+
+```
+
 
 
 ### 2.2.4 多字段匹配搜索（mutilation match query）
