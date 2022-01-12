@@ -1486,7 +1486,116 @@ http.max_content_length:10mb
 
 # 3 Filter DSL
 
+Elasticsearch中的所有查询都会触发相关的分的计算，对于那些我们不需要相关度得分的场景下，Elasticsearch以过滤器的形式提供了另一种查询功能，过滤器在概念上类似于查询，但是他们有非常快的执行速度，执行速度快主要有以下两个原因：
+
+- 过滤器不会计算相关度的得分，所以他们在计算上更快一些；
+- 过滤器可以被缓存到内存中，这使得在重复搜索查询上，其要比相应的查询快出许多。
+
+为了理解过滤器，可以将一个查询（像是 match_all，match，bool等）和一个过滤器结合起来。以范围过滤器为例，它允许通过一个区间的值来过滤文档。这通常被用在数字和日期的过滤上，下面这个例子使用一个被过滤的查询，其返回price值是在200到1000之间（闭区间）的数据。
+
+> 示例
+
+```yaml
+POST /turbo_book/_search
+{
+  "query": {
+    "filtered":{
+      "query":{
+        "match_all":{}
+      },
+      "filter":{
+        "range":{
+          "price":{
+            "gte":200,
+            "lte":1000
+          }
+        }
+      }
+    }
+  }
+}
+
+# 5.0 之后的写法
+POST /turbo_book/_search
+{
+  "query": {
+    "bool": {
+      "must": {"match_all":{}},
+      "filter": {
+        "range": {
+          "price": {
+            "gte": 200,
+            "lte": 1000
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+分解上面的例子，被过滤的查询包含一个match_all查询（查询部分）和一个过滤器（filter部分）。可以在查询部分中放入其他查询，在 filter 部分放入其他过滤器。在上面的应用场景中，由于所有的在这个范围之内的文档都是平等的（或者说相关度都是一样的），没有一个文档比另一个文档更相关，所以在这个时候使用范围过滤器就非常合适了。通常情况下，要决定是使用过滤器还是使用查询，就需要问自己是否需要相关部分。如果相关度不重要，使用过滤器；否则使用查询。查询和过滤器在概念上类似于 SELECT WHERE 语句。
+
+
+
 # 4 定位非法搜索及原因
+
+在开发的时候，可能会写到上百行的查询语句，如果出错的话，找起来很麻烦，Elasticsearch提供了帮助开发人员定位不合法查询 的API ：_validate
+
+> 示例
+
+```yaml
+GET /turbo_book/_search?explain
+{
+  "query": {
+    "match1": {
+      "name": "kafka"
+    }
+  }
+}
+# 使用validate
+GET /turbo_book/_validate/query?explain
+{
+  "query": {
+    "match1": {
+      "name": "kafka"
+    }
+  }
+}
+```
+
+返回结果：
+
+```yaml
+{
+  "valid" : false,
+  "error" : "org.elasticsearch.common.ParsingException: no [query] registered for [match1]"
+}
+```
+
+在查询时，不小心把`match`写成`match1`，通过 validate api 可以清楚的看到错误原因
+
+正确查询返回：
+
+```yaml
+{
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "failed" : 0
+  },
+  "valid" : true,
+  "explanations" : [
+    {
+      "index" : "turbo_book",
+      "valid" : true,
+      "explanation" : "name:kafka"
+    }
+  ]
+}
+```
+
+
 
 # 5 聚合分析
 
