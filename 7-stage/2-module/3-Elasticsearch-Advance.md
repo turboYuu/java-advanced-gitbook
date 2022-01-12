@@ -999,17 +999,490 @@ GET /turbo_book/_search
 
 ## 2.4 复合搜索（compound query）
 
+### 2.4.1 constant_score query
+
+用来包装成另一个查询，将查询匹配的文档的评分设为一个常值
+
+```
+GET /turbo_book/_search
+{
+  "query": {
+    "term": {
+      "description": {"value": "solr"}
+    }
+  }
+}
+
+GET /turbo_book/_search
+{
+  "query": {
+    "constant_score": {
+      "filter": {
+        "term": {
+          "description": "solr"
+        }
+      },
+      "boost": 1.2
+    }
+  }
+}
+```
+
+
+
+### 2.4.2 布尔搜索（bool query）
+
+bool 查询用 bool 操作来组合多个查询子句为一个查询。可用的关键字：
+
+- must：必须满足
+- filter：必须满足，但执行的是filter上下文，不参与，不影响评分
+- should：或
+- must_not：必须不满足，在filter上下文中执行，不参与，不影响评分
+
+```
+GET /turbo_book/_search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match": {
+          "description": "Java"
+        }
+      },
+      "filter": {
+        "term": {
+          "name": "solr"
+        }
+      },
+      "must_not": {
+        "range": {
+          "price": {
+            "gte": 200,
+            "lte": 300
+          }
+        }
+      },
+      "minimum_should_match": 1,
+      "boost": 1
+    }
+  }
+}
+```
+
+minimum_should_match 代表了最小匹配精度，如果设置 minimum_should_match=1，那么should 语句中至少需要一个条件满足。
+
 ## 2.5 排序
+
+### 2.5.1 相关性评分排序
+
+默认情况下，返回的结果是按照相关性 进行排序的 —— 最相关的文档排在最前。在本章后面部分，我们会解释相关性 意味着什么以及它是如何计算的，不过让我们首先看看 `sort`参数以及如何使用它。
+
+为了按照相关性来排序，需要将相关性表示为一个数值。在Elasticsearch中，相关性得分 由一个浮点数进行表示，并在搜索结果中通过 `_source` 参数返回，默认排序是 `_source` 降序，按照相关性评分升序排序如下：
+
+```
+POST /turbo_book/_search
+{
+  "query": {
+    "match": {
+      "description": "solr"
+    }
+  }
+}
+
+POST /turbo_book/_search
+{
+  "query": {
+    "match": {
+      "description": "solr"
+    }
+  },
+  "sort": [
+    {
+      "_score": {
+        "order": "asc"
+      }
+    }
+  ]
+}
+```
+
+
+
+### 2.5.2 字段值排序
+
+```
+POST /turbo_book/_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "sort": [
+    {
+      "price": {
+        "order": "desc"
+      }
+    }
+  ]
+}
+```
+
+
+
+### 2.5.3 多级排序
+
+假定我们想要结合使用 price 和 _score（得分）进行查询，并且匹配的结果首先按照价格排序，然后按照相关性得分排序：
+
+```
+POST /turbo_book/_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "sort": [
+    {"price": {"order": "desc"}},
+    {"timestamp": {"order": "desc"}},
+    {"_score": {"order": "desc"}}
+  ]
+}
+```
+
+
 
 ## 2.6 分页
 
+Elasticsearch中实现分页的语法非常简单：
+
+```
+POST /turbo_book/_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "size": 2,
+  "from": 0
+}
+
+POST /turbo_book/_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "sort": [
+    {
+      "price": {
+        "order": "desc"
+      }
+    }
+  ], 
+  "size": 2,
+  "from": 0
+}
+```
+
+size：每页显示多少条
+
+from：当前页起始索引，int start=(pageNum-1)*size
+
 ## 2.7 高亮
+
+Elasticsearch 中实现改良的语法比较简单：
+
+```
+POST /turbo_book/_search
+{
+  "query": {
+    "match": {
+      "name": "elasticsearch"
+    }
+  },
+  "highlight": {
+    "pre_tags": "<font color='pink'>",
+    "post_tags": "</font>",
+    "fields": [{"name":{}}]
+  }
+}
+
+POST /turbo_book/_search
+{
+  "query": {
+    "match": {
+      "name": "ElasticSearch"
+    }
+  },
+  "highlight": {
+    "pre_tags": "<font color='pink'>",
+    "post_tags": "</font>",
+    "fields": [{"name":{}},{"description":{}}]
+  }
+}
+
+POST /turbo_book/_search
+{
+  "query": {
+    "query_string": {
+      "query": "elasticSearch"
+    }
+  },
+  "highlight": {
+    "pre_tags": "<font color='pink'>",
+    "post_tags": "</font>",
+    "fields": [{"name":{}},{"description":{}}]
+  }
+}
+```
+
+在使用match查询的同时，加上一个highlight属性：
+
+- pre_tags：前置标签
+- post_tags：后置标签
+- fields：需要高亮的字段
+  - name：这里声明title 字段需要高亮，后面可以为这个字符按设置特有配置，也可以空
+
+结果：
+
+```yaml
+{
+  "took" : 4,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 1.6317781,
+    "hits" : [
+      {
+        "_index" : "turbo_book",
+        "_type" : "_doc",
+        "_id" : "4",
+        "_score" : 1.6317781,
+        "_source" : {
+          "name" : "ElasticSearch",
+          "description" : "Elasticsearch是一个基于Lucene的搜索服务器。它提供了一个分布式多用户能力 的全文搜索引擎，基于RESTful web接口。Elasticsearch是用Java语言开发的，并作为Apache许可条 款下的开放源码发布，是一种流行的企业级搜索引擎。Elasticsearch用于云计算中，能够达到实时搜 索，稳定，可靠，快速，安装使用方便。官方客户端在Java、.NET（C#）、PHP、Python、Apache Groovy、Ruby和许多其他语言中都是可用的。根据DB-Engines的排名显示，Elasticsearch是最受欢 迎的企业搜索引擎，其次是Apache Solr，也是基于Lucene。",
+          "price" : 999.99,
+          "timestamp" : "2020-08-15 10:11:35"
+        },
+        "highlight" : {
+          "name" : [
+            "<font color='pink'>ElasticSearch</font>"
+          ],
+          "description" : [
+            "<font color='pink'>Elasticsearch</font>是一个基于Lucene的搜索服务器。它提供了一个分布式多用户能力 的全文搜索引擎，基于RESTful web接口。",
+            "<font color='pink'>Elasticsearch</font>是用Java语言开发的，并作为Apache许可条 款下的开放源码发布，是一种流行的企业级搜索引擎。",
+            "<font color='pink'>Elasticsearch</font>用于云计算中，能够达到实时搜 索，稳定，可靠，快速，安装使用方便。",
+            "根据DB-Engines的排名显示，<font color='pink'>Elasticsearch</font>是最受欢 迎的企业搜索引擎，其次是Apache Solr，也是基于Lucene。"
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+
+
 
 ## 2.8 文档批量操作（bulk 和 mget）
 
 ### 2.8.1 mget 批量查询
 
+单条查询 GET /turbo_book/_doc/1，如果查询多个id的文档一条一条查询，网络开销太大。
+
+```
+GET /_mget
+{
+  "docs": [
+    {
+      "_index": "turbo_book",
+      "_id": 1
+    },
+    {
+      "_index": "turbo-company-index",
+      "_id": 1
+    }
+  ]
+}
+```
+
+返回：
+
+```yaml
+{
+  "docs" : [
+    {
+      "_index" : "turbo_book",
+      "_type" : "_doc",
+      "_id" : "1",
+      "_version" : 1,
+      "_seq_no" : 0,
+      "_primary_term" : 1,
+      "found" : true,
+      "_source" : {
+        "name" : "lucene",
+        "description" : "Lucene Core is a Java library providing powerful indexing and search features, as well as spellchecking, hit highlighting and advanced analysis/tokenization capabilities. The PyLucene sub project provides Python bindings for Lucene Core. ",
+        "price" : 100.45,
+        "timestamp" : "2020-08-21 19:11:35"
+      }
+    },
+    {
+      "_index" : "turbo-company-index",
+      "_type" : "_doc",
+      "_id" : "1",
+      "_version" : 5,
+      "_seq_no" : 15,
+      "_primary_term" : 1,
+      "found" : true,
+      "_source" : {
+        "name" : "百度",
+        "job" : "小度用户运营经理",
+        "payment" : "30000",
+        "logo" : "https://github.com/turboYuu/image-3654.png"
+      }
+    }
+  ]
+}
+
+```
+
+同一索引下批量查询：
+
+```
+GET /turbo_book/_mget
+{
+  "docs": [
+    {
+      "_id": 1
+    },
+    {
+      "_id": 2
+    }
+  ]
+}
+```
+
+搜索简化写法：
+
+```
+POST /turbo_book/_search
+{
+  "query": {
+    "ids": {"values": ["1","4"]}
+  }
+}
+```
+
+
+
 ### 2.8.2 bulk 批量增删改
+
+Bulk 操作解释将文档的增删改查一些列操作，通过一次请求全部做完。减少网络传输次数。
+
+语法：
+
+```
+POST /_bulk
+{"action": {"metadata"}} 
+{"data"}
+```
+
+如下操作，删除1，新增5，修改2：
+
+```
+POST /_bulk
+{"delete":{"_index":"turbo_book","_id":"1"}}
+{"create":{"_index":"turbo_book","_id":"5"}}
+{"name":"kafka","description":"Kafka","price":100.99,"timestamp": "2021-01-12 10:11:35"}
+{"update":{"_index":"turbo_book","_id":"2"}}
+{"doc":{"timestamp": "2021-01-12 10:11:35"}}
+```
+
+结果：
+
+```yaml
+{
+  "took" : 52,
+  "errors" : false,
+  "items" : [
+    {
+      "delete" : {
+        "_index" : "turbo_book",
+        "_type" : "_doc",
+        "_id" : "1",
+        "_version" : 2,
+        "result" : "deleted",
+        "_shards" : {
+          "total" : 2,
+          "successful" : 1,
+          "failed" : 0
+        },
+        "_seq_no" : 4,
+        "_primary_term" : 1,
+        "status" : 200
+      }
+    },
+    {
+      "create" : {
+        "_index" : "turbo_book",
+        "_type" : "_doc",
+        "_id" : "5",
+        "_version" : 1,
+        "result" : "created",
+        "_shards" : {
+          "total" : 2,
+          "successful" : 1,
+          "failed" : 0
+        },
+        "_seq_no" : 5,
+        "_primary_term" : 1,
+        "status" : 201
+      }
+    },
+    {
+      "update" : {
+        "_index" : "turbo_book",
+        "_type" : "_doc",
+        "_id" : "2",
+        "_version" : 2,
+        "result" : "updated",
+        "_shards" : {
+          "total" : 2,
+          "successful" : 1,
+          "failed" : 0
+        },
+        "_seq_no" : 6,
+        "_primary_term" : 1,
+        "status" : 200
+      }
+    }
+  ]
+}
+```
+
+功能：
+
+- delete：删除一个文档，只要1个json就可以，删除的批量操作不需要请求体
+- create：相当于强制创建 ，`PUT /index/type/id/_create`
+- index：普通的put操作，可以是创建文档，也可以是全量替换文档
+- update：执行的是局部更新 partial update 操作
+
+格式：每个json不能换行，相邻json必须换行。
+
+隔离：每个操作互不影响，操作失败的行会返回失败信息
+
+
+
+实际用法：bulk请求一次不要太大，否则以下积压到内存中，性能会下降。所以，一次请求几千个操作，大小在几M正好。<br>bulk会将要处理的数据载入内存中，所以数据是有限的，最佳的数据量不是一个确定的数据，它取决于你的硬件，你的文档大小以及复杂性，你的索引以及索引的负载。<br>一般建议是1000-5000个文档，大小建议是5-15MB，默认不能超过100M，可以在es的配置文件（ES的config下的elasticsearch.yml）中配置。
+
+```
+http.max_content_length:10mb
+```
+
+
 
 # 3 Filter DSL
 
