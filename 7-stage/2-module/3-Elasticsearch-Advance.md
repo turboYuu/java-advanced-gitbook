@@ -2227,8 +2227,148 @@ POST _reindex
 
 # 7 Elasticsearch Suggester 智能搜索建议
 
+现代的搜索引擎，一般会具备“Suggest As You Type”功能，即在用户输入搜索的过程中，进行自动补全或者纠错。通过协助用户输入更精准的关键词，提高后续全文搜索阶段文档匹配的程度。
+
+类似的功能在Elasticsearch里如何实现呢？答案就在Suggesters API。Suggesters 基本的原作原理是将输入的文本分解为token，然后在索引的字典里面查找相似的term并返回，根据使用场景的不同，Elasticsearch里设计了4种类别的Suggester，分别是：
+
+- Term Suggester
+- Phrase Suggester
+- Completion Suggester
+- Context Suggester
+
+在官方的参考文档里面，对这四种Suggester API 都有比较详细的介绍，下面的案例将在Elasticsearch 7.x 上通过示例讲解Suggester的基础用法，希望能够帮助部分国内开发者快速用于实际项目开发。
+
+首先看一个Term  Suggester的示例：<br>准备一个叫做blogs的索引，配置一个text字段
+
+```
+PUT /blogs
+{
+  "mappings": {
+    "properties": {
+      "body":{
+        "type": "text"
+      }
+    }
+  }
+}
+```
+
+通过bulk api写入几条文档
+
+```yaml
+POST _bulk/?refresh=true
+{"index":{"_index":"blogs"}}
+{"body":"Lucene is cool"}
+{"index":{"_index":"blogs"}}
+{"body":"Elasticsearch builds on top of lucene"}
+{"index":{"_index":"blogs"}}
+{"body":"Elasticsearch rocks"}
+{"index":{"_index":"blogs"}}
+{"body":"elk rocks"}
+{"index":{"_index":"blogs"}}
+{"body":"Elasticsearch is rock solid"}
+```
+
+此时blogs索引里已经有一些文档了，可以进行下一步的探索。为了帮助理解，先看看那些term会存在于词典里。
+
+将输入的文本分析一下：
+
+```yaml
+POST _analyze
+{
+  "text": [
+    "Lucene is cool",
+    "Elasticsearch builds on top of lucene",
+    "Elasticsearch rocks",
+    "elk rocks",
+    "Elasticsearch is rock solid"
+  ]
+}
+```
+
+这些分析出来的token都会称为词典里的一个term，注意有些token会出现多次，因此在倒排序索引里记录的词频会比较高，同时记录的还有这些token在原文档里的偏移量和相对位置信息。
+
+执行一次suggester搜索看看效果：
+
+```yaml
+POST /blogs/_search
+{
+  "suggest": {
+    "my-suggestion": {
+      "text": "lucne rock",
+      "term": {
+        "suggest_mode": "missing",
+        "field": "body"
+      }
+    }
+  }
+}
+```
+
+suggest就是一种特殊类型的搜索，DSL内部的“text”指的是 api 调用方提供的文本，也就是筒仓用户界面上用户输入的内容。这里的lucne是错误的拼写，模拟用户输入错误。"term"表示这是一个term suggester。"field"指定suggest针对的字段，另外有一个可选的"suggest_mode"。范例里的"missing"实际上就是缺省值，它是什么意思....？还是先看看返回结果：
+
+```yaml
+{
+  "took" : 3,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 0,
+      "relation" : "eq"
+    },
+    "max_score" : null,
+    "hits" : [ ]
+  },
+  "suggest" : {
+    "my-suggestion" : [
+      {
+        "text" : "lucne",
+        "offset" : 0,
+        "length" : 5,
+        "options" : [
+          {
+            "text" : "lucene",
+            "score" : 0.8,
+            "freq" : 2
+          }
+        ]
+      },
+      {
+        "text" : "rock",
+        "offset" : 6,
+        "length" : 4,
+        "options" : [ ]
+      }
+    ]
+  }
+}
+```
+
+在返回结果里"suggest" -> "my-suggestion" 部分包含了一个数组，每个数组项对应从输入文本分解出来的 token（存放在"text"这个key里）以及为该token提供的建议词项（存放在options数组里）。示例里返回了"lucne","rock"这2个词的建议项（options）
+
 # 8 Elasticsearch Java Client
 
 ## 8.1 说明
 
 ## 8.2 SpringBoot 中使用 RestClient
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
