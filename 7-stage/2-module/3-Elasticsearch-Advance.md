@@ -1597,11 +1597,124 @@ GET /turbo_book/_validate/query?explain
 
 
 
-# 5 聚合分析
+# 5 聚合分析-<font color='red'>重要</font>
 
 ## 5.1 聚合介绍
 
+聚合分析是数据库中最重要的功能特性，完成对一个查询的数据集中数据的聚合计算，如：找出某字段（或计算表达式的结果）的最大值、最小值、计算和、平均值等。Elasticsearch作为搜索引擎兼数据库，同样提供了强大的聚合分析能力。
+
+对于一个数据集求最大、最小、和、平均值 等指标的聚合，在ES中称为**指标聚合 metric**，而关系型数据库中除了有聚合函数外，还可以对查询出的数据进行分组 group by，再在组上进行指标聚合。在ES中 group by 称为 **分桶，桶聚合 bucketing**。
+
+Elasticsearch聚合分析语法<br>在查询请求体中以 aggregations 节点按如下语法定义聚合分析：
+
+```yaml
+"aggregations" : {
+   "<aggregation_name>" : { <!--聚合的名字-->
+       "<aggregation_type>" : { <!--聚合的类型-->
+           <aggregation_body> <!--聚合体：对哪些字段进行聚合-->      
+       }
+       [,"meta" : {  [<meta_data_body>] } ]? <!--元-->
+       [,"aggregations" : { [<sub_aggregation>]+ } ]? <!--在聚合里面在定义子聚合-->
+   }
+   [,"<aggregation_name_2>" : { ... } ]*<!--聚合的名字--> 
+}
+```
+
+**说明**：aggregations 也可简写为aggs
+
 ## 5.2 指标聚合
+
+- max min sum avg
+
+  > 示例一：查询所有书中最贵的
+
+  ```yaml
+  POST /turbo_book/_search
+  {
+    "size": 0,
+    "aggs": {
+      "max_price": {
+        "max": {
+          "field": "price"
+        }
+      }
+    }
+  }
+  ```
+
+- 文档计数 count
+
+  > 示例：统计price大于100的文档数量
+
+  ```
+  POST /turbo_book/_count
+  {
+    "query": {
+      "range": {
+        "price": {
+          "gt": 100
+        }
+      }
+    }
+  }
+  ```
+
+- value_count 统计某字段有值的文档数
+
+  ```
+  POST /turbo_book/_search?size=0
+  {
+    "aggs": {
+      "price_count": {
+        "value_count": {
+          "field": "price"
+        }
+      }
+    }
+  }
+  ```
+
+- cardinality值去重计数 基数
+
+  ```
+  
+  ```
+
+- state 统计 count max min avg sum 5个值
+
+  ```
+  
+  ```
+
+- Extended stats
+
+  高级统计，比stats多4个统计结果：平方和、方差、标准差、平均值加/减 两个标准差的区间
+
+  ```
+  
+  ```
+
+- Percentiles 占比百分位对应的值统计
+
+  ```
+  
+  ```
+
+  指定分位值
+
+  ```
+  
+  ```
+
+- Percentiles rank 统计值小于等于指定值的文档占比
+
+  统计price小于 100 和 200 的文档的占比
+
+  ```
+  
+  ```
+
+  
 
 ## 5.3 桶聚合
 
