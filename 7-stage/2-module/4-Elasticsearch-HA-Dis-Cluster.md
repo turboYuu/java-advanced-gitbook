@@ -172,6 +172,12 @@ elasticsearch.yml配置文件说明：
 | http.cors.enabled          | 是否支持跨域，是：true，在使用head插件时需要此配置           |
 | http.cors.allow-origin "*" | 表示支持所有域名                                             |
 
+只需要在之前的基础上，打开配置文件elasticsearch.yml，添加如下配置：
+
+```
+
+```
+
 
 
 # 4 集群规划
