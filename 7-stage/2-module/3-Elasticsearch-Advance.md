@@ -2238,7 +2238,9 @@ POST _reindex
 
 在官方的参考文档里面，对这四种Suggester API 都有比较详细的介绍，下面的案例将在Elasticsearch 7.x 上通过示例讲解Suggester的基础用法，希望能够帮助部分国内开发者快速用于实际项目开发。
 
-首先看一个Term  Suggester的示例：<br>准备一个叫做blogs的索引，配置一个text字段
+## 7.1 Term Suggester
+
+首先看一个**Term  Suggester**的示例：<br>准备一个叫做blogs的索引，配置一个text字段
 
 ```
 PUT /blogs
@@ -2350,13 +2352,369 @@ suggest就是一种特殊类型的搜索，DSL内部的“text”指的是 api �
 }
 ```
 
-在返回结果里"suggest" -> "my-suggestion" 部分包含了一个数组，每个数组项对应从输入文本分解出来的 token（存放在"text"这个key里）以及为该token提供的建议词项（存放在options数组里）。示例里返回了"lucne","rock"这2个词的建议项（options）
+在返回结果里"suggest" -> "my-suggestion" 部分包含了一个数组，每个数组项对应从输入文本分解出来的 token（存放在"text"这个key里）以及为该token提供的建议词项（存放在options数组里）。示例里返回了"lucne","rock"这2个词的建议项（options），<br>其中"rock"的options是空的，表示没有可以建议的选项，因为我们为查询提供的suggest mode是"missing"，由于"rock"在索引的词典里已经存在了，够精准，就不建议了。只有词典里找不到的词，才会为其提供相似的选项。<br>如果将"suggest_mode"换成"popular"会是什么效果？<br>重新执行查询，返回的结果里"rock"这个词的option不再是空的，而是建议为rocks。
+
+```yaml
+{
+  "took" : 112,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 0,
+      "relation" : "eq"
+    },
+    "max_score" : null,
+    "hits" : [ ]
+  },
+  "suggest" : {
+    "my-suggestion" : [
+      {
+        "text" : "lucne",
+        "offset" : 0,
+        "length" : 5,
+        "options" : [
+          {
+            "text" : "lucene",
+            "score" : 0.8,
+            "freq" : 2
+          }
+        ]
+      },
+      {
+        "text" : "rock",
+        "offset" : 6,
+        "length" : 4,
+        "options" : [
+          {
+            "text" : "rocks",
+            "score" : 0.75,
+            "freq" : 2
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+回想一下，rock和rocks在索引词典里都是有的，不难看出即使用户输入的token在索引的词典里已经有了，但是因为存在一个词频更高的相似项，这个相似项可能是更合适的，就被挑选到options里了。最后还有一个"always" mode，其含义是不管token是否存在于索引词典里都要给出相似项。
+
+有人可能会问，两个term的相似性是如何判断的？ES使用了一种叫做 ***Levenstein edit distance***的算法，其核心思想就是一个词改动多少个字符就可以和另外一个词一致。Term suggester还有其他很多可选参数来控制这个相似性的模糊程度...
+
+## 7.2 Phrase Suggester
+
+**Phrase suggester** 在 Term suggester的基础上，会考量多个term之间的关系，比如是否同时出现在索引的原文里，相邻程度，以及词频等等。看个返利就比较容易明白了：
+
+```yaml
+POST /blogs/_search
+{
+  "suggest": {
+    "my-suggestion": {
+      "text": "lucne and elasticsear rock",
+      "phrase": {
+        "field": "body",
+        "highlight": {
+          "pre_tag": "<em>",
+          "post_tag": "</em>"
+        }
+      }
+    }
+  }
+}
+```
+
+返回结果：
+
+```yaml
+{
+  "took" : 66,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 0,
+      "relation" : "eq"
+    },
+    "max_score" : null,
+    "hits" : [ ]
+  },
+  "suggest" : {
+    "my-suggestion" : [
+      {
+        "text" : "lucne and elasticsear rock",
+        "offset" : 0,
+        "length" : 26,
+        "options" : [
+          {
+            "text" : "lucene and elasticsearch rock",
+            "highlighted" : "<em>lucene</em> and <em>elasticsearch</em> rock",
+            "score" : 0.009113543
+          },
+          {
+            "text" : "lucne and elasticsearch rock",
+            "highlighted" : "lucne and <em>elasticsearch</em> rock",
+            "score" : 0.006093812
+          },
+          {
+            "text" : "lucene and elasticsear rock",
+            "highlighted" : "<em>lucene</em> and elasticsear rock",
+            "score" : 0.005325866
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+options直接返回一个phrase列表，由于加了highlight选项，被替换的term会被高亮。因为lucene和elasticsearch曾经在同一条原文里出现过，同时替换2个term的可信度更高，所以打分较高，排在第一位返回。Phrase suggester有相当多的参数用于控制匹配的模糊程度，需要根据实际应用情况去挑选和调试
+
+## 7.3 Completion Suggester
+
+下面谈一下Completion Suggester，它只要针对的应用场景就是"Auto Completion"。此场景下用户每输入一个字符的时候，就需要即时发送一次查询到后端查找匹配项，在用户输入速度较高的情况下对后端响应速度要求比较苛刻。因此实际上它和前面两个Suggester采用了不同的数据结构，索引并非通过倒排来完成，而是将 analyze 过的数据编码成 FST 和 索引一起存放，对于一个open状态的索引，FST 会被 ES 整个装载到内存里的，进行前缀查找速度极快。***但是 FST 只能用于前缀查找，这也是 Completion Suggester 的局限所在。***
+
+为了使用 Completion Suggester，字段的类型需要专门定义：
+
+```yaml
+PUT /blogs_completion
+{
+  "mappings": {
+    "properties": {
+      "body": {
+        "type": "completion"
+      }
+    }
+  }
+}
+```
+
+用 bulk API 索引写入数据：
+
+```yaml
+POST _bulk/?refresh=true
+{"index":{"_index":"blogs_completion"}}
+{"body":"Lucene is cool"}
+{"index":{"_index":"blogs_completion"}}
+{"body":"Elasticsearch builds on top of lucene"}
+{"index":{"_index":"blogs_completion"}}
+{"body":"Elasticsearch rocks"}
+{"index":{"_index":"blogs_completion"}}
+{"body":"Elastic is the company behind ELK stack"}
+{"index":{"_index":"blogs_completion"}}
+{"body":"the elk stack rocks"}
+{"index":{"_index":"blogs_completion"}}
+{"body":"elasticsearch is rock solid"}
+```
+
+查找：
+
+```yaml
+POST /blogs_completion/_search?pretty
+{
+  "size": 0,
+  "suggest": {
+    "blog-suggest": {
+      "prefix": "elastic i",
+      "completion": {
+        "field": "body"
+      }
+    }
+  }
+}
+```
+
+结果：
+
+```yaml
+{
+  "took" : 13,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 0,
+      "relation" : "eq"
+    },
+    "max_score" : null,
+    "hits" : [ ]
+  },
+  "suggest" : {
+    "blog-suggest" : [
+      {
+        "text" : "elastic i",
+        "offset" : 0,
+        "length" : 9,
+        "options" : [
+          {
+            "text" : "Elastic is the company behind ELK stack",
+            "_index" : "blogs_completion",
+            "_type" : "_doc",
+            "_id" : "K8qpVn4BrKgruy4eCDYI",
+            "_score" : 1.0,
+            "_source" : {
+              "body" : "Elastic is the company behind ELK stack"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+值得注意的一点是Completion Suggester 在原始索引数据的时候也要经过 analyze 阶段，取决于选用的 analyzer 不同，某些词可能被转换，某些词可能被去除，这些会影响 FST 编码结果，也会影响查找匹配的效果。
+
+比如我们删除上面的索引，重新设置索引的mapping，将 analyzer更改为 "english"：
+
+```yaml
+PUT /blogs_completion
+{
+  "mappings": {
+    "properties": {
+      "body": {
+        "type": "completion",
+        "analyzer": "english"
+      }
+    }
+  }
+}
+
+POST _bulk/?refresh=true
+{"index":{"_index":"blogs_completion"}}
+{"body":"Lucene is cool"}
+{"index":{"_index":"blogs_completion"}}
+{"body":"Elasticsearch builds on top of lucene"}
+{"index":{"_index":"blogs_completion"}}
+{"body":"Elasticsearch rocks"}
+{"index":{"_index":"blogs_completion"}}
+{"body":"Elastic is the company behind ELK stack"}
+{"index":{"_index":"blogs_completion"}}
+{"body":"the elk stack rocks"}
+{"index":{"_index":"blogs_completion"}}
+{"body":"elasticsearch is rock solid"}
+```
+
+bulk api 索引同样的数据后，执行下面的查询：
+
+```yaml
+POST /blogs_completion/_search?pretty
+{
+  "size": 0,
+  "suggest": {
+    "blog-suggest": {
+      "prefix": "elastic i",
+      "completion": {
+        "field": "body"
+      }
+    }
+  }
+}
+```
+
+居然没有匹配结果了，多么费解！原来我们用的 english analyzer会剥离掉 stop wordji，而 is 就是其中一个，被剥离掉了！
+
+用analyzer api 测试以下：
+
+```yaml
+POST _analyze
+{
+  "text": "elasticsearch is rock solid",
+  "analyzer": "english"
+}
+
+# 会发现只有3个token:
+{
+  "tokens" : [
+    {
+      "token" : "elasticsearch",
+      "start_offset" : 0,
+      "end_offset" : 13,
+      "type" : "<ALPHANUM>",
+      "position" : 0
+    },
+    {
+      "token" : "rock",
+      "start_offset" : 17,
+      "end_offset" : 21,
+      "type" : "<ALPHANUM>",
+      "position" : 2
+    },
+    {
+      "token" : "solid",
+      "start_offset" : 22,
+      "end_offset" : 27,
+      "type" : "<ALPHANUM>",
+      "position" : 3
+    }
+  ]
+}
+```
+
+FST（Finite StateTransducers）之编码了这三个token，并且默认的还会记录它们在文档中的文职和分隔符，用户输入"elastic i"进行查找的时候，输入被分解成"elastic"和"i"，FST没有编码这个"i"，匹配失败。
+
+如果你现在哈不够清醒的话，试一下搜索"elastic is"，会发现又有结果，因为这次输入的text经过english analyzer的时候 ***is*** 也被剥离了，只需要在 FST 里查询"elastic"这个前缀，自然就可以匹配到了。
+
+其他能影响 completion suggester 结果的，还有：<br>如"preserve_separators"，"preserve_position_increments" 等等 mapping 参数来控制匹配的模糊程度。以及搜索时可以选用 Fuzzy Queries，使得上面例子里的"elastic i"在使用 english analyzer 的情况下依然可以匹配到结果。
+
+> "preserve_separators":false，这个设置为false，将忽略空格之类的分隔符<br>"preserve_position_increments":true，如果建议词第一个词是停用词，并且我们使用了过滤停用词的分析器，需要将此设置为false.
+
+因此用好 Completion Suggester 并不是一件容易的事，实际应用开发过程中，需要根据数据特性和业务需要，灵活搭配 analyzer 和 mapping 参数，反复调试才能获得理想的补全效果。<br>回到百度搜索框的补全/纠错 功能，如果使用ES怎么实现？我能想到的一个实现方式：在用户刚开始输入的过程中，使用 Completion Suggester 进行关键词前缀匹配，刚开始匹配项会比较多，随着用户输入字符增多，匹配项越来越少。如果用户输入比较精准，可能 Competion Suggester 的结果已经够好，用户已经可以看到理想的备选项了。
+
+如果Completion Suggester 已经到了零匹配，那么猜测是用户输入错误，这时候可以尝试一下 Phrase Suggester。如果Phrase Suggester 没有找到任何 option，开始尝试term suggester 。精准程度上（Precision）看：Completion > Phrase > term，而召回率上（Recall）则反之。从性能上看 Completion Suggester 是最快的，如果能满足业务需求，只用 Completion Suggester 做前缀匹配是最理想的。Phrase 和 Term 由于是做的倒排序索引的搜索，相比较而言性能应该要低不少，应尽量控制 suggester 用到的索引的数据量，最理想的状况是经过一定时间预热后，索引可以全量 map 到内存。
+
+```
+召回率（Recall）= 系统检索到的相关文件 / 系统所有线管的文件总数
+
+准确率（Precision）= 系统检索到的相关文件 / 系统所有检索到的文件总数
+从一个大规模数据集合中检索文档时，可把文档分成四组：
+- 系统检索到的相关文档（A）
+- 系统检索到的不相关文档（B）
+- 相关但是系统没有检索到的文档（C）
+- 不相关且没有被系统检索到的文档（D）
+则：
+- 召回率R：用实际检索到的相关文档数作为分子，所有相关文档总数作为分母，即 R=A/(A+C)
+- 精度P：用实际检索到的相关文档数作为分子，所有检索到的文档总数作为分母，即 P=A/(A+B)
+
+举例：一个数据库有1000个文档，其中有50个文档符合相关定义的问题，系统检索到75个文档，但其中只有45个文档被检索出。
+	精度：P=45/75=60%
+	召回率：R=45/50=90%
+```
+
+## 7.4 Context Suggester
+
+- Completion Suggester 的扩展
+- 可以在搜索中假如更多的上下文信息，然后根据不同的上下文信息，对相同的输入，比如"star"，提供不同的建议值，比如：
+  - 咖啡相关：Starbucks
+  - 电影相关：star wars
 
 # 8 Elasticsearch Java Client
 
 ## 8.1 说明
 
+ES 提供多种不同的客户端：
+
+1. TransportClient ES 提供的传统客户端，官方计划 8.0 版本删除此客户端。
+2. RestClient，RestClient 是官方推荐使用的，它包括两种：Java Low Level REST Client 和 Java High Level REST Client。ES在 6.0 之后提供 Java High Level REST Client ，两种客户端官方更推荐使用Java High Level REST Client，使用时加入对应版本的依赖即可。
+
 ## 8.2 SpringBoot 中使用 RestClient
+
+
 
 
 
