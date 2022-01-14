@@ -72,7 +72,7 @@ Elasticsearch 的架构遵循其基本概念：一个采用Restful API 标准的
 
 ## 2.2 分层
 
-![img](assest/es系统架构.png)
+![es系统架构](assest/es系统架构.png)
 
 > 第一层 Gateway
 
