@@ -400,7 +400,7 @@ POST /turbo-company-index/_search
 
 ## 2.2 全文搜索（full-text query）
 
-全文搜索能够搜索已分析的文本字段，如：电子邮件正文，商品描述。使用索引期间应用于字段的统一分析器处理查询字符串。全文搜索的分类很多，几个典型的如下：
+全文搜索能够搜索已分析的文本字段，如：电子邮件正文，商品描述。使用索引期间应用于字段的同一分析器处理查询字符串。全文搜索的分类很多，几个典型的如下：
 
 ### 2.2.1 匹配搜索（match query）
 
@@ -408,7 +408,7 @@ POST /turbo-company-index/_search
 
 现在，索引库中有2部手机，1台电视：
 
-```CQL
+```yaml
 PUT /turbo-property
 {
   "settings": {},
@@ -452,7 +452,7 @@ POST /turbo-property/_doc/
 
 `match` 类型查询，会把查询条件进行分词，然后进行查询，多个词条之间是or的关系。
 
-```CQL
+```yaml
 POST /turbo-property/_search
 {
   "query": {
@@ -570,7 +570,7 @@ POST /turbo-property/_search
 
 match_phrase 查询用来对一个字段进行短语查询，可以指定 analyzer，slop 移动因子
 
-```
+```yaml
 GET /turbo-property/_search
 {
   "query": {
@@ -588,7 +588,7 @@ GET /turbo-property/_search
     }
   }
 }
-
+# slop因子设置
 GET /turbo-property/_search
 {
   "query": {
@@ -608,7 +608,7 @@ GET /turbo-property/_search
 
 > Query String Query 提供了无需指定某字段而对文档进行匹配查询的一个高级查询，同时可以指定在哪些字段上进行匹配。
 
-```CQL
+```yaml
 # 默认
 GET /turbo-property/_search
 {
@@ -677,7 +677,7 @@ GET /turbo-property/_search
 
 如果你需要在多个字段上进行文本搜索，可用multi_match。multi_match 在 match 的基础上支持多个字段进行文本查询。
 
-```CQL
+```yaml
 GET /turbo-property/_search
 {
   "query": {
@@ -691,7 +691,7 @@ GET /turbo-property/_search
 
 还可以使用 * 匹配多个字段：
 
-```CQL
+```yaml
 GET /turbo-property/_search
 {
   "query": {
@@ -711,7 +711,7 @@ GET /turbo-property/_search
 
 与全文查询不同，term-level queries 不分析搜索词。相反，词条与存储在字段级别中的术语完全匹配。
 
-```
+```yaml
 PUT /turbo_book
 {
   "settings": {},
@@ -775,7 +775,7 @@ PUT /turbo_book/_doc/4
 
 term 查询用于查询指定字段包含某个词项的文档
 
-```
+```yaml
 POST /turbo_book/_search
 {
   "query": {
@@ -792,7 +792,7 @@ POST /turbo_book/_search
 
 term 查询用于查询指定字段包含某些词项的文档
 
-```
+```yaml
 GET /turbo_book/_search
 {
   "query": {
@@ -813,7 +813,7 @@ GET /turbo_book/_search
 - lt：小于
 - boost：查询权重
 
-```
+```yaml
 GET /turbo_book/_search
 {
   "query": {
@@ -859,7 +859,7 @@ GET /turbo_book/_search
 
 查询指定字段值不为空的文档。相当于 SQL 中的 column is not null
 
-```
+```yaml
 GET /turbo_book/_search
 {
   "query": {
@@ -872,7 +872,7 @@ GET /turbo_book/_search
 
 ### 2.3.5 词项前缀搜索（prefix query）
 
-```
+```yaml
 GET /turbo_book/_search
 {
   "query": {
@@ -887,7 +887,7 @@ GET /turbo_book/_search
 
 ### 2.3.6 通配符搜索（wildcard query）
 
-```
+```yaml
 GET /turbo_book/_search
 {
   "query": {
@@ -916,7 +916,7 @@ GET /turbo_book/_search
 
 regexp允许使用正则表达式进行term查询，注意 regexp 如果使用埠镇古鳄，会给服务器带来很严重的性能压力。比如 .* 开头的查询，将会匹配所有的倒排序索引中的关键字，这几乎相当于全表扫描，会很慢。因此如果可以的话，最好在使用正则前，加上匹配的前缀。
 
-```
+```yaml
 GET /turbo_book/_search
 {
   "query": {
@@ -943,7 +943,7 @@ GET /turbo_book/_search
 
 ### 2.3.8 模糊搜索（fuzzy query）
 
-```
+```yaml
 GET /turbo_book/_search
 {
   "query": {
@@ -984,7 +984,7 @@ GET /turbo_book/_search
 
 ### 2.3.9 ids搜索（id集合查询）
 
-```
+```yaml
 GET /turbo_book/_search
 {
   "query": {
@@ -1004,7 +1004,7 @@ GET /turbo_book/_search
 
 用来包装成另一个查询，将查询匹配的文档的评分设为一个常值
 
-```
+```yaml
 GET /turbo_book/_search
 {
   "query": {
@@ -1040,7 +1040,7 @@ bool 查询用 bool 操作来组合多个查询子句为一个查询。可用的
 - should：或
 - must_not：必须不满足，在filter上下文中执行，不参与，不影响评分
 
-```
+```yaml
 GET /turbo_book/_search
 {
   "query": {
@@ -1080,7 +1080,7 @@ minimum_should_match 代表了最小匹配精度，如果设置 minimum_should_m
 
 为了按照相关性来排序，需要将相关性表示为一个数值。在Elasticsearch中，相关性得分 由一个浮点数进行表示，并在搜索结果中通过 `_source` 参数返回，默认排序是 `_source` 降序，按照相关性评分升序排序如下：
 
-```
+```yaml
 POST /turbo_book/_search
 {
   "query": {
@@ -1111,7 +1111,7 @@ POST /turbo_book/_search
 
 ### 2.5.2 字段值排序
 
-```
+```yaml
 POST /turbo_book/_search
 {
   "query": {
@@ -1133,7 +1133,7 @@ POST /turbo_book/_search
 
 假定我们想要结合使用 price 和 _score（得分）进行查询，并且匹配的结果首先按照价格排序，然后按照相关性得分排序：
 
-```
+```yaml
 POST /turbo_book/_search
 {
   "query": {
@@ -1153,7 +1153,7 @@ POST /turbo_book/_search
 
 Elasticsearch中实现分页的语法非常简单：
 
-```
+```yaml
 POST /turbo_book/_search
 {
   "query": {
@@ -1188,7 +1188,7 @@ from：当前页起始索引，int start=(pageNum-1)*size
 
 Elasticsearch 中实现改良的语法比较简单：
 
-```
+```yaml
 POST /turbo_book/_search
 {
   "query": {
@@ -1294,7 +1294,7 @@ POST /turbo_book/_search
 
 单条查询 GET /turbo_book/_doc/1，如果查询多个id的文档一条一条查询，网络开销太大。
 
-```
+```yaml
 GET /_mget
 {
   "docs": [
@@ -1352,7 +1352,7 @@ GET /_mget
 
 同一索引下批量查询：
 
-```
+```yaml
 GET /turbo_book/_mget
 {
   "docs": [
@@ -1368,7 +1368,7 @@ GET /turbo_book/_mget
 
 搜索简化写法：
 
-```
+```yaml
 POST /turbo_book/_search
 {
   "query": {
@@ -1385,7 +1385,7 @@ Bulk 操作解释将文档的增删改查一些列操作，通过一次请求全
 
 语法：
 
-```
+```yaml
 POST /_bulk
 {"action": {"metadata"}} 
 {"data"}
@@ -1393,7 +1393,7 @@ POST /_bulk
 
 如下操作，删除1，新增5，修改2：
 
-```
+```yaml
 POST /_bulk
 {"delete":{"_index":"turbo_book","_id":"1"}}
 {"create":{"_index":"turbo_book","_id":"5"}}
@@ -1479,7 +1479,7 @@ POST /_bulk
 
 实际用法：bulk请求一次不要太大，否则以下积压到内存中，性能会下降。所以，一次请求几千个操作，大小在几M正好。<br>bulk会将要处理的数据载入内存中，所以数据是有限的，最佳的数据量不是一个确定的数据，它取决于你的硬件，你的文档大小以及复杂性，你的索引以及索引的负载。<br>一般建议是1000-5000个文档，大小建议是5-15MB，默认不能超过100M，可以在es的配置文件（ES的config下的elasticsearch.yml）中配置。
 
-```
+```yaml
 http.max_content_length:10mb
 ```
 
