@@ -2253,7 +2253,7 @@ POST _reindex
 
 首先看一个**Term  Suggester**的示例：<br>准备一个叫做blogs的索引，配置一个text字段
 
-```
+```yaml
 PUT /blogs
 {
   "mappings": {
@@ -2277,9 +2277,11 @@ POST _bulk/?refresh=true
 {"index":{"_index":"blogs"}}
 {"body":"Elasticsearch rocks"}
 {"index":{"_index":"blogs"}}
+{"body":"Elastic is the company behind ELK stack"}
+{"index":{"_index":"blogs"}}
 {"body":"elk rocks"}
 {"index":{"_index":"blogs"}}
-{"body":"Elasticsearch is rock solid"}
+{"body":"elasticsearch is rock solid"}
 ```
 
 此时blogs索引里已经有一些文档了，可以进行下一步的探索。为了帮助理解，先看看那些term会存在于词典里。
