@@ -2365,7 +2365,7 @@ suggest就是一种特殊类型的搜索，DSL内部的“text”指的是 api �
 }
 ```
 
-在返回结果里"suggest" -> "my-suggestion" 部分包含了一个数组，每个数组项对应从输入文本分解出来的 token（存放在"text"这个key里）以及为该token提供的建议词项（存放在options数组里）。示例里返回了"lucne","rock"这2个词的建议项（options），<br>其中"rock"的options是空的，表示没有可以建议的选项，因为我们为查询提供的suggest mode是"missing"，由于"rock"在索引的词典里已经存在了，够精准，就不建议了。只有词典里找不到的词，才会为其提供相似的选项。<br>如果将"suggest_mode"换成"popular"会是什么效果？<br>重新执行查询，返回的结果里"rock"这个词的option不再是空的，而是建议为rocks。
+在返回结果里"suggest" -> "my-suggestion" 部分包含了一个数组，每个数组项对应从输入文本分解出来的 token（存放在"text"这个key里）以及为该token提供的建议词项（存放在options数组里）。示例里返回了"lucne","rock"这2个词的建议项（options），<br>其中"rock"的options是空的，表示没有可以建议的选项，因为我们为查询提供的suggest mode是"missing"，由于"rock"在索引的词典里已经存在了，够精准，就不建议了。只有词典里找不到的词，才会为其提供相似的选项。<br>如果将"suggest_mode"换成"**popular**"会是什么效果？<br>重新执行查询，返回的结果里"rock"这个词的option不再是空的，而是建议为rocks。
 
 ```yaml
 {
@@ -2416,7 +2416,7 @@ suggest就是一种特殊类型的搜索，DSL内部的“text”指的是 api �
 }
 ```
 
-回想一下，rock和rocks在索引词典里都是有的，不难看出即使用户输入的token在索引的词典里已经有了，但是因为存在一个词频更高的相似项，这个相似项可能是更合适的，就被挑选到options里了。最后还有一个"always" mode，其含义是不管token是否存在于索引词典里都要给出相似项。
+回想一下，rock和rocks在索引词典里都是有的，不难看出即使用户输入的token在索引的词典里已经有了，但是因为存在一个词频更高的相似项，这个相似项可能是更合适的，就被挑选到options里了。最后还有一个"**always**" mode，其含义是不管token是否存在于索引词典里都要给出相似项。
 
 有人可能会问，两个term的相似性是如何判断的？ES使用了一种叫做 ***Levenstein edit distance***的算法，其核心思想就是一个词改动多少个字符就可以和另外一个词一致。Term suggester还有其他很多可选参数来控制这个相似性的模糊程度...
 
