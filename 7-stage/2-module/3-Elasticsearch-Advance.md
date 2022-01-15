@@ -2081,7 +2081,7 @@ POST _reindex
 
 > **2 version_type 属性**
 
-使用reindex api页数创建快照后再执行迁移的，这样目标索引的数据可能会与原索引有差异，version_type属性可以决定乐观锁并发处理的规则。
+使用reindex api也是创建快照后再执行迁移的，这样目标索引的数据可能会与原索引有差异，version_type属性可以决定乐观锁并发处理的规则。
 
 reindex api 可以设置 version_type 属性，如下：
 
