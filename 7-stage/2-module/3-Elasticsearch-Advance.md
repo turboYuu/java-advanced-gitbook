@@ -2001,7 +2001,7 @@ MQ中间件的选型不做具体要求，常见的rabbitmq、activemq、rocketmq
 
 5. 反复执行修改后的步骤3和步骤4，查询一批导入一批，以后可以借助Java Client或其他语言API支持。
 
-   注意做3时，需要指定上一次查询的 scroll_id
+   注意做时，需要指定步骤3查询出的 scroll_id，指定后，可以查出对应的下一页文档<br>步骤3和步骤5组合一起是完整的。
 
    ```yaml
    GET /_search/scroll  {
