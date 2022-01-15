@@ -1196,7 +1196,7 @@ from：当前页起始索引，int start=(pageNum-1)*size
 
 ## 2.7 高亮
 
-Elasticsearch 中实现改良的语法比较简单：
+Elasticsearch 中实现高亮的语法比较简单：
 
 ```yaml
 POST /turbo_book/_search
@@ -1212,7 +1212,7 @@ POST /turbo_book/_search
     "fields": [{"name":{}}]
   }
 }
-
+# 只对 name 字段 高亮
 POST /turbo_book/_search
 {
   "query": {
@@ -1487,7 +1487,7 @@ POST /_bulk
 
 
 
-实际用法：bulk请求一次不要太大，否则以下积压到内存中，性能会下降。所以，一次请求几千个操作，大小在几M正好。<br>bulk会将要处理的数据载入内存中，所以数据是有限的，最佳的数据量不是一个确定的数据，它取决于你的硬件，你的文档大小以及复杂性，你的索引以及索引的负载。<br>一般建议是1000-5000个文档，大小建议是5-15MB，默认不能超过100M，可以在es的配置文件（ES的config下的elasticsearch.yml）中配置。
+实际用法：bulk请求一次不要太大，否则一下积压到内存中，性能会下降。所以，一次请求几千个操作，大小在几M正好。<br>bulk会将要处理的数据载入内存中，所以数据是有限的，最佳的数据量不是一个确定的数据，它取决于你的硬件，你的文档大小以及复杂性，你的索引以及索引的负载。<br>一般建议是1000-5000个文档，大小建议是5-15MB，默认不能超过100M，可以在es的配置文件（ES的config下的elasticsearch.yml）中配置。
 
 ```yaml
 http.max_content_length:10mb
