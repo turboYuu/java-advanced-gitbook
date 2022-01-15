@@ -2422,7 +2422,7 @@ suggest就是一种特殊类型的搜索，DSL内部的“text”指的是 api �
 
 ## 7.2 Phrase Suggester
 
-**Phrase suggester** 在 Term suggester的基础上，会考量多个term之间的关系，比如是否同时出现在索引的原文里，相邻程度，以及词频等等。看个返利就比较容易明白了：
+**Phrase suggester** 在 Term suggester的基础上，会考量多个term之间的关系，比如是否同时出现在索引的原文里，相邻程度，以及词频等等。看个范例就比较容易明白了：
 
 ```yaml
 POST /blogs/_search
@@ -2640,7 +2640,7 @@ POST /blogs_completion/_search?pretty
 }
 ```
 
-居然没有匹配结果了，多么费解！原来我们用的 english analyzer会剥离掉 stop wordji，而 is 就是其中一个，被剥离掉了！
+居然没有匹配结果了，多么费解！原来我们用的 english analyzer会剥离掉 stop word，而 is 就是其中一个，被剥离掉了！
 
 用analyzer api 测试以下：
 
