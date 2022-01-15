@@ -225,11 +225,11 @@ PUT /user
 
 日期检测可以通过在根对象上设置 date_detection 为 false 来关闭
 
-```json
+```yaml
 PUT /my_index
 {
   "mappings": {
-    "date_detection": false
+    "date_detection": false # 关闭日期检测
   }
 }
 
@@ -249,7 +249,7 @@ PUT /my_index/_doc/1
 
 Elasticsearch 判断字符串为日期的规则可以通过 dynamic_date_formats setting 来设置。
 
-```json
+```yaml
 PUT /my_index
 {
   "mappings": {
@@ -259,10 +259,11 @@ PUT /my_index
 
 PUT /my_index/_doc/1
 {
-  "note": "2014-01-01"
+  "note": "2014-01-01" # 会以字符串的形式存储
 }
 
-PUT /my_index/_doc/1
+# 重建索引后执行，字段类型为 date
+PUT /my_index/_doc/2
 {
   "note": "01/01/2014"
 }
@@ -272,11 +273,11 @@ PUT /my_index/_doc/1
 
 ### 1.3.2 dynamic templates
 
-使用dynamic_templates 可以完全控制新生成字段的映射，甚至可以通过字段名称或数据类型来应用不同的映射。每个模板都有一个名称，你可以用来描述这个模板的用途，一个 mapping 来直送映射应该怎样使用，以及至少一个参数（如 match）来定义这个模板适用于哪个字段。
+使用dynamic_templates 可以完全控制新生成字段的映射，甚至可以通过字段名称或数据类型来应用不同的映射。每个模板都有一个名称，你可以用来描述这个模板的用途，一个 mapping 来指定映射应该怎样使用，以及至少一个参数（如 match）来定义这个模板适用于哪个字段。
 
-模板按照顺序来检测；第一个匹配的模板会被启用，例如，给 string 类型字段定义两个模板：<br>es：以 _es 结尾的字段名需要使用 spanish 分词器。<br>en：所有其他字段使用 english 分词器。<br>将 es 模板放在第一位，因为他比匹配所有字符串字段的 en 模板更特殊：
+模板按照顺序来检测；第一个匹配的模板会被启用，例如，给 string 类型字段定义两个模板：<br>es：以 _es 结尾的字段名需要使用 spanish 分词器。<br>en：所有其他字段使用 english 分词器。<br>将 es 模板放在第一位，因为它比匹配所有字符串字段的 en 模板更特殊：
 
-```json
+```yaml
 PUT /my_index2
 {
   "mappings": {
@@ -306,7 +307,7 @@ PUT /my_index2
 }
 ```
 
-```json
+```yaml
 PUT /my_index2/_doc/1
 {
   "name_es": "testes",
@@ -317,7 +318,7 @@ PUT /my_index2/_doc/1
 1. 匹配字段名以 _es 结尾的字段
 2. 匹配其他所有字符串类型字段
 
-match_mapping_type 允许你应用到特定类型的字段上，就像有标准动态映射规则检测的一样（例如 string 或 long）<br>match 参数只匹配字段名称，patch_match 参数匹配字段在对象上的完整路径，所以 address.*.name 将匹配这样的字段
+match_mapping_type 允许你应用到特定类型的字段上，就像有标准动态映射规则检测的一样（例如 string 或 long）<br>match 参数只匹配字段名称，*patch_match* 参数匹配字段在对象上的完整路径，所以 address.*.name 将匹配这样的字段
 
 ```json
 {
@@ -349,7 +350,7 @@ Elasticsearch 提供了基于 JSON 的完整查询 DSL（Domain Specific Languag
 
 > 基本语法
 
-```json
+```yaml
 POST /索引库名/_search
 {
   "query": {
@@ -370,7 +371,7 @@ POST /索引库名/_search
 
 > 示例
 
-```json
+```yaml
 POST /lagou-company-index/_search
 {
   "query": {
