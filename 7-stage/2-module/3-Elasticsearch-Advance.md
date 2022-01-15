@@ -994,6 +994,16 @@ GET /turbo_book/_search
     }
   }
 }
+
+# 使用terms 查询
+GET /turbo_book/_search
+{
+  "query": {
+    "terms": {
+      "_id": ["1","3"]
+    }
+  }
+}
 ```
 
 
