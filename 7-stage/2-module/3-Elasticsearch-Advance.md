@@ -372,7 +372,7 @@ POST /索引库名/_search
 > 示例
 
 ```yaml
-POST /lagou-company-index/_search
+POST /turbo-company-index/_search
 {
   "query": {
     "match_all": {}
