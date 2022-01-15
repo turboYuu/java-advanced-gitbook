@@ -2690,12 +2690,14 @@ FST（Finite StateTransducers）之编码了这三个token，并且默认的还�
 "preserve_position_increments":true，如果建议词第一个词是停用词，并且我们使用了过滤停用词的分析器，需要将此设置为false.
 ```
 
+
+
 因此用好 Completion Suggester 并不是一件容易的事，实际应用开发过程中，需要根据数据特性和业务需要，灵活搭配 analyzer 和 mapping 参数，反复调试才能获得理想的补全效果。<br>回到百度搜索框的补全/纠错 功能，如果使用ES怎么实现？我能想到的一个实现方式：在用户刚开始输入的过程中，使用 Completion Suggester 进行关键词前缀匹配，刚开始匹配项会比较多，随着用户输入字符增多，匹配项越来越少。如果用户输入比较精准，可能 Competion Suggester 的结果已经够好，用户已经可以看到理想的备选项了。
 
 如果Completion Suggester 已经到了零匹配，那么猜测是用户输入错误，这时候可以尝试一下 Phrase Suggester。如果Phrase Suggester 没有找到任何 option，开始尝试term suggester 。精准程度上（Precision）看：Completion > Phrase > term，而召回率上（Recall）则反之。从性能上看 Completion Suggester 是最快的，如果能满足业务需求，只用 Completion Suggester 做前缀匹配是最理想的。Phrase 和 Term 由于是做的倒排序索引的搜索，相比较而言性能应该要低不少，应尽量控制 suggester 用到的索引的数据量，最理想的状况是经过一定时间预热后，索引可以全量 map 到内存。
 
 ```
-召回率（Recall）= 系统检索到的相关文件 / 系统所有线管的文件总数
+召回率（Recall）= 系统检索到的相关文件 / 系统所有相关的文件总数
 
 准确率（Precision）= 系统检索到的相关文件 / 系统所有检索到的文件总数
 从一个大规模数据集合中检索文档时，可把文档分成四组：
