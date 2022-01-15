@@ -741,7 +741,7 @@ PUT /turbo_book/_doc/1
   "name": "lucene",
   "description": "Lucene Core is a Java library providing powerful indexing and search features, as well as spellchecking, hit highlighting and advanced analysis/tokenization capabilities. The PyLucene sub project provides Python bindings for Lucene Core. ",
   "price": 100.45,
-  "timestamp": "2020-08-21 19:11:35"
+  "timestamp": "2021-08-21 19:11:35"
 }
 
 PUT /turbo_book/_doc/2
@@ -749,7 +749,7 @@ PUT /turbo_book/_doc/2
   "name": "solr",
   "description": "Solr is highly scalable, providing fully fault tolerant distributed indexing, search and analytics. It exposes Lucenes features through easy to use JSON/HTTP interfaces or native clients for Java and other languages.",
   "price": 320.45,
-  "timestamp": "2020-07-21 17:11:35"
+  "timestamp": "2021-07-21 17:11:35"
 }
 
 PUT /turbo_book/_doc/3
@@ -757,7 +757,7 @@ PUT /turbo_book/_doc/3
   "name": "Hadoop",
   "description": "The Apache Hadoop software library is a framework that allows for the distributed processing of large data sets across clusters of computers using simple programming models.",
   "price": 620.45,
-  "timestamp": "2020-08-22 19:18:35"
+  "timestamp": "2021-08-22 19:18:35"
 }
 
 PUT /turbo_book/_doc/4
@@ -765,7 +765,7 @@ PUT /turbo_book/_doc/4
   "name": "ElasticSearch",
   "description": "Elasticsearch是一个基于Lucene的搜索服务器。它提供了一个分布式多用户能力 的全文搜索引擎，基于RESTful web接口。Elasticsearch是用Java语言开发的，并作为Apache许可条 款下的开放源码发布，是一种流行的企业级搜索引擎。Elasticsearch用于云计算中，能够达到实时搜 索，稳定，可靠，快速，安装使用方便。官方客户端在Java、.NET（C#）、PHP、Python、Apache Groovy、Ruby和许多其他语言中都是可用的。根据DB-Engines的排名显示，Elasticsearch是最受欢 迎的企业搜索引擎，其次是Apache Solr，也是基于Lucene。",
   "price": 999.99,
-  "timestamp": "2020-08-15 10:11:35"
+  "timestamp": "2021-08-15 10:11:35"
 }
 ```
 
@@ -914,7 +914,7 @@ GET /turbo_book/_search
 
 ### 2.3.7 正则搜索（regexp query）
 
-regexp允许使用正则表达式进行term查询，注意 regexp 如果使用埠镇古鳄，会给服务器带来很严重的性能压力。比如 .* 开头的查询，将会匹配所有的倒排序索引中的关键字，这几乎相当于全表扫描，会很慢。因此如果可以的话，最好在使用正则前，加上匹配的前缀。
+regexp允许使用正则表达式进行term查询，注意 regexp 如果使用不正确，会给服务器带来很严重的性能压力。比如 .* 开头的查询，将会匹配所有的倒排序索引中的关键字，这几乎相当于全表扫描，会很慢。因此如果可以的话，最好在使用正则前，加上匹配的前缀。
 
 ```yaml
 GET /turbo_book/_search
