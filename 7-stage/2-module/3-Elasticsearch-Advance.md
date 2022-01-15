@@ -2685,7 +2685,10 @@ FST（Finite StateTransducers）之编码了这三个token，并且默认的还�
 
 其他能影响 completion suggester 结果的，还有：<br>如"preserve_separators"，"preserve_position_increments" 等等 mapping 参数来控制匹配的模糊程度。以及搜索时可以选用 Fuzzy Queries，使得上面例子里的"elastic i"在使用 english analyzer 的情况下依然可以匹配到结果。
 
-> "preserve_separators":false，这个设置为false，将忽略空格之类的分隔符<br>"preserve_position_increments":true，如果建议词第一个词是停用词，并且我们使用了过滤停用词的分析器，需要将此设置为false.
+```
+"preserve_separators":false，这个设置为false，将忽略空格之类的分隔符
+"preserve_position_increments":true，如果建议词第一个词是停用词，并且我们使用了过滤停用词的分析器，需要将此设置为false.
+```
 
 因此用好 Completion Suggester 并不是一件容易的事，实际应用开发过程中，需要根据数据特性和业务需要，灵活搭配 analyzer 和 mapping 参数，反复调试才能获得理想的补全效果。<br>回到百度搜索框的补全/纠错 功能，如果使用ES怎么实现？我能想到的一个实现方式：在用户刚开始输入的过程中，使用 Completion Suggester 进行关键词前缀匹配，刚开始匹配项会比较多，随着用户输入字符增多，匹配项越来越少。如果用户输入比较精准，可能 Competion Suggester 的结果已经够好，用户已经可以看到理想的备选项了。
 
