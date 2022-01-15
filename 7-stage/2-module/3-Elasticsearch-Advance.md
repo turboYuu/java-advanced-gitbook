@@ -1974,7 +1974,7 @@ MQ中间件的选型不做具体要求，常见的rabbitmq、activemq、rocketmq
 
 1. 若Java客户端没有使用别名，需要给客户端分配一个：`PUT/turbo_book/_alias/turbo_book_alias`
 
-2. 新建索引 `turbo_book`，将 mapping 信息，settings 信息等按新的要求全部定义好
+2. 新建索引 `turbo_book_new`，将 mapping 信息，settings 信息等按新的要求全部定义好
 
 3. 使用scroll api 将数据批量查询出来
 
@@ -1995,7 +1995,7 @@ MQ中间件的选型不做具体要求，常见的rabbitmq、activemq、rocketmq
 
    ```yaml
    POST /_bulk
-   { "index":  { "_index": "book_new", "_id": "对应的id值" }} 
+   { "index":  { "_index": "turbo_book_new", "_id": "对应的id值" }} 
    { 查询出来的数据值}
    ```
 
@@ -2006,7 +2006,7 @@ MQ中间件的选型不做具体要求，常见的rabbitmq、activemq、rocketmq
    ```yaml
    GET /_search/scroll  {
       "scroll": "1m",
-      "scroll_id" : "步骤三中查询出来的值" 
+      "scroll_id" : "步骤三中查询出来的值"  # _scroll_id
    }
    ```
 
