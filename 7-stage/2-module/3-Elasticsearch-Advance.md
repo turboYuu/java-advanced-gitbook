@@ -10,7 +10,7 @@
 
   > 示例
 
-  ```json
+  ```yaml
   PUT /company-locations
   {
     "mappings": {
@@ -32,7 +32,7 @@
 
   如上例，`location`字段被声明为`geo_point`后，我们就可以索引包含了经纬度信息的文档了。经纬度信息的形式可以是字符串、数组或者对象。
 
-  ```json
+  ```yaml
   # 字符串形式
   PUT /company-locations/_doc/1
   {
@@ -86,7 +86,7 @@
 
   然后可以使用`geo_bounding_box`过滤器执行以下查询
 
-  ```json
+  ```yaml
   GET /company-locations/_search
   {
     "query": {
@@ -121,7 +121,7 @@
 
   然后可以使用`geo_distance`过滤器执行以下查询
 
-  ```json
+  ```yaml
   GET /company-locations/_search
   {
     "query": {
@@ -157,7 +157,7 @@ Elastic的动态映射机制可以进行开关控制，通过设置mappings的dy
 - false：遇到陌生字段就忽略
 - strict：遇到陌生字段就报错
 
-```json
+```yaml
 # 设置为报错
 PUT /user
 {
