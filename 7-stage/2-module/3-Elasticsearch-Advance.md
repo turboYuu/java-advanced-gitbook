@@ -2732,6 +2732,8 @@ ES 提供多种不同的客户端：
 
 ## 8.2 SpringBoot 中使用 RestClient
 
+The Java High Level REST Client supports the following Search APIs<br>https://www.elastic.co/guide/en/elasticsearch/client/java-rest/7.3/_search_apis.html
+
 1. 配置pom.xml
 
    ```xml
