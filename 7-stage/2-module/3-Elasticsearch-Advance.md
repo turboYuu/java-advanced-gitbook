@@ -2732,6 +2732,180 @@ ES 提供多种不同的客户端：
 
 ## 8.2 SpringBoot 中使用 RestClient
 
+1. 配置pom.xml
+
+   ```xml
+   <parent>
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-starter-parent</artifactId>
+       <version>2.0.1.RELEASE</version>
+   </parent>
+   
+   <dependencies>
+       <dependency>
+           <groupId>org.springframework.boot</groupId>
+           <artifactId>spring-boot-starter-test</artifactId>
+       </dependency>
+       <dependency>
+           <groupId>org.elasticsearch.client</groupId>
+           <artifactId>elasticsearch-rest-high-level-client</artifactId>
+           <version>7.3.0</version>
+           <exclusions>
+               <exclusion>
+                   <groupId>org.elasticsearch</groupId>
+                   <artifactId>elasticsearch</artifactId>
+               </exclusion>
+           </exclusions>
+       </dependency>
+       <dependency>
+           <groupId>org.elasticsearch</groupId>
+           <artifactId>elasticsearch</artifactId>
+           <version>7.3.0</version>
+       </dependency>
+   </dependencies>
+   ```
+
+2. application.yml文件配置
+
+   ```yaml
+   turboelasticsearch:
+     elasticsearch:
+       hostlist: 192.168.31.71:9200
+   ```
+
+3. 配置类
+
+   ```java
+   package com.turbo.config;
+   
+   import org.apache.http.HttpHost;
+   import org.elasticsearch.client.RestClient;
+   import org.elasticsearch.client.RestHighLevelClient;
+   import org.springframework.beans.factory.annotation.Value;
+   import org.springframework.context.annotation.Bean;
+   import org.springframework.context.annotation.Configuration;
+   
+   @Configuration
+   public class ElasticsearchConfig {
+   
+       @Value("${turboelasticsearch.elasticsearch.hostlist}")
+       private String hostlist;
+   
+       @Bean
+       public RestHighLevelClient restHighLevelClient(){
+           // 解析 hostlist 信息
+           String[] split = hostlist.split(",");
+           // 创建HttpHost数组 封装Es的主机和端口
+           HttpHost[] httpHosts = new HttpHost[split.length];
+           for (int i = 0; i < split.length; i++) {
+               String iterm = split[i];
+               httpHosts[i] = new HttpHost(iterm.split(":")[0],
+                       Integer.parseInt(iterm.split(":")[1]),"http");
+           }
+           return new RestHighLevelClient(RestClient.builder(httpHosts));
+       }
+   }
+   ```
+
+4. 启动类
+
+   ```java
+   package com.turbo;
+   
+   import org.springframework.boot.SpringApplication;
+   import org.springframework.boot.autoconfigure.SpringBootApplication;
+   
+   @SpringBootApplication
+   public class ESApplication {
+       public static void main(String[] args) {
+           SpringApplication.run(ESApplication.class,args);
+       }
+   }
+   ```
+
+5. 索引操作
+
+   ```java
+   package com.turbo;
+   
+   import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+   import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+   import org.elasticsearch.client.IndicesClient;
+   import org.elasticsearch.client.RequestOptions;
+   import org.elasticsearch.client.RestHighLevelClient;
+   import org.elasticsearch.common.xcontent.XContentBuilder;
+   import org.elasticsearch.common.xcontent.XContentFactory;
+   import org.junit.Test;
+   import org.junit.runner.RunWith;
+   import org.springframework.beans.factory.annotation.Autowired;
+   import org.springframework.boot.test.context.SpringBootTest;
+   import org.springframework.test.context.junit4.SpringRunner;
+   
+   import java.io.IOException;
+   
+   @SpringBootTest
+   @RunWith(SpringRunner.class)
+   public class TestIndex {
+   
+       @Autowired
+       private RestHighLevelClient client;
+   
+       // 创建索引库
+       /*
+       PUT /elasticsearch_test
+       {
+           "settings": {},
+           "mappings": {
+               "properties": {
+                   "description": {
+                       "type": "text",
+                               "analyzer": "ik_max_word"
+                   },
+                   "name": {
+                       "type": "keyword"
+                   },
+                   "pic": {
+                       "type": "text",
+                               "index": false
+                   },
+                   "studymodel": {
+                       "type": "keyword"
+                   }
+               }
+           }
+       }*/
+   
+       @Test
+       public void testCreateIndex() throws IOException {
+           // 创建一个索引请求对象
+           CreateIndexRequest createIndexRequest = new CreateIndexRequest("elasticsearch_test");
+           // 设置参数
+   
+           // 设置mapping
+           XContentBuilder builder = XContentFactory.jsonBuilder()
+                   .startObject()
+                   .field("properties")
+                   .startObject()
+                   .field("description").startObject().field("type","text").field("analyzer","ik_max_word").endObject()
+                   .field("name").startObject().field("type","keyword").endObject()
+                   .field("pic").startObject().field("type","text").field("index",false).endObject()
+                   .field("studymodel").startObject().field("type","keyword").endObject()
+                   .endObject()
+                   .endObject();
+           createIndexRequest.mapping("doc",builder);
+           // 操作索引的客户端
+           IndicesClient indicesClient = client.indices();
+   
+           final CreateIndexResponse createIndexResponse = indicesClient.create(createIndexRequest, RequestOptions.DEFAULT);
+           // 得到响应
+           final boolean acknowledged = createIndexResponse.isAcknowledged();
+           System.out.println(acknowledged);
+       }
+   }
+   ```
+
+   
+
 
 
 
