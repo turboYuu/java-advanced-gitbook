@@ -36,7 +36,7 @@
 
     - 客户端节点（client）
 
-      不会成为主节点，也不会存储数据，主要是神对海量请求的时候可以进行负载均衡
+      不会成为主节点，也不会存储数据，主要是针对海量请求的时候可以进行负载均衡
 
       ```properties
       node.master: false
@@ -270,6 +270,11 @@ es-head 主要有三个方面的操作：
 elasticsearch只是后端提供各种api，那么怎么直观的使用它呢？elasticsearch-head将是一款专门针对于 elasticsearch 的客户端工具 elasticsearch-head配置包，下载地址：[https://github.com/mobz/elasticsearch-head](https://github.com/mobz/elasticsearch-head) elasticsearch-head是一个基于node.js的前端工程。
 
 1. nodejs安装
+
+   ```shell
+   [root@node2 ~]# wget https://nodejs.org/dist/v10.15.3/node-v10.15.3-linux-x64.tar.xz
+   
+   ```
 
    
 
