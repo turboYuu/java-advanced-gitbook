@@ -149,7 +149,7 @@ Elasticsearch是一个分布式系统，隐藏了复杂的处理机制
 | -------- | ------------- | ------ | ---------------- |
 | centos 7 | 192.168.31.72 | 9200   | 是               |
 | centos 7 | 192.168.31.72 | 9201   | 是               |
-| centos 7 | 192.168.31.72 | 9203   | 是               |
+| centos 7 | 192.168.31.72 | 9202   | 是               |
 
 ## 3.1 节点搭建
 
@@ -174,9 +174,104 @@ elasticsearch.yml配置文件说明：
 
 只需要在之前的基础上，打开配置文件elasticsearch.yml，添加如下配置：
 
+```yaml
+cluster.name: my-es   #集群名称         --- 
+node.name: node-1 # 节点名称      
+node.master: true #当前节点是否可以被选举为master节点，是：true、否：false  --- 
+network.host: 0.0.0.0
+http.port: 9200
+transport.port: 9300    # ---
+#初始化一个新的集群时需要此配置来选举master
+cluster.initial_master_nodes: ["node-1","node-2","node-3"] 
+#写入候选主节点的设备地址         ---
+discovery.seed_hosts: ["127.0.0.1:9300", "127.0.0.1:9301","127.0.0.1:9302"] 
+http.cors.enabled: true
+http.cors.allow-origin: "*"
 ```
 
+修改完配置文件之后，一定要把之前的**data目录下node数据删除**在重新启动服务即可。
+
+**第二节点配置**：
+
+拷贝原来的ES节点elasticsearch，并命名为 elasticsearch1，并授权：
+
+```shell
+cp elasticsearch/ elasticsearch1 -rf
+chown -R estest elasticsearch1
 ```
+
+进入elasticsearch1 目录config文件夹，修改 elasticsearch.yml 配置文件并保存。
+
+```yaml
+# 修改node.name 和 http.port transport.port
+node.name: node-2
+http.port: 9201
+transport.port: 9301
+```
+
+```shell
+# 启动从环境1，一定要用estest用户来执行
+cd bin/
+./elasticsearch
+```
+
+**第三节点配置**：
+
+拷贝第一个节点，并命名为elasticsearch2，并授权：
+
+```shell
+cp elasticsearch/ elasticsearch2 -rf
+chown -R estest elasticsearch2
+```
+
+进入elasticsearch2目录 config文件夹，修改elasticsearch.yml配置文件并保存。
+
+```yaml
+# 修改node.name 和 http.port transport.port
+node.name: node-3
+http.port: 9202
+transport.port: 9302
+```
+
+```shell
+# 启动从环境2，一定要用estest用户来执行
+cd bin/
+./elasticsearch
+```
+
+简单验证
+
+```xml
+http://192.168.1.72:9200/_cat/health?v
+```
+
+![image-20220117152551321](assest/image-20220117152551321.png)
+
+## 3.2 Elasticsearch Head插件介绍及安装 和 验证主从环境
+
+Elasticsearch Head插件介绍及安装
+
+> elasticsearch-head 简介
+
+elasticsearch-head 是一个界面化的集群操作和管理工具，可以对集群进行傻瓜式操作。你可以通过插件把它集成到ES。
+
+es-head 主要有三个方面的操作：
+
+1. 显示集群拓扑，能够快速访问并显示集群的状态，并且能够执行索引和节点级别操作
+2. 搜索接口能够查询集群中原始json或表格格式的检索数据
+3. 有一个输入窗口，允许任意调用RESTful API。
+
+官方文档：https://github.com/mobz/elasticsearch-head
+
+> elasticsearch-head 安装
+
+安装步骤：
+
+elasticsearch只是后端提供各种api，那么怎么直观的使用它呢？elasticsearch-head将是一款专门针对于 elasticsearch 的客户端工具 elasticsearch-head配置包，下载地址：[https://github.com/mobz/elasticsearch-head](https://github.com/mobz/elasticsearch-head) elasticsearch-head是一个基于node.js的前端工程。
+
+1. nodejs安装
+
+   
 
 
 
