@@ -55,7 +55,7 @@
 
 ```
 提高恢复能力：当主分片挂掉时，某个复制分片可以变成主分片
-提高性能：get 和 search 请求既可以又主分片又可以由复制分片处理
+提高性能：get 和 search 请求既可以由主分片又可以由复制分片处理
 ```
 
 
@@ -112,11 +112,11 @@ Elasticsearch是一个分布式系统，隐藏了复杂的处理机制
 
 分片机制：将文本数切割成n个小份存储在不同的节点上，减少大文件存储在单个节点上对设备带来的压力。
 
-分片副本：在集群中某个节点宕机后，通过副本可以快速最缺失数据进行复盘。
+分片副本：在集群中某个节点宕机后，通过副本可以快速对缺失数据进行复盘。
 
 
 
-- 集群发现机制（CLuster Discovery）：在当前启动了一个Elasticsearch进程，在启动第二个Elasticsearch进程时，这个进程将作为一个node自动就发现了集群，并自定加入，前提是这些node都必须配置一套集群信息。
+- 集群发现机制（CLuster Discovery）：在当前启动了一个Elasticsearch进程，再启动第二个Elasticsearch进程时，这个进程将作为一个node自动就发现了集群，并自动加入，前提是这些node都必须配置一套集群信息。
 - Shard负载均衡：例如现在有 10 个shard（分片），集群中有 三个节点，Elasticsearch会进行均衡分配，以保证每个节点均衡的负载请求。
 
 **扩容机制**
@@ -175,7 +175,7 @@ elasticsearch.yml配置文件说明：
 只需要在之前的基础上，打开配置文件elasticsearch.yml，添加如下配置：
 
 ```yaml
-cluster.name: my-es   #集群名称         --- 
+cluster.name: my-es   #集群名称 --- 
 node.name: node-1 # 节点名称      
 node.master: true #当前节点是否可以被选举为master节点，是：true、否：false  --- 
 network.host: 0.0.0.0
@@ -272,13 +272,109 @@ elasticsearch只是后端提供各种api，那么怎么直观的使用它呢？e
 1. nodejs安装
 
    ```shell
-   [root@node2 ~]# wget https://nodejs.org/dist/v10.15.3/node-v10.15.3-linux-x64.tar.xz
-   
+   # 下载
+   [root@node2 ~]# wget https://nodejs.org/download/release/v10.15.3/node-v10.15.3-linux-x64.tar.xz
+   # 解压
+   [root@node2 ~]# tar xf node-v10.15.3-linux-x64.tar.xz
+   # 进入解压目录
+   [root@node2 ~]# cd node-v10.15.3-linux-x64
+   # 执行node命令 查看版本
+   [root@node2 node-v10.15.3-linux-x64]# ./bin/node -v
+   v10.15.3
    ```
 
+   解压文件的bin目录底下包含了 node、npm等命令，可以使用 ln 命令来设置软连接：
+
+   ```shell
+   [root@node2 ~]# ln -s /root/node-v10.15.3-linux-x64/bin/npm /usr/local/bin/
+   [root@node2 ~]# ln -s /root/node-v10.15.3-linux-x64/bin/node /usr/local/bin/
+   ```
+
+2. phantomjs安装配置
+
+   ```shell
+   [root@node2 ~]# cd /usr/local/
+   [root@node2 local]# wget https://bitbucket.org/ariya/phantomjs/downloads/phantomjs-2.1.1-linux-x86_64.tar.bz2
+   # 注意安装
+   [root@node2 ~]# yum install -y bzip2
+   [root@node2 local]# tar -jxvf phantomjs-2.1.1-linux-x86_64.tar.bz2
+   [root@node2 ~]# vim /etc/profile
+   export PATH=$PATH:/usr/local/phantomjs-2.1.1-linux-x86_64/bin
+   # 注意环境变量 $PATH 移动在最前面
+   [root@node2 ~]# source /etc/profile
+   ```
+
+3. elasticsearch-head安装
+
+   ```shell
+   [root@node2 ~]# npm install -g grunt-cli
+   [root@node2 ~]# npm install grunt
+   [root@node2 ~]# npm install grunt-contrib-clean
+   [root@node2 ~]# npm install grunt-contrib-concat
+   [root@node2 ~]# npm install grunt-contrib-watch
+   [root@node2 ~]# npm install grunt-contrib-connect
+   [root@node2 ~]# yum -y install git
+   [root@node2 local]# git clone git://github.com/mobz/elasticsearch-head.git
+   [root@node2 local]# cd elasticsearch-head/
+   [root@node2 elasticsearch-head]# npm install -g cnpm --registry=https://registry.npm.taobao.org
+   ```
+
+4. elasticsearch-head 发现主机，并连接 。elasticsearch.yml配置文件修改：
+
+   如果之前设置过，可以忽略这一步
+
+   ```yaml
+   http.cors.enabled: true
+   http.cors.allow-origin:yaml "*"
+   ```
+
+5. 启动
+
+   在elasticsearch-head中执行命令
+
+   ```shell
+   npm run start
+   # 如果启动出错，则把第三步中的依赖再安装一遍
+   ```
+
+   ![image-20220117172639691](assest/image-20220117172639691.png)
+
+6. 启动完成后，用Elasticsearch head查看，主从环境配置正常。
+
+   ![image-20220117172604854](assest/image-20220117172604854.png)
+
+   在kibana中建立下面的索引
+
+   ```yaml
+   PUT /turbo-employee-index
+   {
+     "settings": {},
+     "mappings": {
+       "properties": {
+         "name":{
+           "type": "text"
+         }
+       }
+     }
+   }
    
+   PUT /turbo-company-index
+   {
+     "settings": {
+       "number_of_shards": "2",
+       "number_of_replicas": "2"
+     },
+     "mappings": {
+       "properties": {
+         "name": {
+           "type": "text"
+         }
+       }
+     }
+   }
+   ```
 
-
+   ![image-20220117174103721](assest/image-20220117174103721.png)
 
 # 4 集群规划
 
