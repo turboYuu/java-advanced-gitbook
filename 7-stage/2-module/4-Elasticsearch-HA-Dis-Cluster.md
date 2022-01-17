@@ -576,41 +576,35 @@ PUT /my_index/_settings {
 
 在搜索时使用Query，需要为Document的相关度打分。使用Filter，没有打分环节，做的事情更少，而且filter理论上更快一些。
 
-如果搜索不需要打分，可以直接使用filter
+如果搜索不需要打分，可以直接使用filter查询。如果部分搜索需要打分，建议使用 'bool' 查询。这种方式可以把打分的查询和不打分的查询组合在一起使用，如：
 
+```yaml
+GET /_search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "term": {
+          "user": "kimchy"
+        }
+      },
+      "filter": {
+        "term": {
+          "tag": "tech"
+        }
+      }
+    }
+  }
+}
+```
 
+### 5.2.3 ID字段定义为keyword
 
+一半情况，如果ID字段不会被用作Range类型搜索字段，搜可以定义成keyword类型。这是因为keyword会被优化，以便进行terms查询。Integers等数据类的mapping类型，会被优化来进行range类型搜索。
 
+将integer改成keyword类型之后，搜索性能大约能提升 30%。
 
+### 5.2.4 别让用户的无约束的输入拖累了ES集群的性能
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+为了不让用户无约束的查询语句拖累ES集群的查询性能，可以限制用户用来查询的keywords。对于可以用来查询的keywords，也可以写成文档来帮助用户更正确的使用。
 
