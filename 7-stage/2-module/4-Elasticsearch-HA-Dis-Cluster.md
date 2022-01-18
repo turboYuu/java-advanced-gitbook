@@ -481,7 +481,7 @@ MySQL中的数据快速写入Elasticsearch的几个方面优化
 
 ### 5.1.1 副本数置0
 
-如果是集群首次灌入数据，可以将副本数设置为0，写入完毕再调整会去，这样副本分片只需要拷贝，节省了索引过程。
+如果是集群首次灌入数据，可以将副本数设置为0，写入完毕再调整回去，这样副本分片只需要拷贝，节省了索引过程。
 
 ```yaml
 PUT /my_temp_index/_settings 
@@ -497,12 +497,12 @@ PUT /my_temp_index/_settings
 ### 5.1.3 合理设置 mappings
 
 - 将不需要建立索引的字段index属性设置为 not_analyzed或no。对字段不分词，或者不索引，可以减少很多运算操作，降低CPU占用，尤其是binary类型，默认情况下占用CPU非常高，而这种类型进行分词通常没有什么意义。
-- 减少字段内容长度，如果原始数据的打断内容无须全部建立索引，则可以尽量减少不必要的内容。
-- 使用不同的分析器（analyzer），不同的分析器在索引过程中，运算复杂度也有较大的差异。
+- 减少字段内容长度，如果原始数据的大段内容无须全部建立索引，则可以尽量减少不必要的内容。
+- 使用不同的分词器（analyzer），不同的分词器在索引过程中，运算复杂度也有较大的差异。
 
 ### 5.1.4 调整 _source 字段
 
-source字段用于存储doc原始数据，对于部分不需要存储的字段，可以通过 includes excludes过滤，或者将source禁用，一般用于索引和数据分离，这样可以降低 I/O 的压力，不过实际场景中大多数不会禁用_source。
+_source字段用于存储doc原始数据，对于部分不需要存储的字段，可以通过 includes excludes过滤，或者将  _source禁用，一般用于索引和数据分离，这样可以降低 I/O 的压力，不过实际场景中大多数不会禁用 _source。
 
 ### 5.1.5 对analyzed的字段禁用norms
 
@@ -536,7 +536,7 @@ PUT /my_index/_settings {
 
 ![image-20220117220444091](assest/image-20220117220444091.png)
 
-比如每批1000个document是一个性能比较好的size。每批中多少document条数合适，受很多因素印象而不同，如单个document的大小等。ES官网建议通过在单个node、单个shard做性能基准测试来确定这个参数的最优值。
+比如每批1000个document是一个性能比较好的size。每批中多少document条数合适，受很多因素影响而不同，如单个document的大小等。ES官网建议通过在单个node、单个shard做性能基准测试来确定这个参数的最优值。
 
 ### 5.1.8 Document的路由处理
 
@@ -598,7 +598,7 @@ GET /_search
 
 ### 5.2.3 ID字段定义为keyword
 
-一半情况，如果ID字段不会被用作Range类型搜索字段，搜可以定义成keyword类型。这是因为keyword会被优化，以便进行terms查询。Integers等数据类的mapping类型，会被优化来进行range类型搜索。
+一般情况，如果ID字段不会被用作Range类型搜索字段，搜可以定义成keyword类型。这是因为keyword会被优化，以便进行terms查询。Integers等数据类的mapping类型，会被优化来进行range类型搜索。
 
 将integer改成keyword类型之后，搜索性能大约能提升 30%。
 
