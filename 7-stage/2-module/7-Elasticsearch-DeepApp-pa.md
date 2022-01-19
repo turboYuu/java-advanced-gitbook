@@ -1,5 +1,7 @@
 第七部分 Elasticsearch深度应用及原理剖析
 
+[Elasticsearch: 权威指南](https://www.elastic.co/guide/cn/elasticsearch/guide/current/index.html)
+
 # 1 索引文档写入和近实时搜索原理
 
 ## 1.1 基本概念
@@ -14,7 +16,7 @@
 
 ### 1.1.2 Commits in Lucene
 
-Commit 操作意味着将Segment 合并，并写入磁盘。保证内存数据尽量不丢失。但是刷盘是很重要的 IO 操作，索引为了机器性能和近实时搜索，并不会刷盘那么及时。
+Commit 操作意味着将Segment 合并，并写入磁盘。保证内存数据尽量不丢失。但是刷盘是很重的 IO 操作，索引为了机器性能和近实时搜索，并不会刷盘那么及时。
 
 ### 1.1.3 Translog
 
@@ -26,7 +28,7 @@ Commit 操作意味着将Segment 合并，并写入磁盘。保证内存数据�
 
 在Elasticsearch中，`_refresh`操作默认每秒执行一次，意味着将内存 buffer 的数据写入到一个新的 Segment 中，这个时候索引变成了可被检索的。写入新Segment后，会清空内存buffer。
 
-![Refresh-in-Elasticsearc](assest/0ce7a70dede942f7a465b528fa9ead99.png)
+![Refresh-in-Elasticsearch](assest/0ce7a70dede942f7a465b528fa9ead99.png)
 
 ### 1.1.5 Flush in Elasticsearch
 
@@ -36,11 +38,13 @@ Commit 操作意味着将Segment 合并，并写入磁盘。保证内存数据�
 
 ## 1.2 近实时搜索
 
+[近实时搜索-官网参考](https://www.elastic.co/guide/cn/elasticsearch/guide/current/near-real-time.html)
+
 提交（Commiting）一个新的段到磁盘需要一个 `fsync` 来确保段被物理性的写入磁盘，这样在断电的时候就不会丢失数据。但是`fsync`操作代价很大；如果每次索引一个文档都去执行一次的话会造成很大的性能问题。
 
-我们需要的是一个更轻量的方式来使一个文档可被搜索，这意味着 `fsync`要从整个过程中被移除。
+我们需要的是一个更轻量的方式来使一个文档可被搜索，这意味着 `fsync` 要从整个过程中被移除。
 
-在Elasticsearch 和 磁盘之间是文件系统缓存。像之前描述的一样，在内存索引缓冲区中的文档会被写入到一个新的段中。但是这里新段会被先写入到文件系统缓存——这一步代价会比较低，稍后再被刷新到磁盘——这一步代价比较高。不过只要文件已经存在系统缓存中，就可以像其他文件一样被打开和读取了。
+在Elasticsearch 和 磁盘之间是文件系统缓存。像之前描述的一样，在内存索引缓冲区中的文档会被写入到一个**新的段**（文件系统缓存中的结构）中。**但是这里新段会被先写入到文件系统缓存**——这一步代价会比较低，稍后再被刷新到磁盘——这一步代价比较高。不过只要文件已经在系统缓存中，就可以像其他文件一样被打开和读取了。
 
 **在内存缓冲区中包含了新文档的Lucene索引**：
 
@@ -54,17 +58,30 @@ Lucene 允许新段被写入和打开——使其包含的文档在未进行一�
 
 ### 1.2.1 原理
 
-下图表示是 es 写操作流程，当一个写请求发送到 es 后，es将数据写入 `memory buffer`中，并添加事务日志（`translog`）。如果每次一条数据写入内存后立即写到硬盘文件上，由于写入的数据肯定是离散的，因此写入因公安的操作也就是随机写入。硬盘随机写入的效率相当低，会严重降低 es 的性能。
+下图表示是 es 写操作流程，当一个写请求发送到 es 后，es将数据写入 `memory buffer`中，并添加事务日志（`translog`）。如果每次一条数据写入内存后立即写到硬盘文件上，由于写入的数据肯定是离散的，因此写入硬盘的操作也就是随机写入。硬盘随机写入的效率相当低，会严重降低 es 的性能。
 
 因此 es 在设计时`memory buffer`和硬盘间加入了 Linux 的高速缓存（`File system cache`）来提高 es 的写效率。
 
-当写请求发送到 es 后，es将数据暂时写入`memory buffer`中，此时写入的数据还不能被查询到。默认设置下，es 每1秒钟 将`memory buffer`中的数据 `refresh`到 Linux的`File system cache`，并清空`memory buffer`，此时写入的数据就可以被查询到了。
+当写请求发送到 es 后，es将数据暂时写入`memory buffer`中，此时写入的数据还不能被查询到。默认设置下，es 每1秒钟 将 `memory buffer`中的数据 `refresh`到 Linux的 `File system cache`，并清空`memory buffer`，此时写入的数据就可以被查询到了。
 
 ![es写操作流程](assest/image-20220119192815723.png)
 
 
 
 ### 1.2.2  refresh API
+
+在Elasticsearch中，写入和打开一个新段的轻量的过程叫做*refresh*。默认情况下每个分片每秒自动刷新一次。这就是为什么我们说 Elasticsearch 是 **近**实时搜索：文档的变化并不是立即对搜索可见，但会在一秒之内变为可见。
+
+这性行为可能会对新用户造成困惑：他们索引了一个文档然后尝试搜索它，但是没有搜到。这个问题的解决办法使用`refresh` API执行一次手动刷新：
+
+```yaml
+1. POST  /_refresh
+2. POST  /my_blogs/_refresh
+3. PUT   /my_blogs/_doc/1?refresh 
+   {"test": "test"}
+   PUT /test/_doc/2?refresh=true 
+   {"test": "test"}
+```
 
 
 
