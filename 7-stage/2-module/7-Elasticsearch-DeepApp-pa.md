@@ -2,6 +2,30 @@
 
 # 1 索引文档写入和近实时搜索原理
 
+## 1.1 基本概念
+
+### 1.1.1 Segment in Lucene
+
+### 1.1.2 Commits in Lucene
+
+### 1.1.3 Translog
+
+### 1.1.4 Refresh in Elasticsearch
+
+### 1.1.5 Flush in Elasticsearch
+
+## 1.2 近实时搜索
+
+### 1.2.1 原理
+
+### 1.2.2  refresh API
+
+## 1.3 持久化变更
+
+### 1.3.1 原理
+
+### 1.3.2 flush API
+
 # 2 索引文档存储段合并机制（segment merge、policy、optimize）
 
 # 3 并发冲突处理机制剖析
