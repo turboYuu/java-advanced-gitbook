@@ -60,7 +60,7 @@ Lucene 允许新段被写入和打开——使其包含的文档在未进行一�
 
 当写请求发送到 es 后，es将数据暂时写入`memory buffer`中，此时写入的数据还不能被查询到。默认设置下，es 每1秒钟 将`memory buffer`中的数据 `refresh`到 Linux的`File system cache`，并清空`memory buffer`，此时写入的数据就可以被查询到了。
 
-![image-20220119192815723](assest/image-20220119192815723.png)
+![es写操作流程](assest/image-20220119192815723.png)
 
 
 
