@@ -614,6 +614,14 @@ es, _version=1, ?version>1&version_type=external, 才能成功，eg:
 
 # 4 分布式数据一致性如何保证？quorum及timeout机制的原理
 
+## 4.1 ES 5.0 以前的一致性
+
+## 4.2 quorum 机制
+
+## 4.3 timeout 机制
+
+## 4.4 Elasticsearch 5.0 及以后的版本
+
 # 5 Query文档搜索机制剖析
 
 # 6 文档增删改查和搜索请求过程
