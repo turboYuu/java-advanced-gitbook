@@ -200,7 +200,100 @@ Elasticsearch 增加了一个 *translog*，或者叫事务日志，在每一次�
 
 # 2 索引文档存储段合并机制（segment merge、policy、optimize）
 
+[段合并-官网参考](https://www.elastic.co/guide/cn/elasticsearch/guide/current/merge-process.html)
+
+## 2.1 段合并机制
+
+由于自动刷新流程每秒会创建一个新的段，这样会导致短时间内的段数量暴增。而段数目太多会带来较大的麻烦。每一段都会消耗文件句柄、内存和CPU运行周期。更重要的是，每个搜索请求都必须轮流检查每个段；所以段越多，搜索也就越慢。
+
+Elasticsearch 通过在后台进行段合并来解决这个问题。小的段被合并到大的段，然后这些大的段再被合并到更大的段。段合并的时候会将那些旧的已删除文档 从文件系统中清除。被删除的文档（或被更新文档的旧版本）不会被拷贝到新的大段中。
+
+启动段合并会在进行索引和搜索时自动进行。这个流程如下图：
+
+1. 当索引的时候，刷新（refresh）操作会创建新的段并将段打开以供搜索使用
+
+2. 合并进程选择一小部分大小相似的段，并且在后台将他们合并到更大的段中。这并不会中断索引和搜索。
+
+   ![Two commited segments and one uncommited segment in the process of being merged into a bigger segment](assest/elas_1110.png)
+
+3. 合并完成时的活动：
+
+   - 新的段被刷新（flush）到磁盘。写入一个包含新段且排除旧的和较小的段的新提交点。
+   - 新的段被打开用来搜索。
+   - 老的段被删除
+
+   ***一旦合并结束，老的段被删除***
+
+   ![一旦合并结束，老的段被删除](assest/elas_1111.png)
+
+   合并大的段需要消耗大量的 I/O 和 CPU 资源，如果任其发展会影响搜索性能。Elasticsearch 在默认情况下会对合并流程进行资源，所以搜索仍然有足够的资源很好的执行。
+
+   默认情况下，归并线程的限速配置 indices.store.throttle.max_bytes_per_sec 是 20MB。对于写入量较大，磁盘转速较高，甚至使用 SSD 盘的服务器来说，可以考虑提高到100-200MB/s。
+
+   ```yaml
+   PUT /_cluster/settings 
+   {
+      "persistent" : {
+          "indices.store.throttle.max_bytes_per_sec" : "100mb"  }
+   }
+   ```
+
+   用于控制归并线程的数目，推荐设置为 cpu 核心数的一半，如果觉得自己磁盘性能跟不上，可以降低配置，免得IO瓶颈。
+
+   ```yaml
+   # 在elasticsearch.yml中配置
+   index.merge.scheduler.max_thread_count: 1
+   ```
+
+
+
+> 查看 [段和合并](https://www.elastic.co/guide/cn/elasticsearch/guide/current/indexing-performance.html#segments-and-merging) 来为你的实例获取关于合并调整的建议
+
+## 2.2 归并策略
+
+```yaml
+# 归并线程是按照一定的运行策略来挑选 segment 进行归并的。主要有以下几条：
+
+index.merge.policy.floor_segment # 默认 2MB，小于这个大小的segment，优先被归并
+index.merge.policy.max_merge_at_once # 默认一次最多归并10个segment
+index.merge.policy.max_merge_at_once_explicit #默认 optimize时 一次最多归并 30个segment
+index.merge.policy.max_merged_segment # 默认5GB，大于这个大小的 segment，不用参与归并。optimize除外。
+```
+
+
+
+## 2.3 optimize API
+
+`optimize` API 可以看作是 强制合并 API。它会将一个分片强制合并到`max_num_segments` 参数指定大小的段数目。这样做的意图是减少段的数量（通常减少到一个），来提升搜索性能。
+
+在特定情况下，使用`optimize` API 颇有益处。例如在日志这种用例下。每天、每周、每月的日志被存储在一个索引中。老的索引实质上是只读；他们也并不太可能发生变化。这种情况下，使用 optimize 优化老的索引，将每一个分片合并为一个单独的段就有用了；这样既可以节省资源，也可以使搜索更加快速：
+
+```yaml
+#合并索引中的每个分片为一个单独的段
+POST /logstash-2014-10/_optimize?max_num_segments=1
+```
+
+```yaml
+forceMergeRequest.maxNumSegments(1)
+```
+
+
+
 # 3 并发冲突处理机制剖析
+
+## 3.1 详解并发冲突
+
+## 3.2 解决方案
+
+### 3.2.1 悲观锁
+
+### 3.2.2 乐观锁
+
+### 3.2.3 Elasticsearch 的乐观锁
+
+### 3.2.4 es的乐观锁并发控制示例
+
+### 3.2.5 基于 external version进行乐观锁并发控制
 
 # 4 分布式数据一致性如何保证？quorum及timeout机制的原理
 
