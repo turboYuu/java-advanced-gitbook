@@ -83,13 +83,82 @@ Lucene 允许新段被写入和打开——使其包含的文档在未进行一�
    {"test": "test"}
 ```
 
+1. 刷新（Refresh）所有的索引
+2. 只刷新（Refresh）`my_blogs`索引
+3. 只刷新 文档
+
+并不是所有的情况都需要每秒刷新。可能你正在使用 Elasticsearch 索引大量的日志文件，你可能想优化索引速度而不是近实时搜索，可以通过设置`refresh_interval`，降低每个索引的刷新频率。
+
+```yaml
+PUT /my_logs
+{
+  "settings": {
+    "refresh_interval": "30s" 
+  }
+}
+```
+
+`refresh_interval`可以在既存索引上进行动态更新。在生产环境中，当你正在建立一个大的新索引时，可以先关闭自动刷新，待开始使用索引时，再把它们调回来：
+
+```yaml
+PUT /my_logs/_settings
+{ "refresh_interval": -1 } 
+
+PUT /my_logs/_settings
+{ "refresh_interval": "1s" } 
+```
+
 
 
 ## 1.3 持久化变更
 
+[持久化变更-官网参考](https://www.elastic.co/guide/cn/elasticsearch/guide/current/translog.html)
+
 ### 1.3.1 原理
 
+如果没有用`fsync`把数据从文件系统缓存 刷（flush）到硬盘，不能保证数据在断电甚至是程序正常退出之后依然存在。为了保证 Elasticsearch 的可靠性，需要确保数据变化被持久化到磁盘。
+
+在 [动态更新索引]()，我们说一次完整的提交会将段刷到磁盘，并写入一个包含所有段列表的提交点。Elasticsearch 在启动或重新打开一个索引的过程中 ***使用这个提交点来判断哪些段隶属于当前分片***。
+
+即使通过每秒刷新（refresh）实现了近实时搜索，我们仍然需要经常进行完整提交来确保能从失败中恢复。但是两次提交之间变化的文档怎么办？我们也不希望丢失这些数据。
+
+Elasticsearch 增加了一个 *translog*，或者叫事务日志，在每一次对 Elasticsearch 进行操作时均进行了日志记录。通过 translog，整个流程看起来是下面这样：
+
+1. 一个文档被索引之后，就会被添加到内存缓冲区，并且追加到了 translog，如下图：
+
+   ![New documents are added to the in-memory buffer and appended to the transaction log](assest/elas_1106.png)
+
+2. 刷新（refresh）使分片处于 ”刷新（refresh）完成后，缓存被清空但是事务日志不会“ 的状态，分片每秒被刷新（refresh）一次：
+
+   - 这些在内存缓冲区的文档被写入到一个新的段中，且没有进行`fsync`操作。
+   - 这个段被打开，使其可被搜索
+   - 内存缓冲区被清空
+
+   ![After a refresh, the buffer is cleared but the transaction log is not](assest/elas_1107.png)
+
+3. 这个进程继续工作，更多的文档被添加到内存缓冲区和追加到事务日志（见下图：事务日志不断积累文档）。
+
+   ![The transaction log keeps accumulating documents](assest/elas_1108.png)
+
+4. 每隔一段时间——例如 translog 变得越大——索引被刷新（flush）；一个新的 translog 被创建，并且一个全量提交被执行（见下图：在刷新（flush）之后，段被全量提交，并且事务日志被清空）：
+
+   - 所有在内存缓冲区的文档都被写入一个新的阶段
+   - 缓冲区被清空
+   - 一个提交点被写入硬盘
+   - 文件系统缓存通过`fsync`被刷新（flush）
+   - 老的 translog 被删除
+
+   translog 提供所有还没有被刷到磁盘的操作的一个持久化记录。当Elasticsearch启动的时候，它会从磁盘中使用最后一个提交点去恢复已知的段，并且会重放 translog 中所有在最后一次提交后发生的变更操作
+
+   translog 也被用来提供实时 CRUD。当你试着通过 ID 查询、更新、删除一个文档，它会在尝试从相应的段中检索之前，首先检查 translog 任何最近的变更。这意味着它总是能够实时地获取到文档的最新版本。
+
+   ***在刷新（flush）之后，段被全量提交，并且事务日志被清空***
+
+   ![After a flush, the segments are fully commited and the transaction log is cleared](assest/elas_1109.png)
+
 ### 1.3.2 flush API
+
+
 
 # 2 索引文档存储段合并机制（segment merge、policy、optimize）
 
