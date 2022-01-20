@@ -614,11 +614,40 @@ es, _version=1, ?version>1&version_type=external, 才能成功，eg:
 
 # 4 分布式数据一致性如何保证？quorum及timeout机制的原理
 
+在分布式环境中，一致性指的是多个数据副本是否能保持一致的特性。
+
+在一致性的条件下，系统在执行数据更新操作之后能从一致性状态转移到另一个一致性状态。对系统的一个数据更新成功之后，如果所有用户能够读取到最新的值，该系统就被认为具有强一致性。
+
 ## 4.1 ES 5.0 以前的一致性
+
+consistency(参数名称)：参数值包括：one（primary shard），all（all shard），quorum（default）
+
+我们在发送任何一个增删改 操作的时候，比如`PUT /index/indextype/id`，都可以带上一个 consistency 参数，指明我们想要的写一致性是什么？`PUT /index/indextype/id?consistency=quorum`。
+
+one：要求我们这个写操作，只要有一个primary shard是active状态，就可以执行。<br>all：要求我们这个写操作，必须所有的primary shard和replica shard都是活跃的，才可以执行这个写操作。<br>quorum：默认值，要求所有的shard中，必须是法定数的shard都是活跃的，可用的，才可以执行这个写操作。
 
 ## 4.2 quorum 机制
 
+写之前必须确定法定数shard可用
+
+1. 公式：
+
+   ```xml
+   int((primary shard + number_of_replicas) / 2) + 1
+   当number_of_replicas > 1 时才生效
+   ```
+
+2. 举例
+
+   比如：1个primary shard，3个replica，那么 quorum = ((1+3)/2)+1 = 3，要求3个primary shard + 1 个 replica shard = 4个 shard 中必须有 3 个 shard是要处于 active 状态，若这时只有两台机器的话，会出现什么情况？
+
+   ![image-20220120191522348](assest/image-20220120191522348.png)
+
+   
+
 ## 4.3 timeout 机制
+
+quorum不齐全时，会wait（等待）1分钟
 
 ## 4.4 Elasticsearch 5.0 及以后的版本
 
