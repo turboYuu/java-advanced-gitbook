@@ -158,7 +158,45 @@ Elasticsearch 增加了一个 *translog*，或者叫事务日志，在每一次�
 
 ### 1.3.2 flush API
 
+这个 执行一个提交并且截断 translog 的行为在 Elasticsearch 被称为一次 *flush*。分片每30分钟被自动刷新（flush），或者在 translog 太大的时候也会被刷新。
 
+`flush` API 可以被用来执行一个手工的刷新（flush）：
+
+```yaml
+1. POST /blogs/_flush
+2. POST /_flush?wait_for_ongoin
+```
+
+1. 刷新（flush）`blogs`索引
+2. 刷新（flush）所有索引并且等待所有刷新在返回前完成
+
+很少需要自己动手执行`flush` 操作；通常情况下，自动刷新就够了。
+
+这就是说，在重启节点或关闭索引之前执行 <font color='blue'>flush</font> 有益于你的索引。当 Elasticsearch 尝试恢复或重新打开一个索引，它需要重放 translog 中的所有操作，如果日志越短，恢复越快。
+
+> **Translog 有多安全？**
+>
+> translog 的目的是保证操作不会丢失。这引出了这个问题：Translog 有多安全？
+>
+> 在文件被 `fsync` 到磁盘前，被写入的文件在重启之后就丢失了。默认 translog 是每5秒被 `fsync` 刷新到硬盘，或者在每次写请求完成之后执行（e.g. index, delete, update, bulk）。这个过程在主分片和复制分片都会发生。最终，基本上，这意味着在整个请求被 `fsync` 到主分片和复制分片的 translog 之前，你的客户端不会得到一个 200 OK 响应。
+>
+> 在每次请求后都执行一个 fsync 会带来一些性能损失，尽管实践表明这种损失相对较小（特别是 bulk 导入，它在一次请求中平摊了大量文档的开销）。
+>
+> 但是对于一些大容量的偶尔丢失几秒数据问题也并不严重的集群，使用异步的 fsync 还是比较有益的。比如，写入的数据被缓存到内存中，再每5秒执行一次 `fsync`。
+>
+> 这个行为可以通过设置`durability` 参数为 `async` 来启用：
+>
+> ```yaml
+> PUT /my_index/_settings 
+> {
+>  "index.translog.durability":  "async", 
+>  "index.translog.sync_interval":  "5s"
+> }
+> ```
+>
+> 这个选项可以针对索引单独设置，并且可以动态进行修改。如果你决定使用异步 translog 的话，你需要保证在发生 crash 时，丢掉 `sync_interval`时间段的数据也无所谓。请在决定前知晓这个特性。
+>
+> 如果你不确定这个行为的后果，最好使用默认参数（`"index.translog.sync_interval" : "request"`）来避免数据丢失。
 
 # 2 索引文档存储段合并机制（segment merge、policy、optimize）
 
