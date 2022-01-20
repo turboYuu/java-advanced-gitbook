@@ -649,15 +649,94 @@ one：要求我们这个写操作，只要有一个primary shard是active状态�
 
 quorum不齐全时，会wait（等待）1分钟
 
+```
+默认1分钟，可以设置timeout手动去调，默认单位毫秒。
+等待期间，期望活跃的shard数量可以增加，最后无法满足shard数量就会timeout。
+我们其实可以在写操作的时候，加一个timeout参数，比如说 PUT /index/_doc/id?timeout=30s，
+这个就是说自己去设定 quorum 不齐全的时候，ES的timeout时长。默认是毫秒，加个s代表秒
+```
+
+
+
 ## 4.4 Elasticsearch 5.0 及以后的版本
+
+从 ES 5.0 后，原先执行 put 带 consistency=all/quorum 参数的，都报错，提示语法错误。
+
+原因是consistency检查是在 PUT 之前做的。然而，虽然检查的时候，shard满足quorum，但是真正从 primary shard 写到replica 之前，仍会出现 shard 挂掉，但Update Api 会返回succeed。因此，这个检查并不能保证replica成功写入，甚至这个primary shard是否成功写入也未必能保证。
+
+因此，修改了语法，用来下面的 wait_for_active_shards，因为这个更能清除表述，而没有歧义。
+
+例子：
+
+```yaml
+PUT /test_index/_doc/1?wait_for_active_shards=2&timeout=10s
+{
+   "name":"xiao mi" 
+}
+```
+
+
 
 # 5 Query文档搜索机制剖析
 
-# 6 文档增删改查和搜索请求过程
+Elasticsearch的搜索类型（SearchType类型）
+
+2.0 之前四种 QUERY_AND_FETCH，DFS_QUERY_AND_FETCH，QUERY_THEN_FETCH，DFS_QUERY_THEN_FETCH
+
+2.0 版本之后 只有两种了
+
+```java
+public enum SearchType {
+	DFS_QUERY_THEN_FETCH((byte)0),    
+    QUERY_THEN_FETCH((byte)1);
+    
+	public static final SearchType DEFAULT = QUERY_THEN_FETCH;
+	public static final SearchType[] CURRENTLY_SUPPORTED = new SearchType[]{QUERY_THEN_FETCH,
+                                                                            DFS_QUERY_THEN_FETCH};
+}  
+```
+
+可以通过Java的API设置
+
+```java
+SearchRequest searchRequest = new SearchRequest(POSITION_INDEX); searchRequest.setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+```
+
+## 5.1 query and fetch
+
+## 5.2 DFS query and fetch
+
+## 5.3 query then fetch（es 默认的搜索方式）
+
+## 5.4 DFS query then fetch
+
+# 6 文档增删改和搜索请求过程
+
+https://www.elastic.co/guide/cn/elasticsearch/guide/current/distrib-write.html
+
+![新建、索引和删除单个文档](assest/elas_0402.png)
+
+## 6.1 增删改流程
+
+## 6.2 search流程
 
 # 7 相关性评分算法BM25
 
+## 7.1 BM25算法
+
+## 7.2 ES调整BM25
+
 # 8 排序那点事之内核级DocValues机制大揭秘
+
+## 8.1 为什么要有 Doc Values
+
+## 8.2 Doc Values 是什么
+
+## 8.3 深入理解 Elasticsearch Doc Values
+
+## 8.4 Doc Values 压缩
+
+## 8.5 禁用 Doc Values
 
 # 9 Filter过滤机制剖析（bitset机制与caching机制）
 
@@ -665,7 +744,23 @@ quorum不齐全时，会wait（等待）1分钟
 
 # 11 控制搜索精准度 - 基于 dis_max 实现 best fields 策略
 
+## 11.1 为帖子数据增加content字段
+
+## 11.2 搜索title或content中包含java或solution的帖子
+
+## 11.3 结果分析
+
+## 11.4 best fields 策略，dis_max
+
+
+
 # 12 控制搜索精准度 - 基于 function_score 自定义相关度分数算法
+
+## 12.1 Function score 查询
+
+## 12.2 Field Value factor
+
+## 12.3 Decay functions
 
 # 13 bulk操作的api json格式与底层性能优化的关系
 
