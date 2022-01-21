@@ -804,6 +804,8 @@ BM25（Best Match 25）是在信息检索系统中根据提出的query对documen
 2. 多篇文档内容长度长短不同，对`tf`算法的结果也影响很大，所以需要将文本的平均长度也考虑到算法当中去。
 
 基于上面两点，BM25算法做了改进：
+
+
 $$
 score(D,Q)=\sum_{i=1}^{n} IDF(q_i) \cdot \frac {f(q_i,D) \cdot (k_1+1)}{f(q_i,D)+ k_1 \cdot (1-b+b \cdot\frac{|D|}{avg dl})}
 $$
