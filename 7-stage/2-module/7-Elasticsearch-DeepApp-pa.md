@@ -796,7 +796,29 @@ https://www.elastic.co/guide/cn/elasticsearch/guide/current/pluggable-similarite
 
 ## 7.1 BM25算法
 
-BM25
+BM25（Best Match 25）是在信息检索系统中根据提出的query对document进行评分的算法。
+
+`TF-IDF`算法是一个可用的算法，但并不完美。而BM25算法则是在此之上做出改进之后的算法。
+
+1. 当两篇描述“人工智能”的文档A 和 B，其中A出现“人工智能”100次，B 出现“人工只能”200次。两篇文档的单词数量都是10000，那么按照`TF-IDF`算法，A的`tf`得分是：0.01，B的`tf`得分是：0.02。得分上B比A多了一倍，但是两篇文章都是在说人工智能，`tf`分数不应该相差这么多。可见单纯统计的`tf`算法在文本内容多的时候是不可靠的。
+2. 多篇文档内容长度长短不同，对`tf`算法的结果也影响很大，所以需要将文本的平均长度也考虑到算法当中去。
+
+基于上面两点，BM25算法做了改进：
+$$
+score(D,Q)=\sum_{i=1}^{n} IDF(q_i) \cdot \frac {f(q_i,D) \cdot (k_1+1)}{f(q_i,D)+ k_1 \cdot (1-b+b \cdot\frac{|D|}{avg dl})}
+$$
+
+$$
+IDF(q_i)=\ln(\frac{N-n(q_i)+0.5}{n(q_i)+0.5})
+$$
+
+
+
+![image-20220121112550240](assest/image-20220121112550240.png)
+
+![image-20220121112612422](assest/image-20220121112612422.png)
+
+
 
 ## 7.2 ES调整BM25
 
