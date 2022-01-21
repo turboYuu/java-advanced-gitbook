@@ -1378,7 +1378,7 @@ GET /article/_search
 
 https://www.elastic.co/guide/en/elasticsearch/reference/7.3/query-dsl-function-score-query.html#query-dsl-function-score-query
 
-https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-function-score-query.html#query-dsl-function-score-query
+
 
 在使用 ES 进行全文搜索时，搜索结果默认会议文档的相关度进行排序，而这个 "文档相关度" ，是可以通过 function_score 自己定义的，也就是说我们可以通过使用 function_score，来控制 "怎样的文档相关度得分更高" 这件事。
 
@@ -1393,7 +1393,7 @@ GET /turbo_book/_search
         "match_all": {}
       },
       "boost": "5",
-      "random_score": {}
+      "random_score": {} # 1
     }
   }
 }
@@ -1403,7 +1403,7 @@ GET /turbo_book/_search
 
 > 为了使 `min_score`正常工作，需要对查询返回的所有文档进行评分，然后注意过滤掉。
 
-`function_score` 查询提供了几种类型的得分函数：
+`function_score` 查询提供了几种类型的得分函数（#1）：
 
 - script_score
 - weight
@@ -1512,12 +1512,12 @@ GET /_search
 
 
 
-| 属性     | 说明                 |
-| -------- | -------------------- |
-| `origin` | 用于极端距离的原点。 |
-| `scale`  |                      |
-| `offset` |                      |
-| `decay`  |                      |
+| 属性     | 说明                                                         |
+| -------- | ------------------------------------------------------------ |
+| `origin` | 用于计算距离的原点。对于数字字段，必须指定为数字；对于日期字段，必须指定为日期；<br>对于地理字段，必须指定为地理点。地理位置和数字字段必填。对于日期字段，默认值为现在。<br>原始日期支持日期数学（例如`now-1h`） |
+| `scale`  | 所有类型都必须。定义到原点的距离 + 偏移，计算出的分数将等于衰减参数。<br>对于地理字段：可以定义为数字 + 单位（1m，12km，...）。默认单位是米。<br>对于日期日期字段：可以定义为数字 + 单位（“1h”，“10d”，...）。默认单位是毫秒。<br>对于数字字段：任何数字 |
+| `offset` | 如果定义了偏移量，则衰减函数将仅计算距离大于定义的偏移量的文档的衰减函数。默认值为0 |
+| `decay`  | 衰减参数定义了如何按比例给定的距离对文档进行评分。如果未定义衰减，则距离尺度的文档将获得 0.5 分 |
 
 
 
