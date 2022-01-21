@@ -903,15 +903,255 @@ GET /my_index
 
 ## 8.1 为什么要有 Doc Values
 
+我们都知道 Elasticsearch 之所以搜索这么快速，归功于它的 **倒排索引** 的设计，然而它也不是万能的，倒排索引的检索性能是非常快的，但是在字段值排序时却不是理想的结构。下面是一个简单的 **倒排索引** 的结构。
+
+```
+Term      Doc_1  Doc_2 
+-------------------------
+quick   |       |  X 
+the     |   X   |
+brown   |   X   |  X 
+dog     |   X   |
+dogs    |       |  X 
+fox     |   X   |
+foxes   |       |  X
+in      |       |  X 
+jumped  |   X   |
+lazy    |   X   | X 
+leap    |       | X 
+over    |   X   | X 
+summer  |       | X 
+the     |   X   |
+------------------------
+```
+
+如上表可以看出，他只有词对应的`doc`，但是并不知道每一个 `doc`中的内容，那么如果想要排序的话，每一个`doc`都去获取一次文档内容岂不非常耗时？`DocValues`的出现使得这个问题迎刃而解。
+
+字段的doc_vlaues 属性有两个值，true、false。默认true，即开启。<br>当 doc_values 为 false 时，无法基于该字段排序、聚合、在脚本中访问字段值。<br>当 doc_values 为 true时，ES会增加一个相应的正排序索引，这增加的磁盘占用，也会导致索引速度慢一些
+
+举例：
+
+```yaml
+DELETE /person
+
+PUT /person
+{
+  "mappings": {
+    "properties": {
+      "name": {
+        "type": "keyword",
+        "doc_values": true
+      },
+      "age": {
+        "type": "integer",
+        "doc_values": false
+      }
+    }
+  }
+}
+
+POST _bulk
+{"index":{"_index":"person","_id":"1"}}
+{"name":"明明","age":22}
+{"index":{"_index":"person","_id":"2"}}
+{"name":"丽丽","age":18}
+{"index":{"_index":"person","_id":"3"}}
+{"name":"媛媛","age":19}
+
+POST /person/_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "sort": [
+    {
+      "name": {
+        "order": "desc"
+      }
+    }
+  ]
+}
+
+# age 的 doc_values 是 false,不能排序
+POST /person/_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "sort": [
+    {
+      "age": {
+        "order": "desc"
+      }
+    }
+  ]
+}
+# age 的 doc_values 是 false,不能聚合
+POST /person/_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "size": 0,
+  "aggs": {
+    "max_age": {
+      "max": {
+        "field": "age"
+      }
+    }
+  }
+}
+```
+
+
+
 ## 8.2 Doc Values 是什么
+
+`DocValues`通过转置倒排索引和正排索引两者之间的关系来解决这个问题。倒排索引将词项映射到包含它们的文档，`DocValues`将文档映射到它们包含的词项：
+
+```
+Doc      Terms
+-----------------------------------------------------------------
+Doc_1 | brown, dog, fox, jumped, lazy, over, quick, the
+Doc_2 | brown, dogs, foxes, in, lazy, leap, over, quick, summer
+Doc_3 | dog, dogs, fox, jumped, over, quick, the
+-----------------------------------------------------------------
+```
+
+当数据被转置之后，想要收集到每个文档行，获取所有的词项就非常简单了。所以搜索使用倒排索引查找文档，聚合操作收集和聚合 `DocValues`里的数据，这就是 Elasticsearch。
 
 ## 8.3 深入理解 Elasticsearch Doc Values
 
+`DocValues`是在索引时与倒排索引同时生成。也就是说 `DocValues` 和 `倒排索引 `一样，基于`Segment`生成并且是不可变的。同时`DocValues`和`倒排索引`一样序列化到磁盘，这样对性能和扩展性有很大帮助。
+
+`DocValues`通过序列化把数据结构持久化到磁盘，我们可以充分利用操作系统的内存，而不是`JVM`的`Heap`。当`workingset`远小于系统的可用内存，系统会自动将`DocValues`保存在内存中，使得其读写十分高速；不过，当其远大于可用内存时，操作系统会自动把`DocValues`写入磁盘。很显然，这样性能会比在内存中差很多，但是它的大小就不再局限于服务器的内存了。如果是使用`JVM`的 `Heap` 来实现，容易`OutOfMemory` 导致程序崩溃。
+
 ## 8.4 Doc Values 压缩
+
+从广义上说，`DocValues`本质上是一个序列化的列式存储，这个结构非常适用于聚合、排序、脚本等操作。而且，这种存储方式也非常便于压缩，特别是数字类型。这样可以减少磁盘空间并且提高访问速度。下面看一组数字类型的`DocValues`：
+
+```
+Doc      Terms
+-----------------------------------------------------------------
+Doc_1 | 100
+Doc_2 | 1000
+Doc_3 | 1500
+Doc_4 | 1200
+Doc_5 | 300
+Doc_6 | 1900
+Doc_7 | 4200
+-----------------------------------------------------------------
+```
+
+你会注意到这里每个数字都是 100  的倍数，`DocValues`会检测一个段里面的所有数值，并使用一个最大公约数，方便做进一步的数据压缩。我们可以对每个数字都除以 100，然后得到：
+
+`[1,10,15,12,3,19,42]`。现在哲学数字变小了，只需要很少的位就可以存储下，也减少了磁盘存放的大小。
+
+`DocValues`在压缩过程中使用如下技巧。它会依次检测以下压缩模式：
+
+- 如果所有的数值各不相同（或缺失），设置一个标记并记录这些值
+- 如果这些值小于 256，将使用一个简单的编码表
+- 如果这些值大于 256，检测是否存在一个最大公约数
+- 如果不存在最大公约数，从最小的数值开始，统一计算偏移量进行编码
+
+当然如果存储 `String`类型，其一样可以通过顺序表对`String`类型进行数字编码，然后再把数字类型构建`DocValues`。
 
 ## 8.5 禁用 Doc Values
 
+`DocValues` 默认对所有字段启用，除了`analyzed strings`。也就是说所有的数字、地理坐标、日期、IP和不分析（`not_analyzed`）字符类型都会默认开启。
+
+`analyzed strings`  暂时还不能使用 `DocValues`，是因为经过分析以后的文本会生产大量的 `Token`，这样非常影响性能。
+
+虽然 `DocValues` 非常好用，但是如果你存储的数据缺失不需要这个特性，就不如禁用它，这样不仅节省磁盘空间，也会提升索引的速度。
+
+要禁用`DocValues`，在字段的映射（mapping）设置`doc_values:false`即可。例如，这里我们创建一个新的索引，字段 `session_id`禁用了`DocValues`：
+
+```yaml
+DELETE /my_index 
+PUT my_index
+{
+  "mappings": {
+    "properties": {
+      "session_id": {
+        "type": "keyword",
+        "doc_values": false
+      }
+    }
+  }
+}
+```
+
+通过设置 `doc_values:false`，这个字段将不能被用于聚合、排序以及脚本操作
+
 # 9 Filter过滤机制剖析（bitset机制与caching机制）
+
+> **1 在倒排索引中查找搜索串，获取 document list**
+
+解析：
+
+date举例：倒排索引列表，过滤date为2020-02-01（filter:2020-02-02）。<br>去倒排索引中查找，发现 2020-02-02 对应的 document list 是 doc2、doc3。
+
+| word       | doc1 | doc2 | doc3 |
+| ---------- | ---- | ---- | ---- |
+| 2020-01-01 | *    | *    |      |
+| 2020-02-02 |      | *    | *    |
+| 2020-03-03 | *    | *    | *    |
+
+> **2 Filter 为每个在倒排索引中搜索到的结果，构建一个bitset，[0, 0, 0, 1, 0, 1]（非常重要）**
+
+解析：
+
+1. 使用找到的 document list，构建一个bitset（二进制数组，用来表示一个document对应一个filter条件是否匹配；匹配为1，不匹配为0）。
+2. 为什么使用bitset：尽可能用简单的数据结构去实现复杂的功能，可以节省内存空间、提升性能。
+3. 由上步的document list可以得出该filter条件对应的bitset为：[0, 1, 1]；代表着doc1不匹配filter，doc2、doc3匹配filter。
+
+> **3 多个过滤条件时，遍历每个过滤条件对应的bitset，优先从最稀疏的开始搜索，查找满足所有条件的document**
+
+解析：
+
+1. 多个filter组合查询时，每个filter条件都会对应一个bitset。
+
+2. 稀疏，密集的判断是通过匹配的多少（**即bitset中元素为1的个数**）[0,0,0,1,0,1] 比奥稀疏、[0,1,0,1,0,1]比较密集。
+
+3. 先过滤稀疏的bitset，就可以先过滤掉尽可能多的数据。
+
+4. 遍历所有的bitset，找到匹配所有的filter条件的doc。
+
+   请求：filter，postDate=2017-01-01, userID=1;
+
+   postDate: [0,0,1,1,0,0]
+
+   userID: [0,1,0,1,0,1]
+
+   遍历完两个bitset之后，找到匹>配所有条件的doc，就是doc4
+
+5. 将得到的document作为结果返回给client。
+
+> **4 caching bitset，跟踪query，在最近 256个query中超过一定次数的过滤条件，缓存其bitset。对小于segment（<1000，或 <3%），不缓存bitset**
+
+解析：
+
+1. 比如postDate=2020-01-01，[0,0,1,1,0,0]；可以缓存在内存中，这样下次如果再有该条件查询时，就不用重新扫描倒排索引，反复生成 bitset，可以大幅提升性能。
+
+2. 在最近 256 个filter中，有某个filter超过一定次数，次数不固定，就会自动缓存该filter对应的bitset。
+
+3. filter针对小segment获取的结果，可以不缓存，segment记录数<1000，或者 segment大小<index总大小的3%（segment数量很小，此时哪怕是扫描也很快；segment会在后台自动合并，小segment很快就会跟其他小segment合并成大 segment，此时缓存没有多大意义，因为 segment很快就会消失）。
+
+4. filter比query的好处就在于有 **caching机制**，filter bitset 缓存起来便于下次不用扫描倒排索引。以后只要是有相同的filter条件的，会直接适应该过滤条件对应的cached bitset。
+
+   比如：postDate=2020-01-01, [0,0,1,1,0,0]；可以缓存在内存中，这样下次如果再有该条件查询时，就不用重新扫描倒排索引，反复生成bitset，可以大幅提升性能。
+
+> **5 如果document 有新增或修改，那么cached bitset会自动更新**
+
+示例：postDate=2020-01-01，filter：[0,0,1,0]
+
+- 新增document，id=5，postDate=2020-01-01；会自动更新到postDate=2020-01-01这个filter的bitset中，缓存要会进行相应的更新。postDate=2020-01-01的bitset:[0,0,1,0,1]。
+- 修改document，id=1，postDate=2019-01-31，修改为postDate=2020-01-01，此时也会自动更新bitset:[1,0,1,0,1]。
+
+> **6 filter大部分情况下，在query之前执行，先尽量过滤尽可能多的数据**
+
+- query：要计算doc对搜索条件的relevance score，还会根据这个score排序。
+- filter：只是简单过滤出想要的数据，不计算relevance score，也不排序。
 
 # 10 控制搜索精准度 - 基于boost的细粒度搜索的条件权重控制
 
