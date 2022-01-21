@@ -704,11 +704,69 @@ SearchRequest searchRequest = new SearchRequest(POSITION_INDEX); searchRequest.s
 
 ## 5.1 query and fetch
 
+向索引的所有分片（shard）都发出查询请求，各分片返回的时候把元素文档（document）和计算后的排名信息一起返回。
+
+这种搜索方式是最快的。因为相比下面的几种搜索方式，这种查询方法只需要去shard查询一次。但是各个shard返回的结果的数量值和可能是用户要求的size的n倍。
+
+**优点**：这种搜索方式是最快的。因为相比后面的几种 es 的搜索方式，这种查询方法只需要去shard查询一次。
+
+**缺点**：返回的数据量不准确，可能返回（N*分片数量）的数据且数据排名也不准确，同时各个shard返回的结果的数量值和可能是用户要求的size的n倍。
+
+
+
 ## 5.2 DFS query and fetch
+
+DFS（Distributed Frequency Scatter），整个DFS是分布式词频率和文档频率散发的缩写。DFS其实就是在进行真正的查询之前，先把各个分片的词频率和文档频率收集一下，然后进行词搜索的时候，各分片依据全局的词频率和文档频率进行搜索和排名。这种方式比第一种方式多了一个 DFS 步骤（初始化散发（initial scatter）），可以更精准控制搜索打分和排名，也就是在进行查询之前，先对所有分片中的词频和文档频率等打分依据全部汇总到一块，再执行后面的操作。
+
+**优点**：数据排名准确
+
+**缺点**：性能一般，返回的数据量不准确，可能返回（N*分片数量）的数据
 
 ## 5.3 query then fetch（es 默认的搜索方式）
 
+如果你搜索时，没有执行搜索方式，就是使用的这种搜索方式，这种搜索方式，大概分两个步骤：
+
+1. 第一步，先向所有的shard发出请求，各分片只返回文档id（注意，不包括文档document）和排名相关的信息（也就是文档对应的分值），然后按照各分片返回的文档的分数进行重排序和排名，取前size个文档。
+2. 第二步，根据文档id去相关的shard取document。这种方式返回的document数量与用户要求的大小是相等的。
+
+详细过程：
+
+```
+1. 发送查询到每个shard
+2. 找到所有匹配的文档，并使用本地的Term/Document Frequency 信息进行打分
+3. 对结果构建一个优先队列（排序，标页等）
+4. 返回关于结果的元数据请求节点。注意，实际文档还没有发送，只是分数
+5. 来自所有shard的分数合并起来，并在请求节点上进行排序，文档被按照查询要求进行选择
+6. 最终，实际文档从他们各自所在的独立的shard上检索出来
+7. 结果被返回给用户
+```
+
+**优点**：返回的数据量是准确的。
+
+**缺点**：性能一般，并且数据排名不准确。
+
 ## 5.4 DFS query then fetch
+
+比第三种方式多了一个 DFS 步骤。
+
+也就是在进行查询之前，先对所有分片发送请求，把所有分片种的词频和文档频率等打分依据全部汇总到一块，再执行后面的操作。
+
+详细步骤：
+
+```
+1. 预查询每个shard,询问Term和Document frequency
+2. 发送查询到每个shard
+3. 找到所有匹配的文档，并使用全局的Term/Document Frequency信息进行打分
+4. 对结果构建一个优先队列（排序，标页等）
+5. 返回关于结果的元数据请求到请求节点。注意，实际文档还没有发送，只是分数
+6. 来自所有shard的分数合并起来，并在请求节点上进行排序，文档被按照查询要求进行选择
+7. 最终，实际文档从他们各自所在的独立的shard上检索出来
+8. 结果被返回给用户
+```
+
+**优点**：返回的数据量是准确的，数据排名准确
+
+**缺点**：性能最差（这个最差只是表示在这四种查询方式中性能最慢，也不至于不能忍受，如果对查询性能要求不是非常高，而对查询准确度要求比较高的时候可以考虑这个）
 
 # 6 文档增删改和搜索请求过程
 
@@ -718,11 +776,27 @@ https://www.elastic.co/guide/cn/elasticsearch/guide/current/distrib-write.html
 
 ## 6.1 增删改流程
 
+1. 客户端首先会选择一个节点node发送请求过去，这个节点 node 可能是协调节点 coordinating node
+2. 协调节点 coordinating node 会对 document 数据进行路由，将请求转发给对应的 node（含有 primary shard）
+3. 实际上 node 的 primary shard 会处理请求，然后将数据同步到对应的含有 replica shard 的 node
+4. 协调节点 coordinating node 如果发现含有 primary shard 的 node 和 所有的含有 replica shard的 node 符合要求的数量之后，就会返回响应结果给客户端
+
 ## 6.2 search流程
+
+1. 客户端首先会选择一个节点 node 发送请求过去，这个节点 node 可能是协调节点 coordinating node
+2. 协调节点将搜索请求转发到所有的shard对应的primary shard 或 replica shard，都可以。
+3. query phase：每个shard 将自己的搜索结果的元数据发送到请求节点（其实就是一些 doc id 和 打分信息等返回给协调节点），由协调节点进行数据的合并、排序、分页等操作，产出最终结果。
+4. fetch phase：接着由协调节点根据 doc id 去各个节点上拉取实际的 document数据，最终返回给客户端。
 
 # 7 相关性评分算法BM25
 
+https://www.elastic.co/guide/cn/elasticsearch/guide/current/pluggable-similarites.html
+
+[wiki/Okapi_BM25](https://en.wikipedia.org/wiki/Okapi_BM25)
+
 ## 7.1 BM25算法
+
+BM25
 
 ## 7.2 ES调整BM25
 
