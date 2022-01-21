@@ -804,8 +804,6 @@ BM25（Best Match 25）是在信息检索系统中根据提出的query对documen
 2. 多篇文档内容长度长短不同，对`tf`算法的结果也影响很大，所以需要将文本的平均长度也考虑到算法当中去。
 
 基于上面两点，BM25算法做了改进：
-
-
 $$
 score(D,Q)=\sum_{i=1}^{n} IDF(q_i) \cdot \frac {f(q_i,D) \cdot (k_1+1)}{f(q_i,D)+ k_1 \cdot (1-b+b \cdot\frac{|D|}{avg dl})}
 $$
@@ -820,9 +818,86 @@ $$
 
 ![image-20220121112612422](assest/image-20220121112612422.png)
 
+- k1：词语频率饱和度（term frequency saturation）它用于调节饱和度变化的速率。它的值一般介于1.2 到 2.0 之间。数值越低则饱和的过程越快。（意味着两个上面A、B两个文档有相同的分数，因为他们都包含大量的“人工智能”这个词语达到饱和程度）。在ES应用中为1.2
+- b：字段长度规约，将文档的长度归约化到全部文档的平均长度，它的值在 0 和 1 之间，1意味着全部约化，0则不进行归约化。在ES的应用中为0.75。
+
+
+
 
 
 ## 7.2 ES调整BM25
+
+```yaml
+PUT /my_index
+{
+  "settings": {
+    "similarity": {
+      "my_bm25": {
+        "type": "BM25",
+        "b": 0.1,
+        "k1": 0.3
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "similarity": "my_bm25"
+      }
+    }
+  }
+}
+
+GET /my_indexDELETE /my_index
+PUT /my_index
+{
+  "settings": {
+    "similarity": {
+      "my_bm25": {
+        "type": "BM25",
+        "b": 0.1,
+        "k1": 0.3
+      }
+    }
+  },
+  "mappings": {
+    "doc": {
+      "properties": {
+        "title": {
+          "type": "text",
+          "similarity": "my_bm25"
+        }
+      }
+    }
+  }
+}
+# ES 7
+PUT /my_index
+{
+  "settings": {
+    "similarity": {
+      "my_bm25": {
+        "type": "BM25",
+        "b": 0.1,
+        "k1": 0.3
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "similarity": "my_bm25"
+      }
+    }
+  }
+}
+
+GET /my_index
+```
+
+
 
 # 8 排序那点事之内核级DocValues机制大揭秘
 
@@ -860,6 +935,28 @@ $$
 
 ## 12.3 Decay functions
 
+### 12.3.1支持的衰减函数
+
+### 12.3.2 详细例子
+
+### 12.3.3 正常衰减 gauss
+
+### 12.3.4 指数衰减 exp
+
+### 12.3.5 线性衰减 linear
+
+### 12.3.6 如果缺少字段怎么办？
+
 # 13 bulk操作的api json格式与底层性能优化的关系
 
 # 14 deep paging 性能问题 和 解决方案
+
+## 14.1 深度分页问题
+
+## 14.2 深度分页解决方案
+
+### 14.2.1 利用scroll遍历方式
+
+### 14.2.2 search after 方式
+
+## 14.3 三种分页方式比较
