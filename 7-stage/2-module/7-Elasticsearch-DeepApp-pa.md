@@ -1376,9 +1376,150 @@ GET /article/_search
 
 ## 12.1 Function score 查询
 
+https://www.elastic.co/guide/en/elasticsearch/reference/7.3/query-dsl-function-score-query.html#query-dsl-function-score-query
+
+https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-function-score-query.html#query-dsl-function-score-query
+
+在使用 ES 进行全文搜索时，搜索结果默认会议文档的相关度进行排序，而这个 "文档相关度" ，是可以通过 function_score 自己定义的，也就是说我们可以通过使用 function_score，来控制 "怎样的文档相关度得分更高" 这件事。
+
+`function_score`举例：
+
+```yaml
+GET /turbo_book/_search
+{
+  "query": {
+    "function_score": {
+      "query": {
+        "match_all": {}
+      },
+      "boost": "5",
+      "random_score": {}
+    }
+  }
+}
+```
+
+比如 对 turbo_book 进行随机打分，如果没有给函数提供过滤，则等效于指定 `"match_all":{}`。要排除不符合特定分数阈值的文档，可以将 min_score 参数设置为所需分数阈值。
+
+> 为了使 `min_score`正常工作，需要对查询返回的所有文档进行评分，然后注意过滤掉。
+
+`function_score` 查询提供了几种类型的得分函数：
+
+- script_score
+- weight
+- random_score
+- field_value_factor
+- dacay functions: gauss, linear, exp
+
+
+
 ## 12.2 Field Value factor
 
+`field_value_factor` 函数可以使用文档中的字段来影响得分。与使用 `script_score` 函数类似，但是它避免了脚本编写的开销。如果用于多值字段，则在计算中仅使用该字段的第一个值。
+
+举例：
+
+```yaml
+GET /turbo_book/_search
+{
+  "query": {
+    "match_all": {}
+  }
+}
+GET /turbo_book/_search
+{
+  "query": {
+    "function_score": {
+      "field_value_factor": {
+        "field": "price",
+        "factor": 1.2,
+        "modifier": "sqrt"
+      }
+    }
+  }
+}
+```
+
+它将转化为以下得分公式：`sqrt(1.2 * doc['price'].value)`
+
+field_value_factor 函数有许多选项：
+
+| 属性       | 说明                                                         |
+| ---------- | ------------------------------------------------------------ |
+| `field`    | 要从文档中提取的字段                                         |
+| `factor`   | 字段值乘以的值，默认为1                                      |
+| `modifier` | 应用于字段值的修饰符可以是以下之一：<br>`none`，`log`，`log1p`，`log2p`，`ln`，`ln1p`，`ln2p`，`square`，`sqrt` or `reciprocal`。<br>默认为无 |
+
+modifier 的取值：
+
+| Modifier     | 说明                                                         |
+| ------------ | ------------------------------------------------------------ |
+| `none`       | 不要对字段值应用任何乘数                                     |
+| `log`        | 取字段值的常用对数，因为此函数将返回负值并在 0 到 1之间的值上<br/>使用时导致错误，所以建议改用log1p |
+| `log1p`      | 将字段值上加 1 并取对数                                      |
+| `log2p`      | 将字段值上加 2 并取对数                                      |
+| `ln`         | 取字段值的自然对数。因为此函数将返回负值，并在0到1之间的值上<br>使用时引起错误，所以建议改用`ln1p` |
+| `ln1p`       | 将1 加到字段值上，并取自然对数                               |
+| `ln2p`       | 将2 加到字段值上，并取自然对数                               |
+| `square`     | 对字段值求平方（乘以它本身）                                 |
+| `sqrt`       | 取字段值的平方根                                             |
+| `reciprocal` | 交换字段值，与1 / x 相同，其中 x 是字段的值                  |
+
+field_value_score 函数产生的分数必须为非负数，否则将引发错误。如果在 0 到 1之间的值上使用 log 和 ln 修饰符将产生负值。请确保使用范围过滤器限制该字段的值以避免这种情况，或者使用 `log1p` 和 `ln1p`。
+
 ## 12.3 Decay functions
+
+衰减函数对文档进行评分，该函数的衰减取决于文档的数字字段值 与 用户给定原点的距离。这类似于范围查询，但具有平滑的边缘而不是框。
+
+要在具有数字字段的查询上使用距离计分，用户必须为每个字段定义`origin` 和 `scale`。需要`origin`来定义从中间计算距离的 "中心点"，并需要`scale`来定义衰减率。衰减函数指定为：
+
+```yaml
+"DECAY_FUNCTION": {  # 1
+	"FIELD_NAME": {  # 2
+		"origin": "11, 12",     
+		"scale": "2km",
+		"offset": "0km",     
+		"decay": 0.33 
+	}
+}
+```
+
+1. `DECAY_FUNCTION`必须是 `linear`，`exp`，`gauss` 其中一个
+2. 指定的字段必须是数字，日期或地理点字段
+
+在上面的例子中，该字段是 `geo_point`，可以以地理格式提供起点。在这种情况下。必须使用`scale` 和 `offset`。如果你的字段是日期字段，则可以将比例和偏移量设置为 天、周 等。如下：
+
+```yaml
+GET /_search
+{
+  "query": {
+    "function_score": {
+      "gauss": {
+        "date": {
+          "origin": "2013-09-17",	# 1
+          "scale": "10d",
+          "offset": "5d",			# 2
+          "decay": 0.5				# 2
+        }
+      }
+    }
+  }
+}
+```
+
+1. 原点的日期格式取决于映射中定义的格式。如果未定义原点，则使用当前时间
+2. `offset`和 `decay`参数是可选的。
+
+
+
+| 属性     | 说明                 |
+| -------- | -------------------- |
+| `origin` | 用于极端距离的原点。 |
+| `scale`  |                      |
+| `offset` |                      |
+| `decay`  |                      |
+
+
 
 ### 12.3.1支持的衰减函数
 
