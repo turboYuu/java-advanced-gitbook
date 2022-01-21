@@ -1155,17 +1155,222 @@ date举例：倒排索引列表，过滤date为2020-02-01（filter:2020-02-02）
 
 # 10 控制搜索精准度 - 基于boost的细粒度搜索的条件权重控制
 
+boost，搜索条件权重。可以将某个搜索条件的权重加大，此时匹配这个搜索条件的document，在计算relevance score时，权重更大的搜索条件的document对应的relevance score会更高，当然也就会优先被返回回来。默认情况下，搜索条件的权重都是1。
+
+```yaml
+DELETE /article
+
+POST /article/_bulk
+{"create":{"_id":"1"}}
+{"title":"elasticsearch"}
+{"create":{"_id":"2"}}
+{"title":"java"}
+{"create":{"_id":"3"}}
+{"title":"elasticsearch"}
+{"create":{"_id":"4"}}
+{"title":"hadoop"}
+{"create":{"_id":"5"}}
+{"title":"spark"}
+```
+
+```yaml
+GET /article/_search
+{
+  "query": {
+    "bool": {
+      "should": [
+        {
+          "term": {
+            "title": {
+              "value": "java"
+            }
+          }
+        },
+        {
+          "term": {
+            "title": {
+              "value": "spark"
+            }
+          }
+        },
+        {
+          "term": {
+            "title": {
+              "value": "hadoop"
+            }
+          }
+        },
+        {
+          "term": {
+            "title": {
+              "value": "elasticsearch"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+```
+搜索帖子，如果标题包含Hadoop或java或spark或Elasticsearch。
+就优先输出包含java的，再输出spark的，再输出hadoop的，最后输出Elasticsearch的。
+```
+
+```yaml
+GET /article/_search
+{
+  "query": {
+    "bool": {
+      "should": [
+        {
+          "term": {
+            "title": {
+              "value": "java",
+              "boost": 5
+            }
+          }
+        },
+        {
+          "term": {
+            "title": {
+              "value": "spark",
+              "boost": 4
+            }
+          }
+        },
+        {
+          "term": {
+            "title": {
+              "value": "hadoop",
+              "boost": 3
+            }
+          }
+        },
+        {
+          "term": {
+            "title": {
+              "value": "elasticsearch"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+
+
 # 11 控制搜索精准度 - 基于 dis_max 实现 best fields 策略
 
 ## 11.1 为帖子数据增加content字段
 
+```yaml
+POST /article/_bulk
+{"update":{"_id":"1"}}
+{"doc":{"content":"i like to write best elasticsearch article"}}
+{"update":{"_id":"2"}}
+{"doc":{"content":"i think java is the best programming language"}}
+{"update":{"_id":"3"}}
+{"doc":{"content":"i am only an elasticsearch beginner"}}
+{"update":{"_id":"4"}}
+{"doc":{"content":"elasticsearch and hadoop are all very good solution, i am a beginner"}}
+{"update":{"_id":"5"}}
+{"doc":{"content":"spark is best big data solution based on scala ,an programming language similar to java"}}
+```
+
+
+
 ## 11.2 搜索title或content中包含java或solution的帖子
+
+下面这个就是 multi-field搜索，多字段搜索
+
+```yaml
+GET /article/_search
+{
+  "query": {
+    "bool": {
+      "should": [
+        { "match": {"title": "java solution"}},
+        { "match": {"content": "java solution"}}
+      ]
+    }
+  }
+}
+```
+
+![image-20220121172018530](assest/image-20220121172018530.png)
+
+
 
 ## 11.3 结果分析
 
+期望的是 doc5 排在前面，结果是 doc2 排在了前面。
+
+算一下 doc2 的分数：
+
+```
+{ "match": {"title": "java solution"}}, 针对doc2,是一个分数的
+{ "match": {"content": "java solution"}}，针对doc2，也是有一个分数的
+所以是两个分数加起来，比如说：1.0 + 1.3 = 2.3
+```
+
+算一下 doc5 的分数：
+
+```
+{ "match": {"title": "java solution"}}, 针对 doc5，是没有分数的
+{ "match": {"content": "java solution"}}, 针对 doc5，是有一个分数的
+所以说，只有一个query是有分数的，比如 1.4
+```
+
+
+
 ## 11.4 best fields 策略，dis_max
 
+如果不是简单将每个字段的评分结果加在一起，而是将 最佳匹配字段 的评分作为查询的整体评分，结果会怎样？这样返回的结果可能是：同时包含 `java` 和 `solution` 的单个字段比反复出现相同词语的多个不同字段有更高的相关度。
 
+- best fields 策略，就是说，搜索到的结果，应该是某一个field中匹配到了尽可能多的关键词，被排在前面；而不是尽可能多的 field匹配到了少数关键词，排在前面
+- dis_max语法，直接取多个 query 中，分数最高的那一个 query 的分数即可
+
+```
+{ "match": {"title": "java solution"}}, 针对doc2,是一个分数的，1.0
+{ "match": {"content": "java solution"}}，针对doc2，也是有一个分数的，1.3
+取最大分数, 1.3 
+```
+
+```
+{ "match": {"title": "java solution"}}, 针对 doc5，是没有分数的
+{ "match": {"content": "java solution"}}, 针对 doc5，是有一个分数的
+所以说，只有一个query是有分数的，比如 1.4
+```
+
+然后doc2的分数 = 1.3 < doc5的分数 = 1.4 ，所以doc5就可以排在更前面的地方，符合我们的需要
+
+```yaml
+GET /article/_search
+{
+  "query": {
+    "dis_max": {
+      "queries": [
+        {
+          "match": {
+            "title": "java solution"
+          }
+        },
+        {
+          "match": {
+            "content": "java solution"
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+![image-20220121173753246](assest/image-20220121173753246.png)
 
 # 12 控制搜索精准度 - 基于 function_score 自定义相关度分数算法
 
