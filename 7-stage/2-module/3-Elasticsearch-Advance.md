@@ -2004,9 +2004,11 @@ MQ中间件的选型不做具体要求，常见的rabbitmq、activemq、rocketmq
    注意做时，需要指定步骤3查询出的 scroll_id，指定后，可以查出对应的下一页文档<br>步骤3和步骤5组合一起是完整的。
 
    ```yaml
-   GET /_search/scroll  {
-      "scroll": "1m",
-      "scroll_id" : "步骤三中查询出来的值"  # _scroll_id
+   GET /_search/scroll
+   {
+     "scroll": "1m",
+     # 步骤三中查询出来的值  _scroll_id
+     "scroll_id": "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAj1UWTjh6VlZ1Z0pTcHEybGdCQWMzcWhjdw==" 
    }
    ```
 
