@@ -90,4 +90,7 @@
         * [第五部分 Elasticsearch数据模型构建](7-stage/2-module/5-Elasticsearch-Data-Model.md)
         * [第六部分 Elasticsearch搜索实战](7-stage/2-module/6-Elasticsearch-search-ac.md)
         * [第七部分 Elasticsearch深度应用及原理剖析](7-stage/2-module/7-Elasticsearch-DeepApp-pa.md)
+* [第八阶段 容器虚拟化技术和自动化部署](8-stage/README.md)
+    * [模块一 Docker 容器虚拟化技术](8-stage/1-module/README.md)
+        * [第一部分 Docker快速入门](8-stage/1-module/1-Docker-intr.md)
 
