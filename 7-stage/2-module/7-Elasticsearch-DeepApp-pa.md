@@ -1376,7 +1376,7 @@ GET /article/_search
 
 ## 12.1 Function score 查询
 
-https://www.elastic.co/guide/en/elasticsearch/reference/7.3/query-dsl-function-score-query.html#query-dsl-function-score-query
+[Function score query-官网参考](https://www.elastic.co/guide/en/elasticsearch/reference/7.3/query-dsl-function-score-query.html#query-dsl-function-score-query)
 
 
 
@@ -1405,11 +1405,11 @@ GET /turbo_book/_search
 
 `function_score` 查询提供了几种类型的得分函数（#1）：
 
-- script_score
-- weight
-- random_score
-- field_value_factor
-- dacay functions: gauss, linear, exp
+- [script_score](https://www.elastic.co/guide/en/elasticsearch/reference/7.3/query-dsl-function-score-query.html#function-script-score)
+- [weight](https://www.elastic.co/guide/en/elasticsearch/reference/7.3/query-dsl-function-score-query.html#function-weight)
+- [random_score](https://www.elastic.co/guide/en/elasticsearch/reference/7.3/query-dsl-function-score-query.html#function-random)
+- [field_value_factor](https://www.elastic.co/guide/en/elasticsearch/reference/7.3/query-dsl-function-score-query.html#function-field-value-factor)
+- [dacay functions](https://www.elastic.co/guide/en/elasticsearch/reference/7.3/query-dsl-function-score-query.html#function-decay): gauss, linear, exp
 
 
 
@@ -1519,11 +1519,185 @@ GET /_search
 | `offset` | 如果定义了偏移量，则衰减函数将仅计算距离大于定义的偏移量的文档的衰减函数。默认值为0 |
 | `decay`  | 衰减参数定义了如何按比例给定的距离对文档进行评分。如果未定义衰减，则距离尺度的文档将获得 0.5 分 |
 
+在第一个示例中，你的文档可能代表酒店，并且包含地理位置字段。你要根据酒店距指定位置的距离来计算衰减函数。你可能不会立即看到高斯函数要选择的比例，但是你可以说：“在距所需位置2公里的距离处，分数应降低到0.33”.然后将自动调整参数规模，以确保得分功能为距离期望位置2公里的酒店 计算出高于0.33的得分。
 
+在第二个示例中，字段值在在2013-09-12和2013-09-22之间的文档的权重为1.0，从该日期起 15 天的文档的权重为 0.5。
 
 ### 12.3.1支持的衰减函数
 
+`DECAY_FUNCTION`确定衰减的形状：
+
+**gauss**
+
+正常衰减，计算如下：
+
+![Gaussian](assest/Gaussian.png)
+
+$\sigma$ 计算以确保分数采用距原点 + 偏移量的距离尺度上的值衰减
+
+![sigma calc](assest/sigma_calc.png)
+
+有关演示由高斯函数生成的曲线的图，请参阅[正常衰减](https://www.elastic.co/guide/en/elasticsearch/reference/7.3/query-dsl-function-score-query.html#exp-decay)，gauss。
+
+
+
+**exp**
+
+指数衰减，计算如下：
+
+![指数的](assest/Exponential.png)
+
+再次计算参数以确保分数从原点 + 偏移量的距离尺度上取值衰减
+
+![λ计算](assest/lambda_calc.png)
+
+
+
+**linear**
+
+线性衰减，计算如下：
+
+![线性](assest/Linear.png)
+
+再次计算参数 s 以确保分数从原点 + 偏移量开始在距离标度上取值衰减
+
+![计算](assest/s_calc.png)
+
+与正常和指数衰减相反，如果字段值超过用户给定标度值的两倍，则此功能实际上将分数设置为0。
+
+对于单个函数，三个衰减函数机器参数可以像这样可视化（在此示例中，该字段称为“年龄”）：
+
+![衰变 2d](assest/decay_2d.png)
+
 ### 12.3.2 详细例子
+
+假设你正在寻找某个城镇的酒店。你的预算有限。另外，你希望酒店距离市中心很近，因此酒店距离理想位置月圆，你入住的可能性就越小。
+
+你希望根据 距市中心的距离 以及价格来对与你zhe的条件相匹配的查询结果 进行评分。<br>直观的讲，你想将市中心定义为起点，也许你愿意从酒店步行2公里到市中心。在这种情况下，你的位置字段的来源为市中心，范围为0-2km。
+
+如果你的预算低，你可能更喜欢偏移的东西而不是昂贵的东西。对于价格字段，原点为 0 欧元，小数位数取决于你愿意支付的金额，例如 20 欧元。
+
+酒店的数据：
+
+```yaml
+DELETE /hotel
+
+PUT /hotel
+{
+  "mappings": {
+    "properties": {
+      "name": {
+        "type": "text"
+      },
+      "price": {
+        "type": "float"
+      },
+      "location": {
+        "type": "geo_point"
+      }
+    }
+  }
+}
+
+PUT /hotel/_doc/1
+{
+  "name": "Backback Nap",
+  "price": 18,
+  "location": "0,0.0002"
+}
+PUT /hotel/_doc/2
+{
+  "name": "Hilton",
+  "price": 180,
+  "location": "0,0.0001"
+}
+PUT /hotel/_doc/3
+{
+  "name": "Drink n Drive",
+  "price": 13,
+  "location": "0,0.018"
+}
+PUT /hotel/_doc/4
+{
+  "name": "BnB Bellevue",
+  "price": 10,
+  "location": "0,0.0005"
+}
+PUT /hotel/_doc/5
+{
+  "name": "Abu Dhabi",
+  "price": 1800,
+  "location": "0,0.20"
+}
+```
+
+ 在此示例中，字段 “价格” 作为酒店价格，“位置” 作为酒店的坐标
+
+在这种情况下，价格字段定义为：
+
+```yaml
+"gauss": { #1
+   "price": {
+     "origin": "0",          
+     "scale": "20"  
+   }
+}
+```
+
+1. 这个衰减函数可以是`linear`或者 `exp`
+
+位置定义为：
+
+```yaml
+"gauss": { # 1
+   "location": {
+         "origin": "0, 0",          
+         "scale": "2km"  
+   }
+}
+```
+
+1. 这个衰减函数可以是`linear`或者`exp`
+
+
+
+假设你要将这两个函数乘以原始分数，则请求将如下所示：
+
+```yaml
+GET /hotel/_search
+{
+  "query": {
+    "function_score": {
+      "functions": [
+        {
+          "gauss": {
+            "price": {
+              "origin": "0",
+              "scale": "20"
+            }
+          }
+        },
+        {
+          "gauss": {
+            "location": {
+              "origin": "0, 0",
+              "scale": "2km"
+            }
+          }
+        }
+      ],
+      "query": {
+        "match_all": {}
+      },
+      "score_mode": "multiply"
+    }
+  }
+}
+```
+
+
+
+
 
 ### 12.3.3 正常衰减 gauss
 
