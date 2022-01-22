@@ -1695,19 +1695,93 @@ GET /hotel/_search
 }
 ```
 
-
-
-
+加下来，我们展示三个衰减函数中的每一个的计算分数如何。
 
 ### 12.3.3 正常衰减 gauss
 
+在上面的示例中，选择 `gauss`作为衰减函数时，乘数的轮廓和曲面图如下所示：
+
+![cd0e18a6 e898 11e2 9b3c f0145078bd6f](assest/cd0e18a6-e898-11e2-9b3c-f0145078bd6f.png)
+
+![ec43c928 e898 11e2 8e0d f3c4519dbd89](assest/ec43c928-e898-11e2-8e0d-f3c4519dbd89.png)
+
+假设你的原始搜索结果匹配三家酒店：
+
+- "Backback Nap"
+- "Drink n Drive"
+- "BnB Bellevue"
+
+"Drink n Drive"距离你定义的位置很近（近2公里），但价格也不便宜（约13欧元），因此它的系数低至0.56。"BnB Bellevue"和"Backback nap"都非常接近定义的位置，但"BnB Bellevue"更便宜，因此它的乘数为0.86，而"Backback Nap"的值为0.66。
+
 ### 12.3.4 指数衰减 exp
+
+在上的示例中，选择exp作为衰减函数时，乘数的轮廓和曲面图如下：
+
+![082975c0 e899 11e2 86f7 174c3a729d64](assest/082975c0-e899-11e2-86f7-174c3a729d64.png)
+
+![0b606884 e899 11e2 907b aefc77eefef6](assest/0b606884-e899-11e2-907b-aefc77eefef6.png)
 
 ### 12.3.5 线性衰减 linear
 
+在上面的示例中，选择线性 作为衰减函数时，乘数的轮廓和曲面图如下所示：
+
+![1775b0ca e899 11e2 9f4a 776b406305c6](assest/1775b0ca-e899-11e2-9f4a-776b406305c6.png)
+
+![19d8b1aa e899 11e2 91bc 6b0553e8d722](assest/19d8b1aa-e899-11e2-91bc-6b0553e8d722.png)
+
+
+
 ### 12.3.6 如果缺少字段怎么办？
 
+如果文档中缺少数字字段，该函数将返回 1。
+
+```yaml
+PUT /hotel/_doc/6
+{
+  "name": "turbo"
+}
+```
+
+
+
 # 13 bulk操作的api json格式与底层性能优化的关系
+
+之前我们有讲过bulk的json格式很奇葩，不能换行，两行为一组（除删除外），如下：
+
+```
+{"action": {"metadata"}}
+{"data"}
+```
+
+举例：
+
+```yaml
+POST _bulk
+{ "index" : { "_index" : "test", "_id" : "1" } }
+{ "field1" : "value1" }
+{ "delete" : { "_index" : "test", "_id" : "2" } }
+{ "create" : { "_index" : "test", "_id" : "3" } }
+{ "field1" : "value3" }
+{ "update" : {"_id" : "1", "_index" : "test"} }
+{ "doc" : {"field2" : "value2"} }
+```
+
+而不是下面的形式：
+
+```
+[{
+ "action": {     
+ 	 {
+     "metadata"     
+     }	
+ },
+ "data": {
+ 
+ } 
+}]
+```
+
+
 
 # 14 deep paging 性能问题 和 解决方案
 
