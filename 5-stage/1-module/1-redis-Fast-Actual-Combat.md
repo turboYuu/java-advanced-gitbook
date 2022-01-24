@@ -28,15 +28,19 @@
 
 #### Redis下载
 
+- 官网地址：https://redis.io/
+- 中文官网地址：http://www.redis.cn/
+- 下载地址：https://download.redis.io/releases/
+
 
 
 #### Redis安装环境
 
-
+Redis没有官方的windows版本，所以建议在Linux系统上安装运行。使用centos 7作为安装环境。
 
 #### Redis安装
 
-1.安装c语言需要的GCC环境
+1. 安装c语言需要的GCC环境
 
 ```shell
 yum install -y gcc-c++
