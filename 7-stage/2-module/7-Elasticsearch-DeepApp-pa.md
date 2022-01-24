@@ -226,9 +226,9 @@ Elasticsearch 通过在后台进行段合并来解决这个问题。小的段被
 
    ![一旦合并结束，老的段被删除](assest/elas_1111.png)
 
-   合并大的段需要消耗大量的 I/O 和 CPU 资源，如果任其发展会影响搜索性能。Elasticsearch 在默认情况下会对合并流程进行资源，所以搜索仍然有足够的资源很好的执行。
+   合并大的段需要消耗大量的 I/O 和 CPU 资源，如果任其发展会影响搜索性能。Elasticsearch 在默认情况下会对合并流程进行资源限制，所以搜索仍然有足够的资源很好的执行。
 
-   默认情况下，归并线程的限速配置 indices.store.throttle.max_bytes_per_sec 是 20MB。对于写入量较大，磁盘转速较高，甚至使用 SSD 盘的服务器来说，可以考虑提高到100-200MB/s。
+   默认情况下，归并线程的限速配置 `indices.store.throttle.max_bytes_per_sec` 是 20MB。对于写入量较大，磁盘转速较高，甚至使用 SSD 盘的服务器来说，可以考虑提高到100-200MB/s。
 
    ```yaml
    PUT /_cluster/settings 
@@ -264,7 +264,7 @@ index.merge.policy.max_merged_segment # 默认5GB，大于这个大小的 segmen
 
 ## 2.3 optimize API
 
-`optimize` API 可以看作是 强制合并 API。它会将一个分片强制合并到`max_num_segments` 参数指定大小的段数目。这样做的意图是减少段的数量（通常减少到一个），来提升搜索性能。
+`optimize` API 可以看作是 **强制合并API**。它会将一个分片强制合并到 `max_num_segments` 参数指定大小的段数目。这样做的意图是减少段的数量（通常减少到一个），来提升搜索性能。
 
 在特定情况下，使用`optimize` API 颇有益处。例如在日志这种用例下。每天、每周、每月的日志被存储在一个索引中。老的索引实质上是只读；他们也并不太可能发生变化。这种情况下，使用 optimize 优化老的索引，将每一个分片合并为一个单独的段就有用了；这样既可以节省资源，也可以使搜索更加快速：
 
@@ -273,7 +273,8 @@ index.merge.policy.max_merged_segment # 默认5GB，大于这个大小的 segmen
 POST /logstash-2014-10/_optimize?max_num_segments=1
 ```
 
-```yaml
+```java
+// java client 设置
 forceMergeRequest.maxNumSegments(1)
 ```
 
@@ -465,7 +466,7 @@ es 提供了一个feature，就是说，你可以不用它提供的内部 _versi
 ?version=1&version_type=external
 ```
 
-区别在于，version方式，只有当你提供的 version 与 es 中的 version 一模一样的时候，才可以进行修改，只要不一样，就报错；<br>当version_type=external的时候，只有当你提供的 version 比 es 中的 _version 大的时候，才能完成修改。
+区别在于，version方式，只有当你提供的 version 与 es 中的 version 一模一样的时候，才可以进行修改，只要不一样，就报错；<br>当version_type=external的时候，**只有当你提供的 version 比 es 中的 _version 大的时候，才能完成修改**。
 
 ```
 es, if_seq_no=0&if_primary_term=1 和 文档中的值相等 才能更新成功
