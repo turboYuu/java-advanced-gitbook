@@ -3451,7 +3451,9 @@ public abstract class AbstractQueuedSynchronizer {    
 
 ### 8.1.4 公平与非公平的lock()实现差异
 
-下面分析基于AQS，ReentrantLock在公平和非公平上的实现差异。
+下面分析基于AQS，**ReentrantLock**在公平和非公平上的实现差异。
+
+**非公平的实现**：
 
 ![image-20211001213234098](assest/image-20211001213234098.png)
 
@@ -3459,11 +3461,11 @@ public abstract class AbstractQueuedSynchronizer {    
 
 
 
-
+**公平的实现**：
 
 ![image-20211001214605389](assest/image-20211001214605389.png)
 
-### 8.1.5 阻塞队列与唤醒机制
+### 8.1.5 阻塞队列与唤醒机制 (重要)
 
 下面进入锁的最为关键的部分，即acquireQueued(...)方法内部一探究竟。
 
