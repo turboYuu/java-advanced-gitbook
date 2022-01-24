@@ -1735,6 +1735,8 @@ PUT /hotel/_doc/6
 
 # 13 bulk操作的api json格式与底层性能优化的关系
 
+[Bulk API ES 7.3 官网参考](https://www.elastic.co/guide/en/elasticsearch/reference/7.3/docs-bulk.html)
+
 之前我们有讲过bulk的json格式很奇葩，不能换行，两行为一组（除删除外），如下：
 
 ```
@@ -1799,7 +1801,7 @@ bulk中的每个操作都可能要转发到不同node的shard上执行
 
 1. 优雅格式：
 
-   耗费更多的内存，更多的JVM GC开销。
+   耗费更多的内存，更多的JVM GC开销。之前提到过 bulk size 
 
 2. 丑陋的JSON格式：
 
@@ -1818,7 +1820,7 @@ ES 默认采用的分页方式是 from + size 的形式，类似于 mysql 的分
 
 ![image-20220122151002910](assest/image-20220122151002910.png)
 
-CPU、内存和IO消耗容易理解，网络带宽问题稍难理解一点。在query阶段，每个shard需要返回 1000 条数据给coordinating node，而 coordinating node需要接受 10*1000 条数据，即使每条数据只有 _doc_id 和 _score，这数据量也很大，而且，这才一个查询请求，拿如果再乘以 100 呢？
+CPU、内存和IO消耗容易理解，网络带宽问题稍难理解一点。在query阶段，每个shard需要返回 1000 条数据给coordinating node，而 coordinating node需要接受 10*1000 条数据，即使每条数据只有 _doc_id 和 _score，这数据量也很大，而且，这才一个查询请求，那如果再乘以 100 呢？
 
 es 中有个设置 `index.max_result_window`，默认是 10000 条数据，如果分页的数据超过第1万条，就拒绝返回结果。如果你觉得自己的集群还算可以，可是适当的放大这个参数，比如100万。
 
@@ -1830,7 +1832,7 @@ es 中有个设置 `index.max_result_window`，默认是 10000 条数据，如�
 
 ### 14.2.1 利用scroll遍历方式
 
-scroll 分为初始化 和 遍历 两步，初始化时将所有符合搜索条件的搜索结果缓存起来。可以想象成快照，在遍历时，从这个快照里取数据，也就是说，在初始化后对索引插入、删除、更新数据都不会影响遍历结果。因此，scroll并不适合用来做实时搜索，而更适用于后台批处理任务，比如群发。
+scroll 分为 初始化 和 遍历 两步，初始化时将所有符合搜索条件的搜索结果缓存起来。可以想象成快照，在遍历时，从这个快照里取数据，也就是说，在初始化后对索引插入、删除、更新数据都不会影响遍历结果。因此，scroll并不适合用来做实时搜索，而更适用于后台批处理任务，比如群发。
 
 1. 初始化
 
@@ -1886,7 +1888,7 @@ GET /turbo_book/_search
     "match_all": {}
   },
   "size": 2,
-  "search_after": [3],
+  "search_after": [3], # 
   "sort": [
     {
       "_id": "desc"
