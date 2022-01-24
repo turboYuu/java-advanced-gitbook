@@ -1109,7 +1109,7 @@ date举例：倒排索引列表，过滤date为2020-02-01（filter:2020-02-02）
 
 1. 多个filter组合查询时，每个filter条件都会对应一个bitset。
 
-2. 稀疏，密集的判断是通过匹配的多少（**即bitset中元素为1的个数**）[0,0,0,1,0,1] 比奥稀疏、[0,1,0,1,0,1]比较密集。
+2. 稀疏，密集的判断是通过匹配的多少（**即bitset中元素为1的个数**）[0, 0, 0, 1, 0, 0] 比较稀疏、[0, 1, 0, 1, 0, 1]比较密集。
 
 3. 先过滤稀疏的bitset，就可以先过滤掉尽可能多的数据。
 
@@ -1121,7 +1121,7 @@ date举例：倒排索引列表，过滤date为2020-02-01（filter:2020-02-02）
 
    userID: [0,1,0,1,0,1]
 
-   遍历完两个bitset之后，找到匹>配所有条件的doc，就是doc4
+   遍历完两个bitset之后，找到匹配所有条件的doc，就是doc4
 
 5. 将得到的document作为结果返回给client。
 
@@ -1129,21 +1129,21 @@ date举例：倒排索引列表，过滤date为2020-02-01（filter:2020-02-02）
 
 解析：
 
-1. 比如postDate=2020-01-01，[0,0,1,1,0,0]；可以缓存在内存中，这样下次如果再有该条件查询时，就不用重新扫描倒排索引，反复生成 bitset，可以大幅提升性能。
+1. 比如postDate=2020-01-01，[0 ,0, 1, 1, 0, 0]；可以缓存在内存中，这样下次如果再有该条件查询时，就不用重新扫描 倒排索引，反复生成 bitset，可以大幅提升性能。
 
 2. 在最近 256 个filter中，有某个filter超过一定次数，次数不固定，就会自动缓存该filter对应的bitset。
 
 3. filter针对小segment获取的结果，可以不缓存，segment记录数<1000，或者 segment大小<index总大小的3%（segment数量很小，此时哪怕是扫描也很快；segment会在后台自动合并，小segment很快就会跟其他小segment合并成大 segment，此时缓存没有多大意义，因为 segment很快就会消失）。
 
-4. filter比query的好处就在于有 **caching机制**，filter bitset 缓存起来便于下次不用扫描倒排索引。以后只要是有相同的filter条件的，会直接适应该过滤条件对应的cached bitset。
+4. filter比query的好处就在于有 **caching机制**，filter bitset 缓存起来便于下次不用扫描倒排索引。以后只要是有相同的filter条件的，会直接使用该过滤条件对应的cached bitset。
 
-   比如：postDate=2020-01-01, [0,0,1,1,0,0]；可以缓存在内存中，这样下次如果再有该条件查询时，就不用重新扫描倒排索引，反复生成bitset，可以大幅提升性能。
+   比如：postDate=2020-01-01, [0, 0, 1, 1, 0, 0]；可以缓存在内存中，这样下次如果再有该条件查询时，就不用重新扫描倒排索引，反复生成bitset，可以大幅提升性能。
 
 > **5 如果document 有新增或修改，那么cached bitset会自动更新**
 
-示例：postDate=2020-01-01，filter：[0,0,1,0]
+示例：postDate=2020-01-01，filter：[0 ,0, 1, 0]
 
-- 新增document，id=5，postDate=2020-01-01；会自动更新到postDate=2020-01-01这个filter的bitset中，缓存要会进行相应的更新。postDate=2020-01-01的bitset:[0,0,1,0,1]。
+- 新增document，id=5，postDate=2020-01-01；会自动更新到postDate=2020-01-01这个filter的bitset中，缓存要会进行相应的更新。postDate=2020-01-01的bitset:[0, 0, 1, 0, 1]。
 - 修改document，id=1，postDate=2019-01-31，修改为postDate=2020-01-01，此时也会自动更新bitset:[1,0,1,0,1]。
 
 > **6 filter大部分情况下，在query之前执行，先尽量过滤尽可能多的数据**
@@ -1153,7 +1153,7 @@ date举例：倒排索引列表，过滤date为2020-02-01（filter:2020-02-02）
 
 # 10 控制搜索精准度 - 基于boost的细粒度搜索的条件权重控制
 
-boost，搜索条件权重。可以将某个搜索条件的权重加大，此时匹配这个搜索条件的document，在计算relevance score时，权重更大的搜索条件的document对应的relevance score会更高，当然也就会优先被返回回来。默认情况下，搜索条件的权重都是1。
+boost，搜索条件权重。可以将某个搜索条件的权重加大，此时匹配这个搜索条件的document，在计算relevance score时，权重更大的搜索条件的document对应的 relevance score 会更高，当然也就会优先被返回回来。默认情况下，搜索条件的权重都是1。
 
 ```yaml
 DELETE /article
