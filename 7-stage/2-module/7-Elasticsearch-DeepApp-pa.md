@@ -696,6 +696,8 @@ Elasticsearch的搜索类型（SearchType类型）
 
 2.0 版本之后 只有两种了
 
+[ES 7.3 SearchType-官网参考](https://www.elastic.co/guide/en/elasticsearch/reference/7.3/search-request-body.html#request-body-search-search-type)
+
 ```java
 public enum SearchType {
 	DFS_QUERY_THEN_FETCH((byte)0),    
