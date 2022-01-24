@@ -635,12 +635,13 @@ one：要求我们这个写操作，只要有一个primary shard是active状态�
 
    ```xml
    int((primary shard + number_of_replicas) / 2) + 1
-   当number_of_replicas > 1 时才生效
+   当number_of_replicas > 1 时才生效,
+   3 primary shard + 1 replica shard = 6 shard --> 3 (每个主分片都有一个复制分片)
    ```
 
 2. 举例
 
-   比如：1个primary shard，3个replica，那么 quorum = ((1+3)/2)+1 = 3，要求3个primary shard + 1 个 replica shard = 4个 shard 中必须有 3 个 shard是要处于 active 状态，若这时只有两台机器的话，会出现什么情况？
+   比如：1个primary shard，3个replica，那么 quorum = ((1+3)/2)+1 = 3，要求3个primary shard + 1 个 replica shard = 4 个 shard 中必须有 3 个 shard是要处于 active 状态，若这时只有两台机器的话，会出现什么情况？
 
    ![image-20220120191522348](assest/image-20220120191522348.png)
 
@@ -663,16 +664,25 @@ quorum不齐全时，会wait（等待）1分钟
 
 从 ES 5.0 后，原先执行 put 带 consistency=all/quorum 参数的，都报错，提示语法错误。
 
-原因是consistency检查是在 PUT 之前做的。然而，虽然检查的时候，shard满足quorum，但是真正从 primary shard 写到replica 之前，仍会出现 shard 挂掉，但Update Api 会返回succeed。因此，这个检查并不能保证replica成功写入，甚至这个primary shard是否成功写入也未必能保证。
+原因是 consistency 检查是在 PUT 之前做的。然而，虽然检查的时候，shard满足quorum，但是真正从 primary shard 写到 replica 之前，仍会出现 shard 挂掉，但 Update Api 会返回succeed。因此，这个检查并不能保证replica成功写入，甚至这个primary shard是否成功写入也未必能保证。
 
 因此，修改了语法，用来下面的 wait_for_active_shards，因为这个更能清除表述，而没有歧义。
 
-例子：
+例子：（es 默认会有一个主分片和一个复制分片）
 
 ```yaml
 PUT /test_index/_doc/1?wait_for_active_shards=2&timeout=10s
 {
-   "name":"xiao mi" 
+  "name": "xiao mi"
+}
+```
+
+```yaml
+# 当 wait_for_active_shards > 2 且没有手动设置过期时间，1m后：
+{
+  "statusCode": 504,
+  "error": "Gateway Time-out",
+  "message": "Client request timeout"
 }
 ```
 
