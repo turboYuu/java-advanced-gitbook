@@ -643,6 +643,86 @@ Docker容器类似于一个轻量级的沙箱，Docker利用容器来运行和�
 
 ## 3.5 docker容器常用命令
 
+### 3.5.1 新建并启动容器
+
+https://docs.docker.com/engine/reference/commandline/run/
+
+#### 3.5.1.1 语法
+
+```shell
+docker run [OPTIONS] IMAGE [COMMAND] [ARG...]
+```
+
+
+
+#### 3.5.1.2 运行容器
+
+```shell
+docker run -it --rm -p 8080:8080 tomcat:9.0.20-jre8-alpine
+```
+
+
+
+#### 3.5.1.3 常用参数
+
+docker run 命令常用参数比较多，这里仅仅列出开发岗常用参数，
+
+- **-d,--detch=false**：后台运行容器，并返回容器 ID
+
+- **-i,--interactive=false**：以交互模式运行容器，通常与 -t 同时使用
+
+- **-p,--publish-all=false**：随机端口映射，容器内部端口随机映射到主机的端口。**不推荐使用该参数**
+
+- **-p,--publish=[]**：指定端口映射，格式为：**主机(宿主)端口:容器端口**，**推荐使用**
+
+- **-t,--tty=false**：为容器重新分配一个伪输入终端，通常与 -i 同时使用
+
+- **--name="nginx-lb"**：为容器指定一个名称
+
+- **-h,--hostname="turbine"**：指定容器的hostname
+
+- **-e,--env=[]**：设置环境变量，容器中可以使用该环境变量
+
+- **--net="bridge"**：指定容器的网络链接类型，支持 bridge/host/none/container：四种类型
+
+- **--link=[]**：添加链接到另一个容器；**不推荐使用该参数**
+
+- **-v,--volume**：绑定一个卷
+
+- **--privileged=false**：指定容器是否为特权容器，特权容器拥有所有的 capabilities
+
+- **--restart=no**：指定容器停止后的重启策略
+
+  no：容器退出时不重启
+
+  on-failure：容器故障退出（返回值非零）时重启
+
+  always：容器退出时总是重启，**推荐使用**
+
+- **--rm=false**：指定容器停止后自动删除容器，**不能以 docker run -d 启动的容器**
+
+### 3.5.2 容器日志
+
+https://docs.docker.com/engine/reference/commandline/logs/
+
+
+
+### 3.5.3 删除容器
+
+### 3.5.4 列出容器
+
+### 3.5.5 创建容器
+
+### 3.5.6 启动、重启、终止容器
+
+### 3.5.7 进入容器
+
+### 3.5.8 查看容器
+
+### 3.5.9 更新容器
+
+### 3.5.10 杀掉容器
+
 ## 3.5 docker常用命令汇总
 
 ## 3.6 安装 nginx
