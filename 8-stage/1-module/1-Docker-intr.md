@@ -381,6 +381,8 @@ https://hub.docker.com/
 
 ### 3.3.1 pull 命令
 
+https://docs.docker.com/engine/reference/commandline/pull/
+
 - 下拉镜像的命令。镜像从远程镜像仓库服务的仓库中下载。默认情况下，镜像会从  Docker Hub 的仓库中拉取。
 - 通过下载过程，可以看到，一个镜像一般是由多个层组成，类似 `f7e2b70d04ae` 这样的串表示层的唯一 ID。
 
@@ -426,6 +428,8 @@ https://hub.docker.com/
 
 ### 3.3.2 images命令
 
+https://docs.docker.com/engine/reference/commandline/images/
+
 通过使用如下两个命令，列出本机已有的镜像：
 
 ```shell
@@ -444,6 +448,8 @@ docker image ls
 - **SIZE**：镜像大小
 
 ### 3.3.3 save命令 （保存镜像）
+
+https://docs.docker.com/engine/reference/commandline/save/
 
 #### 3.3.3.1 一个镜像
 
@@ -483,6 +489,8 @@ tomcat:9.0.20-jre8 \
 ![image-20220125162215707](assest/image-20220125162215707.png)
 
 ### 3.3.4 load命令
+
+https://docs.docker.com/engine/reference/commandline/load/
 
 压缩包 还原成 基础的镜像
 
@@ -705,23 +713,285 @@ docker run 命令常用参数比较多，这里仅仅列出开发岗常用参数
 
 https://docs.docker.com/engine/reference/commandline/logs/
 
+#### 3.5.2.1 语法
 
+```shell
+docker logs [OPTIONS] CONTAINER
+```
+
+
+
+#### 3.5.2.2 执行命令
+
+```shell
+docker run -itd --name tomcat9 -p 8080:8080 tomcat:9.0.20-jre8-alpine 
+docker logs -f tomcat9
+```
+
+
+
+#### 3.5.2.3 常用参数
+
+- **-f**：跟踪日志输出
+- **--tail**：仅列出尾部最新N条容器日志
 
 ### 3.5.3 删除容器
 
+https://docs.docker.com/engine/reference/commandline/rm/
+
+**docker rm** ：删除一个或多个容器。docker rm 命令智能删除处于终止或退出状态的容器，并不能删除还处于运行状态的容器
+
+#### 3.5.3.1 语法
+
+```shell
+docker rm [OPTIONS] CONTAINER [CONTAINER...]
+```
+
+
+
+#### 3.5.3.2 执行命令
+
+```shell
+docker run -itd --name tomcat9 -p 8080:8080 tomcat:9.0.20-jre8-alpine 
+
+需要先停止运行中的容器再删除，否则无法删除容器
+docker stop tomcat9 
+
+按照容器名称删除
+docker rm tomcat9
+
+按照容器ID删除
+docker rm 8dd95a95e687
+```
+
+
+
+#### 3.5.3.3 常用参数
+
+- **-f**：通过SIGKILL信号强制删除一个运行中的容器
+- **-l**：移除容器间的网络链接，而非容器本身
+- **-v**：删除与容器关联的卷
+
 ### 3.5.4 列出容器
+
+https://docs.docker.com/engine/reference/commandline/ps/
+
+#### 3.5.4.1 语法
+
+```shell
+docker ps [OPTIONS]
+```
+
+
+
+#### 3.5.4.2 执行命令
+
+```shell
+docker run -itd --name tomcat9 -p 8080:8080 tomcat:9.0.20-jre8-alpine 
+
+查看运行中的容器
+docker ps tomcat9 
+
+查看所有容器
+docker ps -a tomcat9
+```
+
+输出详情介绍：
+
+**CONTAINER ID**：容器ID；
+
+**IMAGE**：使用的镜像；
+
+**COMMAND**：启动容器时运行的命令；
+
+**CREATED**：容器的创建时间；
+
+**STATUS**：容器状态；<br>状态有7中：
+
+- created（已创建）
+- restarting（重启中）
+- running（运行中）
+- removing（迁移中）
+- paused（暂停）
+- exited（停止）
+- dead（死亡）
+
+**PORTS**：容器的端口信息和使用的链接类型（tcp\udp）；
+
+**NAMES**：自动分配的容器名称。
+
+#### 3.5.4.3 常用参数
+
+- **-a**：显示所有的容器，包括未运行的；
+- **-q**：只显示容器编号。
+
+#### 3.5.4.4 实用技巧
+
+```shell
+停止所有运行容器
+docker stop $(docker ps -qa) 
+
+删除所有的容器
+docker rm $(docker ps -aq)
+
+docker rm $(docker stop $(docker ps -q)) 
+
+删除所有的镜像
+docker rmi $(docker images -q)
+```
+
+
 
 ### 3.5.5 创建容器
 
+https://docs.docker.com/engine/reference/commandline/create/
+
+**docker create**：创建一个新的容器但不启动它。用法同 docker run 命令。
+
+#### 3.5.5.1 语法
+
+```shell
+docker create [OPTIONS] IMAGE [COMMAND] [ARG...]
+```
+
+
+
+#### 3.5.5.2 执行命令
+
+```shell
+docker create -it --name tomcat9 -p 8080:8080 9.0.20-jre8-alpine
+```
+
+
+
+#### 3.5.5.3 常用参数
+
+大部分参数用法 与 docker run 命令参数相同
+
 ### 3.5.6 启动、重启、终止容器
+
+[docker start](https://docs.docker.com/engine/reference/commandline/start/)：启动一个或多个已经被停止的容器
+
+[docker stop](https://docs.docker.com/engine/reference/commandline/stop/)：停止一个运行中的容器
+
+[docker restart](https://docs.docker.com/engine/reference/commandline/restart/)：重启容器
+
+#### 3.5.6.1 语法
+
+```shell
+docker start [OPTIONS] CONTAINER [CONTAINER...]
+docker stop [OPTIONS] CONTAINER [CONTAINER...]
+docker restart [OPTIONS] CONTAINER [CONTAINER...]
+```
+
+
+
+#### 3.5.6.2 执行命令
+
+```shell
+docker start  tomcat9
+docker stop tomcat9
+docker restart tomcat9
+```
+
+
 
 ### 3.5.7 进入容器
 
+https://docs.docker.com/engine/reference/commandline/exec/
+
+docker exec：在运行的容器中执行命令。早期有attach命令，对于阻塞命令会等待，所以不方便。在 Docker 1.3.0 后提供了 exec 可以在容器内直接执行命令
+
+#### 3.5.7.1 语法
+
+```shell
+docker exec [OPTIONS] CONTAINER COMMAND [ARG...]
+```
+
+
+
+#### 3.5.7.2 执行命令
+
+```shell
+有bash命令的linux系统：例如centos
+docker run -it --name tomcat9.1 -p 8080:8080 tomcat:9.0.20-jre8-slim 
+docker exec -it tomcat9.1 /bin/bash
+
+没有bash命令的linux系统：例如alpine系统
+docker run -it --name tomcat9.2 -p 8081:8080 tomcat:9.0.20-jre8-alpine 
+docker exec -it tomcat9.2 sh
+```
+
+
+
+#### 3.5.7.3 常用参数
+
+- **-i**：即使没有附加也保持 STDIN 打开
+- **-t**：分配一个伪终端
+
 ### 3.5.8 查看容器
+
+https://docs.docker.com/engine/reference/commandline/inspect/
+
+**docker inspect**：获取 容器/镜像 的元数据
+
+#### 3.5.8.1 语法
+
+```shell
+docker inspect [OPTIONS] NAME|ID [NAME|ID...]
+```
+
+#### 3.5.8.2 执行命令
+
+```shell
+docker run -it --name tomcat9 -p 8081:8080 tomcat:9.0.20-jre8-alpine 
+docker inspect tomcat9
+```
+
+
+
+#### 3.5.8.3 常用参数
+
+- **-f**：指定返回值的模板文件
+- **-s**：显示总的文件大小
+- **--type**：为指定类型返回  JSON
 
 ### 3.5.9 更新容器
 
+https://docs.docker.com/engine/reference/commandline/update/
+
+**docker update**：可以动态的更新容器配置。可以更新一个或多个容器配置。多个容器名称或 ID 之间使用空格分隔。但 update 命令不是很成熟，很多配置项不能动态更新。推荐还是 rm 容器后，在重新 run 一个新的容器。
+
+#### 3.5.9.1 语法
+
+```shell
+docker update [OPTIONS] CONTAINER [CONTAINER...]
+```
+
+
+
+#### 3.5.9.2 执行命令
+
+```shell
+docker run -it --name tomcat9 -p 8081:8080 tomcat:9.0.20-jre8-alpine 
+
+更新容器restart策略
+docker update --restart always tomcat9
+```
+
+
+
 ### 3.5.10 杀掉容器
+
+docker kill：杀掉一个运行中的容器。
+
+3.5.10.1 语法
+
+
+
+3.5.10.2 执行命令
+
+3.5.10.3 常用参数
 
 ## 3.5 docker常用命令汇总
 
