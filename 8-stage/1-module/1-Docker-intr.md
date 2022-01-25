@@ -88,8 +88,6 @@ docker是一种轻量级的虚拟化技术，与传统操作系统技术的特�
 |  3   |    硬盘    |                  至少 50G                  |
 |  4   | centos 7.7 | docker及K8S集群推荐<br>使用centos 7.8 版本 |
 
-
-
 ### 2.1.2 节点信息
 
 服务器用户名：root，服务器密码：123456。及时做好系统快照。
@@ -97,8 +95,6 @@ docker是一种轻量级的虚拟化技术，与传统操作系统技术的特�
 | 主机名     | IP地址        | 说明       |
 | ---------- | ------------- | ---------- |
 | docker-100 | 192.168.31.81 | docker主机 |
-
-
 
 ### 2.1.3 centos下载
 
@@ -148,8 +144,6 @@ yum makecache
 yum repolist
 ```
 
-
-
 #### 2.1.4.3 升级系统内核
 
 ```shell
@@ -160,8 +154,6 @@ grub2-set-default 0
 
 reboot
 ```
-
-
 
 #### 2.1.4.4 查看 centos系统内核命令
 
@@ -183,15 +175,11 @@ free
 free -h
 ```
 
-
-
 #### 2.1.4.7 查看硬盘信息
 
 ```shell
 fdisk -l
 ```
-
-
 
 #### 2.1.4.8 关闭防火墙
 
@@ -201,19 +189,140 @@ systemctl stop firewalld
 systemctl disable firewalld
 ```
 
-
-
 #### 2.1.4.9 关闭 selinux
+
+```shell
+sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/sysconfig/selinux
+setenforce 0
+```
 
 #### 2.1.4.10  网桥过滤
 
+```shell
+vi /etc/sysctl.conf
+
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.bridge.bridge-nf-call-arptables = 1
+net.ipv4.ip_forward=1
+net.ipv4.ip_forward_use_pmtu = 0
+
+生效命令 
+sysctl --system
+```
+
 #### 2.1.4.11 命令补全
+
+```shell
+安装bash-completion
+yum -y install bash-completion bash-completion-extras
+
+使用bash-completion
+source /etc/profile.d/bash_completion.sh
+```
 
 #### 2.1.4.12 上传文件
 
+```shell
+yum -y install lrzsz
+1.鼠标拖拽上传文件
+
+2.下载文件
+   2.1下载一个文件
+	sz filename
+   2.2下载多个文件
+	sz filename1 filename2
+   2.3下载dir目录下所有文件，不包含dir下的文件夹 
+   	sz dir/*
+```
+
 ## 2.2 安装 docker
 
+### 2.2.1 阿里云开发者平台
 
+[docker官方安装过程](https://docs.docker.com/engine/install/centos/)
+
+可以参考[阿里云官网](https://www.aliyun.com/)提供的docker安装教程进行安装。
+
+![image-20220125104215434](assest/image-20220125104215434.png)
+
+![image-20220125104246212](assest/image-20220125104246212.png)
+
+![image-20220125104302119](assest/image-20220125104302119.png)
+
+### 2.2.2 安装docker前置条件
+
+```shell
+yum install -y yum-utils device-mapper-persistent-data lvm2
+```
+
+### 2.2.3 添加源
+
+```shell
+yum-config-manager --add-repo http://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+yum makecache fast
+```
+
+### 2.2.4 查看docker版本
+
+```shell
+yum list docker-ce --showduplicates | sort -r
+```
+
+### 2.2.5 安装 docker
+
+```shell
+安装最新版：推荐大家安装最新版本 
+yum -y install docker-ce
+
+安装指定版本：
+语法规则：yum install docker-ce-<VERSION_STRING> docker-ce-cli-<VERSION_STRING> containerd.io
+yum -y install docker-ce-18.06.3.ce-3.el7  docker-ce-cli.x86_64
+
+yum install -y docker-ce-19.03.9-3.el7 docker-ce-cli-19.03.9-3.el7
+```
+
+#### 2.2.5.1 官网名词解释
+
+- containerd.io: daemon to interface with the OS API (in this case, LXC - Linux Containers), essentially decouples Docker from the OS, also provides container services for non-Docker container managers
+- docker-ce: Docker daemon, this is the part that does all the management work, requires the other two on Linux
+- docker-ce-cli: CLI tools to control the daemon, you can install them on their own if you want to control a remote Docker daemon
+
+### 2.2.6 开启docker服务
+
+```shell
+systemctl start docker 
+systemctl status docker
+```
+
+### 2.2.7 安装阿里云镜像加速器
+
+```shell
+sudo mkdir -p /etc/docker
+sudo tee /etc/docker/daemon.json <<-'EOF'
+{
+  "registry-mirrors": ["https://idjm2ox0.mirror.aliyuncs.com"]
+}
+EOF
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+```
+
+![image-20220125113038143](assest/image-20220125113038143.png)
+
+### 2.2.8 设置docker开启启动服务
+
+```shell
+systemctl enable docker
+```
+
+### 2.2.9 docker命令
+
+```shell
+docker -v
+docker version
+docker info
+```
 
 # 3 Docker 的使用
 
