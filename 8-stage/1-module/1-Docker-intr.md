@@ -324,15 +324,322 @@ docker version
 docker info
 ```
 
+提示：别忘了关闭虚拟机，做好快照备份。方便以后随时恢复docker安装完毕状态。
+
 # 3 Docker 的使用
 
 ## 3.1 docker命令分类
 
+本章节记录 docker 命令在大部分情形下的使用，如果想了解每一项的细节，请参考官方文档，根据docker官网案例，总的来说分为以下几种：
+
+1. Docker环境信息 — `docker [info|version]`
+2. 容器生命周期管理 — `docker [create|exec|run|start|stop|restart|kill|rm|pause|unpause]`
+3. 容器操作管理 — `docker [ps|inspect|top|attach|wait|export|port|rename|stat]`
+4. 容器 rootfs 命令 — `docker [commit|cp|diff]`
+5. 镜像仓库 — `docker [login|pull|push|search]`
+6. 本地镜像管理 — `docker [build|images|rmi|tag|save|import|load]`
+7. 容器资源管理 — `docker [volume|network]`
+8. 系统日志信息 — `docker [events|history|logs]`
+
+
+
+### 3.1.1 官网地址
+
+https://docs.docker.com/engine/reference/run/
+
+从docker命令使用出发，梳理出如下命令结构图：
+
+![image-20220125132736816](assest/image-20220125132736816.png)
+
 ## 3.2 docker镜像（image）
+
+### 3.2.1 Docker Hub 地址
+
+docker hub 类似 maven 远程仓库地址
+
+https://hub.docker.com/
+
+作为一名研发人员，则可以将镜像理解为类（Class）。是一个应用程序。
+
+首先需要先从镜像仓库中拉取镜像。常见的镜像仓库服务是 Docker Hub，但是也存在其他镜像仓库服务。
+
+拉取操作会将镜像下载到本地 Docker 主机，可以使用该镜像启动一个或者多个容器。
+
+镜像由多层组成，每层叠加之后，从外部看来就如一个独立的对象。镜像内存是一个精简的操作系统（OS），同时还包含应用运行所必须的文件和依赖包。
+
+因为容器的设计初衷就是快速和小巧，所以镜像通常都比较小。
+
+前面多次提到镜像就像停止运行的容器（类）。实际上，可以停止某个容器的运行，并从中创建新的镜像。
+
+在该前提下，镜像可以理解为一种构建（build-time）结构，而容器可以理解为一种运行时（run-time）结构，如下图所示：
+
+![image-20220125134318497](assest/image-20220125134318497.png)
 
 ## 3.3 docker镜像常用命令
 
+下面介绍几种镜像中常用的操作命令。
+
+### 3.3.1 pull 命令
+
+- 下拉镜像的命令。镜像从远程镜像仓库服务的仓库中下载。默认情况下，镜像会从  Docker Hub 的仓库中拉取。
+- 通过下载过程，可以看到，一个镜像一般是由多个层组成，类似 `f7e2b70d04ae` 这样的串表示层的唯一 ID。
+
+
+
+**问题一**：如果多个不同的镜像中，同时包含了同一层，这样重复下载，岂不是导致了存储空间的浪费吗？
+
+实际上，Docker并不会这么傻，会去下载重复的层，Docker在下载之前，会去检测本地是否会有同样 ID 的层，如果本地已经存在了，就直接使用本地的就好了。
+
+**问题二**：另一个问题，不同仓库中，可能也会存在镜像重名的情况，这种情况怎么办？
+
+从严格意义上讲，我们在使用pull命令时，还需要在镜像前面指定仓库地址（Registry），如果不指定，则 Docker 会使用你默认配置的仓库地址。例如上面，由于我配置的是国内 docker.io 的仓库地址，我在 pull 的时候，docker会默认为我加上 docker.io/library 的前缀。
+
+例如：当我执行 docker pull tomcat:9.0.20-jre8 命令时，实际上相当于 docker pull docker.io/tomcat:9.0.20-jre8，如果你未配置自定义仓库，则默认在下载的时候，会在镜像前面加上 DockerHub 的地址。Docker 通过前缀地址的不同，来保证不同仓库中，重名镜像的唯一性。
+
+- 实际上完整的 ID 包括了 256 个 bit，64个十六进制字符组成的。
+
+  ```
+  https://hub.docker.com/_/tomcat
+  
+  docker pull tomcat:9.0.20-jre8
+  docker pull tomcat:9.0.20-jre8-slim
+  docker pull tomcat:9.0.20-jre8-alpine
+  
+  https://hub.docker.com/_/centos 
+  docker pull centos:7.8.2003
+  
+  https://hub.docker.com/_/ubuntu 
+  docker pull ubuntu:20.04
+  
+  https://hub.docker.com/_/debian 
+  docker pull debian:10.6
+  docker pull debian:10.6-slim
+  
+  https://hub.docker.com/_/alpine
+  docker pull alpine:3.12.1
+  ```
+
+#### 3.3.1.1 常用参数
+
+- `-a,--all-tags=true|false`：是否获取仓库中的所有镜像，默认为否；
+- `--disable-content-trust`：跳过镜像内容的校验，默认为 true；
+
+### 3.3.2 images命令
+
+通过使用如下两个命令，列出本机已有的镜像：
+
+```shell
+docker images
+docker image ls
+```
+
+![image-20220125144016130](assest/image-20220125144016130.png)
+
+各个选项说明：
+
+- **REPOSITIORY**：表示镜像的仓库源
+- **TAG**：镜像的标签
+- **IMAGE ID**：镜像ID
+- **CREATED**：镜像创建时间
+- **SIZE**：镜像大小
+
+### 3.3.3 save命令 （保存镜像）
+
+#### 3.3.3.1 一个镜像
+
+```shell
+mkdir -p /data 
+cd /data
+docker save tomcat:9.0.20-jre8-alpine -o tomcat9.tar
+docker save tomcat:9.0.20-jre8-slim > tomcat9.slim.tar
+```
+
+#####  3.3.3.1.1 常用参数
+
+- `-o`：输出到文件
+
+#### 3.3.3.2 多个镜像
+
+推荐开发岗的小伙伴使用 idea 开发工具中的列编辑模式（Alt）制作 docker save 命令
+
+```shell
+mkdir -p /data
+cd /data
+
+docker save \ 
+ubuntu:20.04 \ 
+alpine:3.12.1 \ 
+debian:10.6-slim \ 
+centos:7.8.2003 \ 
+-o linux.tar
+
+docker save \
+tomcat:9.0.20-jre8-alpine \
+tomcat:9.0.20-jre8-slim \
+tomcat:9.0.20-jre8 \
+-o tomcat9.0.20.tar
+```
+
+![image-20220125162215707](assest/image-20220125162215707.png)
+
+### 3.3.4 load命令
+
+压缩包 还原成 基础的镜像
+
+```shell
+mkdir -p /data 
+cd /data
+
+docker load -i linux.tar 
+docker load < tomcat9.0.20.tar
+```
+
+#### 3.3.4.1 常用参数
+
+- `--input,-i`：指定导入的文件
+- `--quiet,-q`：精简输出信息
+
+### 3.3.5 search命令
+
+不推荐使用search命令查找镜像，不够直观。
+
+```shell
+docker search tomcat
+```
+
+#### 3.3.5.1 常用参数
+
+- `-f,--filter filter`：过滤输出的内容
+- `--limit int`：指定搜索内容展示个数
+- `-no-index`：不截断输出内容
+- `--no-trunc`：不截断输出内容
+
+### 3.3.6 inspect命令
+
+- 通过 docker inspect 命令，我们可以**获取镜像的详细信息**，其中，包括创建者，各层的数据摘要等。
+- docker inspect 返回的是 JSON 格式的信息，如果你想获取其中指定的一项内容，可以通过 -f 来指定，如获取镜像大小
+
+```shell
+docker inspect tomcat:9.0.20-jre8-alpine
+docker inspect -f {{".Size"}} tomcat:9.0.20-jre8-alpine
+```
+
+
+
+### 3.3.7 history命令
+
+从前面的命令中，我们了解到，一个镜像是由多个层组成的，那么，我们要知道各个层的具体内容呢？
+
+**通过 docker history 命令，可以列出各个层次的创建信息**。例如：查看 tomcat:9.0.20-jre8-alpine的各层信息
+
+```shell
+docker history tomcat:9.0.20-jre8-alpine
+```
+
+
+
+### 3.3.8 tag命令 *
+
+标记本地镜像，将其归入某一仓库。先简单熟悉一下 tag 命令，后边的章节会详细进行讲解。
+
+```shell
+docker tag tomcat:9.0.20-jre8-alpine  turbo/tomcat:9
+```
+
+![image-20220125165010841](assest/image-20220125165010841.png)
+
+### 3.3.9 rmi命令
+
+通过如下两个，都可以删除镜像：
+
+```shell
+docker rmi tomcat:9.0.20-jre8-alpine
+docker image rm tomcat:9.0.20-jre8-alpine
+```
+
+#### 3.3.9.1 常用参数
+
+- `-f,-force`：强制删除镜像，即便有容器引用该镜像；
+- `-no-prune`：不要删除未带标签的父镜像；
+
+#### 3.3.9.2 通过 ID 删除镜像
+
+除了通过标签名称来删除镜像，还可以通过指定镜像ID，来删除镜像。一旦指定了通过 ID 来删除镜像，它会先尝试删除所有指向该镜像的标签，然后再删除镜像本身。
+
+```shell
+docker rmi ee7cbd482336
+```
+
+第一次实验
+
+```
+根据tomcat:9.0.20-jre8 镜像重新打一个新的tag
+docker tag tomcat:9.0.20-jre8  turbo/tomcat:9
+
+通过images命令查看镜像 
+docker images
+
+通过image的ID删除镜像 
+docker rmi e24825d32965
+
+错误信息如下：
+Error response from daemon: conflict: unable to delete e24825d32965 (must be forced) - image is referenced in multiple repositories
+```
+
+
+
+#### 3.3.9.3 总结
+
+- 推荐通过 image 的名称删除镜像
+- image 的 ID 在 终端长度未完全显示，ID值会出现重复
+
+#### 3.3.9.4 删除镜像的限制
+
+删除镜像很简单，但也不是随时随地都能删除的，它存在一些限制条件。当通过该镜像创建的容器未被销毁时，镜像是无法被删除的。为了验证这一点，做个实验：
+
+```shell
+docker run -itd --name tomcat9 tomcat:9.0.20-jre8-alpine
+```
+
+可以看到提示信息，无法删除该镜像，因为有容器正在使用它！同时，这段信息还告诉我们，初分通过添加`-f`子命令，也就是强制删除，才能移除掉该镜像！
+
+但是，一般不推荐这样暴力的做法，正确的做法应该是：
+
+1. 先删除引用这个镜像的容器；
+2. 再删除这个镜像。
+
+
+
+### 3.3.10 清理镜像
+
+我们在使用 Docker一段时间后，系统一般会残存一些临时的、没有被使用的镜像文件，可以通过以下命令进行清理。执行完命令后，还会告诉我们释放了多少存储空间！
+
+```shell
+docker image prune
+```
+
+#### 3.3.10.1 常用参数
+
+- `-a,--all`： 删除所有没有用的镜像，而不仅仅是临时文件；
+- `-f,--force`：强制删除镜像文件，无需弹出提示确认；
+
 ## 3.4 docker容器（container）
+
+容器是镜像运行时的实例。正如从虚拟机模板上启动 VM 一样，用户也同样可以从单个镜像上启动一个或多个容器。虚拟机和容器最大的区别是容器更快并且更轻量级——与虚拟机运行在完整的操作系统之上相比，容器会共享其所在主机的操作系统/内核。下图为使用单个 Docker 镜像启动多个容器的示意图。
+
+![image-20220125171255783](assest/image-20220125171255783.png)
+
+Docker容器类似于一个轻量级的沙箱，Docker利用容器来运行和隔离应用。
+
+容器是镜像的一个运行实例。
+
+可以将其启动、开始、停止、删除，而这些容器都是彼此相互隔离、互不可见的。<br>可以把容器看作是一个简易版的 Linux 系统环境（包括root用户权限、进程空间、用户空间 和 网络空间等）以及运行在其中的应用程序打包而成的盒子。
+
+容器是基于镜像启动起来的，容器中可以运行一个或多个进程。
+
+镜像是Docker生命周期 中的构建或打包 阶段，而容器则是启动或执行阶段
+
+镜像自身是只读的。容器从镜像启动的时候，会在镜像的最上层创建一个可写层。
 
 ## 3.5 docker容器常用命令
 
