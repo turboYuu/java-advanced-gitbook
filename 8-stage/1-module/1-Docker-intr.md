@@ -983,17 +983,37 @@ docker update --restart always tomcat9
 
 ### 3.5.10 杀掉容器
 
+https://docs.docker.com/engine/reference/commandline/kill/
+
 docker kill：杀掉一个运行中的容器。
 
-3.5.10.1 语法
+#### 3.5.10.1 语法
 
+```shell
+docker kill [OPTIONS] CONTAINER [CONTAINER...]
+```
 
+#### 3.5.10.2 执行命令
 
-3.5.10.2 执行命令
+```shell
+docker run -it --name tomcat9 -p 8081:8080 tomcat:9.0.20-jre8-alpine
 
-3.5.10.3 常用参数
+docker kill tomcat9
+
+docker ps
+
+docker ps -a
+
+docker start tomcat9
+```
+
+#### 3.5.10.3 常用参数
+
+- **-s**：向容器发送一个信号
 
 ## 3.5 docker常用命令汇总
+
+![image-20220125191928630](assest/image-20220125191928630.png)
 
 ## 3.6 安装 nginx
 
