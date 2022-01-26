@@ -989,9 +989,228 @@ docker start tomcat9
 
 ## 3.6 安装 nginx
 
+### 3.6.1 docker官网地址
+
+https://hub.docker.com/_/nginx
+
+### 3.6.2 基础镜像
+
+1. 拉取镜像
+
+   ```shell
+   docker pull nginx:1.19.3-alpine
+   ```
+
+   
+
+2. 备份镜像
+
+   ```shell
+   docker save nginx:1.19.3-alpine -o nginx:1.19.3-alpine.tar
+   ```
+
+   
+
+3. 导入镜像
+
+   ```shell
+   docker load -i nginx:1.19.3-alpine.tar
+   ```
+
+   
+
+### 3.6.3 运行镜像
+
+```shell
+docker run -itd --name ngxin -p 80:80 nginx:1.19.3-alpine
+
+进入容器
+docker exec -it nginx sh
+
+查看文件目录
+cat /usr/share/nginx/html
+
+配置文件目录
+cat /etc/nginx/nginx.conf
+```
+
+浏览器测试：
+
+```http
+http://192.168.31.81/
+```
+
 ## 3.7 安装 mysql
 
+### 3.7.1 docker官网地址
+
+https://hub.docker.com/_/mysql
+
+### 3.7.2 基础镜像
+
+1. 拉取镜像
+
+   ```shell
+   docker pull mysql:5.7.31
+   ```
+
+   
+
+2. 备份镜像
+
+   ```shell
+   docker save mysql:5.7.31 -o mysql:5.7.31.tar
+   ```
+
+   
+
+3. 导入镜像
+
+   ```shell
+   docker load -i mysql:5.7.31.tar
+   ```
+
+   
+
+### 3.7.3 运行镜像
+
+学习 **docker run -e** 参数
+
+- -e,--evn=[]：设置环境变量，容器中可以使用该环境变量
+- 官网中给出进入容器的第三种方式，前边学习了 `/bin/bash`，`sh`
+- 向 my.cnf 文件中追加相关配置项
+
+```shell
+docker run -itd --name mysql --restart always --privileged=true -p 3306:3306 -e MYSQL_ROOT_PASSWORD=admin mysql:5.7.31 --character-set-server=utf8 --collation- server=utf8_general_ci
+```
+
+
+
+### 3.7.4 privilege参数
+
+大多数熟悉 Unix 类系统的人，都习惯于通过使用 `sudo` 来随意提升自己的权限，成为 root 用户。我们在使用 docker 容器的过程中直到，docker 提供了一个 `--privileged` 的参数，其实它与随意使用 sudo 有很大的区别，它可能会让你的应用程序面临不必要的风险，下面我们将向你展示这与以 root 身份运行的区别，以及特权的实际含义。
+
+#### 3.7.4.1 作为 root 运行
+
+Docker 允许在其宿主机上隔离一个进程、capabilities 和文件系统，但是大多数容器实际上都是默认以 root 身份运行。这里我们拿DockerHub上几个比较流行的镜像来说明。
+
+#### 3.7.4.2 避免以 root运行
+
+虽然在容器内以 root 身份运行是很正常的，但是如果你想加固容器的安全性，还是应该避免这样做。
+
+
+
+#### 3.7.4.3 特权模式
+
+`--privilege`可以**不受限制地访问任何自己地系统调用**。在正常的操纵系统中，即使容器内有 root，Docker也会限制容器的 Linux Capabilities 的，这种限制包括像 `CAP_AUDIT_WRITE` 这样的中西，它允许覆盖内核的审计日志 —— 你的容器化工作负载很可能不需要这个 Capabilities。所以特权只应该在你真正需要它的特定设置中使用，简而言之，**它给容器提供了几乎所有主机（作为 root ）可以做的事情的权限**。
+
+本质上，它就会是一个免费的通行证，可以逃避容器锁包含的文件系统、进程、socket套接字等，当然，他又特定的使用场景，比如在很多 CI/CD 系统中需要的 `Docker INN Docker` 模式（在 Docker 容器内部需要 Docker 守护进程），以及需要极端网络的地方。
+
+### 3.7.5 测试mysql
+
+#### 3.7.5.1 容器内测试
+
+在容器内测试 mysql
+
+```shell
+进入容器：根据官网上的实例，使用bash命令进入容器
+docker exec -it some-mysql bash
+
+登录mysql
+mysql -uroot -p
+
+输入密码
+admin
+
+use mysql;
+show databases;
+
+退出mysql
+exit
+
+退出容器
+exit
+```
+
+
+
+#### 3.7.5.2 SQLYog客户端测试
+
+```
+IP:192.168.31.81
+username:root
+password:admin
+port:3306
+```
+
+
+
 ## 3.8 安装zookeeper
+
+### 3.8.1 docker官网地址
+
+https://hub.docker.com/_/zookeeper
+
+### 3.8.2 基础镜像
+
+1. 拉取镜像
+
+   ```shell
+   docker pull zookeeper:3.6.2
+   ```
+
+   
+
+2. 备份镜像
+
+   ```shell
+   docker save zookeeper:3.6.2 -o zookeeper:3.6.2.tar
+   ```
+
+   
+
+3. 导入镜像
+
+   ```shell
+   docker load -i zookeeper:3.6.2.tar
+   ```
+
+   
+
+### 3.8.3 单机版
+
+运行镜像
+
+```shell
+docker run -itd --name zookeeper --restart always -p 2181:2181 zookeeper:3.6.2
+
+进行容器
+docker exec -it zookeeper /bin/bash
+
+cat /etc/issue
+返回信息:
+
+```
+
+
+
+### 3.8.4 测试容器
+
+**ZooInspector**
+
+下载地址：
+
+https://issues.apache.org/jira/secure/attachment/12436620/ZooInspector.zip
+
+进入目录 ZooInspector\build ，运行 zookeeper-dev-ZooInspector.jar。点击左上角链接按钮，输入zk 服务地址ip 或者 主机名:2181。点击 OK，即可查看 ZK 节点信息。
+
+```shell
+java -jar zookeeper-dev-ZooInspector.jar
+```
+
+
+
+
 
 ## 3.9 安装activeMQ
 
