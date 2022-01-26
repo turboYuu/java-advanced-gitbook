@@ -661,15 +661,11 @@ https://docs.docker.com/engine/reference/commandline/run/
 docker run [OPTIONS] IMAGE [COMMAND] [ARG...]
 ```
 
-
-
 #### 3.5.1.2 运行容器
 
 ```shell
 docker run -it --rm -p 8080:8080 tomcat:9.0.20-jre8-alpine
 ```
-
-
 
 #### 3.5.1.3 常用参数
 
@@ -679,7 +675,7 @@ docker run 命令常用参数比较多，这里仅仅列出开发岗常用参数
 
 - **-i,--interactive=false**：以交互模式运行容器，通常与 -t 同时使用
 
-- **-p,--publish-all=false**：随机端口映射，容器内部端口随机映射到主机的端口。**不推荐使用该参数**
+- **-P,--publish-all=false**：随机端口映射，容器内部端口随机映射到主机的端口。**不推荐使用该参数**
 
 - **-p,--publish=[]**：指定端口映射，格式为：**主机(宿主)端口:容器端口**，**推荐使用**
 
@@ -719,16 +715,12 @@ https://docs.docker.com/engine/reference/commandline/logs/
 docker logs [OPTIONS] CONTAINER
 ```
 
-
-
 #### 3.5.2.2 执行命令
 
 ```shell
-docker run -itd --name tomcat9 -p 8080:8080 tomcat:9.0.20-jre8-alpine 
+docker run -itd --name tomcat9 -p 8080:8080 tomcat:9.0.20-jre8-alpine
 docker logs -f tomcat9
 ```
-
-
 
 #### 3.5.2.3 常用参数
 
@@ -747,8 +739,6 @@ https://docs.docker.com/engine/reference/commandline/rm/
 docker rm [OPTIONS] CONTAINER [CONTAINER...]
 ```
 
-
-
 #### 3.5.3.2 执行命令
 
 ```shell
@@ -763,8 +753,6 @@ docker rm tomcat9
 按照容器ID删除
 docker rm 8dd95a95e687
 ```
-
-
 
 #### 3.5.3.3 常用参数
 
@@ -781,8 +769,6 @@ https://docs.docker.com/engine/reference/commandline/ps/
 ```shell
 docker ps [OPTIONS]
 ```
-
-
 
 #### 3.5.4.2 执行命令
 
@@ -840,8 +826,6 @@ docker rm $(docker stop $(docker ps -q))
 docker rmi $(docker images -q)
 ```
 
-
-
 ### 3.5.5 创建容器
 
 https://docs.docker.com/engine/reference/commandline/create/
@@ -854,15 +838,11 @@ https://docs.docker.com/engine/reference/commandline/create/
 docker create [OPTIONS] IMAGE [COMMAND] [ARG...]
 ```
 
-
-
 #### 3.5.5.2 执行命令
 
 ```shell
 docker create -it --name tomcat9 -p 8080:8080 9.0.20-jre8-alpine
 ```
-
-
 
 #### 3.5.5.3 常用参数
 
@@ -884,8 +864,6 @@ docker stop [OPTIONS] CONTAINER [CONTAINER...]
 docker restart [OPTIONS] CONTAINER [CONTAINER...]
 ```
 
-
-
 #### 3.5.6.2 执行命令
 
 ```shell
@@ -893,8 +871,6 @@ docker start  tomcat9
 docker stop tomcat9
 docker restart tomcat9
 ```
-
-
 
 ### 3.5.7 进入容器
 
@@ -908,8 +884,6 @@ docker exec：在运行的容器中执行命令。早期有attach命令，对于
 docker exec [OPTIONS] CONTAINER COMMAND [ARG...]
 ```
 
-
-
 #### 3.5.7.2 执行命令
 
 ```shell
@@ -921,8 +895,6 @@ docker exec -it tomcat9.1 /bin/bash
 docker run -it --name tomcat9.2 -p 8081:8080 tomcat:9.0.20-jre8-alpine 
 docker exec -it tomcat9.2 sh
 ```
-
-
 
 #### 3.5.7.3 常用参数
 
@@ -985,7 +957,7 @@ docker update --restart always tomcat9
 
 https://docs.docker.com/engine/reference/commandline/kill/
 
-docker kill：杀掉一个运行中的容器。
+**docker kill**：杀掉一个运行中的容器。
 
 #### 3.5.10.1 语法
 
@@ -1013,7 +985,7 @@ docker start tomcat9
 
 ## 3.5 docker常用命令汇总
 
-![image-20220125191928630](assest/image-20220125191928630.png)
+![image-20220126103039207](assest/image-20220126103039207.png)
 
 ## 3.6 安装 nginx
 
