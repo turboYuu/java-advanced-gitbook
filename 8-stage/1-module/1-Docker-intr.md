@@ -1001,23 +1001,18 @@ https://hub.docker.com/_/nginx
    docker pull nginx:1.19.3-alpine
    ```
 
-   
-
 2. 备份镜像
 
    ```shell
-   docker save nginx:1.19.3-alpine -o nginx:1.19.3-alpine.tar
+   docker save nginx:1.19.3-alpine -o nginx.1.19.3-alpine.tar
    ```
-
-   
 
 3. 导入镜像
 
    ```shell
-   docker load -i nginx:1.19.3-alpine.tar
+   docker load -i nginx.1.19.3-alpine.tar
    ```
 
-   
 
 ### 3.6.3 运行镜像
 
@@ -1059,7 +1054,7 @@ https://hub.docker.com/_/mysql
 2. 备份镜像
 
    ```shell
-   docker save mysql:5.7.31 -o mysql:5.7.31.tar
+   docker save mysql:5.7.31 -o mysql.5.7.31.tar
    ```
 
    
@@ -1067,7 +1062,7 @@ https://hub.docker.com/_/mysql
 3. 导入镜像
 
    ```shell
-   docker load -i mysql:5.7.31.tar
+   docker load -i mysql.5.7.31.tar
    ```
 
    
@@ -1077,11 +1072,13 @@ https://hub.docker.com/_/mysql
 学习 **docker run -e** 参数
 
 - -e,--evn=[]：设置环境变量，容器中可以使用该环境变量
-- 官网中给出进入容器的第三种方式，前边学习了 `/bin/bash`，`sh`
+- 官网中给出进入容器的第三种方式`bash`，前边学习了 `/bin/bash`，`sh`
 - 向 my.cnf 文件中追加相关配置项
 
 ```shell
-docker run -itd --name mysql --restart always --privileged=true -p 3306:3306 -e MYSQL_ROOT_PASSWORD=admin mysql:5.7.31 --character-set-server=utf8 --collation- server=utf8_general_ci
+docker run -itd --name mysql --restart always --privileged=true -p 3306:3306 -e MYSQL_ROOT_PASSWORD=admin mysql:5.7.31 --character-set-server=utf8 --collation-server=utf8_general_ci
+
+docker run -itd --name mysql --restart always -p 3306:3306 -e MYSQL_ROOT_PASSWORD=admin mysql:5.7.31 --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
 ```
 
 
@@ -1164,7 +1161,7 @@ https://hub.docker.com/_/zookeeper
 2. 备份镜像
 
    ```shell
-   docker save zookeeper:3.6.2 -o zookeeper:3.6.2.tar
+   docker save zookeeper:3.6.2 -o zookeeper.3.6.2.tar
    ```
 
    
@@ -1172,7 +1169,7 @@ https://hub.docker.com/_/zookeeper
 3. 导入镜像
 
    ```shell
-   docker load -i zookeeper:3.6.2.tar
+   docker load -i zookeeper.3.6.2.tar
    ```
 
    
