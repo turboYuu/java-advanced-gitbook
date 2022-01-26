@@ -1156,15 +1156,11 @@ https://hub.docker.com/_/zookeeper
    docker pull zookeeper:3.6.2
    ```
 
-   
-
 2. 备份镜像
 
    ```shell
    docker save zookeeper:3.6.2 -o zookeeper.3.6.2.tar
    ```
-
-   
 
 3. 导入镜像
 
@@ -1172,7 +1168,6 @@ https://hub.docker.com/_/zookeeper
    docker load -i zookeeper.3.6.2.tar
    ```
 
-   
 
 ### 3.8.3 单机版
 
@@ -1186,7 +1181,7 @@ docker exec -it zookeeper /bin/bash
 
 cat /etc/issue
 返回信息:
-
+Debian GNU/Linux 10 \n \l
 ```
 
 
@@ -1221,23 +1216,18 @@ https://hub.docker.com/r/webcenter/activemq
    docker pull webcenter/activemq:5.14.3
    ```
 
-   
-
 2. 备份镜像
 
    ```shell
-   docker save webcenter/activemq:5.14.3 -o webcenter.activemq:5.14.3.tar
+   docker save webcenter/activemq:5.14.3 -o webcenter.activemq.5.14.3.tar
    ```
-
-   
 
 3. 导入镜像
 
    ```shell
-   docker load -i webcenter.activemq:5.14.3.tar
+   docker load -i webcenter.activemq.5.14.3.tar
    ```
 
-   
 
 ### 3.9.3 单机版
 
@@ -1246,16 +1236,15 @@ https://hub.docker.com/r/webcenter/activemq
 61616 为 ActiveMQ 的外部访问端口，8161 为 web 页面访问端口
 
 ```shell
-docker run -itd --name activmq --restart always -p 61616:61616 -p 8161:8161 webcenter/activemq:5.14.3
+docker run -itd --name activemq --restart always -p 61616:61616 -p 8161:8161 webcenter/activemq:5.14.3
 
 进入容器
 docker exec -it activmq /bin/bash 
 
 cat /etc/issue
 返回信息：
+Ubuntu 15.10 \n \l
 ```
-
-
 
 ### 3.9.4 测试容器
 
