@@ -93,4 +93,6 @@
 * [第八阶段 容器虚拟化技术和自动化部署](8-stage/README.md)
     * [模块一 Docker 容器虚拟化技术](8-stage/1-module/README.md)
         * [第一部分 Docker快速入门](8-stage/1-module/1-Docker-intr.md)
+        * [第二部分 Docker核心原理](8-stage/1-module/2-Docker-core-theory.md)
+        * [第三部分 Docker运维管理](8-stage/1-module/3-Docker-ope-mai.md)
 
