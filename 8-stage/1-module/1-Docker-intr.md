@@ -1208,9 +1208,63 @@ https://issues.apache.org/jira/secure/attachment/12436620/ZooInspector.zip
 java -jar zookeeper-dev-ZooInspector.jar
 ```
 
-
-
-
-
 ## 3.9 安装activeMQ
+
+### 3.9.1 docker官网
+
+activeMQ没有官方镜像版本。需要使用第三方制作镜像，学完 docker技术后，可以自行制作属于自己的activeMQ镜像。
+
+https://hub.docker.com/r/webcenter/activemq
+
+### 3.9.2 基础镜像
+
+1. 拉取镜像
+
+   ```shell
+   docker pull webcenter/activemq:5.14.3
+   ```
+
+   
+
+2. 备份镜像
+
+   ```shell
+   docker save webcenter/activemq:5.14.3 -o webcenter.activemq:5.14.3.tar
+   ```
+
+   
+
+3. 导入镜像
+
+   ```shell
+   docker load -i webcenter.activemq:5.14.3.tar
+   ```
+
+   
+
+### 3.9.3 单机版
+
+运行镜像
+
+61616 为 ActiveMQ 的外部访问端口，8161 为 web 页面访问端口
+
+```shell
+docker run -itd --name activmq --restart always -p 61616:61616 -p 8161:8161 webcenter/activemq:5.14.3
+
+进入容器
+docker exec -it activmq /bin/bash 
+
+cat /etc/issue
+返回信息：
+```
+
+
+
+### 3.9.4 测试容器
+
+使用 ip:8161 访问 ActiveMQ 管理界面，登录账号密码默认是 admin/admin
+
+```http
+http://192.168.31.81:8161/
+```
 
