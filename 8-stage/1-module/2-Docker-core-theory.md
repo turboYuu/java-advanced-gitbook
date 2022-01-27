@@ -686,9 +686,9 @@ docker pull nginx:1.19.3-alpine
 docker run -itd --name nginx -p 80:80 nginx:1.19.3-alpine 
 
 cd /data
-echo "turbine" > /data/index.html
+echo "turbine" > /root/data/index.html
 
-docker cp /data/index.html nginx:/usr/share/nginx/html/index.html
+docker cp /root/data/index.html nginx:/usr/share/nginx/html/index.html
 ```
 
 浏览器测试：
@@ -707,7 +707,8 @@ http://192.168.31.81
 docker run -itd --name nginx -p 80:80 nginx:1.19.3-alpine 
 
 cd /data
-docker cp nginx:/etc/nginx/nginx.conf /data
+docker cp nginx:/etc/nginx/nginx.conf /root/data
+docker cp nginx:/etc/nginx/nginx.conf .
 ```
 
 
@@ -745,8 +746,8 @@ bind mounts：容器内的数据被存放在宿主机文件系统的任意位置
 
 #### 3.4.3.1 数据覆盖问题
 
-- 如果挂载一个空的数据卷到容器中的一个非空目录中，那么这个目录下的文件会被复制到数据卷中
-- 如果挂载一个非空的数据卷到容器中的一个目录中，那么容器中的目录会显示数据卷中的数据。如果原来容器中的目录有数据，那么原始数据会被隐藏掉。
+- 如果挂载一个**空的数据卷**到容器中的一个非空目录中，那么这个目录下的文件会被复制到数据卷中
+- 如果挂载一个**非空的数据卷**到容器中的一个目录中，那么容器中的目录会显示数据卷中的数据。如果原来容器中的目录有数据，那么原始数据会被隐藏掉。
 
 #### 3.4.3.2 语法
 
@@ -769,7 +770,7 @@ docker pull mysql:5.7.31
 **推荐还是先创建好目录再进行数据挂载**
 
 ```shell
-docker run -itd --name mysql --restart always --privileged=true -p 3306:3306 -e MYSQL_ROOT_PASSWORD=admin -v /data/mysql:/var/lib/mysql mysql:5.7.31 --character-set-server=utf8 --collation-server=utf8_general_ci
+docker run -itd --name mysql --restart always --privileged=true -p 3306:3306 -e MYSQL_ROOT_PASSWORD=admin -v /data/mysql:/var/lib/mysql mysql:5.7.31 --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
 ```
 
 
