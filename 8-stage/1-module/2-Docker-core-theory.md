@@ -136,7 +136,7 @@ docker network ls
 
 docker使用 Linux 桥接网卡，在宿主机虚拟一个docker容器网桥（docker0），docker启动一个容器时会根据docker网桥的网段分配给容器一个IP地址，称为 Container-IP，同时docker网桥是每个容器的默认网关。因为在同一宿主机内的容器都接入同一个网桥，这样容器之间就能通过容器的Container-IP直接通信。
 
-docker网桥是宿主机虚拟出来的，并不是真实存在的网络设备，外部网络是无法寻址到的，这也意味着玩不网络无法通过直接 Container-IP访问到容器。如果容器希望外部访问能够访问到，可以通过映射容器端口到宿主主机（端口映射），即docker run创建容器的时候通过 -p 或 -P 参数来启动，访问容器的时候就通过 **[宿主机IP]:[容器端口]**访问容器。
+docker网桥是宿主机虚拟出来的，并不是真实存在的网络设备，外部网络是无法寻址到的，这也意味着外部网络无法通过直接 Container-IP访问到容器。如果容器希望外部访问能够访问到，可以通过映射容器端口到宿主主机（端口映射），即docker run创建容器的时候通过 -p 或 -P 参数来启动，访问容器的时候就通过 **[宿主机IP]:[容器端口]**访问容器。
 
 ```shell
 使用命令查看 docker 网络部分
@@ -206,9 +206,72 @@ Container 网络模式是 Docker 中一种较为特别的网络模式。在容�
 
 ## 2.6 none模式
 
+
+
 ## 2.7 overlay 网络模式
 
+
+
 ## 2.8 macvlan 网络模式
+
+## 2.9 基础镜像
+
+1. 拉取镜像
+
+   ```shell
+   docker pull nginx:1.19.3-alpine
+   ```
+
+   
+
+2. 备份镜像
+
+   ```sh
+   docker save nginx:1.19.3-alpine -o nginx.1.19.3-alpine.tar
+   ```
+
+   
+
+3. 导入镜像
+
+   ```shell
+   docker load -i nginx.1.19.3-alpine.tar
+   ```
+
+   
+
+## 2.10 bridge网络
+
+bridge网络表现形式就是 docker0 这个网络接口。容器默认都是通过 docker0 这个接口进行通信。也可以通过docker0 去和本机的以太网接口连接，这样容器内部才能访问互联网。
+
+```shell
+查看 docker0 网络，在默认环境中，一个名为 docker0 的linux bridge 自动被创建好，其上有一个docker 0 内部接口，IP地址为172.17.0.1/16
+ip a
+
+查看 docker 网络
+docker network ls
+
+查看bridge网络详情。主要关注Containers节点信息。
+docker network inspect bridge
+```
+
+### 2.10.1 docker0 详解
+
+#### 2.10.1.1 运行镜像
+
+```
+docker run -itd --name nginx1  nginx:1.19.3-alpine
+```
+
+
+
+
+
+## 2.11 none、host网络
+
+## 2.12 网络命令汇总
+
+## 2.13 小练习
 
 # 3 docker数据卷
 
