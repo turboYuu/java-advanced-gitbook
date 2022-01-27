@@ -458,7 +458,7 @@ ip a
 
 这说明什么？容器使用了host模式，说明容器和外层 linux主机共享一套网络接口。VMware 公司的虚拟管理软件，其中网络设置，也有 host 这个模式，作用是一样的，虚拟机里面使用网络和你自己外层机器是一模一样的。这种容器和本机使用共享一套网络接口，缺点还是很明显的，例如我们知道web服务器一般端口是80，共享一套网络接口，那么你这台机器上只能启动一个nginx端口为80的服务器了。否则，出现端口被占用的情况。
 
-本篇很简单，就是简单了解下 docker 中 none 和 host 网络模式，学习重点还是如何使用 bridge 网络。
+本篇很简单，就是简单了解下 docker 中 none 和 host 网络模式，学习重点还是如何使用 **bridge** 网络。
 
 ## 2.12 网络命令汇总
 
@@ -484,7 +484,7 @@ Run 'docker network COMMAND --help' for more information on a command.
 ### 2.12.1 查看网络
 
 ```shell
-查看网络    – docker network ls 
+查看网络 – docker network ls 
 # 作用：
 	查看已经建立的网络对象
 # 命令格式：
@@ -494,7 +494,6 @@ Run 'docker network COMMAND --help' for more information on a command.
 	    --format string     格式化打印结果    
 	    --no-trunc          不缩略显示
 	-q, --quiet             只显示网络对象的ID
-
 # 注意：
 	默认情况下，docker安装完成后，会自动创建bridge、host、none三种网络驱动
 # 命令演示
@@ -515,9 +514,9 @@ docker network ls -f 'driver=host'
 	docker network create [OPTIONS] NETWORK
 # 命令参数(OPTIONS)：
 	-d, --driver string             指定网络的驱动(默认    "bridge")
-   		--subnet strings            指定子网网段(如192.168.0.0/16、172.88.0.0/24)    
-   		--ip-range strings          执行容器的IP范围，格式同subnet参数
-		--gateway strings           子网的IPv4 or IPv6网关，如(192.168.0.1) 
+        --subnet strings            指定子网网段(如192.168.0.0/16、172.88.0.0/24)    
+        --ip-range strings          执行容器的IP范围，格式同subnet参数
+        --gateway strings           子网的IPv4 or IPv6网关，如(192.168.0.1) 
 # 注意：
 	host和none模式网络只能存在一个
 	docker自带的overlay 网络创建依赖于docker swarm(集群负载均衡)服务 
