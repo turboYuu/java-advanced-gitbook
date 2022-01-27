@@ -259,8 +259,43 @@ docker network inspect bridge
 
 #### 2.10.1.1 运行镜像
 
-```
+```shell
 docker run -itd --name nginx1  nginx:1.19.3-alpine
+
+查看bridge网络详情，主要关注 Containers节点信息。发现 nginx1 容器默认使用 bridge 网络
+docker network inspect bridge
+```
+
+#### 2.10.1.2 创建容器时 IP 地址的分配
+
+```shell
+查看 docker100 主机的网络。发现多出了一块网卡 
+ip a
+```
+
+Docker 创建一个容器的时候，会执行如下操作：
+
+- 创建一对虚拟接口/网卡，也就是veth pair，分别放到本地主机和新容器中；
+- 本地主机一端桥接到默认的 docker0 或指定网桥上，并具有一个唯一的名字，如 vetha596da4 ；
+- 容器一端放到新容器中，并修改名字作为 eth0，这个网卡/接口只在容器的名字空间可见；
+- 从网桥可用地址段中（也就是与该bridge对应的network）获取一个空闲地址分配给容器的 eth0，并配置默认路由到桥接网卡 vetha596da4 。
+
+完成之后，容器就可以使用 eth0 虚拟网卡来连接其他容器和其他网络。<br>如果不指定 --network，创建容器默认都会挂到 docker0 上，使用本地主机上 docker0 接口的 IP 作为所有容器的默认网关。
+
+```shell
+第一种方式：
+docker exec -it nginx1 sh
+
+ip a
+
+第二种方式：
+docker exec -it nginx1 ip a
+```
+
+#### 2.10.1.3 安装brctl
+
+```
+
 ```
 
 
