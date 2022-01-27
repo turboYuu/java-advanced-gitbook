@@ -974,9 +974,277 @@ docker run
 
 如果用户需要在多个容器之间共享一些持续更新的数据，最简单的方式就是使用数据卷容器。数据卷容器也是一个容器，但是它的目的是专门用来提供数据卷供其他容器挂载。
 
+发现创建好的数据卷容器处于停止运行的状态，因为使用 --volumes-from 参数所挂载数据卷的容器自己并不需要保持在运行状态。
+
+![image-20220127160631757](assest/image-20220127160631757.png)
+
+```shell
+docker run -d --name data-volume -v /data/nginx:/usr/share/nginx/html -v /data/mysql:/var/lib/mysql centos:7.8.2003
+```
+
+```shell
+docker run -itd --name nginx01 -p 80:80 --volumes-from data-volume nginx:1.19.3-alpine
+echo "turbine nginx" > /data/nginx/index.html 
+http://192.168.31.81
+
+docker run -itd --name nginx02 -p 81:80 --volumes-from data-volume nginx:1.19.3-alpine
+http://192.168.31.81:81
+```
+
+```shell
+docker run -itd --name mysql01 --restart always --privileged=true -p 3306:3306  -e MYSQL_ROOT_PASSWORD=admin --volumes-from data-volume mysql:5.7.31 --character-set-server=utf8 --collation-server=utf8_general_ci
+
+docker run -itd --name mysql02 --restart always --privileged=true -p 3307:3306  -e MYSQL_ROOT_PASSWORD=admin --volumes-from data-volume mysql:5.7.31 --character-set-server=utf8 --collation-server=utf8_general_ci
+```
+
 
 
 # 4 docker-compose
+
+## 4.1 官网地址
+
+```http
+https://docs.docker.com/compose/compose-file/
+```
+
+
+
+## 4.2 概述
+
+在实际生产环境中，一个应用往往由许多服务构成，而 docker 的最佳实践是一个容器只运行一个进程，因此运行多个微服务就要运行多个容器。多个容器协同工作需要一个有效的工具来管理它们，定义这些容器如何相互关联。compose应运而生。
+
+compose是用来定义和运行一个或多个容器（通常都是多个）运行和应用的工具，使用compose 可以简化容器镜像的构建以及容器的运行。
+
+compose使用 YAML 文件来定义多容器之间的关系。一个 `docker-compose up`就可以把完整的应用跑起来。本质上，compose 把 YAML 文件解析成 docker 命令的参数，然后调用相应的 docker 命令行接口，从而将应用以容器化的方式管理起来。它通过解析容器间的依赖关系由 YAML 文件中的 `links`标记指定。
+
+
+
+## 4.3 docker compose是什么
+
+compose、machine 和 swarm 是 docker 原生提供的三大编排工具。简称docker三剑客。
+
+Docker Compose 能够在 Docker 节点上，以单引擎模式（Single-Engine Mode）进行多容器应用的部署和管理。多数的现代应用通过多个更小的微服务互相协同来组成一个完整可用的应用。比如一个简单的示例应用可能由如下 4 个微服务组成。
+
+- Web前端
+- 订单管理
+- 品类管理
+- 后台数据库
+
+将以上服务组织在一起，就是一个可用的应用。
+
+部署和管理繁多的服务是困难的，而这正是 Docker Compose 要解决的问题。Docker Compose 并不是通过脚本和各种冗长的 docker 命令来将应用组织起来，而是通过一个声明式的配置文件描述整个应用，从而使用一条命令完成部署。应用部署成功后，还可以通过一系列简单的命令实现对其完整生命周期的管理。甚至，配置文件还可以置于版本控制系统中进行存储和管理。
+
+## 4.4 docker compose的背景
+
+Docker Compose的前身是 Fig。Fig 是一个由 Orchard 公司开发的强有力的工具，在当时是进行多容器管理的最佳方案。
+
+Fig 是一个基于 Docker 的 Python 工具，允许用户基于一个 YAML 文件定义多容器应用，从而可以使用 fig 命令行工具进行应用部署。
+
+Fig 还可以对应用的全生命周期进行管理。内部实现上，Fig 会解析 YAML 文件，并通过 Docker API 进行应用的部署和管理。
+
+在 2014 年，Docker 公司收购了 Orchard 公司，并将 Fig 更名为 Docker Compose。
+
+命令行工具也从 fig 更名为 docker-compose，并自此成为绑定在 Docker 引擎之上的外部工具。
+
+虽然它从未完全集成到 Docker 引擎中，但是仍然受到广泛关注并得到普遍使用。<br>直到今日，Docker Compose 仍然是一个需要在Docker主机上进行安装的外部 Python 工具。
+
+使用它时，首先编写定义多容器（多服务）应用的 YAML 文件，然后将其交由 docker-compose 命令处理，Docker Compose 就会基于 Docker 引擎 API 完成应用的部署。
+
+## 4.5 docker compose安装
+
+在Linux上安装 Docker Compose 分为两步：
+
+- 下载
+- 授权
+
+
+
+1. 下载
+
+   ```
+   https://github.com/docker/compose
+   下载最新版本：1.27.4
+   ```
+
+2. 授权
+
+   ```shell
+   mv /data/docker-compose-Linux-x86_64 /usr/local/bin/docker-compose 
+   cp /data/docker-compose-Linux-x86_64 /usr/local/bin/docker-compose
+   
+   chmod +x /usr/local/bin/docker-compose 
+   
+   开发环境可以授予最高权限
+   chmod 777 /usr/local/bin/docker-compose
+   ```
+
+3. 检查安装情况以及版本
+
+   ```shell
+   docker-compose -v
+   docker-compose --version
+   docker-compose version
+   ```
+
+   
+
+## 4.6 卸载 docker-compose
+
+docker-compose 卸载只需要删除二进制文件就可以了。
+
+```shell
+rm -rf /usr/local/bin/docker-compose 
+reboot
+```
+
+
+
+## 4.7 yml配置文件及常用指令
+
+Docker Compose 使用 YAML 文件来定义多服务的应用。YAML 是 JSON 的一个子集，因此也可以使用 JSON。
+
+Docker Compose 默认使用文件名 docker-compose.yml。当然，也可以使用 -f 参数指定具体文件。
+
+Docker Compose 的 YAML 文件包含 4 个一级 key：version、services、networks、volumes
+
+- version 是必须指定的，而且总是位于文件的第一行。它定义了Compose 文件格式（主要是 API）的版本。**注意，version 并非定义 Docker Compose 或 Docker 引擎的版本号**。
+- services 用于定义不同的应用服务。上边的例子定义了两个服务：一个名为 turbo-mysql 数据库服务 以及 一个名为 turbo-eureka 的微服务。Docker Compose 会将每个服务部署在各自的容器中。
+- networks 用于指引 Docker 创建新的网络。默认情况下，Docker Compose 会创建 bridge 网络。这是一种单主机网络，只能够实现同一主机上容器的连接。当然，也可以使用 driver 属性来指定不同的网络类型。
+- volumes 用于指引 Docker 来创建新的卷
+
+
+
+```yaml
+version: '3' 
+services:
+  lagou-mysql:    
+    build:
+      context: ./mysql    
+    environment:
+      MYSQL_ROOT_PASSWORD: admin    
+    restart: always
+    container_name: turbo-mysql    
+    volumes:
+    - /data/edu-bom/mysql/turbo:/var/lib/mysql    
+    image: turbo/mysql:5.7
+    ports:
+     - 3306:3306
+    networks:
+      turbo-net: 
+  lagou-eureka:
+    build:
+      context: ./edu-eureka-boot    
+    restart: always
+    ports:
+      - 8761:8761
+    container_name: edu-eureka-boot    
+    hostname: edu-eureka-boot
+    image: lagou/edu-eureka-boot:1.0    
+    depends_on:
+      - turbo-mysql
+    networks:
+      turbo-net:
+networks:
+  lagou-net: 
+volumes:
+  lagou-vol:
+```
+
+
+
+## 4.8 反向代理案例
+
+### 4.8.1 实验准备
+
+### 4.8.2 安装docker插件
+
+### 4.8.3 基础镜像
+
+### 4.8.4 试运行镜像
+
+### 4.8.5 nginx.conf
+
+### 4.8.6 反向代理配置
+
+### 4.8.7 docker-compose
+
+### 4.8.8 启动服务
+
+### 4.8.9 浏览器测试
+
+## 4.9 常用命令汇总
+
+### 4.9.1 启动服务
+
+```shell
+docker-compose up -d
+```
+
+
+
+### 4.9.2 停止服务
+
+```shell
+docker-compose down
+```
+
+
+
+### 4.9.3 列出所有运行容器
+
+```shell
+docker-compose ps
+```
+
+
+
+### 4.9.4 查看服务日志
+
+```shell
+docker-compose logs
+```
+
+
+
+### 4.9.5 构建或重新构建服务
+
+```shell
+docker-compose build
+```
+
+
+
+### 4.9.6 启动服务
+
+```shell
+docker-compose start
+```
+
+
+
+### 4.9.7 停止已运行的服务
+
+```shell
+docker-compose stop
+```
+
+
+
+### 4.9.8 重启服务
+
+```shell
+docker-compose restart
+```
+
+
+
+## 4.10 官网地址
+
+```http
+https://docs.docker.com/compose/reference/build/
+```
+
+
 
 # 5 安装Dockerfile
 
