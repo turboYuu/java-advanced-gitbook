@@ -362,9 +362,9 @@ ping www.baidu.com
 ping nginx1
 ```
 
-- 上面 link 命令，是在 nginx2 容器启动时 link 到 nginx1 容器，因此，在 nginx2 容器里面可以 ping 通 nginx1 容器名，link的作用相当于添加了 DNS 解析。在这里提醒下，在 nginx1 容器里去 ping nginx2 容器是不通的，因为link关系是单向的，不可逆。
+- 上面 link 命令，是在 nginx2 容器启动时 link 到 nginx1 容器，因此，在 nginx2 容器里面可以 ping 通 nginx1 容器名，link的作用相当于添加了 DNS 解析。在这里提醒下，在 nginx1 容器里去 ping nginx2 容器是不通的，因为 link 关系是单向的，不可逆。
 - 实际工作中，docker官网已经不推荐使用 link 参数
-- docker用其他方式替换掉link参数
+- docker 用其他方式替换掉 link 参数
 
 
 
@@ -401,7 +401,7 @@ docker exec -it nginx3 sh
 ping nginx2
 ```
 
-
+在默认的 docker0 的 bridge 的网络中使用容器名，是不能ping通的，当新创建一个 bridge网络后，使用容器名可以ping通。
 
 ## 2.11 none、host网络
 
@@ -425,6 +425,8 @@ docker run -itd --name nginx1 --network none  nginx:1.19.3-alpine
 docker network inspect none
 ```
 
+![docker network inspect none](assest/image-20220127182650155.png)
+
 注意，容器使用none模式，是没有物理地址和IP地址。我们可以进入到 nginx1 容器里，执行 ip a命令看看。只有一个 lo 接口，没有其他网络接口，没有IP。也就是说，使用 none 模式，这个容器是不能被其他容器访问。这种场景很少，只有项目安全性很高的功能才能使用到。例如：密码加密算法容器。
 
 ```shell
@@ -432,7 +434,7 @@ docker exec -it nginx1 sh
 ip a
 ```
 
-
+![image-20220127182747144](assest/image-20220127182747144.png)
 
 ### 2.11.2 host 网络
 
@@ -443,6 +445,8 @@ docker run -itd --name nginx2 --network host  nginx:1.19.3-alpine
 docker network inspect host
 ```
 
+![image-20220127182945972](assest/image-20220127182945972.png)
+
 这里看来也不显示IP地址，那么是不是和 none 一样，肯定不是，不然也不会设计 none 和 host 网络进行区分。下面为您进入 nginx2 容器，执行 ip a 看看效果。我们在容器里执行 ip a，发现打印内容和在 linux 本机外执行 ip a 是一样的。
 
 ```shell
@@ -450,7 +454,9 @@ docker exec -it nginx2 sh
 ip a
 ```
 
-这说明什么？容器使用了host模式，说明容器和外层 linux主机共享一套网络接口。VMware 公司的虚拟管理软件，其中网络设置，也有 host 这个模式，作用是一样的，虚拟机里面使用网络和你自己外层机器是一模一样的。这种容器和本机使用共享一套网络接口，缺点还是很明显的，例如我们知道web服务器一般端口是80，共享一套网络接口，那么你这太机器上智能启动一个nginx端口为80的服务器了。否则，出现端口被占用的情况。
+![image-20220127183043908](assest/image-20220127183043908.png)
+
+这说明什么？容器使用了host模式，说明容器和外层 linux主机共享一套网络接口。VMware 公司的虚拟管理软件，其中网络设置，也有 host 这个模式，作用是一样的，虚拟机里面使用网络和你自己外层机器是一模一样的。这种容器和本机使用共享一套网络接口，缺点还是很明显的，例如我们知道web服务器一般端口是80，共享一套网络接口，那么你这台机器上只能启动一个nginx端口为80的服务器了。否则，出现端口被占用的情况。
 
 本篇很简单，就是简单了解下 docker 中 none 和 host 网络模式，学习重点还是如何使用 bridge 网络。
 
