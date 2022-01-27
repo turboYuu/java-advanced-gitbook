@@ -294,21 +294,687 @@ docker exec -it nginx1 ip a
 
 #### 2.10.1.3 安装brctl
 
+```shell
+yum install -y bridge-utils
 ```
 
+#### 2.10.1.4 运行命令
+
+```shell
+brctl show
+```
+
+![image-20220127132904415](assest/image-20220127132904415.png)
+
+### 2.10.2 多容器之间通讯
+
+```shell
+docker run -itd --name nginx1 nginx:1.19.3-alpine
+
+docker run -itd --name nginx2 nginx:1.19.3-alpine
+
+docker network inspect bridge
+
+docker exec -it nginx1 sh 
+ping 172.17.0.2
+
+docker exec -it nginx2 sh
+ping 172.17.0.2
+ping www.baidu.com
+ping nginx1
 ```
 
 
+
+### 2.10.3 容器IP地址会发生变化
+
+```shell
+docker stop nginx1 nginx2 
+
+先启动nginx2，在启动nginx1
+docker start nginx2
+docker start nginx1
+
+docker network inspect bridge
+```
+
+
+
+### 2.10.4 link容器
+
+**学习docker run 命令的 link 参数**
+
+- **--link=[]**：添加链接到另一个容器；**不推荐各位使用该参数**
+
+使用link的场景：在企业开发环境中，有一个mysql的服务的容器 mysql_1，还有一个web应用程序 web_1，肯定web_1这台容器肯定要连接mysql_1这个数据库。前面网络命名空间的知识告诉我们，两个容器要通信，需要知道对方具体的IP地址。生产环境还比较好，IP地址很少变化，但是内部测试环境，容器部署的IP地址可能不断变化，所以，开发人员不能再代码中写死数据库的IP地址。这个时候，我们就可以利用容器之间 link 来解决这个问题。下面，来介绍入额通过容器名称来进行 ping，而不是通过 IP 地址。
+
+```shell
+docker rm -f nginx2
+
+docker run -itd --name nginx2 --link nginx1 nginx:1.19.3-alpine
+
+docker exec -it nginx2 sh
+ping 172.17.0.2
+
+ping www.baidu.com
+ping nginx1
+```
+
+- 上面 link 命令，是在 nginx2 容器启动时 link 到 nginx1 容器，因此，在 nginx2 容器里面可以 ping 通 nginx1 容器名，link的作用相当于添加了 DNS 解析。在这里提醒下，在 nginx1 容器里去 ping nginx2 容器是不通的，因为link关系是单向的，不可逆。
+- 实际工作中，docker官网已经不推荐使用 link 参数
+- docker用其他方式替换掉link参数
+
+
+
+### 2.10.5 新建bridge网络
+
+```shell
+docker network create -d bridge turbo-bridge
+```
+
+上面命令参数 -d 是指 DRIVER 的类型，后面的 turbo-bridge 是 network 的自定义名称，这个和 docker0 是类似的。下面开始介绍，如何把容器连接到 turbo-bridge 这个网络。
+
+启动一个 nginx 的容器 nginx3，并通过参数 network connect 来连接 turbo-bridge 网络。在启动容器 nginx3 之前，我们查看目前还没有容器连接到 turbo-bridge 这个网络上
+
+```shell
+brctl show
+docker network ls
+docker network inspect turbo-bridge
+
+docker run -itd --name nginx3 --network turbo-bridge  nginx:1.19.3-alpine 
+brctl show
+docker network inspect turbo-bridge
+```
+
+把一个运行中容器连接到 turbo-bridge网络
+
+```shell
+docker network connect turbo-bridge nginx2
+docker network inspect turbo-bridge
+
+docker exec -it nginx2 sh 
+ping nginx3
+
+docker exec -it nginx3 sh 
+ping nginx2
+```
 
 
 
 ## 2.11 none、host网络
 
+先看看 none 网络
+
+### 2.11.1 none 网络
+
+环境准备，先stop和rm掉全部之前开启的容器。并且把前面创建的 turbo-bridge 网络也删除。当然，更简单的办法是使用快照方式。将 docker-100 主机恢复到 docker初始化安装时。
+
+```shell
+docker rm -f $(docker ps -aq)
+docker network rm turbo-bridge
+
+docker network ls
+```
+
+启动一个 nginx 的容器 nginx1，并且连接到 none 网络。然后执行 docker network inspect none，看看容器信息
+
+```shell
+docker run -itd --name nginx1 --network none  nginx:1.19.3-alpine
+docker network inspect none
+```
+
+注意，容器使用none模式，是没有物理地址和IP地址。我们可以进入到 nginx1 容器里，执行 ip a命令看看。只有一个 lo 接口，没有其他网络接口，没有IP。也就是说，使用 none 模式，这个容器是不能被其他容器访问。这种场景很少，只有项目安全性很高的功能才能使用到。例如：密码加密算法容器。
+
+```shell
+docker exec -it nginx1 sh 
+ip a
+```
+
+
+
+### 2.11.2 host 网络
+
+前面学习 none 网络模式特点就是，容器没有IP地址，不能和其他容器通信。下面来看看host网络是什么特点。使用前面的命令，启动一个nginx2 容器，连接到host网络。然后 docker network inspect host，看看容器信息。
+
+```shell
+docker run -itd --name nginx2 --network host  nginx:1.19.3-alpine
+docker network inspect host
+```
+
+这里看来也不显示IP地址，那么是不是和 none 一样，肯定不是，不然也不会设计 none 和 host 网络进行区分。下面为您进入 nginx2 容器，执行 ip a 看看效果。我们在容器里执行 ip a，发现打印内容和在 linux 本机外执行 ip a 是一样的。
+
+```shell
+docker exec -it nginx2 sh 
+ip a
+```
+
+这说明什么？容器使用了host模式，说明容器和外层 linux主机共享一套网络接口。VMware 公司的虚拟管理软件，其中网络设置，也有 host 这个模式，作用是一样的，虚拟机里面使用网络和你自己外层机器是一模一样的。这种容器和本机使用共享一套网络接口，缺点还是很明显的，例如我们知道web服务器一般端口是80，共享一套网络接口，那么你这太机器上智能启动一个nginx端口为80的服务器了。否则，出现端口被占用的情况。
+
+本篇很简单，就是简单了解下 docker 中 none 和 host 网络模式，学习重点还是如何使用 bridge 网络。
+
 ## 2.12 网络命令汇总
+
+```shell
+docker network --help
+
+Usage:	docker network COMMAND
+
+Manage networks
+
+Commands:
+  connect     Connect a container to a network
+  create      Create a network
+  disconnect  Disconnect a container from a network
+  inspect     Display detailed information on one or more networks
+  ls          List networks
+  prune       Remove all unused networks
+  rm          Remove one or more networks
+
+Run 'docker network COMMAND --help' for more information on a command.
+```
+
+### 2.12.1 查看网络
+
+```shell
+查看网络    – docker network ls 
+# 作用：
+	查看已经建立的网络对象
+# 命令格式：
+	docker network ls [OPTIONS] 
+# 命令参数(OPTIONS)：
+	-f, --filter filter     过滤条件(如'driver=bridge’)
+	    --format string     格式化打印结果    
+	    --no-trunc          不缩略显示
+	-q, --quiet             只显示网络对象的ID
+
+# 注意：
+	默认情况下，docker安装完成后，会自动创建bridge、host、none三种网络驱动
+# 命令演示
+docker network ls
+docker network ls --no-trunc
+docker network ls -f 'driver=host'
+```
+
+
+
+### 2.12.2 创建网络
+
+```shell
+创建网络    – docker network create
+# 作用：
+	创建新的网络对象
+# 命令格式：
+	docker network create [OPTIONS] NETWORK
+# 命令参数(OPTIONS)：
+	-d, --driver string             指定网络的驱动(默认    "bridge")
+   		--subnet strings            指定子网网段(如192.168.0.0/16、172.88.0.0/24)    
+   		--ip-range strings          执行容器的IP范围，格式同subnet参数
+		--gateway strings           子网的IPv4 or IPv6网关，如(192.168.0.1) 
+# 注意：
+	host和none模式网络只能存在一个
+	docker自带的overlay 网络创建依赖于docker swarm(集群负载均衡)服务 
+	192.168.0.0/16 等于    192.168.0.0~192.168.255.255, 192.168.8.0/24 
+	172.88.0.0/24 等于    172.88.0.0~172.88.0.255
+# 命令演示
+docker network ls
+docker network create -d bridge my-bridge
+docker network ls
+```
+
+
+
+### 2.12.3 网络删除
+
+```shell
+网络删除    – docker network rm 
+# 作用：
+	删除一个或多个网络
+# 命令格式：
+	docker network rm NETWORK [NETWORK...] 
+# 命令参数(OPTIONS)：
+	无
+```
+
+
+
+### 2.12.4 查看网络详细信息
+
+```shell
+查看网络详细信息  docker network inspect
+# 作用：
+	查看一个或多个网络的详细信息
+# 命令格式：
+	docker network inspect [OPTIONS] NETWORK [NETWORK...]      
+	或者    docker inspect [OPTIONS] NETWORK [NETWORK...]
+# 命令参数(OPTIONS)：
+	-f, --format string     根据format输出结果
+```
+
+
+
+### 2.12.5 使用网络
+
+```shell
+使用网络    – docker run –-network
+# 作用：
+	为启动的容器指定网络模式
+# 命令格式：
+	docker run/create --network NETWORK 
+# 命令参数(OPTIONS)：
+	无
+# 注意：
+	默认情况下，docker创建或启动容器时，会默认使用名为bridge的网络
+```
+
+
+
+### 2.12.6 网络连接与断开
+
+```shell
+网络连接与断开    – docker network connect/disconnect
+# 作用：
+	将指定容器与指定网络进行连接或者断开连接
+# 命令格式：
+	docker network connect [OPTIONS] NETWORK CONTAINER 
+	docker network disconnect [OPTIONS] NETWORK CONTAINER
+# 命令参数(OPTIONS)：
+	-f, --force         强制断开连接(用于disconnect)
+```
+
+
 
 ## 2.13 小练习
 
+```shell
+docker network create -d bridge --subnet=172.172.0.0/24 --gateway 172.172.0.1 turbo-network
+
+172.172.0.0/24: 24代表子码掩码是255.255.255.0
+172.172.0.0/16: 16 代表子码掩码
+
+docker network ls
+
+docker run -itd --name nginx3 -p 80:80 --net turbo-network --ip 172.172.0.10 nginx:1.19.3-alpine
+
+--net mynetwork:选择存在的网络
+--ip 172.172.0.10:给nginx分配固定的IP地址
+
+docker network inspect turbo-network
+docker stop nginx3
+
+docker start nginx3
+
+docker network inspect turbo-network
+```
+
+
+
 # 3 docker数据卷
+
+## 3.1 小实验
+
+```shell
+docker run -itd --name mysql --restart always --privileged=true -p 3306:3306 -e MYSQL_ROOT_PASSWORD=admin mysql:5.7.31 --character-set-server=utf8 --collation- server=utf8_general_ci
+```
+
+
+
+## 3.2 什么是数据卷
+
+当我们在使用 docker 容器的时候，会产生一系列的数据文件，这些数据文件在我们删除docker容器时是会消失的，但是其中产生的部分内容我们希望能够把它保存起来另作用途的，Docker将应用与运行环境打包成容器发布，我们希望在运行过程中产生的部分数据是可以持久化的，而且容器之间我们希望能够实现数据共享。
+
+通俗的来说，docker容器数据卷可以看成是我们生活中常用的 U盘，它存在于一个或多个的容器中，由docker挂载到容器，但不属于联合文件系统，Docker不会在容器删除时删除其挂载的数据卷。
+
+特点：
+
+1. 数据卷可以在容器之间共享或重用数据
+2. 数据卷的更改可以立即生效
+3. 数据卷中的该更不会包含在镜像的更新中
+4. 数据卷默认会一直存在，即使容器被删除
+5. 数据卷的生命周期一直持续到没有容器使用它为止
+
+
+
+容器中的管理数据主要有两种方式：
+
+- 数据卷：Data Volumes 容器内数据直接映射到本地主机环境
+- 数据卷容器：Data Volume Containers 使用特定容器维护数据卷
+
+
+
+## 3.3 cp命令
+
+当然还有最原始的copy方式，这个也是管理数据的方式，但是基本不会用到
+
+**docker cp**：用于容器与主机之间的数据拷贝。
+
+### 3.3.1 语法
+
+```shell
+宿主机文件复制到容器内
+docker cp [OPTIONS] SRC_PATH CONTAINER:DEST_PATH 
+
+容器内文件复制到宿主机
+docker cp [OPTIONS] CONTAINER:SRC_PATH DEST_PATH
+```
+
+
+
+### 3.3.2 常用参数
+
+- **-L**：保持源目标中的连接
+
+### 3.3.3 基础镜像
+
+```shell
+docker pull nginx:1.19.3-alpine
+```
+
+
+
+### 3.3.4 宿主机文件 copy to 容器内
+
+宿主机的index.html页面覆盖容器内的 index.html页面
+
+```shell
+docker run -itd --name nginx -p 80:80 nginx:1.19.3-alpine 
+
+cd /data
+echo "turbine" > /data/index.html
+
+docker cp /data/index.html nginx:/usr/share/nginx/html/index.html
+```
+
+浏览器测试：
+
+```http
+http://192.168.31.81
+```
+
+
+
+### 3.3.5 容器内文件 copy to 宿主机
+
+将容器内的 nginx.conf 复制到宿主机中
+
+```shell
+docker run -itd --name nginx -p 80:80 nginx:1.19.3-alpine 
+
+cd /data
+docker cp nginx:/etc/nginx/nginx.conf /data
+```
+
+
+
+## 3.4 数据卷
+
+数据卷（Data Volumes）是一个可供一个或多个容器使用的特殊目标，它将主机操作系统目录直接映射进容器。
+
+### 3.4.1 注意事项
+
+- **挂载数据卷，最好是通过run而非create/start创建启动容器，create/start命令创建启动容器后，再挂载数据卷相当麻烦，要修改很多配置文件，但并非不可以**。
+- **docker官网推荐尽量进行目录挂载，不要进行文件挂载**
+
+### 3.4.2 数据卷类型
+
+有三种数据卷类型：
+
+1. 宿主机数据卷：直接在宿主机的文件系统中但是容器可以访问（bind mount）
+2. 命名的数据卷：磁盘上 Docker 管理的数据卷，但是这个卷有个名字。
+3. 匿名数据卷：磁盘上 Docker 管理的数据卷，因为没有名字想要找到不容易，Docker来管理这些文件。
+
+数据卷其实都在（如果没有网络文件系统等等情况下）宿主机文件系统里面的，只是第一种是在宿主机内的特定目录下，而后两种则在docker管理的目录下，这个目录一般是 /var/lib/docker/volumes/
+
+**推荐大家使用`宿主机数据卷`方式持久化数据**
+
+### 3.4.3 宿主机数据卷
+
+bind mounts：容器内的数据被存放在宿主机文件系统的任意位置，甚至存放到一些重要的系统目录或文件中。除了 docker 之外的进程也可以任意对他们进行修改。
+
+当使用bind mounts时，宿主机的目录或文件被挂载到容器中。容器将按照挂载目录或文件的绝对路径来使用或修改宿主机的数据，宿主机中的目录或文件不需要预先存在，在需要时会自动创建。
+
+使用 bind mounts在性能上是非常好的，但这依赖于宿主机有一个目录妥善结构化的文件系统。
+
+使用bind mounts的容器可以在通过容器内部的进程对主机文件系统进行修改，包括创建，修改和删除重要的系统文件和目录，这个功能虽然很强大，但显然也会造成安全方面的影响，包括影响到宿主机上Docker以外的进程
+
+#### 3.4.3.1 数据覆盖问题
+
+- 如果挂载一个空的数据卷到容器中的一个非空目录中，那么这个目录下的文件会被复制到数据卷中
+- 如果挂载一个非空的数据卷到容器中的一个目录中，那么容器中的目录会显示数据卷中的数据。如果原来容器中的目录有数据，那么原始数据会被隐藏掉。
+
+#### 3.4.3.2 语法
+
+```shell
+docker run -v  /宿主机绝对路径目录:/容器内目录 镜像名
+```
+
+
+
+#### 3.4.3.3 基础镜像
+
+```shell
+docker pull mysql:5.7.31
+```
+
+
+
+#### 3.4.3.4 运行镜像
+
+**推荐还是先创建好目录再进行数据挂载**
+
+```shell
+docker run -itd --name mysql --restart always --privileged=true -p 3306:3306 -e MYSQL_ROOT_PASSWORD=admin -v /data/mysql:/var/lib/mysql mysql:5.7.31 --character-set-server=utf8 --collation-server=utf8_general_ci
+```
+
+
+
+#### 3.4.3.5 容器目录权限
+
+```shell
+通过    -v 容器内路径：    ro rw 改变读写权限 
+
+ro:readonly 只读
+rw:readwrite 可读可写
+
+docker run -it -v /宿主机绝对路径目录:/容器内目录:ro 镜像名 
+docker run -it -v /宿主机绝对路径目录:/容器内目录:rw 镜像名
+
+例如：
+docker run -d -P --name nginx05 -v turbine1:/etc/nginx:ro nginx 
+docker run -d -P --name nginx05 -v turbine2:/etc/nginx:rw nginx
+
+ro 只要看到ro就说明这个路径只能通过宿主机来操作，容器内部是无法操作！
+```
+
+
+
+### 3.4.4 挂载目录权限问题
+
+```http
+https://hub.docker.com/r/sonatype/nexus3
+```
+
+```shell
+拉取镜像
+docker pull sonatype/nexus3:3.28.1 
+
+备份镜像
+docker save sonatype/nexus3:3.28.1 -o sonatype.nexus3.3.28.1.tar 
+
+导入镜像
+docker load -i sonatype.nexus3.3.28.1.tar
+```
+
+```shell
+运行容器
+docker run -d -p 8081:8081 --name nexus3 sonatype/nexus3:3.28.1
+
+进入容器查找初始化密码
+docker exec -it nexus3 /bin/bash 
+
+cd /nexus-data/
+
+cat admin.password 
+
+浏览器端访问
+http://192.168.198.100:8081/
+
+docker rm $(docker stop $(docker ps -aq))
+```
+
+```shell
+数据卷挂载
+docker run -d -p 8081:8081 --name nexus3 -v /data/nexus3/:/nexus-data/ sonatype/nexus3:3.28.1
+
+查看容器启动日志 
+docker logs -f nexus3
+
+报错信息如下：
+mkdir: cannot create directory '../sonatype-work/nexus3/log': Permission denied 
+mkdir: cannot create directory '../sonatype-work/nexus3/tmp': Permission denied 
+OpenJDK 64-Bit Server VM warning: Cannot open file ../sonatype-
+work/nexus3/log/jvm.log due to No such file or directory
+
+Warning:  Cannot open log file: ../sonatype-work/nexus3/log/jvm.log 
+Warning:  Forcing option -XX:LogFile=/tmp/jvm.log
+java.io.FileNotFoundException: ../sonatype-
+work/nexus3/tmp/i4j_ZTDnGON8hezynsMX2ZCYAVDtQog=.lock (No such file or directory)
+....
+```
+
+```shell
+删除容器
+docker rm -f nexus3
+
+查看官网说明文档，需要为挂载目录授权 
+chown -R 200 nexus3/
+
+运行容器
+docker run -d -p 8081:8081 --name nexus3 -v /data/nexus3/:/nexus-data/ sonatype/nexus3:3.28.1
+
+查看容器启动日志 
+docker logs -f nexus3
+```
+
+
+
+总结：**开发环境中推荐 挂载目录授最高权限 777；生产环境需要查看官网文档，结合实际生产环境进行授权**。
+
+### 3.4.5 命名的数据卷
+
+#### 3.4.5.1 基础镜像
+
+```shell
+docker pull nginx:1.19.3-alpine
+```
+
+
+
+#### 3.4.5.2 挂载数据卷
+
+```shell
+docker run -itd --name nginx -p 80:80 -v turbine-nginx:/etc/nginx nginx:1.19.3- alpine
+
+查看docker数据卷
+docker volume ls
+
+查看lagouedu-nginx宿主机目录
+docker volume inspect turbine-nginx
+
+进入docker数据卷默认目录
+cd /var/lib/docker/volumes/turbine-nginx 
+
+查看文件
+ls
+
+所有的文件docker默认保存在_data目录中 
+cd _data
+
+删除容器
+docker rm $(docker stop $(docker ps -aq))
+
+查看挂载数据是否还存在，通过查看数据，发现删除容器后，宿主机中的数据还存在
+ls
+```
+
+
+
+### 3.4.6 匿名数据卷
+
+#### 3.4.6.1 基础镜像
+
+```shell
+docker pull nginx:1.19.3-alpine
+```
+
+
+
+#### 3.4.6.2 挂载数据卷
+
+```shell
+docker run -itd --name nginx -p 80:80 -v /etc/nginx nginx:1.19.3-alpine 
+
+查看docker数据卷
+docker volume ls 
+
+查看宿主机目录
+docker volume inspect dbd07daa4e40148b11.... 
+
+进入docker数据卷默认目录
+cd /var/lib/docker/volumes/dbd07daa4e40148b11....
+
+查看文件
+ls
+
+所有的文件docker默认保存在_data目录中
+cd _data
+
+删除容器
+docker rm $(docker stop $(docker ps -aq))
+
+查看挂载数据是否还存在，通过查看数据，发现删除容器后，宿主机中的数据还存在
+ls
+```
+
+
+
+### 3.4.7 清理数据卷
+
+删除上面的创建的容器后，会发现数据卷仍然存在，恶魔就需要去清理它，不然会占用我们的资源
+
+```shell
+docker volume ls 
+
+清理数据卷
+docker volume prune 
+
+docker volume ls
+```
+
+
+
+## 3.5 数据卷容器
+
+### 3.5.1 基础镜像
+
+```shell
+docker pull centos:7.8.2003
+docker pull nginx:1.19.3-alpine
+docker pull mysql:5.7.31
+```
+
+
+
+### 3.5.2 run命令
+
+```shell
+docker run
+```
+
+- **volumes-from**：
+
+如果用户需要在多个容器之间共享一些持续更新的数据，最简单的方式就是使用数据卷容器。数据卷容器也是一个容器，但是它的目的是专门用来提供数据卷供其他容器挂载。
+
+
 
 # 4 docker-compose
 
