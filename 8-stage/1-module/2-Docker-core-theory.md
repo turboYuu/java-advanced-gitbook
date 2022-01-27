@@ -778,7 +778,7 @@ docker run -itd --name mysql --restart always --privileged=true -p 3306:3306 -e 
 #### 3.4.3.5 容器目录权限
 
 ```shell
-通过    -v 容器内路径：    ro rw 改变读写权限 
+通过 -v 容器内路径：ro rw 改变读写权限 
 
 ro:readonly 只读
 rw:readwrite 可读可写
