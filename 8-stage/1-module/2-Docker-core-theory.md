@@ -1430,7 +1430,7 @@ docker run -itd -p 5000:5000 --restart always --name registry registry:2.7.1
 vi /etc/docker/daemon.json 
 
 增加仓库配置信息
-{ "insecure-registries":["192.168.198.101:5000"] } 
+{ "insecure-registries":["192.168.31.82:5000"] } 
 
 重启docker
 systemctl daemon-reload 
@@ -1439,6 +1439,8 @@ systemctl restart docker
 查看docker信息确认仓库是否添加 
 docker info
 ```
+
+![image-20220128201348648](assest/image-20220128201348648.png)
 
 ### 5.2.5 浏览器测试
 
@@ -1459,6 +1461,14 @@ docker push 192.168.31.82:5000/nginx:v1
 
 ```html
 http://192.168.31.82:5000/v2/nginx/tags/list
+```
+
+![image-20220128201538322](assest/image-20220128201538322.png)
+
+### 5.2.8 在官方私服中下载镜像
+
+```shell
+docker pull 192.168.31.82:5000/nginx:v1
 ```
 
 
