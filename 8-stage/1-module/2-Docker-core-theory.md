@@ -1164,21 +1164,109 @@ volumes:
 
 ### 4.8.1 实验准备
 
+- **清理宿主机或者将宿主机恢复到docker初始化安装的快照版本**
+- **安装docker-compose**
+
 ### 4.8.2 安装docker插件
+
+idea 安装 docker 插件。Dockerfile、docker-compose.yml 文件大部分内容显示会有提示内容。方便开发人员编写配置文件。
+
+```
+官网地址：
+https://plugins.jetbrains.com/plugin/7724-docker/versions
+```
+
+
 
 ### 4.8.3 基础镜像
 
+```shell
+docker pull nginx:1.19.3-alpine
+docker pull tomcat:9.0.20-jre8-alpine
+```
+
+
+
 ### 4.8.4 试运行镜像
+
+```shell
+docker run -itd --name nginx -p 80:80 nginx:1.19.3-alpine
+docker run -itd --name tomcat -p 8080:8080 tomcat:9.0.20-jre8-alpine 
+
+mkdir -p /data/tomcat1 tomcat2
+
+docker cp nginx:/etc/nginx/ /data
+docker cp tomcat:/usr/local/tomcat/webapps /data/tomcat1/webapps
+docker cp tomcat:/usr/local/tomcat/webapps /data/tomcat2/webapps
+
+echo "tomcat1" > /data/tomcat1/webapps/ROOT/index.jsp 
+echo "tomcat2" > /data/tomcat2/webapps/ROOT/index.jsp
+
+docker rm -f nginx tomcat
+```
+
+
 
 ### 4.8.5 nginx.conf
 
+```conf
+nginx.conf增加内容
+include vhost/*.conf;
+```
+
+
+
 ### 4.8.6 反向代理配置
+
+```shell
+mkdir -p /data/nginx/vhost 
+cd vhost
+vi turbine.com.conf 
+
+upstream nginxturbine{
+  server 192.168.31.81:8081;   
+  server 192.168.31.81:8082;
+} 
+server{
+    listen 80;
+    server_name 192.168.31.81;     
+    autoindex on;
+    index index.html index.htm index.jsp;     
+    location / {
+         proxy_pass http://nginxturbine;
+         add_header Access-Control-Allow-Origin *;          
+         }
+}
+```
+
+
 
 ### 4.8.7 docker-compose
 
+```
+
+```
+
+
+
 ### 4.8.8 启动服务
 
+```shell
+docker-compose up 
+docker-compose up -d
+```
+
+
+
 ### 4.8.9 浏览器测试
+
+```
+http://192.168.31.81:8081/
+http://192.168.31.81:8082/
+http://192.168.31.81
+```
+
+
 
 ## 4.9 常用命令汇总
 
@@ -1256,6 +1344,118 @@ https://docs.docker.com/compose/reference/build/
 
 # 5 安装Dockerfile
 
-# 6 部署微服务
+在使用maven管理jar包依赖的时候，为了避免每次都从中央仓库拉取依赖包，使用了nexus做了代理仓库。docker镜像仓库依赖nexus私服仓库作用类似，用于将打包好的镜像保存在仓库中方便开发、测试、生产环境镜像拉取存储，减轻环境部署需要的相应操作。
 
-# 7 idea集成docker
+## 5.1 节点信息
+
+服务器用户名：root，服务器密码：123456。及时做好系统快照。
+
+| 主机名     | IP地址        | 说明       |
+| ---------- | ------------- | ---------- |
+| docker-100 | 192.168.31.81 | docker主机 |
+| harbor     | 192.168.31.82 | harbor主机 |
+
+
+
+## 5.2 官方私服
+
+### 5.2.1 官网地址
+
+```
+https://hub.docker.com/_/registry
+```
+
+
+
+### 5.2.2 基础镜像
+
+1. 拉取镜像
+
+   ```shell
+   docker pull registry:2.7.1
+   ```
+
+   
+
+2. 备份镜像
+
+   ```
+   docker save registry:2.7.1 -o registry.2.7.1.tar
+   ```
+
+   
+
+3. 导入镜像
+
+   ```shell
+   docker load -i registry.2.7.1.tar
+   ```
+
+   
+
+### 5.2.3 运行容器
+
+```shell
+docker run -itd -p 5000:5000 --restart always --name registry registry:2.7.1
+```
+
+
+
+### 5.2.4 添加私服仓库地址
+
+```shell
+编辑配置文件
+vi /etc/docker/daemon.json 
+
+增加仓库配置信息
+{ "insecure-registries":["192.168.198.101:5000"] } 
+
+重启docker
+systemctl daemon-reload 
+systemctl restart docker
+
+查看docker信息确认仓库是否添加 
+docker info
+```
+
+
+
+### 5.2.5 浏览器测试
+
+```
+http://192.168.31.82:5000/v2/_catalog	
+```
+
+
+
+### 5.2.6 上传镜像
+
+### 5.2.7 浏览器查看
+
+## 5.3 企业私服
+
+### 5.3.1 harbor官网地址
+
+### 5.3.2 docker-compose
+
+### 5.3.3 硬件要求
+
+### 5.3.4 安装harbor
+
+### 5.3.5 配置私服
+
+### 5.3.6 新建项目
+
+### 5.3.7 登录私服
+
+### 5.3.8 上传nginx镜像
+
+
+
+# 6 Dockerfile
+
+# 7 部署微服项目
+
+
+
+# 8 idea集成docker
