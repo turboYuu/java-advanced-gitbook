@@ -1372,7 +1372,7 @@ https://docs.docker.com/compose/reference/build/
 
 # 5 安装Docker私服
 
-在使用maven管理jar包依赖的时候，为了避免每次都从中央仓库拉取依赖包，使用了nexus做了代理仓库。docker镜像仓库依赖nexus私服仓库作用类似，用于将打包好的镜像保存在仓库中方便开发、测试、生产环境镜像拉取存储，减轻环境部署需要的相应操作。
+在使用maven管理jar包依赖的时候，为了避免每次都从中央仓库拉取依赖包，使用了nexus做了代理仓库。docker镜像仓库与nexus私服仓库作用类似，用于将打包好的镜像保存在仓库中方便开发、测试、生产环境镜像拉取存储，减轻环境部署需要的相应操作。
 
 ## 5.1 节点信息
 
@@ -1381,7 +1381,7 @@ https://docs.docker.com/compose/reference/build/
 | 主机名     | IP地址        | 说明       |
 | ---------- | ------------- | ---------- |
 | docker-100 | 192.168.31.81 | docker主机 |
-| harbor     | 192.168.31.82 | harbor主机 |
+| harbor-101 | 192.168.31.82 | harbor主机 |
 
 
 
@@ -1393,9 +1393,9 @@ https://docs.docker.com/compose/reference/build/
 https://hub.docker.com/_/registry
 ```
 
-
-
 ### 5.2.2 基础镜像
+
+在 harbor-101 上操作。
 
 1. 拉取镜像
 
@@ -1403,15 +1403,11 @@ https://hub.docker.com/_/registry
    docker pull registry:2.7.1
    ```
 
-   
-
 2. 备份镜像
 
    ```
    docker save registry:2.7.1 -o registry.2.7.1.tar
    ```
-
-   
 
 3. 导入镜像
 
@@ -1419,15 +1415,13 @@ https://hub.docker.com/_/registry
    docker load -i registry.2.7.1.tar
    ```
 
-   
-
 ### 5.2.3 运行容器
+
+在 harbor-101 上操作。
 
 ```shell
 docker run -itd -p 5000:5000 --restart always --name registry registry:2.7.1
 ```
-
-
 
 ### 5.2.4 添加私服仓库地址
 
@@ -1446,31 +1440,114 @@ systemctl restart docker
 docker info
 ```
 
-
-
 ### 5.2.5 浏览器测试
 
 ```
 http://192.168.31.82:5000/v2/_catalog	
 ```
 
-
-
 ### 5.2.6 上传镜像
 
+```shell
+docker tag nginx:1.19.3-alpine 192.168.31.82:5000/nginx:v1
+docker push 192.168.31.82:5000/nginx:v1
+```
+
+
+
 ### 5.2.7 浏览器查看
+
+```html
+http://192.168.31.82:5000/v2/nginx/tags/list
+```
+
+
 
 ## 5.3 企业私服
 
 ### 5.3.1 harbor官网地址
 
+```html
+harbor官网地址： 
+https://goharbor.io/
+
+github官网地址：
+https://github.com/goharbor/harbor 
+
+官方帮助文档：
+https://github.com/goharbor/harbor/blob/v1.9.4/docs/installation_guide.md
+```
+
+
+
 ### 5.3.2 docker-compose
+
+```shell
+验证docker-compose 
+docker-compose -v
+```
+
+
 
 ### 5.3.3 硬件要求
 
+| 硬件资源 | 最小配置 | 推荐配置 |
+| :------: | :------: | :------: |
+|   CPU    |  2 CPU   |  4 CPU   |
+|   内存   |   4 GB   |   8 GB   |
+|   硬盘   |  40 GB   |  160 GB  |
+
+
+
 ### 5.3.4 安装harbor
 
+**开发环境大部分采用http方式进行安装；生产环境必须采用https方式安装。docker运维篇中和大家一起学习https方式安装harbor**
+
+```html
+1.解压软件 
+  cd /data
+  tar zxf harbor-offline-installer-v1.9.4.tgz
+2.进入安装目录 
+  cd harbor
+  
+3.修改配置文件 
+  vi harbor.yml
+3.1 修改私服镜像地址 
+  hostname: 192.168.198.101
+3.2 修改镜像地址访问端口号 
+  port: 5000
+3.3 harbor管理员登录系统密码
+  harbor_admin_password: Harbor12345
+3.4 修改harbor映射卷目录 
+  data_volume: /data/harbor
+  
+4.安装harbor
+4.1 执行启动脚本,经过下述3个步骤后，成功安装harbor私服 
+  ./install.sh
+4.2 准备安装环境：检查docker版本和docker-compose版本
+4.3 加载harbor需要的镜像
+4.4 准备编译环境
+4.5 启动harbor。通过docker-compose方式启动服务
+4.6 google浏览器访问harbor私服 
+  http://192.168.198.101:5000   
+  username: admin
+  password: Harbor12345
+```
+
+
+
 ### 5.3.5 配置私服
+
+```shell
+vi /etc/docker/daemon.json
+"insecure-registries":["192.168.31.82:5000"] 
+
+重启docker服务：
+systemctl daemon-reload 
+systemctl restart docker
+```
+
+
 
 ### 5.3.6 新建项目
 
