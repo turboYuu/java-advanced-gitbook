@@ -1294,7 +1294,7 @@ docker-compose up -d
 docker-compose -f compose文件名称 up
 
 docker-compose logs # 查看日志
-docker-compose down # 删除容器
+docker-compose down # 停止并删除服务
 ```
 
 
@@ -1311,13 +1311,16 @@ http://192.168.31.81
 
 ## 4.9 常用命令汇总
 
+1. 要在 docker-compose.yml 文件所在的文件夹
+2. docker-compose -f docker-compose.yml logs ，如果文件名不叫 docker-compose.yml 需要使用 -f 指定；如果是，可以不需要指定。
+
 ### 4.9.1 启动服务
 
 ```shell
 docker-compose up -d
 ```
 
-### 4.9.2 停止服务
+### 4.9.2 停止并删除服务
 
 ```shell
 docker-compose down
