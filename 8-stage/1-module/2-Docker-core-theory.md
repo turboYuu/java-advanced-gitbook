@@ -1370,7 +1370,7 @@ https://docs.docker.com/compose/reference/build/
 
 
 
-# 5 安装Dockerfile
+# 5 安装Docker私服
 
 在使用maven管理jar包依赖的时候，为了避免每次都从中央仓库拉取依赖包，使用了nexus做了代理仓库。docker镜像仓库依赖nexus私服仓库作用类似，用于将打包好的镜像保存在仓库中方便开发、测试、生产环境镜像拉取存储，减轻环境部署需要的相应操作。
 
