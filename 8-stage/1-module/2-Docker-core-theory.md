@@ -1361,7 +1361,7 @@ docker-compose restart
 
 ## 4.10 官网地址
 
-```http
+```html
 https://docs.docker.com/compose/reference/build/
 ```
 
