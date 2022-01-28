@@ -814,7 +814,7 @@ docker load -i sonatype.nexus3.3.28.1.tar
 
 ```shell
 运行容器
-docker run -d -p 8081:8081 --name nexus3 sonatype/nexus3:3.28.1
+docker run -itd -p 8081:8081 --name nexus3 sonatype/nexus3:3.28.1
 
 进入容器查找初始化密码
 docker exec -it nexus3 /bin/bash 
@@ -831,7 +831,7 @@ docker rm $(docker stop $(docker ps -aq))
 
 ```shell
 数据卷挂载
-docker run -d -p 8081:8081 --name nexus3 -v /data/nexus3/:/nexus-data/ sonatype/nexus3:3.28.1
+docker run -itd -p 8081:8081 --name nexus3 -v /data/nexus3/:/nexus-data/ sonatype/nexus3:3.28.1
 
 查看容器启动日志 
 docker logs -f nexus3
@@ -857,7 +857,7 @@ docker rm -f nexus3
 chown -R 200 nexus3/
 
 运行容器
-docker run -d -p 8081:8081 --name nexus3 -v /data/nexus3/:/nexus-data/ sonatype/nexus3:3.28.1
+docker run -itd -p 8081:8081 --name nexus3 -v /data/nexus3/:/nexus-data/ sonatype/nexus3:3.28.1
 
 查看容器启动日志 
 docker logs -f nexus3
@@ -885,7 +885,7 @@ docker run -itd --name nginx -p 80:80 -v turbine-nginx:/etc/nginx nginx:1.19.3- 
 查看docker数据卷
 docker volume ls
 
-查看lagouedu-nginx宿主机目录
+查看turbine-nginx宿主机目录
 docker volume inspect turbine-nginx
 
 进入docker数据卷默认目录
@@ -904,7 +904,7 @@ docker rm $(docker stop $(docker ps -aq))
 ls
 ```
 
-
+![image-20220128150129360](assest/image-20220128150129360.png)
 
 ### 3.4.6 匿名数据卷
 
@@ -947,7 +947,7 @@ ls
 
 ### 3.4.7 清理数据卷
 
-删除上面的创建的容器后，会发现数据卷仍然存在，恶魔就需要去清理它，不然会占用我们的资源
+删除上面的创建的容器后，会发现数据卷仍然存在，我们就需要去清理它，不然会占用我们的资源
 
 ```shell
 docker volume ls 
@@ -978,7 +978,7 @@ docker pull mysql:5.7.31
 docker run
 ```
 
-- **volumes-from**：
+- **volumes-from**：Mount volumes from the specified container(s)
 
 如果用户需要在多个容器之间共享一些持续更新的数据，最简单的方式就是使用数据卷容器。数据卷容器也是一个容器，但是它的目的是专门用来提供数据卷供其他容器挂载。
 
@@ -991,6 +991,7 @@ docker run -d --name data-volume -v /data/nginx:/usr/share/nginx/html -v /data/m
 ```
 
 ```shell
+# 两个nginx使用同一个目录
 docker run -itd --name nginx01 -p 80:80 --volumes-from data-volume nginx:1.19.3-alpine
 echo "turbine nginx" > /data/nginx/index.html 
 http://192.168.31.81
@@ -1000,9 +1001,10 @@ http://192.168.31.81:81
 ```
 
 ```shell
-docker run -itd --name mysql01 --restart always --privileged=true -p 3306:3306  -e MYSQL_ROOT_PASSWORD=admin --volumes-from data-volume mysql:5.7.31 --character-set-server=utf8 --collation-server=utf8_general_ci
+docker run -itd --name mysql01 --restart always --privileged=true -p 3306:3306 -e MYSQL_ROOT_PASSWORD=admin --volumes-from data-volume mysql:5.7.31 --character-set-server=utf8 --collation-server=utf8_general_ci
 
-docker run -itd --name mysql02 --restart always --privileged=true -p 3307:3306  -e MYSQL_ROOT_PASSWORD=admin --volumes-from data-volume mysql:5.7.31 --character-set-server=utf8 --collation-server=utf8_general_ci
+# mysql02是不可以正常启动的
+docker run -itd --name mysql02 --restart always --privileged=true -p 3307:3306 -e MYSQL_ROOT_PASSWORD=admin --volumes-from data-volume mysql:5.7.31 --character-set-server=utf8 --collation-server=utf8_general_ci
 ```
 
 
@@ -1011,7 +1013,7 @@ docker run -itd --name mysql02 --restart always --privileged=true -p 3307:3306 �
 
 ## 4.1 官网地址
 
-```http
+```html
 https://docs.docker.com/compose/compose-file/
 ```
 
@@ -1069,10 +1071,12 @@ Fig 还可以对应用的全生命周期进行管理。内部实现上，Fig 会
 
 1. 下载
 
-   ```
+   ```html
    https://github.com/docker/compose
    下载最新版本：1.27.4
    ```
+
+   ![image-20220128160330695](assest/image-20220128160330695.png)
 
 2. 授权
 
@@ -1125,7 +1129,7 @@ Docker Compose 的 YAML 文件包含 4 个一级 key：version、services、netw
 ```yaml
 version: '3' 
 services:
-  lagou-mysql:    
+  turbo-mysql:    
     build:
       context: ./mysql    
     environment:
@@ -1136,10 +1140,10 @@ services:
     - /data/edu-bom/mysql/turbo:/var/lib/mysql    
     image: turbo/mysql:5.7
     ports:
-     - 3306:3306
+      - 3306:3306
     networks:
       turbo-net: 
-  lagou-eureka:
+  turbo-eureka:
     build:
       context: ./edu-eureka-boot    
     restart: always
@@ -1147,15 +1151,15 @@ services:
       - 8761:8761
     container_name: edu-eureka-boot    
     hostname: edu-eureka-boot
-    image: lagou/edu-eureka-boot:1.0    
+    image: turbo/edu-eureka-boot:1.0    
     depends_on:
       - turbo-mysql
     networks:
       turbo-net:
 networks:
-  lagou-net: 
+  turbo-net: 
 volumes:
-  lagou-vol:
+  turbo-vol:
 ```
 
 
@@ -1210,7 +1214,7 @@ docker rm -f nginx tomcat
 ### 4.8.5 nginx.conf
 
 ```conf
-nginx.conf增加内容
+nginx.conf 增加内容
 include vhost/*.conf;
 ```
 
@@ -1224,18 +1228,18 @@ cd vhost
 vi turbine.com.conf 
 
 upstream nginxturbine{
-  server 192.168.31.81:8081;   
-  server 192.168.31.81:8082;
-} 
+  server 192.168.31.81:8081;
+  server 192.168.31.81:8082;
+}
 server{
-    listen 80;
-    server_name 192.168.31.81;     
-    autoindex on;
-    index index.html index.htm index.jsp;     
-    location / {
-         proxy_pass http://nginxturbine;
-         add_header Access-Control-Allow-Origin *;          
-         }
+    listen 80;
+    server_name 192.168.31.81;
+    autoindex on;
+    index index.html index.htm index.jsp;
+    location / {
+         proxy_pass http://nginxturbine;
+         add_header Access-Control-Allow-Origin *;
+     }
 }
 ```
 
@@ -1243,17 +1247,54 @@ server{
 
 ### 4.8.7 docker-compose
 
+docker-compose.yml
+
+```yaml
+version: '3'
+services:
+  turbo-nginx:
+    image: nginx:1.19.3-alpine
+    container_name: turbo-nginx
+    restart: always
+    ports:
+      - 80:80
+    volumes:
+      - /data/nginx:/etc/nginx
+  turbo-tomcat1:
+    image: tomcat:9.0.20-jre8-alpine
+    container_name: turbo-tomcat1
+    restart: always
+    ports:
+      - 8081:8080
+    volumes:
+      - /data/tomcat1/webapps:/usr/local/tomcat/webapps
+    depends_on:
+      - turbo-nginx
+  turbo-tomcat2:
+    image: tomcat:9.0.20-jre8-alpine
+    container_name: turbo-tomcat2
+    restart: always
+    ports:
+      - 8082:8080
+    volumes:
+      - /data/tomcat2/webapps:/usr/local/tomcat/webapps
+    depends_on:
+      - turbo-nginx
 ```
 
-```
-
-
+上传到 docker-100 服务器上
 
 ### 4.8.8 启动服务
+
+在docker-compose.yml 文件所在目录下执行：
 
 ```shell
 docker-compose up 
 docker-compose up -d
+docker-compose -f compose文件名称 up
+
+docker-compose logs # 查看日志
+docker-compose down # 删除容器
 ```
 
 
@@ -1276,15 +1317,11 @@ http://192.168.31.81
 docker-compose up -d
 ```
 
-
-
 ### 4.9.2 停止服务
 
 ```shell
 docker-compose down
 ```
-
-
 
 ### 4.9.3 列出所有运行容器
 
@@ -1292,15 +1329,11 @@ docker-compose down
 docker-compose ps
 ```
 
-
-
 ### 4.9.4 查看服务日志
 
 ```shell
 docker-compose logs
 ```
-
-
 
 ### 4.9.5 构建或重新构建服务
 
@@ -1308,15 +1341,11 @@ docker-compose logs
 docker-compose build
 ```
 
-
-
 ### 4.9.6 启动服务
 
 ```shell
 docker-compose start
 ```
-
-
 
 ### 4.9.7 停止已运行的服务
 
@@ -1324,15 +1353,11 @@ docker-compose start
 docker-compose stop
 ```
 
-
-
 ### 4.9.8 重启服务
 
 ```shell
 docker-compose restart
 ```
-
-
 
 ## 4.10 官网地址
 
@@ -1453,6 +1478,47 @@ http://192.168.31.82:5000/v2/_catalog
 
 
 # 6 Dockerfile
+
+## 6.1 简介
+
+本章节中，将学习 Docker 如何创建镜像？Docker创建镜像主要有三种：
+
+1. 基于已有的镜像创建；
+2. 基于 Dockerfile 来创建；
+3. 基于本地模板来导入；
+
+## 6.2 基于已有的镜像创建
+
+### 6.2.1 commit命令
+
+**docker commit**：从容器创建一个新的镜像。
+
+**语法**：
+
+```shell
+docker commit [OPTIONS] CONTAINER [REPOSITORY[:TAG]]
+```
+
+**常用参数**：
+
+- **-a**：提交镜像作者
+- **-c**：使用Dockerfile指令来创建镜像
+- **-m**：提交时的说名文字
+- **-p**：在commit时，将容器暂停。
+
+### 6.2.2 小例子
+
+## 6.3 官网地址
+
+## 6.4 Dockerfile的基本结构
+
+## 6.5 Dockerfile文件说明
+
+## 6.6 Dockerfile常见说明
+
+## 6.7 小例子
+
+## 6.8 build命令
 
 # 7 部署微服项目
 
