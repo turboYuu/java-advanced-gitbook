@@ -1900,7 +1900,7 @@ FROM mysql:5.7.31
 # 作者信息
 MAINTAINER mysql from date UTC by Asia/Shanghai "turbine@turbo.com" 
 ENV TZ Asia/Shanghai
-
+# 数据库初始化sql
 COPY turbo.sql /docker-entrypoint-initdb.d
 ```
 
@@ -1913,7 +1913,7 @@ docker run -itd --name mysql --restart always --privileged=true -p 3306:3306 -e 
 docker push 192.168.31.82:5000/turbine/mysql:5.7.1
 ```
 
-
+![image-20220129162602277](assest/image-20220129162602277.png)
 
 ## 7.4 打包项目
 
