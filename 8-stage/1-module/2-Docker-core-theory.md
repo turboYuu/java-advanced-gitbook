@@ -1770,11 +1770,177 @@ mysql -uroot -padmin
 
 ## 7.1 数据库
 
+1. 创建数据库
+
+   创建 turbo 数据库
+
+2. 创建用户表
+
+   ```sql
+   CREATE TABLE `tbuser` (
+   	`userid` INT (11) NOT NULL AUTO_INCREMENT,
+   	`username` VARCHAR (20) COLLATE utf8_bin DEFAULT NULL,
+   	`password` VARCHAR (20) COLLATE utf8_bin DEFAULT NULL,
+   	`userroles` VARCHAR (2) COLLATE utf8_bin DEFAULT NULL,
+   	`nickname` VARCHAR (50) COLLATE utf8_bin DEFAULT NULL,
+   	PRIMARY KEY (`userid`)
+   ) ENGINE = INNODB AUTO_INCREMENT = 3 DEFAULT CHARSET = utf8 COLLATE = utf8_bin
+   ```
+
+3. 新增测试数据
+
+   ```sql
+   INSERT INTO tbuser ( username, PASSWORD, userroles, nickname ) VALUES
+   ('admin','1234','04','管理员'),('turbo','1234','03','工程师')
+   ```
+
+   
+
 ## 7.2 springboot项目
+
+### 7.2.1 项目简介
+
+1. 使用springboot技术
+2. mysql数据库
+3. springboot项目docker容器化部署
+4. mysql数据库容器化部署
+
+### 7.2.2 pom.xml
+
+### 7.2.3 application.yml
+
+### 7.2.4 测试数据库连接
+
+### 7.2.5 mybatisplus
+
+```html
+官网地址
+https://baomidou.com/
+
+与easyCode插件组合，为例倍增
+```
+
+
+
+### 7.2.6 实体类
+
+### 7.2.7 UserMapper接口
+
+### 7.2.8 启动类
+
+### 7.2.9 UserService接口
+
+### 7.2.10 UserServiceImpl实现类
+
+### 7.2.11 TestUser测试类
+
+### 7.2.12 控制器
+
+### 7.2.13 本地测试项目
 
 ## 7.3 mysql容器
 
+- 清理 docker-100主机的容器
+- 安装 docker-compose
+- 脱离开发环境部署、测试项目
+- 部署mysql容器
+- 制作mysql自定义镜像
+
+### 7.3.1 运行镜像
+
+```shell
+docker run -itd --name mysql --restart always -p 3306:3306 -e MYSQL_ROOT_PASSWORD=admin mysql:5.7.31
+```
+
+
+
+### 7.3.2 导入数据库
+
+使用客户端工具导入turbo.sql
+
+
+
+### 7.3.3 测试项目
+
+```
+http://localhost:8082/users
+```
+
+
+
+### 7.3.4 打包项目
+
+脱离开发环境，打包测试项目
+
+```
+mvn clean package
+
+使用dos命令启动项目
+java -jar docker-demo.jar
+```
+
+
+
+### 7.3.5 优化 mysql镜像
+
+制作mysql镜像，优化官网镜像
+
+- 优化镜像时区问题
+- 在容器启动时，直接导入turbo.sql数据库
+
+```shell
+mkdir -p /data/initsql
+cd /data/initsql
+```
+
+Dockerfile
+
+```dockerfile
+FROM mysql:5.7.31 
+# 作者信息
+MAINTAINER mysql from date UTC by Asia/Shanghai "turbine@turbo.com" 
+ENV TZ Asia/Shanghai
+
+COPY turbo.sql /docker-entrypoint-initdb.d
+```
+
+```shell
+docker build --rm -t 192.168.31.82:5000/turbine/mysql:5.7.1 .
+docker images
+
+docker run -itd --name mysql --restart always --privileged=true -p 3306:3306 -e MYSQL_ROOT_PASSWORD=admin -v /data/mysql:/var/lib/mysql 192.168.31.82:5000/turbine/mysql:5.7.1 --character-set-server=utf8 --collation-server=utf8_general_ci
+
+docker push 192.168.31.82:5000/turbine/mysql:5.7.1
+```
+
+
+
 ## 7.4 打包项目
+
+### 7.4.1 基础镜像
+
+```shell
+docker pull openjdk:8-alpine3.9
+
+docker save openjdk:8-alpine3.9 -o jdk8.tar
+
+docker load -i jdk8.tar
+```
+
+### 7.4.2 制作镜像-dockerfile
+
+***/data/dockerdemo/Dockerfile***
+
+```shell
+mkdir -p /data/dockerdemo 
+cd /data/dockerdemo
+```
+
+
+
+### 7.4.3 生成测试镜像
+
+### 7.4.4 测试、删除镜像
 
 # 8 idea集成docker
 
