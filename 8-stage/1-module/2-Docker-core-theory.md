@@ -2298,7 +2298,9 @@ ps -ef|grep docker
 netstat -tulp
 ```
 
+![image-20220129183731180](assest/image-20220129183731180.png)
 
+![image-20220129184347808](assest/image-20220129184347808.png)
 
 ## 8.1 配置 idea
 
@@ -2314,7 +2316,7 @@ TCP Socket: Engine API URL:tcp://192.168.198.100:2375
 配置成功后，会在下方显示connection successful
 ```
 
-
+![image-20220129184648543](assest/image-20220129184648543.png)
 
 ### 8.1.2 操作docker
 
@@ -2323,7 +2325,7 @@ TCP Socket: Engine API URL:tcp://192.168.198.100:2375
 连接成功可以查 看到container和images等信息。可以对container和images进行各种相关操作。
 ```
 
-
+![image-20220129190055772](assest/image-20220129190055772.png)
 
 ### 8.1.3 部署dockerdemo项目
 
