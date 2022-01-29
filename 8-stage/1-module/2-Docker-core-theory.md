@@ -1523,7 +1523,7 @@ docker-compose -v
 3.修改配置文件 
   vi harbor.yml
 3.1 修改私服镜像地址 
-  hostname: 192.168.198.101
+  hostname: 192.168.31.82
 3.2 修改镜像地址访问端口号 
   port: 5000
 3.3 harbor管理员登录系统密码
@@ -1539,7 +1539,7 @@ docker-compose -v
 4.4 准备编译环境
 4.5 启动harbor。通过docker-compose方式启动服务
 4.6 google浏览器访问harbor私服 
-  http://192.168.198.101:5000   
+  http://192.168.31.82:5000   
   username: admin
   password: Harbor12345
 ```
@@ -1582,11 +1582,11 @@ docker logout 192.168.31.82:5000
 ### 5.3.8 上传nginx镜像
 
 ```
-docker tag mariadb:10.5.2 192.168.198.101:5000/turbine/nginx:1.19.3-alpine
+docker tag mariadb:10.5.2 192.168.31.82:5000/turbine/nginx:1.19.3-alpine
 
-docker push 192.168.198.101:5000/turbine/nginx:1.19.3-alpine
+docker push 192.168.31.82:5000/turbine/nginx:1.19.3-alpine
 
-docker pull 192.168.198.101:5000/turbine/mariadb:10.5.2
+docker pull 192.168.31.82:5000/turbine/mariadb:10.5.2
 ```
 
 
@@ -1625,7 +1625,7 @@ docker commit [OPTIONS] CONTAINER [REPOSITORY[:TAG]]
 结合 docker cp命令自定义 nginx 的 index 页面
 
 ```shell
-docker run -itd --name nginx -p 80:80 192.168.198.101:5000/turbine/nginx:v1 
+docker run -itd --name nginx -p 80:80 192.168.31.82:5000/turbine/nginx:v1 
 
 cd /data
 echo "turbine" > /data/index.html
