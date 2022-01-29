@@ -1688,7 +1688,7 @@ Docker 以从上到下的顺序运行 Dockerfile 的指令。为了指定基本�
 | CMD        | 构建容器后调用，也就是在容器启动时才进行调用                 |
 | ENTRYPOINT | 指定运行容器启动过程执行命令，覆盖 CMD 参数<br>ENTRYPOINT与CMD非常类似，不同的是通过docker run执行的命令不会覆盖ENTRYPOINT，<br>而docker run 命令中指定的任何参数，都会被当作参数再次传递给ENTRYPOINT。<br>Dockerfile中只允许有一个ENTRYPOINT命令，多指定时会覆盖前面的设置，而只执行最后的ENTRYPOINT指令。 |
 | ADD        | 将本地文件添加到容器中，tar类型文件会自动解压（网络压缩资源不会被解压），<br>可以访问网络资源，类似wget |
-| COPY       | 功能类似 ADD，但是，实不会自动解压文件，也不能访问网络资源   |
+| COPY       | 功能类似 ADD，但是，是不会自动解压文件，也不能访问网络资源   |
 | WORKDIR    | 工作目录，类似于cd命名                                       |
 | ARG        | 用于指定传递给构建运行时的变量                               |
 | VOLUMN     | 用于指定持久化目录                                           |
