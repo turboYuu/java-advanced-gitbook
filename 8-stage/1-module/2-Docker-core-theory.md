@@ -2276,9 +2276,58 @@ docker rm dockerdemo
 
 # 8 idea集成docker
 
+修改 docker-100 服务器 docker.service服务信息，允许其他主机远程访问100服务器的docker。
+
+```shell
+vi /usr/lib/systemd/system/docker.service 
+
+在ExecStart行最后增加，开放远程主机访问权限。
+-H tcp://0.0.0.0:2375 
+
+最后增加修改内容如下:
+ExecStart=/usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock -H tcp://0.0.0.0:2375
+
+重启docker
+systemctl daemon-reload 
+systemctl restart docker
+
+查看docker进程，发现docker守护进程在已经监听2375的tcp端口
+ps -ef|grep docker
+
+查看系统的网络端口，检查tcp的2375端口,docker的守护进程是否监听 
+netstat -tulp
+```
+
+
+
 ## 8.1 配置 idea
 
+### 8.1.1 配置插件
 
+```shell
+settings->build execution...->docker->点击"+"按钮，新增docker-100服务器docker配置信息 
+
+配置内容如下：
+name:docker-100 
+TCP Socket: Engine API URL:tcp://192.168.198.100:2375 
+
+配置成功后，会在下方显示connection successful
+```
+
+
+
+### 8.1.2 操作docker
+
+```
+配置成功后，会在idea开发工具下方窗口"8.services"里显示信息，右键点击connect。
+连接成功可以查 看到container和images等信息。可以对container和images进行各种相关操作。
+```
+
+
+
+### 8.1.3 部署dockerdemo项目
+
+通过idea开发工具进行远程部署
 
 
 
