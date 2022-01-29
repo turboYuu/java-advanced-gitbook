@@ -1544,9 +1544,11 @@ docker-compose -v
   password: Harbor12345
 ```
 
-
+![image-20220129120708424](assest/image-20220129120708424.png)
 
 ### 5.3.5 配置私服
+
+docker-100
 
 ```shell
 vi /etc/docker/daemon.json
@@ -1566,7 +1568,7 @@ systemctl restart docker
 turbine
 ```
 
-
+![image-20220129121228786](assest/image-20220129121228786.png)
 
 ### 5.3.7 登录私服
 
@@ -1577,19 +1579,19 @@ docker login -u admin -p Harbor12345 192.168.31.82:5000
 docker logout 192.168.31.82:5000
 ```
 
-
+![image-20220129122034980](assest/image-20220129122034980.png)
 
 ### 5.3.8 上传nginx镜像
 
 ```
-docker tag mariadb:10.5.2 192.168.31.82:5000/turbine/nginx:1.19.3-alpine
+docker tag nginx:1.19.3-alpine 192.168.31.82:5000/turbine/nginx:v1
 
-docker push 192.168.31.82:5000/turbine/nginx:1.19.3-alpine
+docker push 192.168.31.82:5000/turbine/nginx:v1
 
-docker pull 192.168.31.82:5000/turbine/mariadb:10.5.2
+docker pull 192.168.31.82:5000/turbine/nginx:v1
 ```
 
-
+![image-20220129122225217](assest/image-20220129122225217.png)
 
 # 6 Dockerfile
 
