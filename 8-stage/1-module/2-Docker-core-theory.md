@@ -1561,9 +1561,33 @@ systemctl restart docker
 
 ### 5.3.6 新建项目
 
+```
+在harbor中新建公共项目
+turbine
+```
+
+
+
 ### 5.3.7 登录私服
 
+```
+docker login -u admin -p Harbor12345 192.168.31.82:5000 
+
+退出私服
+docker logout 192.168.31.82:5000
+```
+
+
+
 ### 5.3.8 上传nginx镜像
+
+```
+docker tag mariadb:10.5.2 192.168.198.101:5000/turbine/nginx:1.19.3-alpine
+
+docker push 192.168.198.101:5000/turbine/nginx:1.19.3-alpine
+
+docker pull 192.168.198.101:5000/turbine/mariadb:10.5.2
+```
 
 
 
@@ -1598,20 +1622,167 @@ docker commit [OPTIONS] CONTAINER [REPOSITORY[:TAG]]
 
 ### 6.2.2 小例子
 
+结合 docker cp命令自定义 nginx 的 index 页面
+
+```shell
+docker run -itd --name nginx -p 80:80 192.168.198.101:5000/turbine/nginx:v1 
+
+cd /data
+echo "turbine" > /data/index.html
+
+docker cp /data/index.html nginx:/usr/share/nginx/html/index.html 
+
+curl localhost
+
+docker container commit -m "update index.html file" -a "turbine" nginx 192.168.31.82:5000/turbine/nginx:v2
+
+docker images
+
+docker rm -f nginx
+
+docker run -itd --name nginx -p 80:80 192.168.31.82:5000/turbine/nginx:v2
+
+curl localhost
+docker push 192.168.31.82:5000/turbine/nginx:v2
+```
+
+
+
 ## 6.3 官网地址
+
+```html
+https://docs.docker.com/engine/reference/builder/
+```
+
+Dockerfile 其实就是我们用来构建 Docker 镜像的源码，当然这不是所谓的编程源码，而是一些命令的集合，只要理解它的逻辑和语法格式，就可以很容易的编写 Dockerfile。简单点说，Dockerfile可以让用户个性化定制 Docker 镜像。因为工作环境中的需求各式各样，网络上的镜像很难满足实际的需求。
 
 ## 6.4 Dockerfile的基本结构
 
+Dockerfile是一个包含用于组合 映像 的命令的文本文档。可以使用在命令行中调用任何命令。Docker通过读取Dockerfile中的指令自动生成 映像。
+
+docker build 命令用于从 Dockerfile 构建映像。可以在 docker build 命令中使用 `-f` 标志执行文件系统中的任何位置的 Dockerfile。
+
+Dockerfile由一行行命令语句组成，并且支持以 # 开头的注释行
+
+Dockerfile 分为四部分：基础镜像信息、维护者信息、镜像操作指令和容器启动时执行指令
+
+
+
 ## 6.5 Dockerfile文件说明
+
+Docker 以从上到下的顺序运行 Dockerfile 的指令。为了指定基本映像，第一条指令必须是 **FROM**。一个声明以 `#` 字符开头责备视为注释。可以在 Docker 文件中使用 `RUN`，`CMD`，`FROM`，`EXPOSE`，`ENV` 等指令。
 
 ## 6.6 Dockerfile常见说明
 
+| 命令       | 说明                                                         |
+| ---------- | ------------------------------------------------------------ |
+| FROM       | 指定基础镜像，必须为第一个命名                               |
+| MAINTAINER | 维护者（作者）信息                                           |
+| ENV        | 设置环境变量                                                 |
+| RUN        | 构建镜像时执行的命令                                         |
+| CMD        | 构建容器后调用，也就是在容器启动时才进行调用                 |
+| ENTRYPOINT | 指定运行容器启动过程执行命令，覆盖 CMD 参数<br>ENTRYPOINT与CMD非常类似，不同的是通过docker run执行的命令不会覆盖ENTRYPOINT，<br>而docker run 命令中指定的任何参数，都会被当作参数再次传递给ENTRYPOINT。<br>Dockerfile中只允许有一个ENTRYPOINT命令，多指定时会覆盖前面的设置，而只执行最后的ENTRYPOINT指令。 |
+| ADD        | 将本地文件添加到容器中，tar类型文件会自动解压（网络压缩资源不会被解压），<br>可以访问网络资源，类似wget |
+| COPY       | 功能类似 ADD，但是，实不会自动解压文件，也不能访问网络资源   |
+| WORKDIR    | 工作目录，类似于cd命名                                       |
+| ARG        | 用于指定传递给构建运行时的变量                               |
+| VOLUMN     | 用于指定持久化目录                                           |
+| EXPOSE     | 指定用于外界交互的端口                                       |
+| USER       | 指定运行容器的用户名或 UID，后续的RUN 也会使用指定用户。<br>使用 USER 指定用户时，可以使用用户名、UID 或 GID，或是两者的组合。<br>当服务不需要管理员权限时，可以通过该指令指定运行用户。并且可以在之前创建所需的用户 |
+
+
+
 ## 6.7 小例子
+
+修改 mysql 官网镜像时区
+
+```shell
+FROM mysql:5.7.31 
+# 作者信息
+MAINTAINER mysql from date UTC by Asia/Shanghai "echo@turbo.com" 
+ENV TZ Asia/Shanghai
+```
+
+
 
 ## 6.8 build命令
 
+**docker build** 命令用于使用 Dockerfile 创建镜像。
+
+### 6.8.1 语法
+
+```shell
+docker build [OPTIONS] PATH | URL | -
+```
+
+
+
+### 6.8.2 常用参数
+
+build命令参数特别多。这里只介绍几个常用的参数。
+
+- **--build-arg=[]**：设置镜像创建时的变量；
+- **-f**：指定要使用的Dockerfile路径
+- **--rm**：设置镜像成功后删除中间容器
+- **--tag,-t**：镜像的名字及标签，通常 name:tag 或者 name 格式；可以在一次构建中为一个镜像设置多个标签。
+
+### 6.8.3 制作镜像
+
+```shell
+docker build --rm -t 192.168.31.82:5000/turbine/mysql:5.7 . 
+docker images
+```
+
+
+
+### 6.8.4 运行镜像
+
+```shell
+docker run -itd --name mysql --restart always -p 3306:3306 -e MYSQL_ROOT_PASSWORD=admin 192.168.31.82:5000/turbine/mysql:5.7
+
+docker logs -f mysql
+
+docker exec -it mysql bash
+date
+观察时间是否与windows系统的时间一致。
+```
+
+
+
+### 6.8.5 测试mysql连接
+
+```shell
+docker exec -it mysql bash
+mysql -uroot -padmin
+```
+
+
+
 # 7 部署微服项目
 
+## 7.1 数据库
 
+## 7.2 springboot项目
+
+## 7.3 mysql容器
+
+## 7.4 打包项目
 
 # 8 idea集成docker
+
+## 8.1 配置 idea
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
