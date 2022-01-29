@@ -95,4 +95,6 @@
         * [第一部分 Docker快速入门](8-stage/1-module/1-Docker-intr.md)
         * [第二部分 Docker核心原理](8-stage/1-module/2-Docker-core-theory.md)
         * [第三部分 Docker运维管理](8-stage/1-module/3-Docker-ope-mai.md)
+    * [模块二 K8s容器编排系统](8-stage/2-module/README.md)
+        * [第一部分 K8s快速实战](8-stage/2-module/1-K8s-rapid-combat.md)
 
