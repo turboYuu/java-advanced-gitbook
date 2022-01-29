@@ -1807,9 +1807,149 @@ mysql -uroot -padmin
 
 ### 7.2.2 pom.xml
 
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.5.7</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.turbo</groupId>
+    <artifactId>docker-demo</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <name>docker-demo</name>
+    <description>Demo project fo Spring Boot</description>
+
+    <properties>
+        <java.version>1.8</java.version>
+        <mybatisplus.version>3.3.2</mybatisplus.version>
+        <mysql.version>5.1.47</mysql.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-boot-starter</artifactId>
+            <version>${mybatisplus.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.junit.vintage</groupId>
+                    <artifactId>junit-vintage-engine</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>${project.name}</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
+```
+
+
+
 ### 7.2.3 application.yml
 
+```yaml
+server:
+  port: 8082
+spring:
+  datasource:
+    driver-class-name: com.mysql.jdbc.Driver
+    username: root
+    password: admin
+    url: jdbc:mysql://192.168.31.81:3306/turbo?characterEncoding=utf-8&useSSL=false&useTimezone=true&serverTimezone=GMT%2B8
+
+mybatis-plus:
+  type-aliases-package: com.turbo.dockerdemo.entity
+  mapper-locations: mapper/*.xml
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl # 配置日志打印方式，不使用 mybatis的日志信息，使用mp的日志配置
+```
+
+
+
 ### 7.2.4 测试数据库连接
+
+```java
+package com.turbo.dockerdemo;
+
+
+import com.turbo.DockerDemoApplication;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+@SpringBootTest(classes = DockerDemoApplication.class)
+@ExtendWith(SpringExtension.class)
+public abstract class DockerDemoApplicationTest {
+}
+
+```
+
+```java
+package com.turbo.dockerdemo.conn;
+
+import com.turbo.dockerdemo.DockerDemoApplicationTest;
+import org.junit.jupiter.api.Test;
+
+import javax.annotation.Resource;
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.SQLException;
+
+public class TestConnection extends DockerDemoApplicationTest {
+    @Resource
+    private DataSource dataSource;
+
+    @Test
+    public void testConn() throws SQLException{
+        final Connection connection = this.dataSource.getConnection();
+        System.out.println("connection="+connection);
+    }
+}
+```
+
+
 
 ### 7.2.5 mybatisplus
 
@@ -1824,19 +1964,171 @@ https://baomidou.com/
 
 ### 7.2.6 实体类
 
+```java
+package com.turbo.dockerdemo.entity;
+
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.Data;
+
+@TableName(value = "tbuser")
+@Data
+public class Tbuser {
+
+    @TableId(type = IdType.AUTO)
+    private  Integer userid;
+
+    private String username,password,userroles,nickname;
+}
+```
+
+
+
 ### 7.2.7 UserMapper接口
+
+```java
+package com.turbo.dockerdemo.mapper;
+
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.turbo.dockerdemo.entity.Tbuser;
+
+public interface UserMapper extends BaseMapper<Tbuser> {
+
+}
+```
+
+
 
 ### 7.2.8 启动类
 
+```java
+package com.turbo;
+
+import org.mybatis.spring.annotation.MapperScan;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+@MapperScan(basePackages = "com.turbo.dockerdemo.mapper")
+public class DockerDemoApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(DockerDemoApplication.class,args);
+    }
+}
+```
+
+
+
 ### 7.2.9 UserService接口
+
+```java
+package com.turbo.dockerdemo.service;
+
+import com.turbo.dockerdemo.entity.Tbuser;
+
+import java.util.List;
+
+public interface UserService {
+    List<Tbuser> queryUsers();
+}
+```
+
+
 
 ### 7.2.10 UserServiceImpl实现类
 
+```java
+package com.turbo.dockerdemo.service.impl;
+
+import com.turbo.dockerdemo.entity.Tbuser;
+import com.turbo.dockerdemo.mapper.UserMapper;
+import com.turbo.dockerdemo.service.UserService;
+import org.springframework.stereotype.Service;
+
+import javax.annotation.Resource;
+import java.util.List;
+
+@Service
+public class UserServiceImpl implements UserService {
+
+    @Resource
+    private UserMapper userMapper;
+
+    @Override
+    public List<Tbuser> queryUsers() {
+        return this.userMapper.selectList(null);
+    }
+}
+```
+
+
+
 ### 7.2.11 TestUser测试类
+
+```java
+package com.turbo.dockerdemo.user;
+
+import com.turbo.dockerdemo.DockerDemoApplicationTest;
+import com.turbo.dockerdemo.entity.Tbuser;
+import com.turbo.dockerdemo.service.UserService;
+import org.junit.jupiter.api.Test;
+
+import javax.annotation.Resource;
+import java.util.List;
+
+public class TestUser extends DockerDemoApplicationTest {
+
+    @Resource
+    private UserService userService;
+
+    @Test
+    public void testQueryUsers(){
+        final List<Tbuser> tbusers = userService.queryUsers();
+        for (Tbuser tbuser : tbusers) {
+            System.out.println(tbuser);
+        }
+    }
+}
+```
+
+
 
 ### 7.2.12 控制器
 
+```java
+package com.turbo.dockerdemo.controller;
+
+import com.turbo.dockerdemo.entity.Tbuser;
+import com.turbo.dockerdemo.service.UserService;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import javax.annotation.Resource;
+import java.util.List;
+
+@RestController
+public class UserController {
+
+    @Resource
+    private UserService userService;
+
+    @GetMapping("/users")
+    public List<Tbuser> queryUsers(){
+        return this.userService.queryUsers();
+    }
+}
+```
+
+
+
 ### 7.2.13 本地测试项目
+
+```html
+http://localhost:8082/users
+```
+
+
 
 ## 7.3 mysql容器
 
@@ -1936,11 +2228,51 @@ mkdir -p /data/dockerdemo
 cd /data/dockerdemo
 ```
 
+```dockerfile
+FROM openjdk:8-alpine3.9
+MAINTAINER turbine Docker springboot "turbine@turbo.com"
+# 修改源
+RUN echo "https://mirrors.aliyun.com/alpine/v3.13/main/" > /etc/apk/repositories && \
+   echo "https://mirrors.aliyun.com/alpine/v3.13/community/" >> /etc/apk/repositories
 
+# 安装需要的软件，解决时区问题
+RUN apk --update add curl bash tzdata && \
+   rm -rf /var/cache/apk/*
+
+ENV TZ Asia/Shanghai
+ARG JAR_FILE
+COPY ${JAR_FILE} app.jar
+EXPOSE 8082
+ENTRYPOINT ["java","-jar","/app.jar"]
+```
+
+常见错误：修改源的地址
+
+![image-20220129171504384](assest/image-20220129171504384.png)
 
 ### 7.4.3 生成测试镜像
 
+```shell
+docker build --rm -t turbo/dockerdemo:v1 --build-arg JAR_FILE=docker-demo.jar .
+```
+
+
+
 ### 7.4.4 测试、删除镜像
+
+```shell
+docker run -itd --name dockerdemo -p 8082:8082 turbo/dockerdemo:v1
+
+docker logs -f dockerdemo
+
+http://192.168.31.81:8082 
+
+docker stop dockerdemo 
+
+docker rm dockerdemo
+```
+
+
 
 # 8 idea集成docker
 
