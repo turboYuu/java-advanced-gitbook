@@ -1701,14 +1701,14 @@ Docker 以从上到下的顺序运行 Dockerfile 的指令。为了指定基本�
 
 修改 mysql 官网镜像时区
 
-```shell
+```dockerfile
 FROM mysql:5.7.31 
 # 作者信息
-MAINTAINER mysql from date UTC by Asia/Shanghai "echo@turbo.com" 
+MAINTAINER mysql from date UTC by Asia/Shanghai "turbine@turbo.com" 
 ENV TZ Asia/Shanghai
 ```
 
-
+使用 idea 编辑 Dockerfile 文件，并将 Dockerfile 文件上传到 docker-100 的目录中。		
 
 ## 6.8 build命令
 
@@ -1734,11 +1734,14 @@ build命令参数特别多。这里只介绍几个常用的参数。
 ### 6.8.3 制作镜像
 
 ```shell
+# 在Dockerfile文件所在目录下，最后的 . 表示当前目录下有一个默认的文件，名为 Dockerfile
 docker build --rm -t 192.168.31.82:5000/turbine/mysql:5.7 . 
 docker images
+# 上传镜像到私服
+docker push 192.168.31.82:5000/turbine/mysql:5.7
 ```
 
-
+![image-20220129140224880](assest/image-20220129140224880.png)
 
 ### 6.8.4 运行镜像
 
