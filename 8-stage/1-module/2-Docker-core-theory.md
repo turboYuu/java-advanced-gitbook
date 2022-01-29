@@ -1583,9 +1583,10 @@ docker logout 192.168.31.82:5000
 
 ### 5.3.8 上传nginx镜像
 
-```
+```shell
 docker tag nginx:1.19.3-alpine 192.168.31.82:5000/turbine/nginx:v1
 
+# push之前一定要登录
 docker push 192.168.31.82:5000/turbine/nginx:v1
 
 docker pull 192.168.31.82:5000/turbine/nginx:v1
