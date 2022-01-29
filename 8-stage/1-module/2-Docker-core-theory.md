@@ -1620,7 +1620,7 @@ docker commit [OPTIONS] CONTAINER [REPOSITORY[:TAG]]
 
 - **-a**：提交镜像作者
 - **-c**：使用Dockerfile指令来创建镜像
-- **-m**：提交时的说名文字
+- **-m**：提交时的说明文字
 - **-p**：在commit时，将容器暂停。
 
 ### 6.2.2 小例子
@@ -1637,6 +1637,7 @@ docker cp /data/index.html nginx:/usr/share/nginx/html/index.html
 
 curl localhost
 
+# 制作镜像
 docker container commit -m "update index.html file" -a "turbine" nginx 192.168.31.82:5000/turbine/nginx:v2
 
 docker images
@@ -1646,10 +1647,11 @@ docker rm -f nginx
 docker run -itd --name nginx -p 80:80 192.168.31.82:5000/turbine/nginx:v2
 
 curl localhost
+# 上传镜像到私服
 docker push 192.168.31.82:5000/turbine/nginx:v2
 ```
 
-
+![image-20220129132300651](assest/image-20220129132300651.png)
 
 ## 6.3 官网地址
 
@@ -1663,7 +1665,7 @@ Dockerfile 其实就是我们用来构建 Docker 镜像的源码，当然这不�
 
 Dockerfile是一个包含用于组合 映像 的命令的文本文档。可以使用在命令行中调用任何命令。Docker通过读取Dockerfile中的指令自动生成 映像。
 
-docker build 命令用于从 Dockerfile 构建映像。可以在 docker build 命令中使用 `-f` 标志执行文件系统中的任何位置的 Dockerfile。
+docker build 命令用于从 Dockerfile 构建映像。可以在 docker build 命令中使用 `-f` 标志指向文件系统中的任何位置的 Dockerfile。
 
 Dockerfile由一行行命令语句组成，并且支持以 # 开头的注释行
 
@@ -1673,7 +1675,7 @@ Dockerfile 分为四部分：基础镜像信息、维护者信息、镜像操作
 
 ## 6.5 Dockerfile文件说明
 
-Docker 以从上到下的顺序运行 Dockerfile 的指令。为了指定基本映像，第一条指令必须是 **FROM**。一个声明以 `#` 字符开头责备视为注释。可以在 Docker 文件中使用 `RUN`，`CMD`，`FROM`，`EXPOSE`，`ENV` 等指令。
+Docker 以从上到下的顺序运行 Dockerfile 的指令。为了指定基本映像，第一条指令必须是 **FROM**。一个声明以 `#` 字符开头则被视为注释。可以在 Docker 文件中使用 `RUN`，`CMD`，`FROM`，`EXPOSE`，`ENV` 等指令。
 
 ## 6.6 Dockerfile常见说明
 
