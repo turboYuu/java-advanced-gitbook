@@ -392,7 +392,7 @@ docker tag percona/percona-xtradb-cluster:5.7.30 pxc:5.7.30
 
 **学习重点**：**以docker-compose方式安装pxc集群**
 
-每个PXC节点内部包含一个mysql实例，如果需要创建包含3个数据库节点的数据库集群，那么就要创建3个pxc节点。储与安全考虑，需要给PXC集群实例创建一个Docker内部网络。
+每个PXC节点内部包含一个mysql实例，如果需要创建包含3个数据库节点的数据库集群，那么就要创建3个pxc节点。出于安全考虑，需要给PXC集群实例创建一个Docker内部网络。
 
 ```shell
 第一步：拉取镜像
@@ -429,17 +429,171 @@ docker run -d -p 3303:3306 -v v3:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=admin -e 
 
 #### 1.10.7.1 挂载卷
 
+```shell
+mkdir -p /data/pxc 
+cd /data/pxc
+mkdir -p v1 v2 v3 master agent 
+
+对/data/pxc/目录及所有子目录授权
+chmod 777 -R /data/pxc
+```
+
+
+
 #### 1.10.7.2 修改pxc镜像名称
+
+```shell
+docker tag percona/percona-xtradb-cluster:5.7.30 pxc:5.7.30
+```
+
+
 
 #### 1.10.7.3 创建网络
 
+master和agent是两份docker-compose.yml文件，需要公用一个网络。网络需要提前创建
+
+```shell
+docker network create pxc_network --driver bridge 
+docker network ls
+```
+
+
+
 #### 1.10.7.4 master
+
+docker-compose.yml
+
+```yaml
+version: '3'
+services:
+  pxc01:
+    restart: always
+    image: pxc:5.7.30
+    container_name: pxc01
+    privileged: true
+    ports:
+      - 3301:3306
+    environment:
+      - MYSQL_ROOT_PASSWORD=admin
+      - CLUSTER_NAME=pxc
+    volumes:
+      - /data/pxc/v1:/var/lib/mysql
+networks:
+  default:
+    external:
+      name: pxc_network
+```
 
 #### 1.10.7.5 agent
 
-#### 1.10.7.6 注意事项
+docker-compose.yml
+
+```yaml
+version: '3'
+services:
+  pxc02:
+    restart: always
+    image: pxc:5.7.30
+    container_name: pxc02
+    privileged: true
+    ports:
+      - 3302:3306
+    environment:
+      - MYSQL_ROOT_PASSWORD=admin
+      - CLUSTER_NAME=pxc
+      - CLUSTER_JOIN=pxc01
+    volumes:
+      - /data/pxc/v2:/var/lib/mysql
+  pxc03:
+    restart: always
+    image: pxc:5.7.30
+    container_name: pxc03
+    privileged: true
+    ports:
+      - 3303:3306
+    environment:
+      - MYSQL_ROOT_PASSWORD=admin
+      - CLUSTER_NAME=pxc
+      - CLUSTER_JOIN=pxc01
+    volumes:
+      - /data/pxc/v3:/var/lib/mysql
+networks:
+  default:
+    external:
+      name: pxc_network
+```
+
+#### 1.10.7.6 测试集群
+
+navicat客户端中执行SQL语句
+
+```sql
+show status like 'wsrep_cluster%';
+```
+
+
+
+![image-20220130164130325](assest/image-20220130164130325.png)
+
+#### 1.10.7.7 注意事项
+
+1. 一定要等到`master`（第一个节点）节点起来，在进行启动`agent`（其他节点）节点之间不能相互注册
+2. `pxc`节点不能太多，不然会把整体的性能降低
+3. `pxc`节点之间的服务器配置一致
+4. `pxc`集群只支持`innoDB`引擎
+5. docker-compose 网络
+
+```yaml
+1.新建网络：新建一个名称为front的bridge类型网络。但是在实际创建过程中。
+docker-compose会默认 增加docker-compose.yml文件所在目录名称+front的网络。
+例如：pxc/docker-compose.yml
+实际创建网络名称为：pxc-front。不是很符合开发要求。
+
+networks:
+  front:
+    driver: bridge
+    
+2.使用已存在的网络：    
+  2.1创建网络：
+  docker network create pxc_network --driver bridge    
+  2.2使用已存在的网络
+  networks:
+    default:
+      external:
+        name: pxc_network
+```
+
+
 
 # 2 安装elasticsearch
+
+## 2.1 docker官网
+
+```html
+https://hub.docker.com/_/elasticsearch
+https://hub.docker.com/_/kibana
+https://hub.docker.com/_/logstash
+```
+
+
+
+## 2.2 ELK官网
+
+
+
+## 2.3 基础镜像
+
+## 2.4 前置条件
+
+## 2.5 试运行
+
+## 2.6 制作镜像
+
+## 2.7 docker-compose
+
+## 2.8 访问测试
+
+## 2.9 ik分词
 
 # 3 安装fastDFS
 
