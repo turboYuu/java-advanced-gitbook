@@ -189,7 +189,7 @@ http.cors.enabled: true
 http.cors.allow-origin: "*"
 ```
 
-修改完配置文件之后，一定要把之前的**data目录下node数据删除**在重新启动服务即可。
+修改完配置文件之后，一定要把之前的**data目录下node数据删除**再重新启动服务即可。
 
 **第二节点配置**：
 
