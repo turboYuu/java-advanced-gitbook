@@ -300,14 +300,13 @@ docker load -i bitnami.mysql.5.7.30.tar
 
 ```shell
 运行master容器
-docker run -itd --name mysql-master \  
+docker run -itd --name mysql-master \
  -p 3307:3306 \
- -e MYSQL_ROOT_PASSWORD=admin \
- -e MYSQL_REPLICATION_MODE=master \  
- -e MYSQL_REPLICATION_USER=turbo \
- -e MYSQL_REPLICATION_PASSWORD=turbo \ 
- bitnami/mysql:5.7.30
- 
+ -e MYSQL_ROOT_PASSWORD=admin \
+ -e MYSQL_REPLICATION_MODE=master \
+ -e MYSQL_REPLICATION_USER=turbo \
+ -e MYSQL_REPLICATION_PASSWORD=turbo \
+ bitnami/mysql:5.7.30
  
 运行master容器并导入数据库。     
 docker run -itd --name mysql-master \  
@@ -324,14 +323,16 @@ docker run -itd --name mysql-master \  
 
 ### 1.9.6 agent
 
+root账户的密码：admin
+
 ```shell
-docker run -itd --name mysql-slave \  
+docker run -itd --name mysql-slave \
  -p 3307:3306 \
- -e MYSQL_REPLICATION_MODE=slave \
- -e MYSQL_REPLICATION_USER=turbo \
- -e MYSQL_REPLICATION_PASSWORD=turbo \ 
- -e MYSQL_MASTER_HOST=192.168.31.83 \  
- -e MYSQL_MASTER_ROOT_PASSWORD=admin \  
+ -e MYSQL_REPLICATION_MODE=slave \
+ -e MYSQL_REPLICATION_USER=turbo \
+ -e MYSQL_REPLICATION_PASSWORD=turbo \
+ -e MYSQL_MASTER_HOST=192.168.31.83 \
+ -e MYSQL_MASTER_ROOT_PASSWORD=admin \
  -e MYSQL_MASTER_PORT_NUMBER=3307 \
  bitnami/mysql:5.7.30
 ```
@@ -369,6 +370,7 @@ https://hub.docker.com/r/percona/percona-xtradb-cluster
 ### 1.10.4 官方镜像
 
 ```shell
+# 高版本在采用数据卷挂载时，要对数据据目录进行授权
 docker pull percona/percona-xtradb-cluster:5.7.30
 docker pull percona/percona-xtradb-cluster:5.7
 
@@ -392,12 +394,33 @@ docker tag percona/percona-xtradb-cluster:5.7.30 pxc:5.7.30
 
 每个PXC节点内部包含一个mysql实例，如果需要创建包含3个数据库节点的数据库集群，那么就要创建3个pxc节点。储与安全考虑，需要给PXC集群实例创建一个Docker内部网络。
 
-```
+```shell
 第一步：拉取镜像
 docker pull percona/percona-xtradb-cluster:5.7.30
 
 第二步：复制重命名镜像（可选）
 docker tag percona/percona-xtradb-cluster:5.7.30 pxc:5.7.30
+
+第三步：删除pxc原来的镜像（可选）
+docker rmi percona/percona-xtradb-cluster:5.7.30 
+
+第四步：创建单独网络（可选）
+docker network create --subnet=172.18.0.0/24 pxc-net 
+
+第五步：准备三个数据卷。注意要给目录授权。开发环境777
+docker volume create --name v1
+docker volume create --name v2
+docker volume create --name v3
+
+第六步：创建第一个节点
+docker run -d -p 3301:3306 -v v1:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=admin -e CLUSTER_NAME=PXC -e XTRABACKUP_PASSWORD=turbine - -privileged --name=node1 --net=pxc-net --ip 172.18.0.2 pxc:5.7.30
+
+第七步：等待节点一完全启动后，创建另外两个节点（第六步成功后）
+docker run -d -p 3302:3306 -v v2:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=admin -e CLUSTER_NAME=PXC -e XTRABACKUP_PASSWORD=turbine -e CLUSTER_JOIN=node1 -- privileged --name=node2 --net=pxc-net --ip 172.18.0.3 pxc:5.7.30
+
+docker run -d -p 3303:3306 -v v3:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=admin -e CLUSTER_NAME=PXC -e XTRABACKUP_PASSWORD=turbine -e CLUSTER_JOIN=node1 -- privileged --name=node3 --net=pxc-net --ip 172.18.0.4 pxc:5.7.30
+
+完成：实现了3个节点的自动复制
 ```
 
 

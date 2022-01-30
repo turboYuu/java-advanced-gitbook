@@ -1081,6 +1081,7 @@ Fig 还可以对应用的全生命周期进行管理。内部实现上，Fig 会
 2. 授权
 
    ```shell
+   wget https://github.com/docker/compose/releases/download/1.27.4/docker-compose-Linux-x86_64
    mv /data/docker-compose-Linux-x86_64 /usr/local/bin/docker-compose 
    cp /data/docker-compose-Linux-x86_64 /usr/local/bin/docker-compose
    
