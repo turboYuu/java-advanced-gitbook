@@ -361,7 +361,7 @@ https://hub.docker.com/r/percona/percona-xtradb-cluster
 
 ### 1.10.3 节点信息
 
-**本案例只使用mysqlserver-83服务器端点**
+**本案例只使用mysqlserver-83服务器端点**，(如果多台服务器，就涉及docker集群网络)
 
 | 主机名          | IP地址        |
 | --------------- | ------------- |
@@ -484,6 +484,13 @@ networks:
       name: pxc_network
 ```
 
+```shell
+# /data/pxc/master 目录下，启动服务
+docker-compose up -d
+```
+
+
+
 #### 1.10.7.5 agent
 
 docker-compose.yml
@@ -522,6 +529,13 @@ networks:
     external:
       name: pxc_network
 ```
+
+```shell
+# /data/pxc/agent 目录下，启动服务
+docker-compose up -d
+```
+
+
 
 #### 1.10.7.6 测试集群
 
@@ -579,19 +593,145 @@ https://hub.docker.com/_/logstash
 
 ## 2.2 ELK官网
 
+```shell
+https://www.elastic.co/guide/en/elasticsearch/reference/current/docker.html 
+es集群部署请参考官网帮助文档，自行练习。
+```
+
 
 
 ## 2.3 基础镜像
 
+### 2.3.1 ELK官网镜像
+
+```shell
+docker pull docker.elastic.co/elasticsearch/elasticsearch:7.7.0 
+docker pull bolingcavalry/elasticsearch-head:6
+```
+
+
+
+### 2.3.2 注意事项
+
+1. 开发环境 下载 docker官网或者elastic官方仓库里的镜像都可以
+2. 运维环境大咖们推荐不要下载docker官方的镜像，最好使用elastic官方仓库里的镜像
+
+### 2.3.3 docker官网镜像
+
+```shell
+docker pull elasticsearch:7.7.0
+docker pull kibana:7.7.0
+docker pull bolingcavalry/elasticsearch-head:6
+```
+
+
+
 ## 2.4 前置条件
+
+### 2.4.1 文件创建数
+
+修改Linux系统的限制配置，将文件创建数改为65536个：
+
+1. 修改系统中允许应用最多创建多少文件等的限制权限。Linux默认来说，一般限制应用最多创建的文件是65535个。但是ES至少需要65536的文件创建数的权限
+2. 修改系统中允许用户启动的进程开启多少个线程。默认的Linux限制root用户开启的进程可以开启任意数量的线程，其他用户开启的进程可以开启1024个线程。必须修改限制数为 4096+。因为ES至少需要4096个线程池预备。
+
+```shell
+vi /etc/security/limits.conf 
+#新增如下内容在limits.conf文件中 
+es soft nofile 65536
+es hard nofile 65536 
+es soft nproc 4096 
+es hard nproc 4096
+```
+
+
+
+### 2.4.2 系统控制权限
+
+修改系统控制权限，ElasticSearch需要开辟一个65536字节以上的虚拟内存。Linux默认不允许任何用户和应用程序直接开辟这么大的虚拟内存。
+
+```shell
+vi /etc/sysctl.conf
+添加参数:新增如下内容在sysctl.conf文件中，当前用户拥有的内存权限大小 
+
+vm.max_map_count=262144
+
+重启生效:让系统控制权限配置生效 
+sysctl -p
+```
+
+
 
 ## 2.5 试运行
 
+```shell
+docker run -itd --name elasticsearch -p 9200:9200 -p 9300:9300  -e "discovery.type=single-node" elasticsearch:7.7.0
+
+docker cp elasticsearch:/usr/share/elasticsearch/config/elasticsearch.yml /data
+```
+
+### 2.5.1 elasticsearch.yml
+
+```yaml
+cluster.name: "docker-cluster" 
+network.host: 0.0.0.0
+http.cors.enabled: true 
+http.cors.allow-origin: "*"
+```
+
+
+
 ## 2.6 制作镜像
+
+1. Dockerfile
+
+   ```
+   
+   ```
+
+   
+
+2. docker build
+
+   ```
+   
+   ```
+
+   
+
+
 
 ## 2.7 docker-compose
 
+1. 挂载目录权限
+
+   ```
+   
+   ```
+
+2. docker-compose.yml
+
+   ```
+   
+   ```
+
+3. 启动服务
+
+   ```
+   docker-compose up -d
+   ```
+
+   
+
 ## 2.8 访问测试
+
+```
+http://192.168.198.100:9200
+http://192.168.198.100:9100
+http://192.168.198.100:5601
+```
+
+
 
 ## 2.9 ik分词
 
