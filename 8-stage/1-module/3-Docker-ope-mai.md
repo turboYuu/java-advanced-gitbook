@@ -685,8 +685,8 @@ http.cors.allow-origin: "*"
 
 1. Dockerfile
 
-   ```
-   
+   ```dockerfile
+   FROM elasticsearch:7.7.0
    ```
 
    
