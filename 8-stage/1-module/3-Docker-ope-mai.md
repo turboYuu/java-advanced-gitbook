@@ -861,7 +861,77 @@ docker-compose up -d
 
 ## 2.9 ik分词
 
+### 2.9.1 官网地址
+
+```html
+https://github.com/medcl/elasticsearch-analysis-ik
+```
+
+### 2.9.2 安装分词器
+
+```shell
+cd /data/elasticsearch/plugins 
+mkdir -p ik
+
+unzip elasticsearch-analysis-ik-7.7.0.zip
+```
+
+### 2.9.3 重启es
+
+```shell
+docker-compose restart
+```
+
+
+
 # 3 安装fastDFS
+
+## 3.1 安装条件
+
+至少需要2G以上内存
+
+## 3.2 github官网地址
+
+```html
+https://github.com/happyfish100/ 
+
+帮助手册地址：
+https://github.com/happyfish100/fastdfs/wiki
+```
+
+
+
+## 3.3 自定义镜像
+
+官网提供docker镜像制作素材，但是需要更改Dockerfile文件及source目录中的软件包。将官方下载的fastfs-6.06.tar.gz解压缩，里面有docker目录，提供单机版和集群版。但是都需要修改才能使用。本章节参考的是dockerfile_local单机版内容。
+
+**下载地址**
+
+```html
+https://github.com/happyfish100/fastdfs-nginx-module
+https://github.com/happyfish100/libfastcommon
+http://nginx.org/download/nginx-1.16.1.tar.gz
+```
+
+
+
+## 3.5 Dockerfile
+
+Docker文件改动两处内容：
+
+1. **ADD时候的源文件名称，需要增加对应的版本号信息**
+2. **cd目录时需要增加对应版本号信息**
+3. **基础镜像从centos7升级为centos7.8.2003**
+
+```
+
+```
+
+
+
+## 3.6 制作镜像
+
+## 3.7 启动镜像
 
 # 4 安装gitlab
 
