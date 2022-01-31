@@ -685,19 +685,23 @@ http.cors.allow-origin: "*"
 
 1. Dockerfile
 
+   /data 目录下 ，和elasticsearch.yml在同一个目录下
+
    ```dockerfile
    FROM elasticsearch:7.7.0
+   MAINTAINER elasticsearch-zh from date UTC by Asia/Shanghai "turbine@turbo.com"
+   ENV TZ Asia/Shanghai
+   COPY elasticsearch.yml /usr/share/elasticsearch/config/
    ```
 
    
 
 2. docker build
 
-   ```
-   
+   ```shell
+   docker build --rm -t turbo/elasticsearch:7.7.0 .
    ```
 
-   
 
 
 
@@ -705,14 +709,47 @@ http.cors.allow-origin: "*"
 
 1. 挂载目录权限
 
-   ```
-   
+   ```shell
+   mkdir -p /data/elasticsearch 
+   chmod 777 -R /data/elasticsearch
    ```
 
 2. docker-compose.yml
 
-   ```
-   
+   ```yaml
+   version: '3'
+   services:
+     elasticsaerch:
+       image: turbo/elasticsearch:7.7.0
+       container_name: elasticsearch770
+       ports:
+         - 9200:9200
+         - 9300:9300
+       environment:
+         - "discovery.type=single-node"
+         - "ES_JAVA_OPTS=-Xms2048m -Xmx2048m"
+       restart: always
+       volumes:
+         - "/data/elasticsearch/data:/usr/share/elasticsearch/data"
+         - "/data/elasticsearch/plugins:/usr/share/elasticsearch/plugins"
+     kibana:
+       image: kibana:7.7.0
+       container_name: kibana7
+       ports:
+         - 5601:5601
+       restart: always
+       depends_on:
+         - elasticsaerch
+     elasticsearchhead:
+       image: bolingcavalry/elasticsearch-head:6
+       container_name: elasticsearchhead
+       environment:
+         - "TZ=Asia/Shanghai"
+       ports:
+         - 9100:9100
+       restart: always
+       depends_on:
+         - elasticsaerch
    ```
 
 3. 启动服务
@@ -731,7 +768,96 @@ http://192.168.198.100:9100
 http://192.168.198.100:5601
 ```
 
+**kibana启动报错**
 
+```
+{"type":"log","@timestamp":"2022-01-31T10:55:23Z","tags":["warning","elasticsearch","data"],"pid":6,"message":"No living connections"}
+{"type":"log","@timestamp":"2022-01-31T10:55:23Z","tags":["warning","plugins","licensing"],"pid":6,"message":"License information could not be obtained from Elasticsearch due to Error: No Living connections error"}
+
+ FATAL  Error: Setup lifecycle of "monitoring" plugin wasn't completed in 30sec. Consider disabling the plugin and re-start.
+```
+
+那就要制作kibana镜像了，首先 `docker-compose down`删除刚启动的容器，然后将容器中的kibana.yml配置文件复制出来
+
+```shell
+docker cp kibana7:/usr/share/kibana/config/kibana.yml /data
+```
+
+编辑kibana.yml配置文件中的 ip地址
+
+```yaml
+vim kibana.yml
+#
+# ** THIS IS AN AUTO-GENERATED FILE **
+#
+
+# Default Kibana configuration for docker target
+server.name: kibana
+server.host: "0"
+elasticsearch.hosts: [ "http://192.168.1.81:9200" ]
+monitoring.ui.container.elasticsearch.enabled: true
+```
+
+编辑Dockerfile文件
+
+```dockerfile
+FROM kibana:7.7.0
+MAINTAINER kibana-zh from date UTC by Asia/Shanghai "turbine@turbo.com"
+
+COPY kibana.yml /usr/share/kibana/config/
+```
+
+制作turbo/kibana:7.7.0镜像
+
+```shell
+docker build --rm -t turbo/kibana:7.7.0 .
+```
+
+修改docker-compose.yml文件，kibana镜像使用自己制作出来的镜像
+
+```yaml
+version: '3'
+services:
+  elasticsaerch:
+    image: turbo/elasticsearch:7.7.0
+    container_name: elasticsearch770
+    ports:
+      - 9200:9200
+      - 9300:9300
+    environment:
+      - "discovery.type=single-node"
+      - "ES_JAVA_OPTS=-Xms2048m -Xmx2048m"
+    restart: always
+    volumes:
+      - "/data/elasticsearch/data:/usr/share/elasticsearch/data"
+      - "/data/elasticsearch/plugins:/usr/share/elasticsearch/plugins"
+  kibana:
+    image: turbo/kibana:7.7.0
+    container_name: kibana7
+    ports:
+      - 5601:5601
+    restart: always
+    depends_on:
+      - elasticsaerch
+  elasticsearchhead:
+    image: bolingcavalry/elasticsearch-head:6
+    container_name: elasticsearchhead
+    environment:
+      - "TZ=Asia/Shanghai"
+    ports:
+      - 9100:9100
+    restart: always
+    depends_on:
+      - elasticsaerch
+```
+
+启动服务
+
+```shell
+docker-compose up -d
+```
+
+再测试一下就可以了。
 
 ## 2.9 ik分词
 
