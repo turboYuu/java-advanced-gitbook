@@ -777,6 +777,8 @@ http://192.168.198.100:5601
  FATAL  Error: Setup lifecycle of "monitoring" plugin wasn't completed in 30sec. Consider disabling the plugin and re-start.
 ```
 
+[Install Kibana with Docker - elastic官网Doc](https://www.elastic.co/guide/en/kibana/7.7/docker.html)
+
 那就要制作kibana镜像了，首先 `docker-compose down`删除刚启动的容器，然后将容器中的kibana.yml配置文件复制出来
 
 ```shell
@@ -931,10 +933,86 @@ Docker文件改动两处内容：
 
 ## 3.6 制作镜像
 
+```shell
+docker build --rm -t lagou/fastdfs:1.0 .
+```
+
+
+
 ## 3.7 启动镜像
+
+按照官网提供的方式启动，springboot项目会报找不到127.0.0.1:23000端口，需要使用--net=host方式启动
+
+
 
 # 4 安装gitlab
 
+## 4.1 docker官网地址
+
+## 4.2 官网教程
+
+## 4.3 基础镜像
+
+## 4.5 运行容器
+
+## 4.6 配置gitlab
+
+## 4.7 登录gitlab
+
+## 4.8 创建组
+
+## 4.9 创建项目
+
+## 4.10 创建用户
+
+## 4.11 将用户加入群聊
+
+## 4.12 上传项目
+
 # 5 Swarm集群管理
 
+## 5.1 节点信息
+
+## 5.2 硬件要求
+
+## 5.3 当前应用状态
+
+## 5.4 容器化部署=大麻烦
+
+## 5.5 安装docker-swarm
+
+## 5.6 图形界面
+
+## 5.7 node命令
+
+## 5.8 service命令
+
+## 5.9 stack命令
+
+## 5.10 Docker Stack和 Docker Compose区别
+
 # 6 harbor企业级部署
+
+## 6.1 官网文档
+
+## 6.2 解压harbor
+
+## 6.3 获得证书颁发机构
+
+### 6.3.1 创建自己的私钥
+
+### 6.3.2 生成证书前命请求
+
+### 6.3.3 生成注册表主机的证书
+
+## 6.4 获取服务器证书
+
+## 6.5 为docker配置服务器证书，密钥和CA
+
+## 6.6 修改harhor.yml文件
+
+## 6.7 安装harbor
+
+## 6.8 访问UI
+
+## 6.9 上传镜像
