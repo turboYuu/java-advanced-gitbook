@@ -990,35 +990,184 @@ docker build --rm -t lagou/fastdfs:1.0 .
 
 ## 4.1 docker官网地址
 
+```html
+https://hub.docker.com/r/gitlab/gitlab-ce
+```
+
+
+
 ## 4.2 官网教程
+
+```html
+https://docs.gitlab.com/omnibus/docker/
+```
+
+
 
 ## 4.3 基础镜像
 
+```shell
+英文版
+docker pull gitlab/gitlab-ce:12.7.6-ce.0 
+
+中文版
+docker pull twang2218/gitlab-ce-zh:11.1.4 
+
+最新版:不是很稳定的版本
+docker pull gitlab/gitlab-ce:13.4.6-ce.0
+```
+
+
+
 ## 4.5 运行容器
+
+```shell
+运行镜像：运行时间比较长，大约需要3-10分钟。可以查看日志情况。
+docker run -itd --name gitlab -p 443:443 -p 80:80 -p 222:22 --restart always -m 4GB -v /data/gitlab/config:/etc/gitlab -v /data/gitlab/logs:/var/log/gitlab -v /data/gitlab/data:/var/opt/gitlab  -e TZ=Asia/Shanghai  gitlab/gitlab-ce:12.7.6-ce.0
+```
+
+
 
 ## 4.6 配置gitlab
 
+```
+配置项目访问地址：
+external_url 'http://192.168.198.100' 
+
+配置ssh协议所使用的访问地址和端口
+gitlab_rails['gitlab_ssh_host'] = '192.168.198.100'
+gitlab_rails['time_zone'] = 'Asia/Shanghai'
+gitlab_rails['gitlab_shell_ssh_port'] = 222
+```
+
+
+
 ## 4.7 登录gitlab
+
+登录gitlab：用户名默认为root。第一次登录需要设置密码。此处将密码设置为12345678
+
+```shell
+username：root
+password:12345678
+```
+
+
 
 ## 4.8 创建组
 
+```
+组分三类： 
+Private：私有的 
+Internal：内部的 
+Public：公共的
+```
+
+
+
 ## 4.9 创建项目
+
+```
+项目分类：
+根据组的分类进行分类。 
+
+创建项目注意事项：
+不需要创建README，否则本地项目无法上传到gitlab服务器上。
+```
+
+
 
 ## 4.10 创建用户
 
+```
+1.创建用户
+用户权限分两种： 
+  Regular:普通权限用户
+  Admin:具有管理员权限的用户
+
+2.给用户分配密码
+```
+
+
+
 ## 4.11 将用户加入群聊
+
+```
+给群组中的用户分配权限分五种：
+Guest:可以创建issue、发表评论、不能读写版本库。
+Reporter:可以克隆代码，不能提交、QA、PM可以赋予这个权限。 
+Developer:可以克隆代码、开发、提交、push，普通开发可以赋予这个权限。
+Maintainer:可以创建项目、添加tag、保护分支、添加项目成员、编辑项目，核心开发人员可以赋予这个权限。
+Owner:可以设置项目访问权限、-Visibility Level、删除项目、迁移项目、管理组成员、开发组组长可以赋予这个权限。
+```
+
+
 
 ## 4.12 上传项目
 
+```
+使用idea开发工具演示
+1.创建本地仓库
+VCS->Enable Version Control Integration...
+
+2.建立缓冲区
+项目右键->git->Add
+
+3.将代码提交到本地仓库
+项目右键->git->Commit Directory
+
+4.设置远程gitlab仓库地址
+项目右键->git->Repository->Remote
+
+5.将本地代码推送到远程gitlab仓库
+项目右键->git->Repository->push
+```
+
+
+
 # 5 Swarm集群管理
+
+compose、machine 和 swarm 是 docker 原生提供的三大编排工具。简称 docker 三剑客。
 
 ## 5.1 节点信息
 
+服务器用户名：root，服务器密码：123456。及时做好子系统快照
+
+| 主机名     | IP地址        | 说明              |
+| ---------- | ------------- | ----------------- |
+| manager-01 | 192.168.31.85 | swarm-manager节点 |
+| work-01    | 192.168.31.86 | swarm-work01节点  |
+| work-02    | 192.168.31.87 | swarm-work02节点  |
+
+
+
 ## 5.2 硬件要求
+
+| 硬件资源 | 最小配置 | 推荐配置 |
+| -------- | -------- | -------- |
+| CPU      | 1 CPU    | 2 CPU    |
+| 内存     | 1 GB     | 2-4 GB   |
+| 硬盘     | 20 GB    | 50 GB    |
+
+
 
 ## 5.3 当前应用状态
 
+![image-20220202224046620](assest/image-20220202224046620.png)
+
 ## 5.4 容器化部署=大麻烦
+
+- 怎么保证数据完整性
+- 怎么保证客户隐私数据
+- 怎么去调度容器
+- 怎么去监控追踪容器
+- 怎么去更新容器而不影响客户业务
+- 如果容器down掉了。怎么自动恢复
+- 怎么去管理很多微服务容器
+- 怎么根据客户业务需求，快速方便的扩展容器
+
+![image-20220202230307114](assest/image-20220202230307114.png)
+
+
 
 ## 5.5 安装docker-swarm
 
