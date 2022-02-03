@@ -1030,25 +1030,42 @@ docker run -itd --name gitlab -p 443:443 -p 80:80 -p 222:22 --restart always -m 
 
 ## 4.6 配置gitlab
 
-```
+![image-20220203170043317](assest/image-20220203170043317.png)
+
+```yaml
 配置项目访问地址：
-external_url 'http://192.168.198.100' 
+external_url 'http://192.168.31.81' 
 
 配置ssh协议所使用的访问地址和端口
-gitlab_rails['gitlab_ssh_host'] = '192.168.198.100'
+gitlab_rails['gitlab_ssh_host'] = '192.168.31.81'
 gitlab_rails['time_zone'] = 'Asia/Shanghai'
 gitlab_rails['gitlab_shell_ssh_port'] = 222
+```
+
+配置完成后重新启动容器
+
+```
+docker restart gitlab
+```
+
+```
+docker logs -f gitlab
+日志中出现错误：master failed to start, check stderr log for details
+chmod -R 777 /data/gitlab
+然后再重启容器
 ```
 
 
 
 ## 4.7 登录gitlab
 
+![image-20220203171607280](assest/image-20220203171607280.png)
+
 登录gitlab：用户名默认为root。第一次登录需要设置密码。此处将密码设置为12345678
 
 ```shell
-username：root
-password:12345678
+username: root
+password: 12345678
 ```
 
 
@@ -1062,7 +1079,7 @@ Internal：内部的
 Public：公共的
 ```
 
-
+![image-20220203172034089](assest/image-20220203172034089.png)
 
 ## 4.9 创建项目
 
@@ -1074,7 +1091,7 @@ Public：公共的
 不需要创建README，否则本地项目无法上传到gitlab服务器上。
 ```
 
-
+![image-20220203172502288](assest/image-20220203172502288.png)
 
 ## 4.10 创建用户
 
@@ -1087,9 +1104,15 @@ Public：公共的
 2.给用户分配密码
 ```
 
+![image-20220203172822648](assest/image-20220203172822648.png)
 
 
-## 4.11 将用户加入群聊
+
+## 4.11 将用户加入群组
+
+![image-20220203173325824](assest/image-20220203173325824.png)
+
+![image-20220203173834218](assest/image-20220203173834218.png)
 
 ```
 给群组中的用户分配权限分五种：
@@ -1122,7 +1145,13 @@ VCS->Enable Version Control Integration...
 项目右键->git->Repository->push
 ```
 
+![image-20220203174221115](assest/image-20220203174221115.png)
 
+如果 VCS 下 没有 Enable Version Control Integration... ，可在下图中删除。
+
+![image-20220203175759881](assest/image-20220203175759881.png)
+
+![image-20220203175522815](assest/image-20220203175522815.png)
 
 # 5 Swarm集群管理
 
