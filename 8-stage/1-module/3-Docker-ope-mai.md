@@ -1200,15 +1200,377 @@ compose、machine 和 swarm 是 docker 原生提供的三大编排工具。简�
 
 ## 5.5 安装docker-swarm
 
+### 5.5.1 官网概述
+
+```html
+https://docs.docker.com/engine/swarm/
+```
+
+
+
+### 5.5.2 概述
+
+Docker Swarm 和 Docker Compose 一样，都是Docker官方容器编排项目，但不同的是，**Docker Compose是一个在单个服务器或主机上创建多个容器的工具**，可以将组成某个应用的多个docker容器编排在一起，同时管理。而 **Docker Swarm 则可以在多个服务器或主机上创建容器集群服务**，其主要作用是把若干台Docker主机抽象为一个整体，并且通过一个入口（docker stack）统一管理这些Docker主机上的各种Docker资源。
+
+stack 是构成特定环境中的 service 集合，它是自动部署多个相互关联的服务的简便方法，而无需单独定义每个服务。
+
+stack file 是一种 yaml 格式的文件，类似于 docker-compose.yml 文件，它定义了一个或多个服务，并定义了服务的环境变量、部署标签、容器数量以及相关的环境特定配置等。
+
+Docker Swarm由两部分组成：
+
+- Docker 集群：将一个或多个Docker节点组织起来，用户就能以集群的方式进行管理
+- 应用编排：有一套API用来部署和管理容器
+
+![image-20220203190301677](assest/image-20220203190301677.png)
+
+
+
+### 5.5.3 配置私有仓库
+
+私有仓库不是集群必备的组件。集群的每个节点都需要安装镜像，如果把搭建私有仓库，下载镜像速度比较耗时
+
+```shell
+vi /etc/docker/daemon.json
+
+"insecure-registries":["192.168.198.101:5000"] 
+
+systemctl daemon-reload
+systemctl restart docker
+```
+
+
+
+### 5.5.4 初始化第一个管理节点
+
+关于 advertise-addr 和 listen-addr 这两个参数：
+
+- 前者用来指定其他节点连接mo时的地址
+- 后者指定承载swarm流量的IP和端口
+- 会在本地新建 docker 网络
+
+```shell
+docker swarm init  --advertise-addr 192.168.31.85:2377 --listen-addr 192.168.31.85:2377
+
+docker node ls 
+docker network ls
+```
+
+
+
+### 5.5.5 如何加入新的节点
+
+Docker Swarm 的新节点加入策略是从管理节点获取一长串命令，被称为 join token，任何想加入集群的机器只要自己执行这个 join token 即可加入Swarm集群；
+
+如果有新的管理节点需要加入，在m0执行命令 docker swarm join-token manager 即可得到管理 manager节点的 join token，<br>如果有新的 work 节点需要加入，在m0执行命令 docker swarm join-token worker 即可得到管理 work 节点的 join token。
+
+```shell
+在manager节点执行。可以作为manager节点加入集群 
+docker swarm join-token manager
+
+在manager节点执行。可以作为worker节点加入集群 
+docker swarm join-token worker
+
+docker node ls
+```
+
+
+
+
+
+### 5.5.6 manager节点说明
+
+MANAGER STATUS 列说明：
+
+- Leader 意味着该节点是使得集群的所有群管理和编排决策的主要管理节点
+- Reachable 意味着节点是管理者节点正在参与 Raft 共识。如果领导节点不可用，则该节点有资格被选为新领导者。
+- Unavailable 意味着节点是不能与其他管理器通信的管理器。如果管理器节点不可用，你应该将新的管理器节点加入集群，或者将工作器节点升级为管理器。
+
+
+
+AVAILABILITY列说明：
+
+- Active 意味着调度程序可以将任务分配给节点
+- Pause 意味着调度程序不会将新任务分配给节点，但现在有任务仍在运行
+- Drain 意味着调度程序不会向节点分配新任务。调度程序关闭所有现有任务并在可用节点上调度它们
+
+
+
+### 5.5.7 验证节点
+
+```
+master节点： 
+docker info
+
+work节点： 
+docker info
+```
+
+
+
+### 5.5.8 节点权限提升/降低
+
+```shell
+将worker节点提升为manager节点，在manager节点执行如下命令： 
+docker node promote work-01
+docker node ls
+
+将manager节点降低为worker节点，在manager节点执行如下命令： 
+docker node demote work-02
+docker node ls
+```
+
+
+
+### 5.5.9 脱离集群
+
+```shell
+在work-02节点使用命令：docker swarm leave
+
+稍微等待几分钟，在manager节点使用命令：docker node ls，发现work-02节点已经脱离集群管理。
+```
+
+
+
+### 5.5.10 删除脱离集群的节点
+
+```
+先使用命令：docker node demote 节点名称。将某一个节点降为worker节点后，再删除。 
+
+使用命令：docker node rm  节点名称|节点ID
+例如:docker node rm work-02
+manager节点只能强制退出。命令：docker swarm leave --force。manager退出后意味着整个swarm 不复存在。
+```
+
+
+
 ## 5.6 图形界面
 
-## 5.7 node命令
+### 5.6.1 docker官网地址
 
-## 5.8 service命令
+```
+https://hub.docker.com/r/dockersamples/visualizer
+```
 
-## 5.9 stack命令
 
-## 5.10 Docker Stack和 Docker Compose区别
+
+### 5.6.2 基础镜像
+
+```shell
+拉取镜像
+docker pull dockersamples/visualizer:latest 
+
+备份镜像
+docker save dockersamples/visualizer:latest -o dockersamples.visualizer.tar 
+
+还原镜像
+docker load -i dockersamples.visualizer.tar
+```
+
+
+
+### 5.6.3 运行镜像
+
+```shell
+docker run -itd --name visualizer -p 8099:8080 -e HOST=192.168.31.85 -e PORT=8080 -v /var/run/docker.sock:/var/run/docker.sock dockersamples/visualizer:latest
+
+docker service create \  
+ --name=viz \
+ --publish=8080:8080/tcp \
+ --constraint=node.role==manager \
+ --mount=type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \ dockersamples/visualizer
+```
+
+
+
+### 5.6.4 测试镜像
+
+```html
+http://192.168.31.85:8099
+```
+
+## 5.7 swarm 命令
+
+| 命令                    | 描述                     |
+| ----------------------- | ------------------------ |
+| docker swarm init       | 初始化一个 swarm 集群    |
+| docker swarm join       | 加入集群作为节点或管理器 |
+| docker swarm join-token | 管理用于加入集群的令牌   |
+| docker swarm leave      | 离开 swarm 群集          |
+| docker swarm unlock     | 解锁swarm群集            |
+| docker swarm unlock-key | 管理解锁钥匙             |
+| docker swarm update     | 更新 swarm 群集          |
+
+
+
+## 5.8 node命令
+
+| 命令                | 描述                                             |
+| ------------------- | ------------------------------------------------ |
+| docker node demote  | 从swarm群集管理器中降级一个或多个节点            |
+| docker node inspect | 显示一个或多个节点的详细信息                     |
+| docker node ls      | 列出 swarm 群集中的节点                          |
+| docker node promote | 将一个或多个节点推入到群集管理器中               |
+| docker node ps      | 列出在一个或多个节点上运行的任务，默认为当前节点 |
+| docker node rm      | 从 swarm 群集删除一个或多个节点                  |
+| docker node update  | 更新一个节点                                     |
+
+
+
+## 5.9 service命令
+
+### 5.9.1 命令汇总
+
+| 命令                    | 描述                         |
+| ----------------------- | ---------------------------- |
+| docker service create   | 创建服务                     |
+| docker service inspect  | 显示一个或多个服务的详细信息 |
+| docker service logs     | 获取服务的日志               |
+| docker service ls       | 列出服务                     |
+| docker service rm       | 删除一个或多个服务           |
+| docker service scale    | 设置服务的实例数量           |
+| docker service update   | 更新服务                     |
+| docker service rollback | 恢复服务至update之前的配置   |
+
+![image-20220203223422986](assest/image-20220203223422986.png)
+
+### 5.9.2 基础镜像
+
+集群所有节点都需要下载相关镜像
+
+```shell
+docker pull nginx:1.18.0-alpine 
+docker pull nginx:1.19.3-alpine
+```
+
+
+
+```shell
+scp nginx.1.18.tar root@192.168.31.86:/data/
+scp nginx.1.18.tar root@192.168.31.87:/data/
+
+scp nginx.1.19.3.alpine.tar root@192.168.31.86:/data/
+scp nginx.1.19.3.alpine.tar root@192.168.31.87:/data/
+
+所有节点执行如下命令： 
+cd /data
+docker load -i nginx.1.18.tar
+docker load -i nginx.1.19.3.alpine.tar rm -rf *
+```
+
+
+
+### 5.9.3 部署nginx
+
+```shell
+在manager节点中创建overlay网络：
+docker network create -d overlay nginx-net 
+
+创建5个nginx:alpines容器的集群：
+docker service create --name nginx --network nginx-net -p 80:80 --replicas 5 nginx:1.18.0-alpine
+
+在manager节点使用docker service ls 命令查看服务情况，worker节点无法查看： 
+docker service ls
+
+在manager或者worker节点都可以执行docker ps命令查看本虚拟机容器情况： 
+docker ps
+
+manager节点只用于管理集群，不希望部署服务。
+docker node update --availability drain master-01 
+
+使用docker service scale nginx=2命令将服务缩减为2个容器：
+docker service scale nginx=2
+```
+
+
+
+### 5.9.4 升级nginx版本
+
+```shell
+进入其中一个容器查看nginx的版本信息：
+注意事项：因nginx是alpine的linux版本。不能使用/bin/bash指令。 
+docker  exec -it 503fe639bb89 sh
+nginx -v
+
+1.更新镜像：
+docker service update --image nginx:1.19.3-alpine nginx
+
+2.添加或者更新一个对外端口：
+docker service update --publish-add 8090:80 nginx
+```
+
+
+
+### 5.9.5 删除任务
+
+```shell
+docker service rm nginx 
+docker network rm nginx-net
+```
+
+
+
+## 5.10 stack命令
+
+### 5.10.1 命令汇总
+
+| 命令                  | 描述                       |
+| --------------------- | -------------------------- |
+| docker stack deploy   | 部署新的堆栈或更新现有堆栈 |
+| docker stack ls       | 列出现有堆栈               |
+| docker stack ps       | 列出堆栈中的任务           |
+| docker stack rm       | 删除一个或多个堆栈         |
+| docker stack services | 列出堆栈中的服务           |
+
+
+
+### 5.10.2 部署nginx
+
+#### 5.10.2.1 docker-compose.yml
+
+```
+
+```
+
+
+
+#### 5.10.2.2 运行nginx
+
+```shell
+在manager节点中创建docker-compose.yml文件。执行如下命令：
+docker stack deploy nginx-stack --compose-file=docker-compose.yml 或者是 
+docker stack deploy nginx-stack -c docker-compose.yml
+
+查看stack服务运行情况。执行如下命令： 
+docker stack services nginx-stack
+
+查看5个容器运行在哪个节点中。执行如下命令：
+docker service ls 查看到NAME中的服务名为：nginx-stack_nginx-web 
+docker service ps nginx-stack_nginx-web
+
+进行测试：
+curl 192.168.31.85
+curl 192.168.31.86
+curl 192.168.31.87
+
+删除stack服务。执行如下命令： 
+docker stack rm nginx-stack
+```
+
+
+
+总结：
+
+- networks 中也可以不指定 driver:overlay，因为docker swarm 默认网络类型是 overlay。
+- 整个networks都可以不用配置。stack部署时会默认创建网络。如果定义网络。在docker stack deploy 时会先默认创建一个网络，在创建一个我们自定义的网络。
+- 一定要把镜像先拉取到本地再执行
+
+## 5.11 Docker Stack和 Docker Compose区别
+
+- Docker stack 会忽略 “构建” 指令，无法使用stack命令构建新镜像，它是需要镜像是预先已经构建好的。所以 docker-compose更适合于开发场景
+- Docker Compose 是一个 Python 项目，在内部，它使用 Docker API 规范来操作容器。所以需要安装 Docker-compose，以便与Docker一起在你的计算机上使用；
+- Docker Stack 功能包含在 Docker 引擎中，你不需要安装额外的包来使用它，docker stacks 只是 swarm mode 的一部分。
+- Docker Stack 不支持基于第二版写的 docker-compose.yml，也就是 version 版本至少为 3 。然而Docker Compose 对版本为2和3的文件仍然可以处理；
+- Docker Stack 把 Docker Compose 的所有工作都做完了，因此 docker stack 将占主导地位。同时，对于大多数用户老说，切换到使用 docker stack 既不困难，也不需要太多的开销。如果你是Docker 新手，或正在选择用于新项目的技术，请使用 docker stack。
 
 # 6 harbor企业级部署
 
