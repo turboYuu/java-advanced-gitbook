@@ -1574,26 +1574,176 @@ docker stack rm nginx-stack
 
 # 6 harbor企业级部署
 
+默认情况下，harbor不提供证书。可以在没有安全的情况下部署harbor，就可以通过HTTP方式连接到harbor。但是，只有在没有连接到外部 internet 的测试环境或开发环境中才可以使用 HTTP。在生产环境中，始终使用 HTTPS。要配置HTTPS，必须创建 SSL 证书。可以使用由受信任的第三方 CA 签名的证书，也可以使用自签名证书。本节介绍如何使用 OpenSSL 创建 CA，以及如何使用 CA 部署服务器证书和客户端证书，下面的过程假设 harbor 注册表的主机名是 harbor.turbine.com，并且它的 DNS 记录指向运行 harbor 的主机。
+
 ## 6.1 官网文档
+
+```html
+官网https配置帮助文档:
+https://github.com/goharbor/harbor/blob/v1.9.4/docs/configure_https.md
+```
+
+
 
 ## 6.2 解压harbor
 
+在harbor中创建一个目录，用于存放证书
+
+```shell
+echo "192.168.31.82  harbor.turbne.com" >> /etc/hosts 
+cat /etc/hosts
+
+cd /data
+tar zxf harbor-offline-installer-v1.9.4.tgz
+
+cd harbor/ 
+mkdir -p ssl
+cd ssl
+```
+
+
+
 ## 6.3 获得证书颁发机构
 
-### 6.3.1 创建自己的私钥
+在生产环境中，应该从 CA 官方获取证书。在测试或开发环境中，可以生成自己的 CA。若要生成 CA 证书，请运行以下命令。
 
-### 6.3.2 生成证书前命请求
+```shell
+cd /data/harbor/ssl 
+创建CA根证书
+openssl genrsa -out ca.key 4096
 
-### 6.3.3 生成注册表主机的证书
+openssl req -x509 -new -nodes -sha512 -days 3650 -subj
+"/C=TW/ST=Beijing/L=Beijing/O=example/OU=Personal/CN=harbor.lagouedu.com" -key ca.key -out ca.crt
+```
+
+
+
+
 
 ## 6.4 获取服务器证书
 
+证书通常包含 .crt文件和 .key文件，例如 harbor.turbine.com.crt 和 harbor.turbine,com.key。
+
+### 6.4.1 创建自己的私钥
+
+```shell
+openssl genrsa -out harbor.turbine.com.key 4096
+```
+
+
+
+### 6.4.2 生成证书前命请求
+
+调整 -subj 选项中的值以反映你的组织。如果使用域名方式连接 harbor 主机，则必须将其指定为 common name（CN）属性，并在 key 和 CSR 文件命中使用它。
+
+```shell
+openssl req -sha512 -new -subj
+"/C=TW/ST=Beijing/L=Beijing/O=example/OU=Personal/CN=harbor.turbine.com" -key harbor.turbine.com.key -out harbor.turbine.com.csr
+```
+
+
+
+### 6.4.3 生成注册表主机的证书
+
+无论是使用域名还是使用IP地址连接到你的 Harbor主机，都必须创建此文件，以便你可以为 harbor 主机生成符合使用者替代名称（SAN）和 x509 v3扩展要求的证书，替换DNS 条目以反映harbor的域。
+
+```shell
+cat > v3.ext <<-EOF
+authorityKeyIdentifier=keyid,issuer 
+basicConstraints=CA:FALSE
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment extendedKeyUsage = serverAuth
+subjectAltName = @alt_names 
+[alt_names]
+DNS.1=harbor.turbine.com EOF
+```
+
+使用 v3.ext 文件为 harbor主机生成证书
+
+```shell
+openssl x509 -req -sha512 -days 3650 -extfile v3.ext -CA ca.crt -CAkey ca.key -CAcreateserial -in harbor.turbine.com.csr -out harbor.turbine.com.crt
+```
+
+
+
 ## 6.5 为docker配置服务器证书，密钥和CA
+
+生成 ca.crt、harbor.turbine.com.crt 和 harbor.turbine.com.key 文件后，必须将他们提供给 harbor 和 Docker，并重新配置 Harbor 以使用它们。
+
+将yourdomain.com.crt 转换为 yourdomain.com.cert，供 Docker 使用。
+
+Docker 守护进程将 .crt文件解释为 CA 证书， .cert文件解释为客户端证书。
+
+```shell
+openssl x509 -inform PEM -in harbor.lagouedu.com.crt -out harbor.turbine.com.cert
+
+mkdir -p /etc/docker/certs.d/harbor.turbine.com/
+
+cp harbor.turbine.com.cert /etc/docker/certs.d/harbor.turbine.com/ 
+cp harbor.turbine.com.key /etc/docker/certs.d/harbor.turbine.com/ 
+cp ca.crt /etc/docker/certs.d/harbor.turbine.com/
+
+重启docker服务： 
+systemctl daemon-reload 
+systemctl restart docker
+```
+
+
 
 ## 6.6 修改harhor.yml文件
 
+注释掉 http 的配置信息
+
+```yaml
+hostname: harbor.turbine.com 
+https:
+  port: 443
+  certificate: /data/harbor/ssl/harbor.turbine.com.crt 
+  private_key: /data/harbor/ssl/harbor.turbine.com.key
+```
+
+
+
 ## 6.7 安装harbor
+
+```shell
+docker pull goharbor/prepare:v1.9.4 
+
+cd /data/harbor
+
+./prepared 
+./install.sh
+```
+
+
 
 ## 6.8 访问UI
 
+```html
+C:\Windows\System32\drivers\etc 
+
+192.168.31.82 harbor.turbine.com 
+
+https://harbor.turbine.com/
+```
+
+
+
 ## 6.9 上传镜像
+
+```shell
+docker-100服务器：
+将harbor服务器端生成的ca.crt文件复制到/etc/pki/ca-trust/source/anchors/中。 
+执行命令更新ca证书授权：update-ca-trust
+重启docker服务： 
+systemctl restart docker
+echo "192.168.198.101  harbor.turbine.com" >> /etc/hosts 
+
+docker login harbor.turbine.com
+admin
+Harbor12345
+
+docker load -i nginx.1.19.3.alpine.tar
+docker tag nginx:1.19.3-alpine harbor.turbine.com/turbine/nginx:v1
+docker push harbor.turbine.com/turbine/nginx:v1
+```
+
