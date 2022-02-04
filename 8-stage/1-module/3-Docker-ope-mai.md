@@ -1255,7 +1255,7 @@ docker node ls
 docker network ls
 ```
 
-
+![image-20220204150217626](assest/image-20220204150217626.png)
 
 ### 5.5.5 如何加入新的节点
 
@@ -1273,7 +1273,7 @@ docker swarm join-token worker
 docker node ls
 ```
 
-
+![image-20220204151037979](assest/image-20220204151037979.png)
 
 
 
@@ -1333,7 +1333,7 @@ docker node ls
 
 ### 5.5.10 删除脱离集群的节点
 
-```
+```shell
 先使用命令：docker node demote 节点名称。将某一个节点降为worker节点后，再删除。 
 
 使用命令：docker node rm  节点名称|节点ID
@@ -1377,7 +1377,8 @@ docker service create \  
  --name=viz \
  --publish=8080:8080/tcp \
  --constraint=node.role==manager \
- --mount=type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \ dockersamples/visualizer
+ --mount=type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \ 
+ dockersamples/visualizer
 ```
 
 
