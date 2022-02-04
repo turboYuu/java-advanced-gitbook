@@ -1232,7 +1232,7 @@ Docker Swarm由两部分组成：
 ```shell
 vi /etc/docker/daemon.json
 
-"insecure-registries":["192.168.198.101:5000"] 
+"insecure-registries":["192.168.31.82:5000"] 
 
 systemctl daemon-reload
 systemctl restart docker
