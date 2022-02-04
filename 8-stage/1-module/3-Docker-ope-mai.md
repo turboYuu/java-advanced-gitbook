@@ -1389,6 +1389,8 @@ docker service create \  
 http://192.168.31.85:8099
 ```
 
+![image-20220204154434756](assest/image-20220204154434756.png)
+
 ## 5.7 swarm 命令
 
 | 命令                    | 描述                     |
@@ -1438,14 +1440,14 @@ http://192.168.31.85:8099
 
 集群所有节点都需要下载相关镜像
 
-```shell
+```bash
 docker pull nginx:1.18.0-alpine 
 docker pull nginx:1.19.3-alpine
 ```
 
 
 
-```shell
+```bash
 scp nginx.1.18.tar root@192.168.31.86:/data/
 scp nginx.1.18.tar root@192.168.31.87:/data/
 
@@ -1455,7 +1457,8 @@ scp nginx.1.19.3.alpine.tar root@192.168.31.87:/data/
 所有节点执行如下命令： 
 cd /data
 docker load -i nginx.1.18.tar
-docker load -i nginx.1.19.3.alpine.tar rm -rf *
+docker load -i nginx.1.19.3.alpine.tar 
+rm -rf *
 ```
 
 
@@ -1476,7 +1479,7 @@ docker service ls
 docker ps
 
 manager节点只用于管理集群，不希望部署服务。
-docker node update --availability drain master-01 
+docker node update --availability drain manager-01 
 
 使用docker service scale nginx=2命令将服务缩减为2个容器：
 docker service scale nginx=2
@@ -1489,7 +1492,7 @@ docker service scale nginx=2
 ```shell
 进入其中一个容器查看nginx的版本信息：
 注意事项：因nginx是alpine的linux版本。不能使用/bin/bash指令。 
-docker  exec -it 503fe639bb89 sh
+docker exec -it 503fe639bb89 sh
 nginx -v
 
 1.更新镜像：
@@ -1528,8 +1531,22 @@ docker network rm nginx-net
 
 #### 5.10.2.1 docker-compose.yml
 
-```
-
+```yaml
+version: '3'
+services:
+  nginx-web:
+    image: nginx:1.19.3-alpine
+    container_name: nginx
+    networks:
+      - nginx-net
+    restart: always
+    ports:
+      - 80:80
+    deploy:
+      replicas: 3
+networks:
+  nginx-net:
+    driver: overlay
 ```
 
 
@@ -1571,7 +1588,7 @@ docker stack rm nginx-stack
 - Docker Compose 是一个 Python 项目，在内部，它使用 Docker API 规范来操作容器。所以需要安装 Docker-compose，以便与Docker一起在你的计算机上使用；
 - Docker Stack 功能包含在 Docker 引擎中，你不需要安装额外的包来使用它，docker stacks 只是 swarm mode 的一部分。
 - Docker Stack 不支持基于第二版写的 docker-compose.yml，也就是 version 版本至少为 3 。然而Docker Compose 对版本为2和3的文件仍然可以处理；
-- Docker Stack 把 Docker Compose 的所有工作都做完了，因此 docker stack 将占主导地位。同时，对于大多数用户老说，切换到使用 docker stack 既不困难，也不需要太多的开销。如果你是Docker 新手，或正在选择用于新项目的技术，请使用 docker stack。
+- Docker Stack 把 Docker Compose 的所有工作都做完了，因此 docker stack 将占主导地位。同时，对于大多数用户来说，切换到使用 docker stack 既不困难，也不需要太多的开销。如果你是Docker 新手，或正在选择用于新项目的技术，请使用 docker stack。
 
 # 6 harbor企业级部署
 
