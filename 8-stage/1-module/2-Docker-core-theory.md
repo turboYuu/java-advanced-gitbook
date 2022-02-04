@@ -1484,6 +1484,7 @@ https://goharbor.io/
 
 github官网地址：
 https://github.com/goharbor/harbor 
+https://github.com/goharbor/harbor/releases/download/v1.9.4/harbor-online-installer-v1.9.4.tgz
 
 官方帮助文档：
 https://github.com/goharbor/harbor/blob/v1.9.4/docs/installation_guide.md

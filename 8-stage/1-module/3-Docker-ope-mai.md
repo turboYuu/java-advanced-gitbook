@@ -975,7 +975,7 @@ ENTRYPOINT ["/home/fastdfs.sh"]
 ## 3.6 制作镜像
 
 ```shell
-docker build --rm -t lagou/fastdfs:1.0 .
+docker build --rm -t turbo/fastdfs:1.0 .
 ```
 
 
@@ -1608,7 +1608,7 @@ https://github.com/goharbor/harbor/blob/v1.9.4/docs/configure_https.md
 在harbor中创建一个目录，用于存放证书
 
 ```shell
-echo "192.168.31.82  harbor.turbne.com" >> /etc/hosts 
+echo "192.168.31.82  harbor.turbine.com" >> /etc/hosts 
 cat /etc/hosts
 
 cd /data
@@ -1630,8 +1630,7 @@ cd /data/harbor/ssl
 创建CA根证书
 openssl genrsa -out ca.key 4096
 
-openssl req -x509 -new -nodes -sha512 -days 3650 -subj
-"/C=TW/ST=Beijing/L=Beijing/O=example/OU=Personal/CN=harbor.lagouedu.com" -key ca.key -out ca.crt
+openssl req -x509 -new -nodes -sha512 -days 3650 -subj "/C=TW/ST=Beijing/L=Beijing/O=example/OU=Personal/CN=harbor.turbine.com" -key ca.key -out ca.crt
 ```
 
 
@@ -1640,7 +1639,7 @@ openssl req -x509 -new -nodes -sha512 -days 3650 -subj
 
 ## 6.4 获取服务器证书
 
-证书通常包含 .crt文件和 .key文件，例如 harbor.turbine.com.crt 和 harbor.turbine,com.key。
+证书通常包含 .crt文件和 .key文件，例如 harbor.turbine.com.crt 和 harbor.turbine.com.key。
 
 ### 6.4.1 创建自己的私钥
 
@@ -1650,13 +1649,12 @@ openssl genrsa -out harbor.turbine.com.key 4096
 
 
 
-### 6.4.2 生成证书前命请求
+### 6.4.2 生成证书签名请求
 
 调整 -subj 选项中的值以反映你的组织。如果使用域名方式连接 harbor 主机，则必须将其指定为 common name（CN）属性，并在 key 和 CSR 文件命中使用它。
 
 ```shell
-openssl req -sha512 -new -subj
-"/C=TW/ST=Beijing/L=Beijing/O=example/OU=Personal/CN=harbor.turbine.com" -key harbor.turbine.com.key -out harbor.turbine.com.csr
+openssl req -sha512 -new -subj "/C=TW/ST=Beijing/L=Beijing/O=example/OU=Personal/CN=harbor.turbine.com" -key harbor.turbine.com.key -out harbor.turbine.com.csr
 ```
 
 
@@ -1669,10 +1667,12 @@ openssl req -sha512 -new -subj
 cat > v3.ext <<-EOF
 authorityKeyIdentifier=keyid,issuer 
 basicConstraints=CA:FALSE
-keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment extendedKeyUsage = serverAuth
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment 
+extendedKeyUsage = serverAuth
 subjectAltName = @alt_names 
 [alt_names]
-DNS.1=harbor.turbine.com EOF
+DNS.1=harbor.turbine.com 
+EOF
 ```
 
 使用 v3.ext 文件为 harbor主机生成证书
@@ -1692,7 +1692,7 @@ openssl x509 -req -sha512 -days 3650 -extfile v3.ext -CA ca.crt -CAkey ca.key -C
 Docker 守护进程将 .crt文件解释为 CA 证书， .cert文件解释为客户端证书。
 
 ```shell
-openssl x509 -inform PEM -in harbor.lagouedu.com.crt -out harbor.turbine.com.cert
+openssl x509 -inform PEM -in harbor.turbine.com.crt -out harbor.turbine.com.cert
 
 mkdir -p /etc/docker/certs.d/harbor.turbine.com/
 
@@ -1724,7 +1724,7 @@ https:
 ## 6.7 安装harbor
 
 ```shell
-docker pull goharbor/prepare:v1.9.4 
+docker pull goharbor/prepare:v1.9.4
 
 cd /data/harbor
 
@@ -1754,7 +1754,7 @@ docker-100服务器：
 执行命令更新ca证书授权：update-ca-trust
 重启docker服务： 
 systemctl restart docker
-echo "192.168.198.101  harbor.turbine.com" >> /etc/hosts 
+echo "192.168.31.82  harbor.turbine.com" >> /etc/hosts 
 
 docker login harbor.turbine.com
 admin
@@ -1765,3 +1765,4 @@ docker tag nginx:1.19.3-alpine harbor.turbine.com/turbine/nginx:v1
 docker push harbor.turbine.com/turbine/nginx:v1
 ```
 
+![image-20220204190545908](assest/image-20220204190545908.png)
