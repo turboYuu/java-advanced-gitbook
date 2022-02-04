@@ -1244,7 +1244,7 @@ systemctl restart docker
 
 关于 advertise-addr 和 listen-addr 这两个参数：
 
-- 前者用来指定其他节点连接mo时的地址
+- 前者用来指定其他节点连接 m0 时的地址
 - 后者指定承载swarm流量的IP和端口
 - 会在本地新建 docker 网络
 
