@@ -46,7 +46,7 @@ k8s集群部署方式：
 
 
 
-快速部署一个 Kubernetes，既拥有一个完整的集群。三大步骤：
+快速部署一个 Kubernetes，既拥有一个完整的集群。忽略三大步骤：
 
 1. centos7.7操作系统配置
 2. k8s集群镜像下载
@@ -72,7 +72,7 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 ```
 
 ```bash
-kubeadm join 192.168.198.156:6443 --token 8ic4bd.ns2wgycdqx5ey7go \    
+kubeadm join 192.168.31.52:6443 --token 8ic4bd.ns2wgycdqx5ey7go \    
   --discovery-token-ca-cert-hash sha256:3b883e6c1f0dcb29834dd08af8eb6e105854d0a475edb3630afc4539fd4f95c8
 ```
 
@@ -84,7 +84,9 @@ Kubernetes 作为一个分布式集群的管理工具，保证集群的安全性
 
 
 
+# 1 Kubernetes基础组件
 
+# 2 Kubernetes安装与配置
 
 
 
