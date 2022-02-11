@@ -18,8 +18,6 @@ SaaS：软件服务
 
 
 
-
-
 ## K8s集群快速部署
 
 kubernetes官网地址：国外网站，访问速度较慢。
@@ -145,13 +143,13 @@ Authentication（认证）
 
 ### 1.1.2 etcd
 
-> 1. kubernetes需要存储很多东西，像他本身的节点信息，组件信息，还有通过kubernetes运行的pod，deployment，service等等，都需要持久化。etcd就是它的数据中心，生产环境中为了保证数据中心的高可用和数据一致性，一般或部署最少三个节点。
+> 1. kubernetes需要存储很多东西，像它本身的节点信息，组件信息，还有通过kubernetes运行的pod，deployment，service等等，都需要持久化。etcd就是它的数据中心，生产环境中为了保证数据中心的高可用和数据一致性，一般或部署最少三个节点。
 > 2. 这里只部署一个节点在master。etcd也可以部署在 kubernetes 每一个节点。组成 etcd集群。
 > 3. 如果已经有 etcd 外部的服务，kubernetes直接使用外部 etcd服务
 
 etcd 是兼具一致性和高可用性的键值数据库，可以作为保存 Kubernetes 所有集群数据的后台数据库。
 
-Kubernetes集群的etcd数据库通常需要有个备份计划，要了解etcd更深层次的信息，请参考etcd文档，也可以使用外部的ETCD集群
+Kubernetes集群的etcd数据库通常需要有个备份计划，要了解etcd更深层次的信息，请参考etcd文档，也可以使用外部的 ETCD 集群
 
 ### 1.1.3 kube-scheduler
 
@@ -189,9 +187,539 @@ Kubernetes集群的etcd数据库通常需要有个备份计划，要了解etcd�
 
 # 2 Kubernetes安装与配置
 
+## 2.1 硬件安装要求
+
+| 序号 | 硬件 |  要求   |
+| :--: | :--: | :-----: |
+|  1   | CPU  | 至少2核 |
+|  2   | 内存 | 至少3G  |
+|  3   | 硬盘 | 至少50G |
+
+临时演示集群节点
+
+|    主机名    |    主机IP     |
+| :----------: | :-----------: |
+| k8s-master01 | 192.168.31.61 |
+|  k8s-node01  | 192.168.31.62 |
+|  k8s-node02  | 192.168.31.63 |
+|  k8s-node03  | 192.168.31.64 |
+
+centos下载地址：推荐使用centos7.6以上的版本
+
+```html
+http://mirrors.aliyun.com/centos/7/isos/x86_64/
+```
+
+查看centos系统版本命令：
+
+```bash
+cat /etc/centos-release
+```
+
+配置阿里云 yum 源
+
+```bash
+1.下载安装wget
+yum install -y wget
+
+2.备份默认的yum
+mv /etc/yum.repos.d /etc/yum.repos.d.backup
+
+3.设置新的yum目录
+mkdir -p /etc/yum.repos.d
+
+4.下载阿里yum配置到该目录中，选择对应版本
+wget -O /etc/yum.repos.d/CentOS-Base.repo http://mirrors.aliyun.com/repo/Centos-7.repo
+
+5.更新epel源为阿里云epel源
+mv /etc/yum.repos.d/epel.repo /etc/yum.repos.d/epel.repo.backup 
+mv /etc/yum.repos.d/epel-testing.repo /etc/yum.repos.d/epel-testing.repo.backup
+wget -O /etc/yum.repos.d/epel.repo http://mirrors.aliyun.com/repo/epel-7.repo
+
+6.重建缓存 
+yum clean all
+yum makecache
+
+7.看一下yum仓库有多少包 
+yum repolist
+yum update
+```
+
+升级系统内核
+
+```bash
+rpm -Uvh http://www.elrepo.org/elrepo-release-7.0-3.el7.elrepo.noarch.rpm
+yum --enablerepo=elrepo-kernel install -y kernel-lt
+grep initrd16 /boot/grub2/grub.cfg
+grub2-set-default 0
+
+reboot
+```
+
+查看centos系统内核命令：
+
+```bash
+uname -r
+uname -a
+```
+
+查看cpu命令：
+
+```bash
+lscpu
+```
+
+查看内存命令：
+
+```bash
+free
+free -h
+```
+
+查看硬盘信息
+
+```bash
+fdisk -l
+```
+
+## 2.2 centos7系统配置
+
+### 2.2.1 关闭防火墙
+
+```bash
+systemctl stop firewalld
+systemctl disable firewalld
+```
+
+### 2.2.2 关闭selinux
+
+```bash
+sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/sysconfig/selinux
+setenforce 0
+```
+
+### 2.2.3 网桥过滤
+
+```bash
+vi /etc/sysctl.conf
+
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.bridge.bridge-nf-call-arptables = 1
+net.ipv4.ip_forward=1
+net.ipv4.ip_forward_use_pmtu = 0
+
+生效命令 
+sysctl --system 
+查看效果
+sysctl -a|grep "ip_forward"
+```
+
+### 2.2.4 开启IPVS
+
+```bash
+安装IPVS
+yum -y install ipset ipvsdm
+
+编译ipvs.modules文件
+vi /etc/sysconfig/modules/ipvs.modules
+
+文件内容如下
+#!/bin/bash
+modprobe -- ip_vs
+modprobe -- ip_vs_rr
+modprobe -- ip_vs_wrr
+modprobe -- ip_vs_sh
+modprobe -- nf_conntrack_ipv4
+
+赋予权限并执行
+chmod 755 /etc/sysconfig/modules/ipvs.modules && bash /etc/sysconfig/modules/ipvs.modules &&lsmod | grep -e ip_vs -e nf_conntrack_ipv4
+
+重启电脑，检查是否生效 
+reboot
+lsmod | grep ip_vs_rr
+```
+
+### 2.2.5 同步时间
+
+```bash
+安装软件
+yum -y install ntpdate
+
+向阿里云服务器同步时间
+ntpdate time1.aliyun.com
+
+删除本地时间并设置时区为上海
+rm -rf /etc/localtime
+ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+
+查看时间
+date -R || date
+```
+
+### 2.2.6 命令补全
+
+```bash
+安装bash-completion
+yum -y install bash-completion bash-completion-extras
+
+使用bash-completion
+source /etc/profile.d/bash_completion.sh
+```
+
+### 2.2.7 关闭swap分区
+
+```bash
+临时关闭： 
+swapoff -a
+
+永久关闭： 
+vi /etc/fstab
+
+将文件中的/dev/mapper/centos-swap这行代码注释掉
+#/dev/mapper/centos-swap swap  swap    defaults        0 0 
+
+确认swap已经关闭：若swap行都显示    0 则表示关闭成功
+free -m
+```
+
+### 2.2.8 hosts配置
+
+```bash
+vi /etc/hosts 
+
+文件内容如下:
+cat <<EOF >>/etc/hosts
+192.168.31.62 k8s-master01
+192.168.31.63 k8s-node01
+192.168.31.64 k8s-node02
+192.168.31.65 k8s-node03
+EOF
+```
 
 
 
+## 2.3 安装docker
+
+### 2.3.1 阿里云开发者平台
+
+[docker官方安装过程](https://docs.docker.com/engine/install/centos/)
+
+可以参考[阿里云官网](https://www.aliyun.com/)提供的docker安装教程进行安装。
+
+![image-20220125104215434](assest/image-20220125104215434.png)
+
+![image-20220125104246212](assest/image-20220125104246212.png)
+
+![image-20220125104302119](assest/image-20220125104302119.png)
+
+### 2.3.2 安装 docker前置条件
+
+```bash
+yum install -y yum-utils device-mapper-persistent-data lvm2
+```
+
+### 2.3.3 添加源
+
+```bash
+yum-config-manager --add-repo http://mirrors.aliyun.com/docker- ce/linux/centos/docker-ce.repo
+
+yum makecache fast
+```
+
+### 2.3.4 查看docker最新版本
+
+```bash
+yum list docker-ce --showduplicates | sort -r
+```
+
+### 2.3.5 安装docker
+
+```bash
+安装最新版本
+yum -y install docker-ce 
+
+安装指定版本：
+yum -y install docker-ce-18.09.8 
+
+可以通过docker version命令查看
+docker-client版本：当前最新版本 
+docker-server版本为：18.09.8
+```
+
+### 2.3.6 开启docker服务
+
+```bash
+systemctl start docker
+systemctl status docker
+```
+
+### 2.3.7 安装阿里云镜像加速器
+
+```shell
+sudo mkdir -p /etc/docker
+sudo tee /etc/docker/daemon.json <<-'EOF'
+{
+  "registry-mirrors": ["https://idjm2ox0.mirror.aliyuncs.com"]
+}
+EOF
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+```
+
+![image-20220125113038143](assest/image-20220125113038143.png)
+
+### 2.3.8 设置 docker 开启 启动服务
+
+```bash
+systemctl enable docker
+```
+
+### 2.3.9 修改Cgroup Driver
+
+```bash
+修改daemon.json，新增：
+
+"exec-opts": ["native.cgroupdriver=systemd"]
+
+重启docker服务：
+systemctl daemon-reload
+systemctl restart docker
+查看修改后状态：
+docker info | grep Cgroup
+```
+
+>***修改cgroupdriver是为了消除安装k8s集群时的告警：***
+>
+>[WARNING IsDockerSystemdCheck]:
+>detected “cgroupfs” as the Docker cgroup driver. The recommended driver is “systemd”.
+>Please follow the guide at https://kubernetes.io/docs/setup/cri/......
+
+2.2.10 复习 docker 常用命令
+
+```bash
+docker -v
+docker version
+docker info
+```
+
+## 2.4 使用 kubeadm快速安装
+
+| 软件 | kubeadm                            | kubelet                                                      | kubectl                            | docker-ce                 |
+| ---- | ---------------------------------- | ------------------------------------------------------------ | ---------------------------------- | ------------------------- |
+| 版本 | 初始化集群管理<br>集群版本：1.17.5 | 用于接收 api-server指令，<br>对 pod 声明周期进行管理，版本：1.17.5 | 集群命令行管理工具<br>版本：1.17.5 | 推荐使用版本：<br>19.03.8 |
+
+## 2.5 安装 yum 源
+
+### 2.5.1 新建 repo 文件
+
+```bash
+vi /etc/yum.repos.d/kubernates.repo
+```
+
+### 2.5.2 文件内容
+
+```bash
+[kubernetes]
+name=Kubernetes
+baseurl=https://mirrors.aliyun.com/kubernetes/yum/repos/kubernetes-el7-x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://mirrors.aliyun.com/kubernetes/yum/doc/yum-key.gpg
+       https://mirrors.aliyun.com/kubernetes/yum/doc/rpm-package-key.gpg
+```
+
+### 2.5.3 更新缓存
+
+```bash
+yum clean all
+yum -y makecache
+```
+
+### 2.5.4 验证源是否可用
+
+```bash
+yum list | grep kubeadm
+
+如果提示要验证yum-key.gpg是否可用，输入y。 
+查找到kubeadm。显示版本
+```
+
+### 2.5.5 查看k8s版本
+
+```bash
+yum list kubelet --showduplicates | sort -r
+```
+
+### 2.5.6 安装 k8s-1.17.5
+
+```bash
+yum install -y kubelet-1.17.5 kubeadm-1.17.5 kubectl-1.17.5
+```
+
+## 2.6 设置 kubelet
+
+### 2.6.1 增加配置信息
+
+```bash
+如果不配置kubelet，可能会导致K8S集群无法启动。为实现docker使用的cgroupdriver与kubelet 使用的cgroup的一致性。
+vi /etc/sysconfig/kubelet
+
+KUBELET_EXTRA_ARGS="--cgroup-driver=systemd"
+```
+
+### 2.6.2 设置开机启动
+
+```bash
+systemctl enable kubelet
+```
+
+
+
+## 2.7 初始化镜像
+
+如果是第一次安装k8s，手里没有备份好的镜像，可以执行如下操作。也可以使用资料包中的镜像备份，跳过本章节学习内容。
+
+### 2.7.1 查看安装集群需要的镜像
+
+```bash
+kubeadm config images list
+```
+
+### 2.7.2 编写执行脚本
+
+```bash
+mkdir -p /data
+cd /data
+vi images.sh
+
+#!/bin/bash
+# 下面的镜像应该去除"k8s.gcr.io"的前缀，版本换成kubeadm config images list命令获取 到的版本
+images=(
+   kube-apiserver:v1.17.5
+   kube-controller-manager:v1.17.5
+   kube-scheduler:v1.17.5
+   kube-proxy:v1.17.5    pause:3.1
+   etcd:3.4.3-0    coredns:1.6.5 )
+for imageName in ${images[@]} ;
+do
+   docker pull registry.cn-hangzhou.aliyuncs.com/google_containers/$imageName    
+   docker tag registry.cn-hangzhou.aliyuncs.com/google_containers/$imageName k8s.gcr.io/$imageName
+   docker rmi registry.cn-hangzhou.aliyuncs.com/google_containers/$imageName done
+```
+
+### 2.7.3 执行脚本
+
+```bash
+mkdir -p /data 
+cd /data
+给脚本授权
+chmod +x images.sh
+执行脚本
+./images.sh
+```
+
+### 2.7.4 保存镜像
+
+idea 的列编辑模式：alt + 鼠标左键
+
+```bash
+docker save -o k8s.1.17.5.tar \
+k8s.gcr.io/kube-proxy:v1.17.5  \ 
+k8s.gcr.io/kube-apiserver:v1.17.5 \
+k8s.gcr.io/kube-controller-manager:v1.17.5 \ 
+k8s.gcr.io/kube-scheduler:v1.17.5 \
+k8s.gcr.io/coredns:1.6.5 \ 
+k8s.gcr.io/etcd:3.4.3-0 \ 
+k8s.gcr.io/pause:3.1 \
+```
+
+```bash
+docker save -o k8s.1.17.5.node.tar \
+k8s.gcr.io/kube-proxy:v1.17.5  \ 
+k8s.gcr.io/pause:3.1 \
+```
+
+
+
+## 2.8 导入镜像
+
+### 2.8.1 导入master节点镜像 tar 包
+
+```bash
+master节点需要全部镜像
+docker load -i k8s.1.17.5.tar
+```
+
+### 2.8.2 导入 node节点镜像 tar 包
+
+```bash
+node节点需要kube-proxy:v1.17.5和pause:3.1,2个镜像 
+docker load -i k8s.1.17.5.node.tar
+```
+
+## 2.9 初始化集群
+
+配置k8s集群网络
+
+### 2.9.1 calico 官网地址
+
+```bash
+官网下载地址：
+https://docs.projectcalico.org/v3.14/manifests/calico.yaml 
+
+github地址：
+https://github.com/projectcalico/calico 
+
+镜像下载：
+docker pull calico/cni:v3.14.2
+docker pull calico/pod2daemon-flexvol:v3.14.2
+docker pull calico/node:v3.14.2
+docker pull calico/kube-controllers:v3.14.2
+```
+
+```bash
+配置hostname：
+hostnamectl set-hostname k8s-master01 
+配置ip地址：
+```
+
+### 2.9.2 初始化集群信息：calico网络
+
+```bash
+kubeadm init --apiserver-advertise-address=192.168.31.61 --kubernetes-version v1.17.5 --service-cidr=10.1.0.0/16 --pod-network-cidr=10.81.0.0/16
+```
+
+### 2.9.3 执行配置命令
+
+```bash
+
+```
+
+### 2.9.4 node节点加入集群信息
+
+```bash
+
+```
+
+### 2.9.5 kubectl命令自动补全
+
+```bash
+
+```
+
+### 2.9.6 发送邮件问题
+
+```bash
+
+```
+
+### 2.9.7 yum-key.gpg 验证未通过
+
+```bash
+
+```
 
 
 
