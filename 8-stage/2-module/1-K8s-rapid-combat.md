@@ -245,11 +245,19 @@ yum repolist
 yum update
 ```
 
-升级系统内核
+升级系统内核，推荐安装4.x版本的内核
 
 ```bash
 rpm -Uvh http://www.elrepo.org/elrepo-release-7.0-3.el7.elrepo.noarch.rpm
+导入仓库源
+sudo rpm --import https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
+sudo rpm -Uvh http://www.elrepo.org/elrepo-release-7.0-2.el7.elrepo.noarch.rpm
+查看可安装的软件包
+yum --enablerepo="elrepo-kernel" list --showduplicates | sort -r | grep kernel-ml.x86_64
+安装最新版本
 yum --enablerepo=elrepo-kernel install -y kernel-lt
+安装指定版本
+yum --enablerepo="elrepo-kernel" install kernel-ml-4.19.12-1.el7.elrepo.x86_64 -y
 grep initrd16 /boot/grub2/grub.cfg
 grub2-set-default 0
 
@@ -390,10 +398,10 @@ vi /etc/hosts
 
 文件内容如下:
 cat <<EOF >>/etc/hosts
-192.168.31.62 k8s-master01
-192.168.31.63 k8s-node01
-192.168.31.64 k8s-node02
-192.168.31.65 k8s-node03
+192.168.31.61 k8s-master01
+192.168.31.62 k8s-node01
+192.168.31.63 k8s-node02
+192.168.31.64 k8s-node03
 EOF
 ```
 
