@@ -114,9 +114,78 @@ Authentication（认证）
 
      kubectl、kubelet、kube-proxy访问 API Server就都需要证书进行 HTTPS 双向认证
 
-  4. kubeconfig 文件包含集群参数（CA证书、API Server）
+  4. kubeconfig 文件包含集群参数（CA证书、API Server），客户端参数（上面生成的证书和私钥），集群context信息（集群名称、用户名）。Kubenetes组件通过启动时指定不同的 kubeconfig 文件可以切换到不同的集群
 
 # 1 Kubernetes基础组件
+
+一个Kubernetes 集群包含集群由一组被称作节点的机器组成。这些节点上运行 Kubernetes  所管理的容器化应用。集群具有至少一个工作节点和至少一个主节点。
+
+工作节点托管作为应用程序组件的 Pod。主节点管理集群中的工作节点和 Pod。多个主节点用于为集群提供故障转移和高可用性。
+
+本章节概述 交付正常运行的 Kubernetes 集群所需的各种组件
+
+这张图展示了包含所有相互关联的 Kubernetes 集群。
+
+![image-20220211133603186](assest/image-20220211133603186.png)
+
+## 1.1 控制平面组件（Control Plane Components）
+
+控制平面的组件对集群做出全局决策（比如调度），以及检测和响应集群事件（例如，当不满足部署的replicas字段时，启动新的 pod）。
+
+控制平面组件可以在集群中的任何节点上运行。然而，为了简单起见，设置脚本通常会在同一个计算机上启动所有控制平面组件，并且不会在此计算机上运行用户容器。
+
+### 1.1.1 kube-apiserver
+
+主节点上负责提供 Kubernetes API 服务的组件；它是 Kubernetes 控制面的前端。
+
+> 1. kube-apiserver 是 Kubernetes 最重要的核心组件之一
+> 2. 提供集群管理的REST API接口，包括认证授权，数据校验以及集群状态变更等
+> 3. 提供其他模块之间的数据交互和通信的枢纽（其他模块通过 API Server查询或修改数据，只有 API Server才直接操作 etcd）
+> 4. 生产环境可以为 apiserver 做 LA 或 LB。在设计上考虑水平扩缩的需要。换言之，通过部署多个实例可以实现扩缩。参见构造高可用集群
+
+### 1.1.2 etcd
+
+> 1. kubernetes需要存储很多东西，像他本身的节点信息，组件信息，还有通过kubernetes运行的pod，deployment，service等等，都需要持久化。etcd就是它的数据中心，生产环境中为了保证数据中心的高可用和数据一致性，一般或部署最少三个节点。
+> 2. 这里只部署一个节点在master。etcd也可以部署在 kubernetes 每一个节点。组成 etcd集群。
+> 3. 如果已经有 etcd 外部的服务，kubernetes直接使用外部 etcd服务
+
+etcd 是兼具一致性和高可用性的键值数据库，可以作为保存 Kubernetes 所有集群数据的后台数据库。
+
+Kubernetes集群的etcd数据库通常需要有个备份计划，要了解etcd更深层次的信息，请参考etcd文档，也可以使用外部的ETCD集群
+
+### 1.1.3 kube-scheduler
+
+主节点上的组件，该组件监视那些新创建的未指定运行节点的 Pod，并选择节点让 Pod在 上面运行。
+
+> 1. kube-scheduler 负责分配调度 Pod 到集群内的节点上，它监听 kube-apiserver，查询还未分配Node的Pod，然后根据调度策略为这些Pod分配节点
+
+### 1.1.4 kube-controller-manager
+
+在主节点上运行控制器的组件。
+
+> 1.Controller Manager 由 kube-controller-manager 和 cloud-controller-manager 组成，是 Kubernetes 的大脑，它通过 apiserver监控整个集群的状态，并确保集群处于预期的工作状态。kube-controller-manager由一些列的控制器组成，像 Replication Controller控制副本，Node Controller节点控制，Deployment Controller管理 deploymenet等等 cloud-controller-manager在 Kubernetes启用Cloud Provider的时候才需要，用来配合云服务提供商的控制
+
+### 1.1.5 云控制器管理器（cloud-controller-manager）（暂时不考录）
+
+### 1.1.6 kubectl
+
+## 1.2 Node组件
+
+### 1.2.1 kubelet
+
+### 1.2.2 kube-proxy
+
+### 1.2.3 容器运行环境（Container Runtime）
+
+## 1.3 插件（Addons）
+
+### 1.3.1 KUBE-DNS
+
+### 1.3.2 用户界面（Dashboard）
+
+### 1.3.3 容器资源监控
+
+### 1.3.4 集群层面日志
 
 # 2 Kubernetes安装与配置
 
