@@ -690,7 +690,7 @@ docker pull calico/node:v3.14.2
 docker pull calico/kube-controllers:v3.14.2
 ```
 
-k8s-master01 克隆出 k8s-node01、k8s-node02、k8s-node03。
+k8s-master01 先备份快照，然后，克隆出 k8s-node01、k8s-node02、k8s-node03。
 
 ```bash
 配置hostname：
@@ -700,56 +700,65 @@ hostnamectl set-hostname k8s-master01
 
 ### 2.9.2 初始化集群信息：calico网络
 
+在k8s-master01，执行：
+
 ```bash
 kubeadm init --apiserver-advertise-address=192.168.31.61 --kubernetes-version v1.17.5 --service-cidr=10.1.0.0/16 --pod-network-cidr=10.81.0.0/16
 ```
 
+![image-20220212173840048](assest/image-20220212173840048.png)
+
 ### 2.9.3 执行配置命令
 
-```bash
+在k8s-master01，执行：
 
+```bash
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
 ```
 
 ### 2.9.4 node节点加入集群信息
 
 ```bash
-
+kubeadm join 192.168.31.61:6443 --token 4sh6f7.kmkcu5v7mze4z7mg \
+    --discovery-token-ca-cert-hash sha256:a1aee6f065881b191b3a7955a4c3d5380de7f273c92328968c40b64707d07c24
 ```
 
-### 2.9.5 kubectl命令自动补全
+### 2.9.5 安装calico网络
+
+在k8s-master01，执行：
 
 ```bash
-
+kubectl apply -f calico.yml
 ```
 
-### 2.9.6 发送邮件问题
+![image-20220212174503299](assest/image-20220212174503299.png)
+
+### 2.9.6 kubectl命令自动补全
 
 ```bash
-
+echo "source <(kubectl completion bash)" >> ~/.bash_profile
+source ~/.bash_profile
 ```
 
-### 2.9.7 yum-key.gpg 验证未通过
+### 2.9.7 发送邮件问题
 
 ```bash
+在 bash 中设置当前 shell的自动补全，要先安装bash-completion包。 
+echo "unset MAILCHECK">> /etc/profile
+source /etc/profile
 
+在你的bash shell 中永久的添加自动补全
 ```
 
+### 2.9.8 yum-key.gpg 验证未通过
 
+```bash
+wget https://mirrors.aliyun.com/kubernetes/yum/doc/yum-key.gpg
+wget https://mirrors.aliyun.com/kubernetes/yum/doc/rpm-package-key.gpg 
+rpm --import yum-key.gpg
+rpm --import rpm-package-key.gpg
+```
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-​                                             
+​                                         
