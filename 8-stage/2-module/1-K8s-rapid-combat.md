@@ -430,7 +430,7 @@ yum install -y yum-utils device-mapper-persistent-data lvm2
 ### 2.3.3 添加源
 
 ```bash
-yum-config-manager --add-repo http://mirrors.aliyun.com/docker- ce/linux/centos/docker-ce.repo
+yum-config-manager --add-repo http://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
 
 yum makecache fast
 ```
@@ -534,8 +534,7 @@ baseurl=https://mirrors.aliyun.com/kubernetes/yum/repos/kubernetes-el7-x86_64
 enabled=1
 gpgcheck=1
 repo_gpgcheck=1
-gpgkey=https://mirrors.aliyun.com/kubernetes/yum/doc/yum-key.gpg
-       https://mirrors.aliyun.com/kubernetes/yum/doc/rpm-package-key.gpg
+gpgkey=https://mirrors.aliyun.com/kubernetes/yum/doc/yum-key.gpg https://mirrors.aliyun.com/kubernetes/yum/doc/rpm-package-key.gpg
 ```
 
 ### 2.5.3 更新缓存
@@ -605,16 +604,20 @@ vi images.sh
 #!/bin/bash
 # 下面的镜像应该去除"k8s.gcr.io"的前缀，版本换成kubeadm config images list命令获取 到的版本
 images=(
-   kube-apiserver:v1.17.5
-   kube-controller-manager:v1.17.5
-   kube-scheduler:v1.17.5
-   kube-proxy:v1.17.5    pause:3.1
-   etcd:3.4.3-0    coredns:1.6.5 )
+kube-apiserver:v1.17.5
+kube-controller-manager:v1.17.5
+kube-scheduler:v1.17.5
+kube-proxy:v1.17.5
+pause:3.1
+etcd:3.4.3-0
+coredns:1.6.5
+)
 for imageName in ${images[@]} ;
 do
-   docker pull registry.cn-hangzhou.aliyuncs.com/google_containers/$imageName    
-   docker tag registry.cn-hangzhou.aliyuncs.com/google_containers/$imageName k8s.gcr.io/$imageName
-   docker rmi registry.cn-hangzhou.aliyuncs.com/google_containers/$imageName done
+   docker pull registry.cn-hangzhou.aliyuncs.com/google_containers/$imageName
+   docker tag registry.cn-hangzhou.aliyuncs.com/google_containers/$imageName k8s.gcr.io/$imageName
+   docker rmi registry.cn-hangzhou.aliyuncs.com/google_containers/$imageName
+done
 ```
 
 ### 2.7.3 执行脚本
@@ -640,13 +643,13 @@ k8s.gcr.io/kube-controller-manager:v1.17.5 \
 k8s.gcr.io/kube-scheduler:v1.17.5 \
 k8s.gcr.io/coredns:1.6.5 \ 
 k8s.gcr.io/etcd:3.4.3-0 \ 
-k8s.gcr.io/pause:3.1 \
+k8s.gcr.io/pause:3.1
 ```
 
 ```bash
 docker save -o k8s.1.17.5.node.tar \
-k8s.gcr.io/kube-proxy:v1.17.5  \ 
-k8s.gcr.io/pause:3.1 \
+k8s.gcr.io/kube-proxy:v1.17.5 \
+k8s.gcr.io/pause:3.1
 ```
 
 
@@ -686,6 +689,8 @@ docker pull calico/pod2daemon-flexvol:v3.14.2
 docker pull calico/node:v3.14.2
 docker pull calico/kube-controllers:v3.14.2
 ```
+
+k8s-master01 克隆出 k8s-node01、k8s-node02、k8s-node03。
 
 ```bash
 配置hostname：
