@@ -168,24 +168,32 @@ kubectl get deployment -o wide
 ```bash
 kubectl expose deployment tomcat9-test --name=tomcat9-svc --port=8888 --target-port=8080 --protocol=TCP --type=NodePort
 
+--port:service对k8s集群内其他应用暴露的端口
+--target-port:是deployment中pod容器的端口号
+
 kubectl get svc 
 kubectl get svc -o wide 
 访问服务端口
-curl 10.105.225.0:8888 
+curl 10.1.239.136:8888 
 访问集群外端口
-http://192.168.31.61:30217
+http://192.168.31.61:30684/
 ```
+
+![image-20220213143836511](assest/image-20220213143836511.png)
+
+
 
 ```
 1.练习
-pod deployment 扩容    service 案例
+pod、deployment 扩容、service 案例
 
 2.自行查找一些资料：k8s集群 NodePort默认的端口号范围。。。
+30000-32767
 
 3.扩展技能：如何修改k8s集群NodePort默认的端口号范围
 ```
 
-
+[NodePort-k8s 官网参考](https://kubernetes.io/zh/docs/concepts/services-networking/service/#type-nodeport)
 
 
 
