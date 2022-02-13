@@ -188,7 +188,7 @@ kubectl delete -f tomcatpod.yml
 
 ## 6.1 创建deployment
 
-在idea工程 resource/deployment/tomcatdeployment.yml
+在idea工程 resource/pod/tomcatdeployment.yml
 
 ```yaml
 apiVersion: apps/v1
@@ -237,18 +237,20 @@ kubectl apply -f tomcatdeployment.yml
 
 ## 6.3 控制器类型
 
-| 控制器类型 | 作用 |
-| ---------- | ---- |
-|            |      |
-|            |      |
-|            |      |
-|            |      |
-|            |      |
-|            |      |
+| 控制器类型  | 作用                                                         |
+| ----------- | ------------------------------------------------------------ |
+| Deployment  | 声明式更新控制器，用于发布无状态应用                         |
+| ReplicaSet  | 副本集控制器，用于对Pod进行副本规模 扩大或裁剪               |
+| StatefulSet | 有状态副本集，用于发布有状态应用                             |
+| DaemonSet   | 在k8s集群每一个Node上运行一个副本，用于发布监控或日志收集类等应用 |
+| Job         | 运行一次性作业任务                                           |
+| CronJob     | 运行周期性作业任务                                           |
 
 ## 6.4 Deployment控制器介绍
 
+具有上线部署、滚动升级、创建副本、回滚到以前某一版本（成功/稳定）等功能。
 
+Deployment包含ReplicaSet，除非需要自定义升级功能或者根本不需要升级 Pod，否则还是建议使用Deployment而不直接使用ReplicaSet。
 
 ## 6.5 删除 Deployment 
 
@@ -262,41 +264,90 @@ kubectl delete -f tomcatdeployment.yml
 
 ## 7.1 创建service
 
-在idea工程创建
+在idea工程 resource/pod/tomcatservice.yml
 
 ```yaml
-
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tomcat-deployment
+  labels:
+    app: tomcat-deployment
+spec:
+  replicas: 3
+  template:
+    metadata:
+      name: tomcat-deployment
+      labels:
+        app: tomcat-pod
+    spec:
+      containers:
+        - name: tomcat-deployment
+          image: tomcat:9.0.20-jre8-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+      restartPolicy: Always
+  selector:
+    matchLabels:
+      app: tomcat-pod
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tomcat-svc
+spec:
+  selector:
+    # 标签选择必须是template.labels.app
+    app: tomcat-pod
+  ports:
+    - port: 8888 # 对集群内其他服务暴露的端口号
+      targetPort: 8080
+      nodePort: 30088
+      protocol: TCP
+  type: NodePort
 ```
 
 ### 7.1.1 service 的 selector
 
+```yaml
+请各位小伙伴注意：
+service.spec.selector.app选择的内容仍然是template.label.app内容。而不是我们 deployment控制器的label内容
+```
+
+
+
 ### 7.1.2 service类型
+
+```yaml
+ClusterIP：默认，分配一个集群内部可以访问的虚拟IP 
+NodePort：在每个Node上分配一个端口作为外部访问入口
+LoadBalancer：工作在特定的Cloud Provider上，例如Google Cloud，AWS，OpenStack 
+ExternalName：表示把集群外部的服务引入到集群内部中来，即实现了集群内部pod和集群外部的服务 进行通信
+```
+
+
 
 ### 7.1.3 service参数
 
+```yaml
+port ：访问service使用的端口 
+targetPort ：Pod中容器端口
+NodePort： 通过Node实现外网用户访问k8s集群内service(30000-32767)  
+```
+
+
+
 ## 7.2 运行service
+
+```bash
+kubectl apply -f tomcatservice.yml
+```
+
+
 
 ## 7.3 删除service
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+```bash
+kubectl delete -f tomcatservice.yml
+```
