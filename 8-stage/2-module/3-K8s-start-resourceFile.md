@@ -37,6 +37,16 @@ settings->plugins->Install Plugin from Disk->插件安装目录
 
 目标：在idea中打开终端操作 k8s 集群 master 节点。
 
+下图是 idea 2019.1.3 版本的操作：
+
+![image-20220213170356196](assest/image-20220213170356196.png)
+
+![image-20220213170414555](assest/image-20220213170414555.png)
+
+![image-20220213170455852](assest/image-20220213170455852.png)
+
+
+
 ## 2.1 idea配置
 
 ```
@@ -46,7 +56,7 @@ settings->Tools->SSH Configurations->新建
 ## 2.2 使用SSH客户端
 
 ```html
-
+Tools->Start SSH session->选择我们刚刚配置的ssh客户端名称
 ```
 
 ## 2.3 新建yml类型文件
@@ -66,10 +76,16 @@ idea默认没有yml文件类型。可以通过 new -> file -> 手工输入 *.yml
 ## 3.1 idea 配置
 
 ```
-
+Tools->Deployment->Configurations->配置Remote Host
 ```
 
 ## 3.2 使用 Remote Host
+
+```html
+可以将本工程中的文件上传k8s集群
+```
+
+
 
 # 4 NameSpace
 
