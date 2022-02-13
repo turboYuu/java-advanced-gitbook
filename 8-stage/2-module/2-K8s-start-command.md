@@ -141,7 +141,15 @@ kubectl get pod -o wide
 crul ***:8080
 ```
 
+**deployment是一个控制器，控制pod资源**
 
+![image-20220213141059575](assest/image-20220213141059575.png)
+
+**删除pod后，deployment会再重新生成一个pod**
+
+![image-20220213141756164](assest/image-20220213141756164.png)
+
+![image-20220213142217951](assest/image-20220213142217951.png)
 
 ## 2.4 扩容
 
