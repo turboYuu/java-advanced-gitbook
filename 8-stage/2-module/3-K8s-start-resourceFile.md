@@ -129,19 +129,36 @@ kubectl delete -f turbonamespace.yml
 在idea工程 resource/pod/tomcatpod.yml
 
 ```yaml
-
+apiVersion: v1
+kind: Pod
+metadata:
+  name: tomcat-pod
+  labels:
+    app: tomcat-pod
+spec:
+  containers:
+    - name: tomcat-pod
+      image: tomcat:9.0.20-jre8-alpine
+      imagePullPolicy: IfNotPresent
+  restartPolicy: Always
 ```
 
 ## 5.2 镜像下载策略、重启策略
 
 ```bash
-
+imagePullPolicy:
+   Always:总是拉取pull
+   IfNotPresent:如果本地有镜像，使用本地，如果本地没有镜像，下载镜像。
+   Never:只使用本地镜像，从不拉取
 ```
 
 
 
 ```bash
-
+restartPolicy:
+   Always：只要退出就重启。
+   OnFailure：失败退出时（exit code不为0）才重启
+   Never：永远不重启
 ```
 
 
@@ -161,7 +178,7 @@ kubectl apply -f tomcatpod.yml
 ## 5.5 删除pod
 
 ```bash
-
+kubectl delete -f tomcatpod.yml
 ```
 
 
