@@ -167,12 +167,13 @@ restartPolicy:
 
 ```bash
 kubectl apply -f tomcatpod.yml
+# 通过资源文件创建pod，不会生成deployment控制器
 ```
 
 ## 5.4 测试 pod
 
 ```bash
-
+curl 10.81.85.198:8080
 ```
 
 ## 5.5 删除pod
@@ -190,7 +191,28 @@ kubectl delete -f tomcatpod.yml
 在idea工程 resource/deployment/tomcatdeployment.yml
 
 ```yaml
-
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tomcat-deployment
+  labels:
+    app: tomcat-deployment
+spec:
+  replicas: 3
+  template:
+    metadata:
+      name: tomcat-deployment
+      labels:
+        app: tomcat-deployment
+    spec:
+      containers:
+        - name: tomcat-deployment
+          image: tomcat:9.0.20-jre8-alpine
+          imagePullPolicy: IfNotPresent
+      restartPolicy: Always
+  selector:
+    matchLabels:
+      app: tomcat-deployment
 ```
 
 
@@ -198,7 +220,9 @@ kubectl delete -f tomcatpod.yml
 matchLabels
 
 ```
-
+总结：
+在Deployment中必须写matchLables
+在定义模板的时候必须定义labels,因为Deployment.spec.selector是必须字段,而他又必须和template.labels对应
 ```
 
 
@@ -206,7 +230,7 @@ matchLabels
 ## 6.2 运行deployment
 
 ```bash
-
+kubectl apply -f tomcatdeployment.yml
 ```
 
 
@@ -229,7 +253,7 @@ matchLabels
 ## 6.5 删除 Deployment 
 
 ```bash
-
+kubectl delete -f tomcatdeployment.yml
 ```
 
 
