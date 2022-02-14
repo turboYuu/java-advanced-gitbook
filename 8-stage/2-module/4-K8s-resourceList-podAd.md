@@ -40,15 +40,15 @@ kubectl explain pod
 
 <map[String]string><[]string><[]Object>
 
-```yaml
-apiVersion <string> #表示字符串类型
-metadata <Object> #表示需要嵌套多层字段
-labels <map[string]string> #表示由k:v组成的映射 
-finalizers <[]string> #表示字串列表 
-ownerReferences <[]Object> #表示对象列表 
-hostPID <boolean> #布尔类型
-priority <integer> #整型
-name <string> -required- #如果类型后面接 -required-，表示为必填字段
+```shell
+apiVersion <string> 			#表示字符串类型
+metadata <Object> 				#表示需要嵌套多层字段
+labels <map[string]string> 		#表示由k:v组成的映射 
+finalizers <[]string> 			#表示字串列表 
+ownerReferences <[]Object> 		#表示对象列表 
+hostPID <boolean> 				#布尔类型
+priority <integer> 				#整型
+name <string> -required- 		#如果类型后面接 -required-，表示为必填字段
 ```
 
 
@@ -72,21 +72,56 @@ initC 特点：
 
 1. initC总是运行到成功完成为止。
 2. 每个initC容器都必须在下一个initC启动之前成功完成。
-3. 如果initC容器运行失败，K8S集群会不断的重启该pod，知道initC容器成功为止。
+3. 如果initC容器运行失败，K8S集群会不断的重启该pod，直到initC容器成功为止。
 4. 如果pod对应的 restartPolicy 为never，它就不会重新启动。
 
 pod/initcpod.yml 文件，***需要准备 busybox:1.32.0镜像***
 
 ```yaml
-
+apiVersion: v1
+kind: Pod
+metadata:
+  name: initcpod-test
+  labels:
+    app: initcpod-test
+spec:
+  containers:
+    - name: initcpod-test
+      image: busybox:1.32.0
+      imagePullPolicy: IfNotPresent
+      command: ['sh','-c','echo The app is running! && sleep 3600']
+  initContainers:
+    - name: init-myservice
+      image: busybox:1.32.0
+      imagePullPolicy: IfNotPresent
+      command: ['sh','-c','until nslookup myservice; do echo waitting for myservice; sleep 2; done;']
+    - name: init-mydb
+      image: busybox:1.32.0
+      imagePullPolicy: IfNotPresent
+      command: ['sh','-c','until nslookup mydb;do echo waitting for mydb; sleep 2; done;']
+  restartPolicy: Always
 ```
+
+查看 init-myservice 的日志 `kubectl logs -f initcpod-test -c init-myservice`
+
+![image-20220214113455257](assest/image-20220214113455257.png)
 
 
 
 pod/initcservice1.yml
 
 ```yaml
-
+apiVersion: v1
+kind: Service
+metadata:
+  name: myservice
+spec:
+  selector:
+    app: myservice
+  ports:
+    - port: 80
+      targetPort: 9376
+      protocol: TCP
 ```
 
 
@@ -244,9 +279,29 @@ kubectl get pod -w
 
 # 3 总结pod生命周期
 
+pod对象自从创建开始至终止退出的时间范围称为生命周期，在这段时间中，pod会处于多种不同的状态，并执行一些操作；其中，创建主容器为必须的操作，其他可选操作还包括运行初始化容器（init container）、容器启动后钩子（start hook）、容器的存活性探测（liveness probe）、就绪性探测（readiness probe）以及容器终止前钩子（pre stop hook）等，这些操作是否执行取决于pod的定义。
+
 ## 3.1 pod 的相位
 
+使用`kubectl get pods` 命令，STATUS被称之为相位（phase）。
+
+无论是手动创建还是通过控制器创建 pod，pod对象总是应该处于其生命进程中以下几个相位之一：
+
+- pending：apiservice 创建了 pod 资源对象并存入 etcd 中，但它尚未被调度完成或者仍处于下载镜像的过程中
+- running：pod已经被调度至某节点，并且所有容器都已经被 kubelet 创建完成
+- succeeded：pod中的所有容器都已经成功终止并且不会被重启
+- failed：所有容器都已经终止，但至少有一个容器终止失败，即容器返回了非0值得退出状态或已经被系统终止。
+- unknow：apiservice 无法正常获取到 pod 对象得状态信息，通常是由于其无法于所在工作节点的 kubelet 通信所致。
+
+pod的相位是在其生命周期中的宏观概念，而非对容器或pod对象的综合汇总，而且相位的数量和含义被严格界定。
+
+
+
 ## 3.2 pod的创建过程
+
+pod 是 k8s 的基础单元，以下为一个 pod 资源对象的典型创建过程：
+
+1. 
 
 ## 3.3 pod生命周期中重要行为
 
