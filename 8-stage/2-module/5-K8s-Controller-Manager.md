@@ -266,7 +266,7 @@ metadata:
   labels:
     app: deploymentdemo1
 spec:
-  replicas: 10
+  replicas: 3
   template:
     metadata:
       name: deploymentdemo1
@@ -300,7 +300,7 @@ kubectl get rs
 kubectl get pod
 ```
 
-
+![image-20220214175905425](assest/image-20220214175905425.png)
 
 ## 6.4 镜像更新升级
 
@@ -372,7 +372,7 @@ kubectl get pods
 
 ```bash
 更新deployment的nginx:1.18.0-alpine版本，并配置暂停deployment
-kubectl set image deployment deploymentdemo1 deploymentdemo1=nginx:1.18.0- alpine && kubectl rollout pause deployment deploymentdemo1
+kubectl set image deployment deploymentdemo1 deploymentdemo1=nginx:1.18.0-alpine && kubectl rollout pause deployment deploymentdemo1
 
 观察更新状态
 kubectl rollout status deployments deploymentdemo1
@@ -381,7 +381,7 @@ kubectl rollout status deployments deploymentdemo1
 kubectl get pods -l app=deploymentdemo1 -w
 
 确保更新的pod没问题了，继续更新
-kubectl rollout resume deploy  deploymentdemo1
+kubectl rollout resume deploy deploymentdemo1
 
 查看最后的更新情况
 kubectl get pods -l app=deploymentdemo1 -w
