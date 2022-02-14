@@ -101,4 +101,5 @@
         * [第三部分 K8s快速入门之资源文件](8-stage/2-module/3-K8s-start-resourceFile.md)
         * [第四部分 资源清单-pod进阶](8-stage/2-module/4-K8s-resourceList-podAd.md)
         * [第五部分 K8s-pod控制器进阶](8-stage/2-module/5-K8s-Controller-Manager.md)
+        * [第六部分 K8s高级篇-service](8-stage/2-module/6-K8s-Service-Ad.md)
 

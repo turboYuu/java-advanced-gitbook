@@ -37,6 +37,8 @@ Controller Manager 由 kube-controller-manager 和 cloud-controller-manager 组�
 
 # 2 常见 Pod 控制器及其含义
 
+[Workload Resource-工作负载资源-k8s-官网参考](https://kubernetes.io/zh/docs/concepts/workloads/controllers/)
+
 1. ReplicaSet：适合无状态的服务部署
 
    用户创建指定数量的pod副本数量，确保 pod 副本数量符合预期状体，并且支持滚动式自动扩容和缩容功能。<br>ReplicaSet 主要由三个组件组成：
@@ -225,7 +227,7 @@ kubectl命令行工具适用于RC的绝大部分命令同样适用于ReplicaSet�
 - 通过改变 RC 里的 Pod 副本数量，可以实现Pod的扩容和缩容
 - 通过改变RC里Pod模板中的镜像版本，可以实现滚动升级
 
-# 6 Deployment
+# 6 Deployment *
 
 Deployment是Kubernetes在1.2 版本中引入的新概念，用于更好的解决Pod的编排问题，为此，Deployment在内部使用了ReplicaSet来实现目的。我们可以把Deployment理解为ReplicaSet的一次升级，两者相似度超过了90%
 
@@ -521,7 +523,9 @@ kubectl apply -f demonsetdemo.yml
 kubectl get pod -o wide
 ```
 
+![image-20220214192008022](assest/image-20220214192008022.png)
 
+![image-20220214192241444](assest/image-20220214192241444.png)
 
 ## 7.4 Daemon的滚动更新
 
@@ -562,6 +566,16 @@ spec:
 
 ## 8.3 backoffLimit说明
 
+```bash
+.spec.backoffLimit用于设置Job的容错次数，默认值为6。
+当Job运行的Pod失败次数到达.spec.backoffLimit次时，Job Controller不再新建Pod，直接停止运行这个Job，
+将其运行结果标记为Failure。
+
+另外，Pod运行失败后再次运行的时间间隔呈递增状态，例如10s，20s，40s。。。
+```
+
+
+
 ## 8.4 运行Job
 
 ```bash
@@ -578,50 +592,4 @@ kubectl delete -f jobdemo.yml
 
 
 # 9 StatefulSet
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
