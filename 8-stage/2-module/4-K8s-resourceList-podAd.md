@@ -1,3 +1,5 @@
+
+
 第四部分 资源清单-pod进阶
 
 # 1 资源清单格式
@@ -129,7 +131,17 @@ spec:
 pod/initcservice2.yml
 
 ```yaml
-
+apiVersion: v1
+kind: Service
+metadata:
+  name: mydb
+spec:
+  selector:
+    app: mydb
+  ports:
+    - port: 80
+      targetPort: 9377
+      protocol: TCP
 ```
 
 
@@ -141,10 +153,10 @@ pod/initcservice2.yml
 kubectl get pods
 
 详细查看pod启动情况
-kubectl describe pod myapp-pod
+kubectl describe pod initcpod-test
 
 查看myapp-pod中的第一个initContainer日志
-kubectl logs myapp-pod -c init-myservice
+kubectl logs initcpod-test -c init-myservice
 
 运行init-myservice服务
 kubectl apply -f initcservice1.yml
@@ -172,7 +184,24 @@ kubectl get pod -w
 pod/readinessprobepod.yml
 
 ```yaml
-
+apiVersion: v1
+kind: Pod
+metadata:
+  name: readinesspod-test
+  labels:
+    app: readinesspod-test
+spec:
+  containers:
+    - name: readinesspod-test
+      image: nginx:1.17.10-alpine
+      imagePullPolicy: IfNotPresent
+      readinessProbe:
+        httpGet:
+          port: 80
+          path: /index1.html
+        initialDelaySeconds: 2
+        periodSeconds: 3
+  restartPolicy: Always
 ```
 
 
@@ -187,10 +216,10 @@ kubectl apply -f readinessprobepod.yml
 kubectl get pods
 
 查看pod详细信息，文件最后一行显示readiness probe failed。。。。
-kubectl describe pod readinessprobe-pod
+kubectl describe pod readinesspod-test
 
 进入pod内部，因为是alpine系统，需要使用sh命令
-kubectl exec -it readinessprobe-pod sh
+kubectl exec -it readinesspod-test sh
 
 进入容器内目录
 cd /usr/share/nginx/html/
@@ -212,7 +241,24 @@ kubectl get pods
 pod/livenessprobepod.yml
 
 ```yaml
-
+apiVersion: v1
+kind: Pod
+metadata:
+  name: livenessprobe1-test
+  labels:
+    app: ivenessprobe1-test
+spec:
+  containers:
+    - name: ivenessprobe1-test
+      image: busybox:1.32.0
+      imagePullPolicy: IfNotPresent
+      command: ['sh','-c','touch /tmp/livenesspod;sleep 30; rm -rf /tmp/livenesspod; sleep 3600;']
+      livenessProbe:
+        exec:
+          command: ['test','-e','/tmp/livenesspod']
+        initialDelaySeconds: 1
+        periodSeconds: 3
+  restartPolicy: Always
 ```
 
 
@@ -229,23 +275,40 @@ kubectl get pod -w
 等待30秒后，发现pod的RESTARTS值从0变为1.说明pod已经重启一次。
 ```
 
-
+![image-20220214124837805](assest/image-20220214124837805.png)
 
 ### 2.1.4 livenessprobe 案例二
 
 容器存活检测案例，***需要准备 nginx:1.17.10-alpine镜像***
 
-pod/livenessprobebeginxpod.yml
+pod/livenessprobepod2.yml
 
 ```yaml
-
+apiVersion: v1
+kind: Pod
+metadata:
+  name: livenesspod2-test
+  labels:
+    app: livenesspod2-test
+spec:
+  containers:
+    - name: livenesspod2-test
+      image: nginx:1.17.10-alpine
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        httpGet:
+          port: 80
+          path: /index.html
+        initialDelaySeconds: 1
+        timeoutSeconds: 10
+  restartPolicy: Always
 ```
 
 执行命令
 
 ```bash
 创建pod
-kubectl apply -f livenessprobenginxpod.yml
+kubectl apply -f livenessprobepod2.yml
 
 查看pod状态
 kubectl get pod
@@ -255,17 +318,17 @@ kubectl get pod -o wide
 curl 10.81.58.199
 
 进入容器内部
-kubectl exec -it livenessprobenginx-pod sh
+kubectl exec -it livenesspod2-test sh
 
 删除index.html文件,退出容器
-rm -rf //usr/share/nginx/html/index.html
+rm -rf /usr/share/nginx/html/index.html
 exit
 
 再次监控pod状态，等待一段时间后，发现pod的RESTARTS值从0变为1.说明pod已经重启一次。
 kubectl get pod -w
 
 进入容器删除文件一条命令执行rm -rf命令后退出容器。
-kubectl exec -it livenessprobenginx-pod --rm -rf /usr/share/nginx/html/index.html
+kubectl exec -it livenesspod2-test --rm -rf /usr/share/nginx/html/index.html
 
 再次监控pod状态，等待一段时间后，发现pod的RESTARTS值从1变为2.说明pod已经重启一次。
 kubectl get pod -w
@@ -273,9 +336,88 @@ kubectl get pod -w
 因为liveness监控index.html页面已经被删除，所以pod需要重新启动，重启后又重新创建nginx 镜像。nginx镜像中默认有index.html页面。
 ```
 
+![image-20220214125814868](assest/image-20220214125814868.png)
+
 ### 2.1.5 livenessprobe案例三
 
+容器存活检测案例，***需要准备 nginx:1.17.10-alpine镜像***
+
+pod/livenessprobepod3.yml
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: livenesspod3-test
+  labels:
+    app: livenesspod3-test
+spec:
+  containers:
+    - name: livenesspod3-test
+      image: nginx:1.17.10-alpine
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        tcpSocket:
+          # 检测8080端口，如果8080端口没有反馈信息，重启pod
+          port:  8080
+        initialDelaySeconds: 10
+        periodSeconds: 3
+        timeoutSeconds: 5
+  restartPolicy: Always
+```
+
+执行命令
+
+```bash
+创建pod
+kubectl apply -f livenessprobepod3.yml 
+
+查看pod状态
+kubectl get pod -w
+
+存活检测监听8080端口，8080端口没有反馈信息后重启pod，RESTARTS值从0变为1
+```
+
+![image-20220214130546262](assest/image-20220214130546262.png)
+
 ### 2.1.6 钩子函数案例
+
+pod/lifeclepod.yml
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: lifecle-test
+  labels:
+    app: lifecle-test
+spec:
+  containers:
+    - name: lifecle-test
+      image: busybox:1.32.0
+      imagePullPolicy: IfNotPresent
+      command: ['sh','-c','sleep 5000']
+      lifecycle:
+        postStart:
+          exec:
+            command: ['mkdir','-p','/turbo/k8s/index.html']
+  restartPolicy: Always
+```
+
+执行命令
+
+```bash
+创建pod
+kubectl apply -f lifeclepod.yml 
+
+查看pod状态
+kubectl get pod
+
+进入容器内部，查看是否创建了/lagou/k8s/index.html文件 
+kubectl exec -it lifecle-test sh
+```
+
+
 
 # 3 总结pod生命周期
 
