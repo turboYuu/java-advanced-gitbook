@@ -379,7 +379,7 @@ Deployment控制器支持自定义控制更新过程中的滚动节奏，如 “
 kubectl set image deployment deploymentdemo1 deploymentdemo1=nginx:1.18.0-alpine && kubectl rollout pause deployment deploymentdemo1
 
 观察更新状态
-kubectl rollout status deployments deploymentdemo1
+kubectl rollout status deployment deploymentdemo1
 
 监控更新的过程，可以看到已经新增了一个资源，但是并未按照预期的状态去删除一个旧的资源，就是因为使用了pause暂停命令
 kubectl get pods -l app=deploymentdemo1 -w
@@ -395,7 +395,9 @@ kubectl exec -it deploymentdemo1-df6bc5d4c-flc7b sh
 nginx -v
 ```
 
+![image-20220214184314357](assest/image-20220214184314357.png)
 
+![image-20220214184639927](assest/image-20220214184639927.png)
 
 ## 6.7 Deployment版本回退
 
@@ -450,11 +452,130 @@ nginx -v
 
 ## 6.8 Deployment 更新策略
 
+
+
+```bash
+kubectl describe deployments.apps deploymentdemo1 
+
+查看到属性：
+RollingUpdateStrategy:  25% max unavailable, 25% max surge
+```
+
+
+
 ## 6.9 总结
 
 # 7 DaemonSet
 
+ to doing 
+
+## 7.1 Daemon模板说明
+
+可以通过kubectl 命令行方式获取更加详细信息
+
+```bash
+kubectl explain daemonset
+kubectl explain daemonset.spec
+kubectl explain daemonset.spec.template.spec
+```
+
+
+
+## 7.2 部署DaemonSet
+
+controller/daemonsetdemo.yml
+
+```yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: daemonsetdemo
+  labels:
+    app: daemonsetdemo
+spec:
+  template:
+    metadata:
+      name: daemonsetdemo
+      labels:
+        app: daemonsetdemo
+    spec:
+      containers:
+        - name: daemonsetdemo
+          image: nginx:1.17.10-alpine
+          imagePullPolicy: IfNotPresent
+      restartPolicy: Always
+  selector:
+    matchLabels:
+      app: daemonsetdemo
+```
+
+
+
+## 7.3 运行DaemonSet
+
+```bash
+运行demonset
+kubectl apply -f demonsetdemo.yml
+
+查看pod详细信息：只有工作节点创建pod，master节点并不会创建。 
+kubectl get pod -o wide
+```
+
+
+
+## 7.4 Daemon的滚动更新
+
 # 8 Job
+
+- 一次性执行任务，类似Linux中的 job
+- 应用场景：如离线数据处理，视频解码等业务
+
+## 8.1 使用镜像
+
+```bash
+docker pull perl:slim
+```
+
+
+
+## 8.2 部署Job
+
+controller/jondemo.yml
+
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pi
+spec:
+  template:
+    spec:
+      containers:
+        - name: pi
+          image: perl:slim
+          command: ["perl","-Mbignum=bpi","-wle","print bpi(6000)"]
+      restartPolicy: Never
+  backoffLimit: 4
+```
+
+
+
+## 8.3 backoffLimit说明
+
+## 8.4 运行Job
+
+```bash
+运行job
+kubectl apply -f jobdemo.yml 
+
+查看pod日志
+kubectl logs -f pi-7nrtv 
+
+删除job
+kubectl delete -f jobdemo.yml
+```
+
+
 
 # 9 StatefulSet
 
