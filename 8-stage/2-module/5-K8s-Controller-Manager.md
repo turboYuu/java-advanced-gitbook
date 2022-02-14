@@ -215,12 +215,120 @@ kubectl delete rs replicasetdemo
 
 ## 5.4 总结
 
-kubectl命令行工具适用于RC的绝大部分命令同样适用于ReplicaSet，此外，我们当前很多好单独使用 ReplicaSet，它主要被Deployment这个更高层的资源对象所使用，从而形成一整套 Pod 创建，删除，更新的编排机制，我们在使用 Deployment 时无需
+kubectl命令行工具适用于RC的绝大部分命令同样适用于ReplicaSet，此外，我们当前很多好单独使用 ReplicaSet，它主要被Deployment这个更高层的资源对象所使用，从而形成一整套 Pod 创建，删除，更新的编排机制，我们在使用 Deployment 时无需关心它是如何维护和创建 ReplicaSet的，这一切都是自动发生的。
+
+最后，总结一下 RC（ReplicaSet）的一些特性和作用：
+
+- 在绝大多数情况下，我们通过定义一个RC实现Pod的创建及副本数量的自动控制
+- 在RC里包括完整的Pod定义模板
+- RC通过Label Selector机制实现对Pod副本的自动控制
+- 通过改变 RC 里的 Pod 副本数量，可以实现Pod的扩容和缩容
+- 通过改变RC里Pod模板中的镜像版本，可以实现滚动升级
 
 # 6 Deployment
+
+Deployment是Kubernetes在1.2 版本中引入的新概念，用于更好的解决Pod的编排问题，为此，Deployment在内部使用了ReplicaSet来实现目的。我们可以把Deployment理解为ReplicaSet的一次升级，两者相似度超过了90%
+
+Deployment的使用场景有以下几个：
+
+- 创建一个Deployment对象来生成对应的ReplicaSet并完成 Pod 副本的创建
+- 检查Deployment的状态来看部署动作是否完成（Pod副本数量是否达到了预期的值）
+- 更新Deployment以创建新的Pod（比如镜像升级）
+- 如果当前 Deployment 不稳定，可以回滚到一个早先的 Deployment 版本
+- 暂停 Deployment 以便于一次性修改多个 PodTemplateSpec的配置项，之后在恢复Deployment，进行新的发布
+- 扩展 Deployment 以应对高负载
+- 查看 Deployment 的状态，依次作为发布是否成功的标志
+- 清理不再需要的旧版本 ReplicaSet
+
+## 6.1 Deployment模板说明
+
+## 6.2 部署Deployment
+
+## 6.3 运行 Deployment
+
+## 6.4 镜像更新升级
+
+### 6.4.1 命令行方式
+
+### 6.4.2 yml文件方式
+
+## 6.5 Deployment扩容
+
+### 6.5.1 命令行方式
+
+### 6.5.2 yml文件方式
+
+## 6.6 滚动更新
+
+### 6.6.1 概述
+
+### 6.6.2 金丝雀发布
+
+## 6.7 Deployment版本回退
+
+### 6.7.1 rollout常见命令
+
+### 6.7.2 history操作
+
+### 6.7.3 status操作
+
+### 6.7.4 undo操作
+
+
+
+## 6.8 Deployment 更新策略
+
+## 6.9 总结
 
 # 7 DaemonSet
 
 # 8 Job
 
 # 9 StatefulSet
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
