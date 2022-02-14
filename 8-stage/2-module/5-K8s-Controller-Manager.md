@@ -203,7 +203,7 @@ kubectl get rs
 显示pod的标签
 kubectl get pod --show-labels 
 修改pod标签(label)
-kubectl label pod replicasetdemo-652lc app=lagou --overwrite=True
+kubectl label pod replicasetdemo-652lc app=turbo --overwrite=True
 再次显示pod的标签：发现多了一个pod，原来的rs中又重新拉起一个pod，说明rs是通过label去管理pod
 kubectl get pod --show-labels 
 
@@ -211,7 +211,7 @@ kubectl get pod --show-labels
 kubectl delete rs replicasetdemo
 ```
 
-
+![image-20220214174845322](assest/image-20220214174845322.png)
 
 ## 5.4 总结
 
