@@ -242,37 +242,205 @@ Deployment的使用场景有以下几个：
 
 ## 6.1 Deployment模板说明
 
+可以通过kubectl命令行方式获取更加详细信息
+
+```bash
+kubectl explain deploy
+kubectl explain deploy.spec
+kubectl explain deploy.spec.template.spec
+```
+
+
+
 ## 6.2 部署Deployment
 
+除了API生命 与 Kind 类型有区别，Deployment的定义与Replica Set的定义跟类似。
+
+controller/deploymentdemo.yml
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deploymentdemo1
+  labels:
+    app: deploymentdemo1
+spec:
+  replicas: 10
+  template:
+    metadata:
+      name: deploymentdemo1
+      labels:
+        app: deploymentdemo1
+    spec:
+      containers:
+        - name: deploymentdemo1
+          image: nginx:1.17.10-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+      restartPolicy: Always
+  selector:
+    matchLabels:
+      app: deploymentdemo1
+```
+
+
+
 ## 6.3 运行 Deployment
+
+```bash
+kubectl apply -f deploymentdemo.yml 
+
+查看deployment
+kubectl get rs
+查看rs:deployment名称+hashcode码组成
+
+查看pod
+kubectl get pod
+```
+
+
 
 ## 6.4 镜像更新升级
 
 ### 6.4.1 命令行方式
 
+```bash
+升级nginx镜像版本为1.18.0
+kubectl set image deployment deploymentdemo1 deploymentdemo1=nginx:1.18.0-alpine
+
+查看pod升级情况 
+kubectl get pods -w
+
+进去某一个pod内部，查看nginx升级版本信息
+kubectl exec -it deploymentdemo1-df6bc5d4c-flc7b sh 
+nginx -v
+exit
+```
+
+
+
 ### 6.4.2 yml文件方式
+
+```bash
+升级nginx镜像版本为1.19.2-alpine
+kubectl edit deployments.apps deploymentdemo1 
+
+查看pod升级情况
+kubectl get pods -w
+
+进去某一个pod内部，查看nginx升级版本信息
+kubectl exec -it deploymentdemo1-584f6b54dd-4l62t sh 
+nginx -v
+exit
+```
+
+
 
 ## 6.5 Deployment扩容
 
 ### 6.5.1 命令行方式
 
+```bash
+kubectl scale deployment deploymentdemo1 --replicas=15
+
+kubectl get pods
+```
+
+
+
 ### 6.5.2 yml文件方式
+
+```bash
+kubectl edit deployments.apps deploymentdemo1
+
+kubectl get pods
+```
+
+
 
 ## 6.6 滚动更新
 
 ### 6.6.1 概述
 
+
+
 ### 6.6.2 金丝雀发布
+
+
+
+```bash
+更新deployment的nginx:1.18.0-alpine版本，并配置暂停deployment
+kubectl set image deployment deploymentdemo1 deploymentdemo1=nginx:1.18.0- alpine && kubectl rollout pause deployment deploymentdemo1
+
+观察更新状态
+kubectl rollout status deployments deploymentdemo1
+
+监控更新的过程，可以看到已经新增了一个资源，但是并未按照预期的状态去删除一个旧的资源，就是因为使用了pause暂停命令
+kubectl get pods -l app=deploymentdemo1 -w
+
+确保更新的pod没问题了，继续更新
+kubectl rollout resume deploy  deploymentdemo1
+
+查看最后的更新情况
+kubectl get pods -l app=deploymentdemo1 -w
+
+进去某一个pod内部，查看nginx更新版本信息
+kubectl exec -it deploymentdemo1-df6bc5d4c-flc7b sh 
+nginx -v
+```
+
+
 
 ## 6.7 Deployment版本回退
 
+
+
 ### 6.7.1 rollout常见命令
+
+| 子命令  | 功能说明                   |
+| ------- | -------------------------- |
+| history | 查看rollout操作历史        |
+| pause   | 将提供的资源设定为暂停状态 |
+| restart | 重启某资源                 |
+| resume  | 将某资源从暂停状态恢复正常 |
+| status  | 查看rollout操作状态        |
+| undo    | 回滚前 - rollout           |
+
+
 
 ### 6.7.2 history操作
 
+```bash
+kubectl rollout history deployment deploymentdemo1
+```
+
+
+
 ### 6.7.3 status操作
 
+```bash
+kubectl rollout status deployment deploymentdemo1
+```
+
+
+
 ### 6.7.4 undo操作
+
+```bash
+回滚版本信息
+kubectl rollout undo deployment deploymentdemo1 
+
+查看pod回滚情况
+kubectl get pods -w
+
+进去某一个pod内部，查看nginx回滚版本信息
+kubectl exec -it deploymentdemo1-df6bc5d4c-flc7b sh 
+nginx -v
+```
+
+
 
 
 
