@@ -383,7 +383,43 @@ kubectl apply -f service-nodeport.yml
 ingress/tomcat-service.yml
 
 ```yaml
-
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tomcat-deployment
+  labels:
+    app: tomcat-deployment
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: tomcat-deployment
+      labels:
+        app: tomcat-deployment
+    spec:
+      containers:
+        - name: tomcat-deployment
+          image: tomcat:9.0.20-jre8-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+      restartPolicy: Always
+  selector:
+    matchLabels:
+      app: tomcat-deployment
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tomcat-svc
+spec:
+  selector:
+    app: tomcat-deployment
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30088
+  type: NodePort
 ```
 
 
@@ -401,7 +437,14 @@ kubectl apply -f tomcat-service.yml
 ingress/ingress-tomcat.yml
 
 ```yaml
-
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: nginx-ingress-test
+spec:
+  backend:
+    serviceName: tomcat-svc
+    servicePort: 8080 # 是 pod容器的端口
 ```
 
 
@@ -421,10 +464,17 @@ kubectl get svc -n ingress-nginx
 kubectl get pod -n ingress-nginx -o wide
 ```
 
+
+
+![image-20220215162316404](assest/image-20220215162316404.png)
+
 通过ingress访问tomcat
 
-```html
+![image-20220215162849870](assest/image-20220215162849870.png)
 
+```html
+http://192.168.31.62:32027/
+https://192.168.31.62:30844/
 ```
 
 
@@ -435,7 +485,7 @@ kubectl get pod -n ingress-nginx -o wide
 
 ## 5.1 ingress-controller
 
-ingress/mandatory.yaml
+ingress2/mandatory.yaml
 
 ```yaml
 修改mandatory.yaml配置文件
@@ -448,20 +498,57 @@ ingress/mandatory.yaml
 
 ## 5.2 service-nodeport 固定端口
 
-ingress/service-nodeport.yml
+ingress2/service-nodeport.yml
 
 ```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingress-nginx
+  namespace: ingress-nginx
+  labels:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/part-of: ingress-nginx
+spec:
+  type: NodePort
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: 31188
+      protocol: TCP
+    - name: https
+      port: 443
+      targetPort: 443
+      nodePort: 30443
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/part-of: ingress-nginx
 
+---
 ```
 
 
 
 ## 5.3 域名访问 ingress 规则
 
-ingress/ingerss-tomcat.yml
+ingress2/ingerss-tomcat.yml
 
 ```yaml
-
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: nginx-ingress-test
+spec:
+  rules:
+    - host: ingress-tomcat.turbo.com
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: tomcat-svc
+              servicePort: 8080 # 是 pod容器的端口
 ```
 
 
@@ -488,6 +575,14 @@ kubectl apply -f .
 
 ## 5.6 浏览器测试
 
+![image-20220215164350360](assest/image-20220215164350360.png)
+
+```html
+http://ingress-tomcat.turbo.com:31188/
+```
+
+
+
 ## 5.7 nginx-controller原理
 
 ```bash
@@ -501,3 +596,4 @@ kubectl exec -it nginx-ingress-controller-5gt4l -n ingress-nginx sh
 cat nginx.conf
 ```
 
+![image-20220215164949355](assest/image-20220215164949355.png)
