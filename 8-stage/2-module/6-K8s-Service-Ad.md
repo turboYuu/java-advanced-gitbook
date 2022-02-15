@@ -342,6 +342,28 @@ docker rmi -f registry.cn-hangzhou.aliyuncs.com/google_containers/nginx-ingress-
 
 ## 3.7 ingress 与 ingress-controller
 
+要理解ingress，需要区分两个概念，ingress 和 ingress-controller：
+
+- ingress 对象：
+
+  指的是 k8s 中的一个 api 对象，一般用 yaml 配置。作用是定义请求如何转发到 service 的规则，可以理解为配置模板。
+
+- ingress-controller：
+
+  具体实现反向代理及负载均衡的程序，对 ingress 定义的规则进行解析，根据配置的规则来实现请求转发。
+
+简单来说，ingress-controller 才是负责具体转发的组件，通过各种方式将它暴露在集群入口，外部对集群的请求流量会先到 ingress-controller，而ingress对象是用来告诉 ingress-controller 该如何转发请求，比如哪些域名哪些path要转发到哪些服务等等。
+
+
+
+**ingress-controller**
+
+ingress-controller 并不是 k8s 自带的组件，实际上 ingress-controller 只是一个统称，用户可以选择不同的 ingress-controller 实现。目前，由 k8s 维护的 ingress-controller 只有 google 云的 *GCE* 与 *ingress-nginx* 两个，其他还有很多第三方维护的 ingress-controller，具体可以参考[官方文档](https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/#additional-controllers)。但是不管哪一种 ingress-controller，实现机制都大同小异，只是在具体位置上有差异。一般来说，ingress-controller 的形式都是一个 pod，里面跑着 daemon程序和反向代理，比如 nginx-ingress 就是动态生成 nginx 配置，动态更新 upstream，并在需要的时候 reload 程序应用新配置。
+
+**ingress**
+
+ingress 是一个 API 对象，和其他对象一样，通过yaml文件来配置。ingress 通过 http 或 https 暴露集群内部service，给service提供外部 URL、负载均衡、SSL/TLS能力以及基于 host 的方向代理。ingress要依靠 ingress-controller 来具体实现以上功能。
+
 
 
 # 4 ingress网络实验一
