@@ -79,7 +79,42 @@ docker pull tomcat:9.0.20-jre8-alpine
 service/cluseripdemo.yml
 
 ```yaml
-
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clusteripdemo
+  labels:
+    app: clusteripdemo
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: clusteripdemo
+      labels:
+        app: clusteripdemo
+    spec:
+      containers:
+        - name: clusteripdemo
+          image: tomcat:9.0.20-jre8-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+      restartPolicy: Always
+  selector:
+    matchLabels:
+      app: clusteripdemo
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clusterip-svc
+spec:
+  selector:
+    app: clusteripdemo
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP
 ```
 
 
@@ -119,7 +154,43 @@ docker pull tomcat:9.0.20-jre8-alpine
 service/nodeportdemo.yml
 
 ```yaml
-
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nodeportdemo
+  labels:
+    app: nodeportdemo
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: nodeportdemo
+      labels:
+        app: nodeportdemo
+    spec:
+      containers:
+        - name: nodeportdemo
+          image: tomcat:9.0.20-jre8-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+      restartPolicy: Always
+  selector:
+    matchLabels:
+      app: nodeportdemo
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nodeport-svc
+spec:
+  selector:
+    app: nodeportdemo
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30088
+  type: NodePort
 ```
 
 
@@ -152,7 +223,19 @@ LoadBalancer类型的 service 是可以实现集群外不访问服务的另外�
 创建LoadBalancer service 的 yaml ：
 
 ```yaml
-
+apiVersion: v1
+kind: Service 
+metadata:
+  name: service-lagou 
+spec:
+  ports:
+  - port: 3000
+    protocol: TCP    
+    targetPort: 443    
+    nodePort: 30080
+  selector:
+    run: pod-turbo 
+  type: LoadBalancer
 ```
 
 
@@ -166,7 +249,17 @@ LoadBalancer类型的 service 是可以实现集群外不访问服务的另外�
 创建 ExternalName 类型的服务的 yaml：
 
 ```yaml
-
+kind: Service 
+apiVersion: v1 
+metadata:
+  name: service-lagou 
+spec:
+  ports:
+  - port: 3000
+    protocol: TCP    
+    targetPort: 443
+  type: ExternalName
+  externalName: www.turbo.com
 ```
 
 
@@ -179,9 +272,9 @@ k8s 集群对外暴露服务的方式目前只有三种：LoadBalancer、NodePor
 
 ingress 由两部分组成：ingress controller 和 ingress 服务。
 
-其中 ingress controller 目前主要有两种：基于nginx服务的ingress controller 和 基于 taefik 的 ingress controller。
+其中 ingress controller 目前主要有两种：基于nginx服务的ingress controller 和 基于 taefik 的 ingress controller。两者都目前支持 http 和 https 协议，由于对 nginx 比较熟悉，而且需要使用 TCP 负载，所以在此我们选择的是基于 nginx服务的 ingress controller。
 
-而其中 taefik 的 ingress controller，目前支持 http 和 https 协议，由于对 nginx 比较熟悉，而且需要使用 TCP 负载，所以在此我们选择的是基于 nginx服务的 ingress controller。
+在Kubernetes集群中，我们知道 service 和 pod 的 ip 仅在集群内部访问。如果外部应用要访问集群内的服务，集群外部的请求需要通过负载均衡转发到service 在Node上暴露的NodePort上，然后再由 kube-proxy组件将其转发给相关的 pod。
 
 而 Ingress 就是为进入集群的请求提供路由规则的集合，通俗点就是提供外部访问集群的入口，将外部的HTTP或者HTTPS请求转发到集群内部 service上。
 
@@ -190,7 +283,7 @@ ingress 由两部分组成：ingress controller 和 ingress 服务。
 Ingress-nginx 一般由三个组件组成：
 
 - 反向代理负载均衡器：通常以service的port方式运行，接收并按照ingress定义的规则进行转发，常用的有 nginx，Haproxy，Traefik等，本次实验中使用的就是nginx。
-- Ingress Controller：监听APIServer，根据用户编写的ingress规则（编写ingress的yaml文件），动态的去更改 nginx 服务的配置文件，并且 reload 重载使其生效，此过程是自动化的（通过lua脚本来实现）。
+- Ingress Controller：监听APIServer，根据用户编写的**ingress规则**（编写ingress的yaml文件），动态的去更改 nginx 服务的配置文件，并且 reload 重载使其生效，此过程是自动化的（通过lua脚本来实现）。
 - Ingress：将nginx的配置抽象成一个Ingress对象，当用户每添加一个新的服务，只需要编写一个新的ingress的yaml文件即可。
 
 ## 3.3 Ingress-nginx的工作原理
@@ -204,9 +297,9 @@ Ingress-nginx 一般由三个组件组成：
 
 ```html
 Ingress-Nginx github 地址：
-https://github.com/kubernetes/ingress-nginx Ingress-Nginx
+https://github.com/kubernetes/ingress-nginx 
 
-官方网站：
+Ingress-Nginx官方网站：
 https://kubernetes.github.io/ingress-nginx/
 ```
 
@@ -240,7 +333,7 @@ https://github.com/kubernetes/ingress-nginx/blob/nginx-0.30.0/deploy/static/prov
 ```bash
 docker pull registry.cn-hangzhou.aliyuncs.com/google_containers/nginx-ingress-controller:0.30.0
 
-docker tag registry.cn-hangzhou.aliyuncs.com/google_containers/nginx-ingress-controller:0.30.0 quay.io/kubernetes-ingress-controller/nginx-ingress- controller:0.30.0
+docker tag registry.cn-hangzhou.aliyuncs.com/google_containers/nginx-ingress-controller:0.30.0 quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.30.0
 
 docker rmi -f registry.cn-hangzhou.aliyuncs.com/google_containers/nginx-ingress-controller:0.30.0
 ```
@@ -253,4 +346,158 @@ docker rmi -f registry.cn-hangzhou.aliyuncs.com/google_containers/nginx-ingress-
 
 # 4 ingress网络实验一
 
+## 4.1 使用镜像
+
+```bash
+docker pull tomcat:9.0.20-jre8-alpine
+docker pull quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.30.0
+```
+
+
+
+## 4.2 运行 ingress-controller
+
+```bash
+在mandatory.yaml文件的Deployment资源中增加属性sepc.template.sepc.hostNetWork 
+hostNetwork: true
+hostNetwork网络，这是一种直接定义Pod网络的方式。
+如果在Pod中使用hostNetwork:true配置网络，那么Pod中运行的应用程序可以直接使用node节点的端口
+
+运行ingress/mandatory.yaml文件
+kubectl apply -f mandatory.yaml
+```
+
+
+
+## 4.3 运行ingress服务
+
+```bash
+运行ingress/service-nodeport.yaml文件
+kubectl apply -f service-nodeport.yml
+```
+
+
+
+## 4.4 部署tomcat服务
+
+ingress/tomcat-service.yml
+
+```yaml
+
+```
+
+
+
+## 4.5 运行tomcat-service
+
+```bash
+kubectl apply -f tomcat-service.yml
+```
+
+
+
+## 4.6 部署ingress规则文件
+
+ingress/ingress-tomcat.yml
+
+```yaml
+
+```
+
+
+
+## 4.7 运行ingress规则
+
+```bash
+kubectl apply -f ingress-tomcat.yml 
+
+查看ingress
+kubectl get ingress
+
+查看ingress服务:查看service的部署端口号 
+kubectl get svc -n ingress-nginx
+
+查看ingress-controller运行在那个node节点
+kubectl get pod -n ingress-nginx -o wide
+```
+
+通过ingress访问tomcat
+
+```html
+
+```
+
+
+
 # 5 ingress网络实验二
+
+上边案例的部署方式只能通过 ingress-controller 部署的节点访问。集群内其他节点无法访问 ingress规则。本章节通过修改 mandatory.yaml文件的控制类类型，让集群内每一个节点都可以正常访问 ingress 规则。
+
+## 5.1 ingress-controller
+
+ingress/mandatory.yaml
+
+```yaml
+修改mandatory.yaml配置文件
+
+1.将Deployment类型控制器修改为：DaemonSet
+2.属性：replicas: 1  # 删除这行
+```
+
+
+
+## 5.2 service-nodeport 固定端口
+
+ingress/service-nodeport.yml
+
+```yaml
+
+```
+
+
+
+## 5.3 域名访问 ingress 规则
+
+ingress/ingerss-tomcat.yml
+
+```yaml
+
+```
+
+
+
+## 5.4 修改宿主机 hosts 文件
+
+C:\Windows\System32\drivers\etc\hosts
+
+```html
+增加ingress-tomcat.turbo.com 域名配置： 
+
+192.168.31.61 ingress-turbo.lagou.com
+```
+
+
+
+## 5.5 部署服务
+
+```
+kubectl apply -f .
+```
+
+
+
+## 5.6 浏览器测试
+
+## 5.7 nginx-controller原理
+
+```bash
+查看ingress-nginx 命名空间下的pod
+kubectl get pods -n ingress-nginx
+
+进入ingress-nginx 的pod
+kubectl exec -it nginx-ingress-controller-5gt4l -n ingress-nginx sh 
+
+查看nginx反向代理域名ingress-tomcat.lagou.com
+cat nginx.conf
+```
+
