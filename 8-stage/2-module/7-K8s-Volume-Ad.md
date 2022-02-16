@@ -1514,19 +1514,134 @@ prot: 30036
 
 ## 9.1 NFS介绍
 
+NFS 是 Network FileSystem 的缩写，顾名思义就是网络文件存储系统，分为服务端（Server）和 客户端（Client）。最早由 sum 公司开发，是类 unix 系统间实现磁盘共享的一种方法。它允许网络中的计算机之间通过 TCP/IP 网络共享资源。通过 NFS，我们本地 NFS 的客户端应用可以透明地读写位于服务端 NFS 服务器上的文件，就像访问本地文件一样方便。简单地理解，NFS 就是可以透过网络，让不同的主机，不同的操作系统可以共享存储的服务。
+
+NFS 在文件传送或信息传递过程中依赖于 RPC（Remote Procedure Call）协议，即远程过程调用。NFS 的各项功能都必须要向 RPC 来注册，如此一来 RPC 才了解 NFS 这个服务的各项功能 Port、PID、NFS在服务器所监听的 IP 等，而客户端才能透过 RPC 的询问找到正确对应的端口。所以，NFS 必须要有 RPC 存在时才能成功的提供服务，简单的理解二者关系：NFS是一个文件存储系统，而 RPC 是负责信息的传输。
+
 ## 9.2 NFS 共享存储方式
+
+- 手动方式静态创建所需要的 PV 和 PVC
+- 通过创建 PVC 动态的创建对应 PV，无需手动创建 PV
 
 ## 9.3 NFS 安装
 
+k8s集群所有节点都需要安装 NFS 服务。本章节实验选用 k8s 的 master节点作为 NFS 服务的 server 端。
+
+```bash
+yum install -y nfs-utils rpcbind
+```
+
+
+
 ## 9.4 创建共享目录
+
+```bash
+在master节点创建目录 
+mkdir -p /nfs/mariadb 
+chmod 777 /nfs/mariadb
+
+更改归属组与用户
+chown nfsnobody /nfs/mariadb
+或者
+chown -R nfsnobody:nfsnobody /nfs/mariadb
+
+vi /etc/exports
+/nfs/mariadb *(rw,no_root_squash,no_all_squash,sync)
+```
+
+### 9.4.1 参数说明
+
+| 参数 | 说明 |
+| ---- | ---- |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+|      |      |
+
+
 
 ## 9.5 启动 NFS 服务
 
+k8s集群所有节点启动 NFS 服务
+
+```bash
+systemctl start rpcbind 
+systemctl start nfs
+
+设置开启启动
+systemctl enable rpcbind 
+systemctl enable nfs
+```
+
+
+
 ## 9.6 测试 NFS 服务
+
+```bash
+在另一台 Linux 虚拟机上测试一下，是否能够正确挂载: 
+showmount -e 192.168.31.61
+
+在客户端创建挂在目录 
+mkdir -p /data/mariadb
+
+挂载远端目录到本地 /data/mariadb 目录
+mount 192.168.31.61:/nfs/mariadb /data/mariadb 
+
+NFS服务端写入
+$ echo "This is NFS server." > /nfs/mariadb/nfs.txt 
+
+客户端读取
+cat /data/mariadb/nfs.txt 
+
+客户端写入
+$ echo "This is NFS client." >> /data/mariadb/nfs.txt 
+
+服务端读取
+$ cat /nfs/mariadb/nfs.txt
+
+都是没问题的，这是因为上边设置了 NFS 远端目录权限为 rw 拥有读写权限，如果设置为 ro，那么 客户端只能读取，不能写入，根据实际应用场景合理配置，这里就不在演示了。这里提一下，NFS 默认使用 UDP 协议来进行挂载，为了提高 NFS 的稳定性，可以使用 TCP 协议挂载，那么客户端挂载命令可使用如下命令
+
+mount 192.168.31.61:/nfs/mysql /data/mysql -o proto=tcp -o nolock
+```
+
+
 
 ## 9.7 客户端卸载 NFS 挂载目录
 
+```
+umount /data/mariadb/ 
+
+强制卸载
+umount  -l /data/mariadb/
+```
+
+
+
 ## 9.8 NFS4 服务
+
+```bash
+使用NFS4协议方式进行多共享目录配置。所有共享目录的根目录为/nfs/data。
+服务器端 的/etc/exports文件中的配置为：
+vi /etc/exports
+
+/nfs/data *(rw,fsid=0,sync,no_wdelay,insecure_locks,no_root_squash)
+
+K8S的静态NFS服务PV的nfs:path 的值不用写共享根目录，直接写/mariadb即可。K8S会帮我们配置成/nfs/data/mariadb目录
+
+重启NFS
+systemctl restart rpcbind systemctl restart nfs
+```
+
+
 
 ## 9.9 pv配置
 
