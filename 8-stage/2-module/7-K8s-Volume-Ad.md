@@ -1312,7 +1312,23 @@ PVC 就好比是 租户，**pv和pvc是一对一绑定的**，挂载到 POD 中�
 pvandpvchostpath/mariadbpv.yml
 
 ```yaml
-
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: data-mariadb-pv
+  labels:
+    app: mariadb-pv
+spec:
+  accessModes:
+    - ReadWriteOnce # hostpath 模式只支持 ReadWriteOnce
+  capacity:
+    storage: 10Gi
+  hostPath:
+    path: /data/mariadb
+    type: DirectoryOrCreate
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: standard
+  volumeMode: Filesystem
 ```
 
 ### 8.5.2 pvc
@@ -1320,13 +1336,28 @@ pvandpvchostpath/mariadbpv.yml
 pvandpvchostpath/mariadbpvc.yml
 
 ```yaml
-
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data-mariadb-pvc
+  labels:
+    app: mariadb-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 5Gi
 ```
 
 ### 8.5.3 service
 
 ```yaml
-
+      volumes:  
+        - name: turbo-volume-mariadb
+          persistentVolumeClaim:
+            claimName: data-mariadb-pvc
 ```
 
 完整文件信息
@@ -1334,7 +1365,71 @@ pvandpvchostpath/mariadbpvc.yml
 pvandpvchostpath/mariadb.yml
 
 ```yaml
-
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mariadb-deploy
+  labels:
+    app: mariadb-deploy
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: mariadb-deploy
+      labels:
+        app: mariadb-deploy
+    spec:
+      nodeSelector:
+        mariadb: mariadb
+      imagePullSecrets:
+        - name: turboharbor
+      containers:
+        - name: mariadb-deploy
+          image: 192.168.31.82:5000/turbine/mariadb:10.5.2
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              #这是 mysql root 用户的密码
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: mariadbsecret
+            - name: TZ
+              value: Asia/Shanghai
+          args:
+            - "--character-set-server=utf8mb4"
+            - "--collation-server=utf8mb4_unicode_ci"
+          volumeMounts:
+            - mountPath: /etc/mysql/mariadb.conf.d/ # 容器内的挂载目录
+              name: turbo-mariadb # 随便给一个名字,这个名字必须与volumes.name 一致
+            - mountPath: /var/lib/mysql # 容器内的挂载目录
+              name: turbo-volume-mariadb
+          ports:
+            - containerPort: 3307
+      restartPolicy: Always
+      volumes:
+        - name: turbo-mariadb
+          configMap:
+            name: mariadbconfigmap
+        - name: turbo-volume-mariadb
+          persistentVolumeClaim:
+            claimName: data-mariadb-pvc
+  selector:
+    matchLabels:
+      app: mariadb-deploy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mariadb-svc
+spec:
+  selector:
+    app: mariadb-deploy
+  ports:
+    - port: 3307
+      targetPort: 3307
+      nodePort: 30036
+  type: NodePort
 ```
 
 ### 8.5.4 secret
@@ -1342,7 +1437,15 @@ pvandpvchostpath/mariadb.yml
 pvandpvchostpath/mariadbsecret.yml
 
 ```yaml
-
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mariadbsecret
+type: Opaque
+data:
+  password: YWRtaW4=
+  # mariadb的用户名root加密，用于演示，无实际效果
+  username: cm9vdA==
 ```
 
 ### 8.5.5 configmap
@@ -1359,6 +1462,8 @@ metadata:
 ```
 
 
+
+![image-20220216180031990](assest/image-20220216180031990.png)
 
 ## 8.6 客户端测试
 
