@@ -1638,20 +1638,117 @@ vi /etc/exports
 K8S的静态NFS服务PV的nfs:path 的值不用写共享根目录，直接写/mariadb即可。K8S会帮我们配置成/nfs/data/mariadb目录
 
 重启NFS
-systemctl restart rpcbind systemctl restart nfs
+systemctl restart rpcbind 
+systemctl restart nfs
 ```
 
 
 
 ## 9.9 pv配置
 
+```yaml
+
+```
+
+
+
 ## 9.10 全部配置文件清单
+
+### 9.10.1 pv
+
+nfs/mariadbpv.yml
+
+```yaml
+
+```
+
+### 9.10.2 pvc
+
+nfs/mariadbpvc.yml
+
+```yaml
+
+```
+
+### 9.10.3 service
+
+nfs/mariadb.yml
+
+```yaml
+
+```
+
+### 9.10.4 secret
+
+nfs/mariadbsecret.yml
+
+```yaml
+
+```
+
+### 9.10.5 configmap
+
+nfs/mariadbconfigmap.yml
+
+```yaml
+
+```
+
+
 
 ## 9.11客户端测试
 
+```bash
+IP:192.168.31.61
+username:root 
+password:admin 
+prot: 30036
+```
+
+
+
 ## 9.12 集群调度
 
+### 9.12.1 固定节点
+
+#### 9.12.1.1 Pod.spec.nodeSelector
+
+```bash
+前边的课程已经给大家介绍过 关键技能点：
+1.给某一个节点打标签
+kubectl label nodes k8s-node01 mariadb=mariadb
+
+2.pod的控制器中增加配置属性
+...
+   spec:
+     nodeSelector:
+       mariadb: mariadb
+...
+```
+
+
+
+#### 9.12.1.2 Pod.spec.nodeName
+
+```bash
+删除k8s-node01节点mariadb的label
+kubectl label nodes k8s-node01 mariadb- 
+
+kubectl label nodes k8s-node01 --show-labels
+```
+
+pod控制器关键代码
+
+```yaml
+  spec:
+    nodeName: k8s-node01
+```
+
+
+
 ## 9.13 全部资源文件清单
+
+
 
 ## 9.14 集群调度原理
 
