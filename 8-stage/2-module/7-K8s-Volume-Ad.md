@@ -1283,6 +1283,8 @@ emptyDir存储卷是Pod生命周期中的一个临时目录你，在Pod对象被
 
 # 8 PV&&PVC
 
+[Persistent Volumes - K8s 官网参考](https://kubernetes.io/docs/concepts/storage/persistent-volumes/)
+
 ## 8.1 简介
 
 部署mysql之前，需要先了解一个概念：有状态服务。这是一种特殊的服务，简单的归纳下就是会产生需要持久化的数据，并且有很强的 I/O需求，且重启需要依赖上次存储到的磁盘的数据，如典型的mysql，kafka，zookeeper等等。
@@ -1498,7 +1500,7 @@ prot: 30036
 
 #### 8.7.4.6 回收策略（persistentVolumeReclaimPolicy）
 
-### 8.7.5 PV 常用参数
+### 8.7.5 PVC 常用参数
 
 #### 8.7.5.1 筛选器（selector）
 
