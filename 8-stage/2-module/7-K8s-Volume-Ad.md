@@ -1303,7 +1303,7 @@ persistentVolumeClaim 是用户存储的请求。它与 pod 相似，pod消耗�
 
 PV 就好比是一个仓库，我们需要先购买一个仓库，即定义一个PV存储服务，例如 CEPH，NFS，Local Hostpath等等。
 
-PVC 就好比是 租户，pv和pvc是一对一绑定的，挂载到 POD 中，一个PVC可以被多个 pod 挂载
+PVC 就好比是 租户，**pv和pvc是一对一绑定的**，挂载到 POD 中，一个PVC可以被多个 pod 挂载
 
 ## 8.5 全部资源文件清单
 
