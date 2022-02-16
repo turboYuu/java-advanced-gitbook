@@ -1283,6 +1283,126 @@ emptyDir存储卷是Pod生命周期中的一个临时目录你，在Pod对象被
 
 # 8 PV&&PVC
 
+## 8.1 简介
+
+部署mysql之前，需要先了解一个概念：有状态服务。这是一种特殊的服务，简单的归纳下就是会产生需要持久化的数据，并且有很强的 I/O需求，且重启需要依赖上次存储到的磁盘的数据，如典型的mysql，kafka，zookeeper等等。
+
+在我们有比较优秀的商业存储的前提下，非常推荐使用有状态服务进行部署，计算和存储分离那是相当爽的。在实际生产中如果没有这种存储，localPV 也是不错的选择，当然 localPV 其实和 hostPath 是一样的。当然我们在开发测试环境也是可以自己搭建一套简单的，如NFS 服务，来享受存储和计算分离的爽快感。
+
+Kubernetes中定义一种资源类型 Stateful Service 即有状态服务，有状态服务需要的持久化数据动态绑定我们可以利用存储的API PersistentVolume（PV） 和 PersistentVolumeClaim（PVC）来进行需要的相关数据的绑定和存储。
+
+## 8.2 PV概念
+
+persistentVolume：是由管理员设置的存储，它是集群的一部分。就像节点时集群中的资源一样，PV也是集群中的资源。PV是Volumes之类的卷插件，但具有独立于使用PV的 pod 的生命周期。此API对象包含存储实现的细节，即 NFS、iSCSI或者特定于云供应商的存储系统。
+
+## 8.3 PVC概念
+
+persistentVolumeClaim 是用户存储的请求。它与 pod 相似，pod消耗节点资源，PVC 消耗PV 资源。pod可以请求特定级别的资源（CPU和内存）。声明 可以请求特定的大小和访问模式。例如：可以以读/写一次 或者 只读多次模式挂载。
+
+## 8.4 PV & PVC
+
+PV 就好比是一个仓库，我们需要先购买一个仓库，即定义一个PV存储服务，例如 CEPH，NFS，Local Hostpath等等。
+
+PVC 就好比是 租户，pv和pvc是一对一绑定的，挂载到 POD 中，一个PVC可以被多个 pod 挂载
+
+## 8.5 全部资源文件清单
+
+### 8.5.1 pv
+
+pvandpvchostpath/mariadbpv.yml
+
+```yaml
+
+```
+
+### 8.5.2 pvc
+
+pvandpvchostpath/mariadbpvc.yml
+
+```yaml
+
+```
+
+### 8.5.3 service
+
+```yaml
+
+```
+
+完整文件信息
+
+pvandpvchostpath/mariadb.yml
+
+```yaml
+
+```
+
+### 8.5.4 secret
+
+pvandpvchostpath/mariadbsecret.yml
+
+```yaml
+
+```
+
+### 8.5.5 configmap
+
+pvandpvchostpath/mariadbconfigmap.yml
+
+```yaml
+apiVersion: v1
+data:
+  my.cnf: "省略..."
+kind: ConfigMap
+metadata:
+  name: mariadbconfigmap
+```
+
+
+
+## 8.6 客户端测试
+
+```
+IP:192.168.31.61
+username:root 
+password:admin 
+prot: 30036
+```
+
+
+
+## 8.7 PV&&PVC理论补充
+
+### 8.7.1 存储机制介绍
+
+### 8.7.2 PV 支持存储的类型
+
+### 8.7.3 PV 的生命周期
+
+### 8.7.4 PV 的常用配置参数
+
+#### 8.7.4.1 存储能力（capacity）
+
+#### 8.7.4.2 存储卷模式（volumeMode）
+
+#### 8.7.4.3 访问模式（accessModes）
+
+#### 8.7.4.4 挂载参数（mountOptions）
+
+#### 8.7.4.5 存储类（storageClassName）
+
+#### 8.7.4.6 回收策略（persistentVolumeReclaimPolicy）
+
+### 8.7.5 PV 常用参数
+
+#### 8.7.5.1 筛选器（selector）
+
+#### 8.7.5.2 资源请求（resources）
+
+#### 8.7.5.3 存储类（storageClass）
+
+#### 8.7.5.4 访问模式（accessModes）
+
 # 9 NFS存储卷
 
 
