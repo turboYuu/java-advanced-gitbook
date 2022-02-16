@@ -1113,7 +1113,7 @@ prot: 30036
 
 # 7 volume
 
-## 7.1 hostPath
+## 7.1 hostPath（卷的入门）
 
 hostPath类型的存储卷是指将工作节点上某文件系统的目录或文件挂载于 Pod 中的一种存储卷。把宿主机上的目录挂载到容器，但是在每个节点上都要有，因为不确定容器会分配到哪个节点。也是把存储从宿主机挂载到 K8s 集群上，但它有许多限制，例如只支持单节点（Node），而且只支持 ”ReadWriteOnce“ 模式。
 
@@ -1169,7 +1169,15 @@ volumes:
 hostPath/mariadbsecret.yml
 
 ```yaml
-
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mariadbsecret
+type: Opaque
+data:
+  password: YWRtaW4=
+  # mariadb的用户名root加密，用于演示，无实际效果
+  username: cm9vdA==
 ```
 
 
@@ -1177,7 +1185,72 @@ hostPath/mariadbsecret.yml
 hostPath/mariadb.yml
 
 ```yaml
-
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mariadb-deploy
+  labels:
+    app: mariadb-deploy
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: mariadb-deploy
+      labels:
+        app: mariadb-deploy
+    spec:
+      nodeSelector:
+        mariadb: mariadb
+      imagePullSecrets:
+        - name: turboharbor
+      containers:
+        - name: mariadb-deploy
+          image: 192.168.31.82:5000/turbine/mariadb:10.5.2
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              #这是 mysql root 用户的密码
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: mariadbsecret
+            - name: TZ
+              value: Asia/Shanghai
+          args:
+            - "--character-set-server=utf8mb4"
+            - "--collation-server=utf8mb4_unicode_ci"
+          volumeMounts:
+            - mountPath: /etc/mysql/mariadb.conf.d/ # 容器内的挂载目录
+              name: turbo-mariadb # 随便给一个名字,这个名字必须与volumes.name 一致
+            - mountPath: /var/lib/mysql # 容器内的挂载目录
+              name: turbo-volume-mariadb
+          ports:
+            - containerPort: 3307
+      restartPolicy: Always
+      volumes:
+        - name: turbo-mariadb
+          configMap:
+            name: mariadbconfigmap
+        - name: turbo-volume-mariadb
+          hostPath:
+            path: /data/mariadb
+            type: Directory
+  selector:
+    matchLabels:
+      app: mariadb-deploy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mariadb-svc
+spec:
+  selector:
+    app: mariadb-deploy
+  ports:
+    - port: 3307
+      targetPort: 3307
+      nodePort: 30036
+  type: NodePort
 ```
 
 
@@ -1185,7 +1258,12 @@ hostPath/mariadb.yml
 hostPath/mariadbconfigmap.yml
 
 ```yaml
-
+apiVersion: v1
+data:
+  my.cnf: "省略..."
+kind: ConfigMap
+metadata:
+  name: mariadbconfigmap
 ```
 
 ### 7.1.4 客户端测试
