@@ -926,6 +926,124 @@ prot: 30036
 
 # 6 label操作
 
+前面学习了如何给 pod 打标签及[修改pod的标签值](https://github.com/turboYuu/java-advanced-gitbook/blob/master/8-stage/2-module/5-K8s-Controller-Manager.md#53-%E8%BF%90%E8%A1%8Creplicaset)。在某些特殊情况下，需要将某些服务固定在一台宿主机上，k8s可以使用 label 给node节点打赏标签来满足这种需求。
+
+
+
+## 6.1 添加 label操作
+
+```bash
+kubectl label nodes <node-name> <label-key>=<label-value> 
+
+为k8s-node01节点打标签
+kubectl label nodes k8s-node01 mariadb=mariadb 
+
+查看node节点label值
+kubectl get nodes --show-labels
+```
+
+
+
+## 6.2 修改Label的值
+
+**语法**：**需要加上`--overwrite`参数**
+
+```bash
+kubectl label nodes <node-name> <label-key>=<label-value> --overwrite 
+
+修改k8s-node01节点label值
+kubectl label nodes k8s-node01 mariadb=mariadb10.5 --overwrite 
+
+查看node节点label值
+kubectl get nodes --show-labels
+```
+
+
+
+## 6.3 删除label语法
+
+```bash
+注意事项：label的可以后边要增加"-"
+kubectl label nodes <node-name> <label-key>- 
+
+删除k8s-node01节点mariadb的label
+kubectl label nodes k8s-node01 mariadb- 
+
+查看node节点label值
+kubectl get nodes --show-labels
+```
+
+
+
+## 6.4 mariaDB 部署
+
+通过指定 node 节点 lable，将mariaDB部署到指定节点。方便演示 volume的各种方式。
+
+### 6.4.1 指定node
+
+```bash
+kubectl label nodes k8s-node01 mariadb=mariadb 
+
+查看node节点label值
+kubectl get nodes --show-labels
+```
+
+
+
+### 6.4.2 service部署
+
+```bash
+在spec.template.spec属性下增加nodeSelector属性。 
+spec:
+  nodeSelector: #根据label设置，配置节点选择器       
+    mariadb: mariadb  #语法规则: key: value     
+  containers:
+```
+
+
+
+## 6.5 全部资源文件清单
+
+labels/mariadbsecret.yml
+
+```yaml
+
+```
+
+
+
+labels/mariadb.yml
+
+```yaml
+
+```
+
+
+
+labels/mariadbconfigmap.yml
+
+```yaml
+apiVersion: v1
+data:
+  my.cnf: "省略中间数据部分“
+kind: ConfigMap
+metadata:
+  name: mariadbconfigmap
+```
+
+
+
+## 6.6 客户端测试
+
+```
+IP:192.168.31.62
+username:root 
+password:admin 
+prot: 30036
+```
+
+
+
 # 7 volume
 
 # 8 PV&&PVC
