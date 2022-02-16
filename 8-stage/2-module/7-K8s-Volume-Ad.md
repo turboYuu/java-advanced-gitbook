@@ -371,7 +371,7 @@ systemctl restart docker
 docker login -u admin -p Harbor12345 192.168.31.82:5000 
 
 退出私服
-docker logout 192.168.198.155:5000
+docker logout 192.168.31.82:5000
 ```
 
 ### 3.3.7 上传mariadb镜像
@@ -424,7 +424,7 @@ vi /etc/docker/daemon.json
 "insecure-registries":["192.168.31.82:5000"]
 
 重启docker服务： 
-systemctl daemon-reload 
+systemctl daemon-reload
 systemctl restart docker
 ```
 
@@ -435,7 +435,12 @@ systemctl restart docker
 将mariadb镜像修改为harbor私服地址。在创建 Pod 的时候，通过 imagesPullSecrets 引用刚创建的 `myregistrykey`
 
 ```yaml
-
+    spec:
+      imagePullSecrets:
+        - name: turboharbor
+      containers:
+        - name: mariadb-deploy
+          image: 192.168.31.82:5000/turbine/mariadb:10.5.2
 ```
 
 ### 3.5.1 全部资源文件清单
@@ -443,7 +448,15 @@ systemctl restart docker
 mariadbsecret.yml
 
 ```yaml
-
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mariadbsecret
+type: Opaque
+data:
+  password: YWRtaW4=
+  # 
+  username: cm9vdA==
 ```
 
 
@@ -451,7 +464,57 @@ mariadbsecret.yml
 mariadb.yml
 
 ```yaml
-
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mariadb-deploy
+  labels:
+    app: mariadb-deploy
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: mariadb-deploy
+      labels:
+        app: mariadb-deploy
+    spec:
+      imagePullSecrets:
+        - name: turboharbor
+      containers:
+        - name: mariadb-deploy
+          image: 192.168.31.82:5000/turbine/mariadb:10.5.2
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              #这是 mysql root 用户的密码
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: mariadbsecret
+            - name: TZ
+              value: Asia/Shanghai
+          args:
+            - "--character-set-server=utf8mb4"
+            - "--collation-server=utf8mb4_unicode_ci"
+          ports:
+            - containerPort: 3306
+      restartPolicy: Always
+  selector:
+    matchLabels:
+      app: mariadb-deploy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mariadb-svc
+spec:
+  selector:
+    app: mariadb-deploy
+  ports:
+    - port: 3306
+      targetPort: 3306
+      nodePort: 30036
+  type: NodePort
 ```
 
 
