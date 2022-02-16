@@ -1,5 +1,7 @@
 第七部分 K8s高级篇-volume(存储)
 
+[卷-K8s-官网参考](https://kubernetes.io/zh/docs/concepts/storage/volumes/)
+
 # 1 准备镜像
 
 k8s集群每个node节点需要下载镜像：
@@ -202,13 +204,196 @@ prot: 30036
 
 ### 3.2.7 删除service、secret
 
+```bash
+kubectl delete -f .
+
+kubectl get secret
+kubectl get svc
+```
+
+
+
 ## 3.3 安装harbor私服
+
+[参考docker部分的内容](https://github.com/turboYuu/java-advanced-gitbook/blob/master/8-stage/1-module/2-Docker-core-theory.md#53-%E4%BC%81%E4%B8%9A%E7%A7%81%E6%9C%8D)，使用192.168.31.82
+
+### 3.3.1 harbor官网地址
+
+```html
+harbor官网地址： 
+https://goharbor.io/
+
+github官网地址：
+https://github.com/goharbor/harbor
+```
+
+### 3.3.2 docker-compose
+
+[参考docker部分的笔记](https://github.com/turboYuu/java-advanced-gitbook/blob/master/8-stage/1-module/2-Docker-core-theory.md#45-docker-compose%E5%AE%89%E8%A3%85)
+
+```bahs
+验证docker-compose
+docker-compose -v
+```
+
+### 3.3.3 安装harbor
+
+```bash
+1.解压软件 
+cd /data
+tar zxf harbor-offline-installer-v1.9.4.tgz
+
+2.进入安装目录 
+cd harbor
+
+3.修改配置文件 
+vi harbor.yml
+  3.1修改私服镜像地址 
+  hostname: 192.168.31.82
+  3.2修改镜像地址访问端口号 
+  port: 5000
+  3.3harbor管理员登录系统密码
+  harbor_admin_password: Harbor12345
+  3.4修改harbor映射卷目录 
+  data_volume: /data/harbor
+  
+4.安装harbor
+  4.1执行启动脚本,经过下述3个步骤后，成功安装harbor私服 
+  ./install.sh
+  4.2准备安装环境：检查docker版本和docker-compose版本
+  4.3加载harbor需要的镜像
+  4.4准备编译环境
+  4.5启动harbor。通过docker-compose方式启动服务
+  4.6google浏览器访问harbor私服 
+  http://192.168.31.82:5000    
+  username: admin
+  password: Harbor12345
+  
+5.关闭harbor服务
+docker-compose down [-v]
+```
+
+### 3.3.4 新建项目
+
+```bash
+在harbor中新建公共项目： 
+turbine
+```
+
+### 3.3.5 配置私服
+
+```bash
+k8s集群master节点配置docker私服：master节点用于上传镜像。其余工作节点暂时不要配置私服地址。
+
+vi /etc/docker/daemon.json
+"insecure-registries":["192.168.31.82:5000"]
+
+重启docker服务：
+systemctl daemon-reload 
+systemctl restart docker
+```
+
+### 3.3.6 登录私服
+
+```bash
+docker login -u admin -p Harbor12345 192.168.31.82:5000 
+
+退出私服
+docker logout 192.168.198.155:5000
+```
+
+### 3.3.7 上传mariadb镜像
+
+```bash
+docker tag mariadb:10.5.2 192.168.31.82:5000/turbine/mariadb:10.5.2
+
+docker push 192.168.31.82:5000/turbine/mariadb:10.5.2
+
+docker rmi -f 192.168.31.82:5000/turbine/mariadb:10.5.2
+```
+
+### 3.3.8 修改mariadb镜像地址
+
+修改 secret/maraiadb.yml 文件，将image地址修改为harbor私服地址
+
+```yaml
+image: 192.168.31.82:5000/turbine/mariadb:10.5.2
+```
+
+运行服务
+
+```bash
+kubectl apply -f .
+
+查看pod信息：发现镜像拉取失败，STATUS显示信息为"ImagePullBackOff" 
+kubectl get pods
+
+查看pod详细信息:拉取harbor私服镜像失败。 
+kubectl describe pod mariadb-7b6f895b5b-mc5xp
+
+删除服务：
+kubectl delete -f .
+```
+
+
 
 ## 3.4 注册私服
 
+使用 kubectl 创建 docker registry 认证的
+
+```bash
+语法规则：
+kubectl create secret docker-registry myregistrykey --docker-server=REGISTRY_SERVER --docker-username=DOCKER_USER --docker-password=DOCKER_PASSWORD --docker-email=DOCKER_EMAIL
+例子：
+kubectl create secret docker-registry turboharbor --docker-server=192.168.31.82:5000 --docker-username=admin --docker-password=Harbor12345 --docker-email=harbor@turbo.com
+
+k8s集群其余工作节点配置docker私服地址： 
+vi /etc/docker/daemon.json
+"insecure-registries":["192.168.31.82:5000"]
+
+重启docker服务： 
+systemctl daemon-reload 
+systemctl restart docker
+```
+
+
+
 ## 3.5 secret升级mariadb
 
+将mariadb镜像修改为harbor私服地址。在创建 Pod 的时候，通过 imagesPullSecrets 引用刚创建的 `myregistrykey`
+
+```yaml
+
+```
+
+### 3.5.1 全部资源文件清单
+
+mariadbsecret.yml
+
+```yaml
+
+```
+
+
+
+mariadb.yml
+
+```yaml
+
+```
+
+
+
 ## 3.6 客户端测试
+
+```bash
+IP:192.168.31.61
+username:root 
+password:admin 
+prot: 30036
+```
+
+
 
 # 4 configmap
 
