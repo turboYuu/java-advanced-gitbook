@@ -1535,6 +1535,8 @@ yum install -y nfs-utils rpcbind
 
 ## 9.4 创建共享目录
 
+在master节点上操作：
+
 ```bash
 在master节点创建目录 
 mkdir -p /nfs/mariadb 
@@ -1574,7 +1576,7 @@ vi /etc/exports
 k8s集群所有节点启动 NFS 服务
 
 ```bash
-systemctl start rpcbind 
+systemctl start rpcbind
 systemctl start nfs
 
 设置开启启动
@@ -1599,7 +1601,7 @@ mount 192.168.31.61:/nfs/mariadb /data/mariadb
 NFS服务端写入
 $ echo "This is NFS server." > /nfs/mariadb/nfs.txt 
 
-客户端读取
+客户端读取（没有的话可以重新连接linux）
 cat /data/mariadb/nfs.txt 
 
 客户端写入
