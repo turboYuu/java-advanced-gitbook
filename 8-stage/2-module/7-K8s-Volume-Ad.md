@@ -1007,7 +1007,15 @@ spec:
 labels/mariadbsecret.yml
 
 ```yaml
-
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mariadbsecret
+type: Opaque
+data:
+  password: YWRtaW4=
+  # mariadb的用户名root加密，用于演示，无实际效果
+  username: cm9vdA==
 ```
 
 
@@ -1015,7 +1023,66 @@ labels/mariadbsecret.yml
 labels/mariadb.yml
 
 ```yaml
-
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mariadb-deploy
+  labels:
+    app: mariadb-deploy
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: mariadb-deploy
+      labels:
+        app: mariadb-deploy
+    spec:
+      nodeSelector:
+        mariadb: mariadb
+      imagePullSecrets:
+        - name: turboharbor
+      containers:
+        - name: mariadb-deploy
+          image: 192.168.31.82:5000/turbine/mariadb:10.5.2
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              #这是 mysql root 用户的密码
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: mariadbsecret
+            - name: TZ
+              value: Asia/Shanghai
+          args:
+            - "--character-set-server=utf8mb4"
+            - "--collation-server=utf8mb4_unicode_ci"
+          volumeMounts:
+            - mountPath: /etc/mysql/mariadb.conf.d/ # 容器内的挂载目录
+              name: turbo-mariadb # 随便给一个名字,这个名字必须与volumes.name 一致
+          ports:
+            - containerPort: 3307
+      restartPolicy: Always
+      volumes:
+        - name: turbo-mariadb
+          configMap:
+            name: mariadbconfigmap
+  selector:
+    matchLabels:
+      app: mariadb-deploy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mariadb-svc
+spec:
+  selector:
+    app: mariadb-deploy
+  ports:
+    - port: 3307
+      targetPort: 3307
+      nodePort: 30036
+  type: NodePort
 ```
 
 
@@ -1045,6 +1112,96 @@ prot: 30036
 
 
 # 7 volume
+
+## 7.1 hostPath
+
+hostPath类型的存储卷是指将工作节点上某文件系统的目录或文件挂载于 Pod 中的一种存储卷。把宿主机上的目录挂载到容器，但是在每个节点上都要有，因为不确定容器会分配到哪个节点。也是把存储从宿主机挂载到 K8s 集群上，但它有许多限制，例如只支持单节点（Node），而且只支持 ”ReadWriteOnce“ 模式。
+
+### 7.1.1 指定node节点
+
+```bash
+kubectl label nodes k8s-node01 mariadb=mariadb 
+
+查看node节点label值
+kubectl get nodes --show-labels
+```
+
+
+
+### 7.1.2 挂载卷
+
+```yaml
+语法：
+1. volumeMounts为containers下级key，containers.volumeMounts。volumes与 containers平级。
+2. containers.volumeMounts.name与volumes.name值一致。
+3. containers.volumeMounts.mountPath是容器内目录
+4. volumes.hostPath.path是宿主机挂载目录
+5. volumes.hostPath.type值必须为"Directory"
+
+containers 
+  volumeMounts:
+    - mountPath: /var/lib/mysql      
+    name: mariadb-volume
+    ....... 
+volumes:
+  - name: mariadb-volume     
+  hostPath:
+    path: /data/mariadb 
+    type: Directory
+    
+    
+例如： 
+  volumeMounts:
+    - mountPath: /var/lib/mysql      
+    name: mariadb-volume 
+restartPolicy: Always
+volumes:
+  - name: mariadb-volume    
+  hostPath:
+    path: /data/mariadb      
+    type: Directory
+```
+
+
+
+### 7.1.3 全部资源文件清单
+
+hostPath/mariadbsecret.yml
+
+```yaml
+
+```
+
+
+
+hostPath/mariadb.yml
+
+```yaml
+
+```
+
+
+
+hostPath/mariadbconfigmap.yml
+
+```yaml
+
+```
+
+### 7.1.4 客户端测试
+
+```bash
+IP:192.168.31.63
+username:root 
+password:admin 
+prot: 30036
+```
+
+
+
+## 7.2 emptyDir
+
+emptyDir存储卷是Pod生命周期中的一个临时目录你，在Pod对象被移除时会被一并删除，用得少。例如：同一 pod内的多个容器间文件共享，或者作为容器数据的临时存储目录用于数据缓存系统等。可以自己查资料学习。
 
 # 8 PV&&PVC
 
