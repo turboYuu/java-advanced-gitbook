@@ -99,6 +99,8 @@ kubectl delete -f mariadb.yml
 
 # 3 secret
 
+[secret-K8s-官网参考](https://kubernetes.io/zh/docs/concepts/configuration/secret/)
+
 Secret 解决了密码、token、密钥等敏感数据的配置问题，而不需要把这些敏感数暴露到镜像或者 Pod Spec 中。Secret 可以以 Volume 或者环境变量的方式使用。
 
 Secret 有三种类型：
@@ -532,7 +534,203 @@ prot: 30036
 
 # 4 configmap
 
+[ConfigMap-K8s-官网参考](https://kubernetes.io/zh/docs/concepts/configuration/configmap/)
+
+ConfigMap 顾名思义，用于保存配置数据的键值对，可以用来保存单个属性，也可以保存配置文件。
+
+ConfigMaps 允许你将配置构件 与 映射内容解耦，以保持容器化应用程序的可移植性。configmap 可以从文件、目录 或者 key-value 字符串创建等 创建 configmap。也可以通过 kubectl create -f 从描述文件创建。可以使用 kubectl create 创建命令。创建 ConfigMap 的方式有 4 种：
+
+1. 直接在命令行中指定 configmap 参数创建，即 `--from-literal`。
+2. 指定文件创建，即将一个配置文件创建为一个 ConfigMap，--from-file=<文件>
+3. 指定目录创建，即将一个目录下的所有配置文件创建为一个 ConfigMap，--from-file=<目录>
+4. 先写好标准的configmap的yaml文件，然后kubectl create -f 创建
+
+## 4.1 命令行方式
+
+从 key-value 字符串创建，官方翻译是从字面值中创建 ConfigMap。
+
+### 4.1.1 语法规则
+
+```bash
+kubectl create configmap map的名字 --from-literal=key=value 
+
+如果有多个key，value。可以继续在后边写
+kubectl create configmap map的名字
+  --from-literal=key1=value1
+  --from-literal=key2=value2
+  --from-literal=key3=value4
+```
+
+
+
+### 4.1.2 案例
+
+```bash
+创建configmap
+kubectl create configmap helloconfigmap --from-literal=turbo.hello=world
+
+查看configmap
+kubectl get configmap helloconfigmap -o go-template='{{.data}}'
+```
+
+```html
+在使用kubectl get获取资源信息的时候,可以通过-o(--output简写形式)指定信息输出的格式,
+如果指定的是yaml或者json输出的是资源的完整信息,
+
+实际工作中,输出内容过少则得不到我们想要的信息,输出内容过于详细又不利于快速定位的我们想要找到的内容,
+其实-o输出格式可以指定为go-template 然后指定一个template,这样我们就可以通过go-template获取我们想要的内容.
+go-template与 kubernetes无关,它是go语言内置的一种模板引擎.这里不对go-template做过多解释,
+仅介绍在 kubernetes中获取资源常用的语法,想要获取更多内容,大家可以参考相关资料获取帮助。
+大家记住是固定语法即可。
+```
+
+
+
+## 4.2 配置文件方式
+
+### 4.2.1 语法规则
+
+```bash
+语法规则如下：当 --from-file指向一文件，key的名称是文件名称，value的值是这个文件的内容。
+kubectl create configmap cumulx-test --from-file=xxxx
+```
+
+
+
+### 4.2.2 案例
+
+创建一个配置文件：jdbc.properties
+
+```properties
+vi jdbc.properties
+
+jdbc.driverclass=com.mysql.jdbc.Driver
+jdbc.url=jdbc:mysql://localhost:3306/test
+jdbc.username=root
+jdbc.password=admin
+```
+
+
+
+```bash
+创建configmap换用其他方式查看信息
+kubectl create configmap myjdbcmap --from-file=jdbc.properties 
+
+查看configmap详细信息
+kubectl describe configmaps myjdbcmap
+```
+
+
+
+## 4.3 目录方式
+
+### 4.3.1 语法规则
+
+```bash
+语法规则如下：当 --from-file指向一个目录，每个目录中的文件直接用于填充ConfigMap中的key,key的名称是文件名称，value的值是这个文件的内容。下面的命令读取/data目录下的所有文件
+kubectl create configmap cumulx-test --from-file=/data/
+```
+
+
+
+### 4.3.2 案例
+
+```bash
+kubectl create configmap myjdbcconfigmap --from-file=/data/jdbc.properties 
+
+查看configmap详细信息
+kubectl describe configmaps myjdbcmap
+```
+
+
+
+## 4.4 资源文件方式
+
+### 4.4.1 yml文件
+
+```yaml
+
+```
+
+
+
+### 4.4.2 运行yml文件
+
+```bash
+kubectl apply -f mariadb-configmap.yml 
+
+查看configmap详细信息
+kubectl describe configmaps mariadbconfigmap
+```
+
+
+
 # 5 configmap 升级 mariadb
+
+## 5.1 获得 my.cnf 文件
+
+## 5.2 生成 configmap 文件
+
+## 5.3 修改 mariadb.yml
+
+## 5.4 全部资源文件清单
+
+### 5.4.1 configmap/mariadbsecret.yml
+
+```yaml
+
+```
+
+### 5.4.2 configmap/mariadb.yml
+
+**需要再次调整，加入私服镜像信息**
+
+注意修改 pod 的端口号为 3307，service的targetPort端口号为 3307
+
+```yaml
+
+```
+
+### 5.4.3 configmap/mariadbconfigmap.yml
+
+```yaml
+
+```
+
+
+
+## 5.5 运行服务
+
+```bash
+部署服务
+kubectl apply -f .
+
+查看相关信息
+kubectl get configmaps 
+kubectl get pods
+```
+
+
+
+## 5.6 查看 mariadb容器日志
+
+```bash
+查看mariadb容器日志：观察mariadb启动port是否为3307 
+kubectl logs -f mariadb-5d99587d4b-xwthc
+```
+
+
+
+## 5.7 客户端测试
+
+```bash
+IP:192.168.31.61 
+username:root 
+password:admin 
+prot: 30036
+```
+
+
 
 # 6 label操作
 
