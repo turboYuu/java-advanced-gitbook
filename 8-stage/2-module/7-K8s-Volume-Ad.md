@@ -151,7 +151,15 @@ echo -n "YWRtaW4=" | base64 -d
 对mariadb数据库密码进行加密
 
 ```yaml
-
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mariadbsecret
+type: Opaque
+data:
+  password: YWRtaW4=
+  # 
+  username: cm9vdA==
 ```
 
 
@@ -159,7 +167,15 @@ echo -n "YWRtaW4=" | base64 -d
 ### 3.2.3 升级mariadb的service
 
 ```yaml
-
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              #这是 mysql root 用户的密码
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: mariadbsecret
+            - name: TZ
+              value: Asia/Shanghai
 ```
 
 
@@ -169,13 +185,69 @@ echo -n "YWRtaW4=" | base64 -d
 secret/mariadbsecret.yml
 
 ```yaml
-
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mariadbsecret
+type: Opaque
+data:
+  password: YWRtaW4=
+  # 
+  username: cm9vdA==
 ```
 
 secret/mariadb.yml
 
 ```yaml
-
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mariadb-deploy
+  labels:
+    app: mariadb-deploy
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: mariadb-deploy
+      labels:
+        app: mariadb-deploy
+    spec:
+      containers:
+        - name: mariadb-deploy
+          image: mariadb:10.5.2
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              #这是 mysql root 用户的密码
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: mariadbsecret
+            - name: TZ
+              value: Asia/Shanghai
+          args:
+            - "--character-set-server=utf8mb4"
+            - "--collation-server=utf8mb4_unicode_ci"
+          ports:
+            - containerPort: 3306
+      restartPolicy: Always
+  selector:
+    matchLabels:
+      app: mariadb-deploy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mariadb-svc
+spec:
+  selector:
+    app: mariadb-deploy
+  ports:
+    - port: 3306
+      targetPort: 3306
+      nodePort: 30036
+  type: NodePort
 ```
 
 
