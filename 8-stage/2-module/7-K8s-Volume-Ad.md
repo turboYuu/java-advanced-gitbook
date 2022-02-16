@@ -1649,7 +1649,12 @@ systemctl restart nfs
 ## 9.9 pv配置
 
 ```yaml
-
+  mountOptions:
+    - hard
+    - nfsvers=4.1
+  nfs:
+    path: /mariadb
+    server: 192.168.31.61
 ```
 
 
@@ -1661,7 +1666,26 @@ systemctl restart nfs
 nfs/mariadbpv.yml
 
 ```yaml
-
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: data-mariadb-pv
+  labels:
+    app: mariadb-pv
+spec:
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 10Gi
+  mountOptions:
+    - hard
+    - nfsvers=4.1
+  nfs:
+    path: /mariadb
+    server: 192.168.31.61
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: standard
+  volumeMode: Filesystem
 ```
 
 ### 9.10.2 pvc
@@ -1669,7 +1693,19 @@ nfs/mariadbpv.yml
 nfs/mariadbpvc.yml
 
 ```yaml
-
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data-mariadb-pvc
+  labels:
+    app: mariadb-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 5Gi
 ```
 
 ### 9.10.3 service
@@ -1677,7 +1713,71 @@ nfs/mariadbpvc.yml
 nfs/mariadb.yml
 
 ```yaml
-
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mariadb-deploy
+  labels:
+    app: mariadb-deploy
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: mariadb-deploy
+      labels:
+        app: mariadb-deploy
+    spec:
+      nodeSelector:
+        mariadb: mariadb
+      imagePullSecrets:
+        - name: turboharbor
+      containers:
+        - name: mariadb-deploy
+          image: 192.168.31.82:5000/turbine/mariadb:10.5.2
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              #这是 mysql root 用户的密码
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: mariadbsecret
+            - name: TZ
+              value: Asia/Shanghai
+          args:
+            - "--character-set-server=utf8mb4"
+            - "--collation-server=utf8mb4_unicode_ci"
+          volumeMounts:
+            - mountPath: /etc/mysql/mariadb.conf.d/ # 容器内的挂载目录
+              name: turbo-mariadb # 随便给一个名字,这个名字必须与volumes.name 一致
+            - mountPath: /var/lib/mysql # 容器内的挂载目录
+              name: turbo-volume-mariadb
+          ports:
+            - containerPort: 3307
+      restartPolicy: Always
+      volumes:
+        - name: turbo-mariadb
+          configMap:
+            name: mariadbconfigmap
+        - name: turbo-volume-mariadb
+          persistentVolumeClaim:
+            claimName: data-mariadb-pvc
+  selector:
+    matchLabels:
+      app: mariadb-deploy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mariadb-svc
+spec:
+  selector:
+    app: mariadb-deploy
+  ports:
+    - port: 3307
+      targetPort: 3307
+      nodePort: 30036
+  type: NodePort
 ```
 
 ### 9.10.4 secret
@@ -1685,7 +1785,15 @@ nfs/mariadb.yml
 nfs/mariadbsecret.yml
 
 ```yaml
-
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mariadbsecret
+type: Opaque
+data:
+  password: YWRtaW4=
+  # mariadb的用户名root加密，用于演示，无实际效果
+  username: cm9vdA==
 ```
 
 ### 9.10.5 configmap
@@ -1693,7 +1801,12 @@ nfs/mariadbsecret.yml
 nfs/mariadbconfigmap.yml
 
 ```yaml
-
+apiVersion: v1
+data:
+  my.cnf: "省略..."
+kind: ConfigMap
+metadata:
+  name: mariadbconfigmap
 ```
 
 
