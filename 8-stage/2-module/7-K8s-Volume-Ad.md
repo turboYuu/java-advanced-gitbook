@@ -1892,9 +1892,21 @@ pod控制器关键代码
 
 ## 9.16 节点亲和性调度
 
+[亲和性调度-K8s-官网参考](https://kubernetes.io/zh/docs/concepts/scheduling-eviction/assign-pod-node/#%E4%BA%B2%E5%92%8C%E6%80%A7%E4%B8%8E%E5%8F%8D%E4%BA%B2%E5%92%8C%E6%80%A7)
+
 ### 9.16.1 节点亲和性规则
 
+required（硬亲和性，不能商量，必须执行）、preferred（软亲和性，可以商量，选择执行）。
+
+- 硬亲和性规则不满足时，Pod 会置于 Pending 状态；软亲和性规则不满足时，会选择一个不匹配的节点
+- 当节点标签改变而不再符合此节点亲和性规则时，不会将 Pod 从该节点移出，仅对新建的Pod对象生效
+
 ### 9.16.2 节点硬亲和性
+
+requiredDuringSchedulingIgnoredDuringExecution
+
+- 方式一：Pod 使用 spec.nodeSelector（基于等值关系）；Pod使用 spec.nodeName
+- 方式二：Pod 使用 spec.affinity 支持 matchExpressions 属性（复杂标签选择机制）
 
 ### 9.16.3 全部资源文件清单
 
@@ -1931,6 +1943,78 @@ Exists：某个label 存在
 DoesNotExist：某个label 不存在     
 ```
 
+全部资源文件清单：labels/mariadb.yml
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mariadb-deploy
+  labels:
+    app: mariadb-deploy
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: mariadb-deploy
+      labels:
+        app: mariadb-deploy
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname # 某一个node节点标签的key
+                    operator: In
+                    values:
+                      - k8s-node05 # key对应的值
+      imagePullSecrets:
+        - name: turboharbor
+      containers:
+        - name: mariadb-deploy
+          image: 192.168.31.82:5000/turbine/mariadb:10.5.2
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              #这是 mysql root 用户的密码
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: mariadbsecret
+            - name: TZ
+              value: Asia/Shanghai
+          args:
+            - "--character-set-server=utf8mb4"
+            - "--collation-server=utf8mb4_unicode_ci"
+          volumeMounts:
+            - mountPath: /etc/mysql/mariadb.conf.d/ # 容器内的挂载目录
+              name: turbo-mariadb # 随便给一个名字,这个名字必须与volumes.name 一致
+          ports:
+            - containerPort: 3307
+      restartPolicy: Always
+      volumes:
+        - name: turbo-mariadb
+          configMap:
+            name: mariadbconfigmap
+  selector:
+    matchLabels:
+      app: mariadb-deploy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mariadb-svc
+spec:
+  selector:
+    app: mariadb-deploy
+  ports:
+    - port: 3307
+      targetPort: 3307
+      nodePort: 30036
+  type: NodePort
+```
+
 
 
 ### 9.16.4 错误节点信息
@@ -1963,7 +2047,7 @@ kubectl describe pods mariadb-deploy-9d5457866-rxcr2
 
 ### 9.16.5 节点软亲和性
 
-preferredDuringSchedulingIgnoredDuringExection
+preferredDuringSchedulingIgnoredDuringExecution
 
 - 柔性控制逻辑，当条件不满足时，能接收被编排于其他不符合条件的节点之上
 - 权重 weight 定义优先级，1-100 值越大优先级越高
@@ -2005,11 +2089,84 @@ Exists：某个label 存在
 DoesNotExist：某个label 不存在     
 ```
 
+完整文件 lablel/mariadb.yml：
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mariadb-deploy
+  labels:
+    app: mariadb-deploy
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: mariadb-deploy
+      labels:
+        app: mariadb-deploy
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - k8s-node05
+              weight: 20
+      imagePullSecrets:
+        - name: turboharbor
+      containers:
+        - name: mariadb-deploy
+          image: 192.168.31.82:5000/turbine/mariadb:10.5.2
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              #这是 mysql root 用户的密码
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: mariadbsecret
+            - name: TZ
+              value: Asia/Shanghai
+          args:
+            - "--character-set-server=utf8mb4"
+            - "--collation-server=utf8mb4_unicode_ci"
+          volumeMounts:
+            - mountPath: /etc/mysql/mariadb.conf.d/ # 容器内的挂载目录
+              name: turbo-mariadb # 随便给一个名字,这个名字必须与volumes.name 一致
+          ports:
+            - containerPort: 3307
+      restartPolicy: Always
+      volumes:
+        - name: turbo-mariadb
+          configMap:
+            name: mariadbconfigmap
+  selector:
+    matchLabels:
+      app: mariadb-deploy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mariadb-svc
+spec:
+  selector:
+    app: mariadb-deploy
+  ports:
+    - port: 3307
+      targetPort: 3307
+      nodePort: 30036
+  type: NodePort
+```
+
 
 
 ### 9.16.7 错误节点信息
 
-如果我们选择的节点不存在，pod状态会一直处于 Pending。例如：
+如果我们选择的节点不存在，pod也会启动成功。例如：
 
 Pod.spec.affinity
 
@@ -2027,7 +2184,7 @@ Pod.spec.affinity
 ```
 
 ```bash
-集群中不存在k8s-node05的节点。当我们部署服务时，查看pod信息，会发现pod一直处于Pending 
+集群中不存在k8s-node05的节点。当我们部署服务时，查看pod信息
 
 kubectl apply -f .
 
@@ -2043,33 +2200,257 @@ kubectl describe pods mariadb-deploy-9d5457866-rxcr2
 
 ### 9.17.1 Pod 硬亲和度
 
+requiredDuringSchedulingIgnoredDuringExecution
+
+Pod 亲和性描述一个 Pod 与 具有某些特征的现存 Pod 运行位置的依赖关系；即需要事先存在被依赖的 Pod 对象
+
 ### 9.17.2 Pod软亲和度
+
+preferredDuringSchedulingIgnoredDuringExecution
+
+
 
 ## 9.18 污点和容忍度
 
+[污点和容忍度 K8s 官网参考](https://kubernetes.io/zh/docs/concepts/scheduling-eviction/taint-and-toleration/)
+
+污点`Taints 是定义在node节点` 上的键值型属性数据，用于让节点拒绝将 Pod 调度运行于其上，除非 Pod 有接纳节点污点的容忍度。
+
+容忍度`tolerations 是定义在Pod`上的键值属性数据，用于配置可容忍的污点，允许（但并不要求）Pod调度到带有与之匹配的污点的节点上。
+
+对于 nodeAffinity 无论是硬策略（硬亲和）还是软策略（软亲和）方式，都是调度 pod 到预期节点上，而 Taints 恰好与之相反，如果一个节点标记为 Taints，除非 pod 也被标识为可以容忍污点节点，否则该 Taints 节点不会被调度 pod。
+
+节点亲和性，是 pod 的一种属性（偏好或硬件要求），它使 pod 被吸引到一类特定的节点。Taint 则相反，它使节点能够排斥一类特定的 pod。<br>Taint 和 torleration 相互配合，可以用来避免 pod 被分配到不合适的节点上。<br>每个节点上都可以应用一个或多个 taint，这表示对于那些不能容忍这个 taint 的 pod，是不会被该节点接受的。<br>如果将 toleration 应用于 pod 上，则表示这些 pod 可以（但不要求）被调度到具有匹配 taint 的节点上。
+
 ### 9.18.1 定义污点和容忍度
+
+污点定义于`nodes.spec.taints`属性。容忍度定义于 `pods.spec.tolerations`属性。
+
+使用 kubectl taint 命令可以给某个 Node 节点设置污点，Node 被设置上污点之后就和 Pod 之间存在了一种相斥关系，可以让 Node 拒绝 Pod 的调度执行，甚至将 Node 已经存在的 Pod 驱逐出去。
+
+语法：`key=value:effect`（key 和 value 可以自定义）。
+
+```
+查看node节点名称 
+kubectl get nodes
+
+查看master节点详细信息：通过观taints察属性，发现master节点默认被打上一个污点。 
+kubectl describe nodes k8s-master01
+```
+
+
 
 ### 9.18.2 effect定义排斥等级
 
+- `NoSchedule`：不能容忍，但仅影响调度过程，已调度上去的 pod 不受影响，仅对新增加的 pod 生效。
+
+  解释说明：表示 k8s 将不会将 Pod 调度到具有该污点的 Node 上。
+
+- `PreferNoSchedule`：柔性约束，节点现存 Pod 不受影响，如果是在是没有符合的节点，也可以调度上来。
+
+  解释说明：表示 k8s 将不会将 Pod 调度到具有该污点的 Node 上。
+
+- `NoExecute`：不能容忍，当污点变动时，Pod 对象会被驱逐。
+
+  解释说明：表示 k8s 将不会将 Pod 调度到具有该污点的 Node 上，同时会将 Node 上已经存在的 Pod 驱逐出去
+
 ### 9.18.3 全部资源文件清单
+
+本案例 演示 创建、删除 污点 及 驱逐 pod 的过程。
+
+#### 9.18.3.1 污点语法
+
+```bash
+创建污点:语法规则
+kubectl taint nodes node1 key1=value1:NoSchedule 
+
+删除污点:语法规则
+kubectl taint nodes node1 key1:NoSchedule-
+```
+
+```bash
+创建污点
+kubectl taint nodes k8s-node03 offline=testtaint:NoExecute
+
+删除污点
+kubectl taint nodes k8s-node03 offline=testtaint:NoExecute-
+```
+
+
+
+#### 9.18.3.2 deploymentdemo 控制器
+
+产生10个副本
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deploymentdemo1
+  labels:
+    app: deploymentdemo1
+spec:
+  replicas: 10
+  template:
+    metadata:
+      name: deploymentdemo1
+      labels:
+        app: deploymentdemo1
+    spec:
+      containers:
+        - name: deploymentdemo1
+          image: nginx:1.17.10-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+      restartPolicy: Always
+  selector:
+    matchLabels:
+      app: deploymentdemo1
+```
+
+#### 9.18.3.3 设置污点
+
+```bash
+观察每个节点pod运行情况 
+kubectl get pods -o wide 
+
+在某一个节点创建污点并驱逐pod
+kubectl taint nodes k8s-node03 offline=testtaint:NoExecute 
+
+查看pod被驱逐过程
+kubectl get pods -o wide 
+
+删除污点
+kubectl taint nodes k8s-node03 offline=testtaint:NoExecute-
+
+查看节点污点信息
+kubectl describe nodes k8s-node03
+```
+
+
 
 ### 9.18.4 在Pod上定义容忍度时
 
+1. 等值比较 容忍度 与 污点 在 key 、value、effect 三者完全匹配
+2. 存在性判断 key、effect 完全匹配，value使用空值
+
 ### 9.18.5 全部资源文件清单
 
+本案例 演示 创建 、删除 及 驱逐 pod 的过程
 
+#### 9.18.5.1 设置污点
 
+```bash
+在某一个节点创建污点
+kubectl taint nodes k8s-node03 offline=testtaint:NoSchedule 
 
+查看节点污点信息
+kubectl describe nodes k8s-node03
+```
 
+#### 9.18.5.2 deploymentdemo 控制器
 
+产生10个副本，
 
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deploymentdemo1
+  labels:
+    app: deploymentdemo1
+spec:
+  replicas: 10
+  template:
+    metadata:
+      name: deploymentdemo1
+      labels:
+        app: deploymentdemo1
+    spec:
+      containers:
+        - name: deploymentdemo1
+          image: nginx:1.17.10-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+      restartPolicy: Always
+  selector:
+    matchLabels:
+      app: deploymentdemo1
+```
 
+#### 9.18.5.3 查看部署情况
 
+```bash
+部署控制器
+kubectl apply -f deploymentdemo.yml 
 
+查看是否有pod被部署到k8s-node03节点，都不会调度到 k8s-node3 节点上。
+kubectl get pods -o wide 
 
+删除控制器
+kubectl delete -f deploymentdemo.yml
+```
 
+#### 9.18.5.4 设置pod容忍度
 
+```yaml
+    spec:
+      tolerations:
+        - key: "offline"
+          value: "testtaint"
+          effect: "NoSchedule"
+          operator: "Equal"
+```
 
+完整控制器清单
 
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deploymentdemo1
+  labels:
+    app: deploymentdemo1
+spec:
+  replicas: 10
+  template:
+    metadata:
+      name: deploymentdemo1
+      labels:
+        app: deploymentdemo1
+    spec:
+      tolerations:
+        - key: "offline"
+          value: "testtaint"
+          effect: "NoSchedule"
+          operator: "Equal"
+      containers:
+        - name: deploymentdemo1
+          image: nginx:1.17.10-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+      restartPolicy: Always
+  selector:
+    matchLabels:
+      app: deploymentdemo1
+```
 
+#### 9.18.5.5 部署控制器
+
+```yaml
+部署控制器
+kubectl apply -f deploymentdemo.yml 
+
+查看pod详细信息,k8s-node03节点上存在被调度上去的pod
+kubectl get pods -o wide 
+
+删除控制器
+kubectl delete -f deploymentdemo.yml 
+
+删除污点
+kubectl taint nodes k8s-node03 offline=testtaint:NoSchedule-
+```
 

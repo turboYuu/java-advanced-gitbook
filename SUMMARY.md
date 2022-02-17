@@ -103,4 +103,5 @@
         * [第五部分 K8s-pod控制器进阶](8-stage/2-module/5-K8s-Controller-Manager.md)
         * [第六部分 K8s高级篇-service](8-stage/2-module/6-K8s-Service-Ad.md)
         * [第七部分 K8s高级篇-volume(存储)](8-stage/2-module/7-K8s-Volume-Ad.md)
+        * [第八部分 k8s高可用-kubespray](8-stage/2-module/8-K8s-HA-kubespray.md)
 
