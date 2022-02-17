@@ -1863,11 +1863,32 @@ pod控制器关键代码
 
 ## 9.13 全部资源文件清单
 
+固定节点集群调度，只需要修改 nfs/mariadb.yml
+
+```yaml
+    spec:
+      nodeSelector:
+        mariadb: mariadb
+```
+
+或者
+
+```yaml
+    spec:
+      nodeName: k8s-node02
+```
+
 
 
 ## 9.14 集群调度原理
 
+### 9.14.1 Scheduler 调度步骤
+
 ## 9.15 集群调度策略
+
+### 9.15.1 常用预选策略
+
+### 9.15.2 常用优先函数
 
 ## 9.16 节点亲和性调度
 
