@@ -1892,11 +1892,170 @@ pod控制器关键代码
 
 ## 9.16 节点亲和性调度
 
+### 9.16.1 节点亲和性规则
+
+### 9.16.2 节点硬亲和性
+
+### 9.16.3 全部资源文件清单
+
+在labels的基础上，修改labels/mariadb.yml，删除spec.nodeSelector或者 spec.nodeName信息。
+
+技能点概述：Pod.spec.affinity
+
+```yaml
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname # 某一个node节点标签的key
+                    operator: In
+                    values:
+                      - k8s-node05 # key对应的值
+```
+
+```bash
+可以先使用命令获得节点标签及真实节点名称: 
+kubectl get nodes --show-labels
+```
+
+键值运算关系
+
+```bash
+In：label 的值在某个列表中
+NotIn：label 的值不在某个列表中 
+Gt：label 的值大于某个值
+Lt：label 的值小于某个值
+Exists：某个label 存在 
+DoesNotExist：某个label 不存在     
+```
+
+
+
+### 9.16.4 错误节点信息
+
+如果我们选择的节点不存在，pod状态会一直处于Pending。例如：
+
+spec.affinity.nodeAffinity
+
+```yaml
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname # 某一个node节点标签的key
+                    operator: In
+                    values:
+                      - k8s-node05 # key对应的值
+```
+
+```bash
+集群中不存在k8s-node05的节点。当我们部署服务时，查看pod信息，会发现pod一直处于Pending 
+
+kubectl apply -f .
+kubectl get pods -o wide
+
+查看pod详细信息：发现提示没有节点的提示。
+kubectl describe pods mariadb-deploy-9d5457866-rxcr2
+```
+
+### 9.16.5 节点软亲和性
+
+preferredDuringSchedulingIgnoredDuringExection
+
+- 柔性控制逻辑，当条件不满足时，能接收被编排于其他不符合条件的节点之上
+- 权重 weight 定义优先级，1-100 值越大优先级越高
+
+
+
+### 9.16.6 全部文件清单
+
+lablel/mariadb.yml，删除spec.nodeSelector或者 spec.nodeName信息。
+
+技能点概述：Pod.spec.affinity
+
+```yaml
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - k8s-node02
+              weight: 1
+```
+
+```bash
+可以先使用命令获得节点标签及真实节点名称: 
+kubectl get nodes --show-labels
+```
+
+键值运算关系
+
+```bash
+In：label 的值在某个列表中
+NotIn：label 的值不在某个列表中 
+Gt：label 的值大于某个值
+Lt：label 的值小于某个值
+Exists：某个label 存在 
+DoesNotExist：某个label 不存在     
+```
+
+
+
+### 9.16.7 错误节点信息
+
+如果我们选择的节点不存在，pod状态会一直处于 Pending。例如：
+
+Pod.spec.affinity
+
+```yaml
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - k8s-node05
+              weight: 1
+```
+
+```bash
+集群中不存在k8s-node05的节点。当我们部署服务时，查看pod信息，会发现pod一直处于Pending 
+
+kubectl apply -f .
+
+kubectl get pods -o wide
+
+查看pod详细信息：发现提示没有节点的提示。
+kubectl describe pods mariadb-deploy-9d5457866-rxcr2
+```
+
+
+
 ## 9.17 Pod资源亲和调度
+
+### 9.17.1 Pod 硬亲和度
+
+### 9.17.2 Pod软亲和度
 
 ## 9.18 污点和容忍度
 
+### 9.18.1 定义污点和容忍度
 
+### 9.18.2 effect定义排斥等级
+
+### 9.18.3 全部资源文件清单
+
+### 9.18.4 在Pod上定义容忍度时
+
+### 9.18.5 全部资源文件清单
 
 
 
