@@ -32,7 +32,7 @@ https://github.com/kubernetes-sigs/kubespray
 ## 2.2 上传二进制文件
 
 ```bash
-mkdir -p /tmp/releases 
+mkdir -p /tmp/releases
 cd /tmp/releases/
 
 将下边三个文件上传到/tmp/releases/目录中
@@ -68,6 +68,8 @@ ssh-copy-id -i ~/.ssh/id_rsa.pub root@192.168.31.183
 
 # 3 安装准备
 
+***只在 181节点 操作***
+
 ## 3.1 安装ansible软件包
 
 ### 3.1.1 老版本安装方式
@@ -83,15 +85,41 @@ pip3 install -i https://mirrors.aliyun.com/pypi/simple/ --upgrade pip Jinja2
 
 ### 3.1.2 新版本安装方式
 
+181节点安装：
+
 ```bash
 yum install -y epel-release python3-pip
 ```
 
-## 3.2 配置集群环境
+## 3.2 安装 kubespray
+
+https://github.com/kubernetes-sigs/kubespray/releases/tag/v2.13.1
+
+181节点上安装：
+
+```bash
+上传kubespray安装tar包到/opt目录 
+cd /opt
+tar zxf kubespray-2.13.1.tar.gz 
+mv kubespray-2.13.1 kubespray
+
+cd kubespray/
+# 执行不成功的话，需要升级pip
+pip3 install -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt
+
+cp -rfp inventory/sample inventory/mycluster
+
+declare -a IPS=(192.168.31.181 192.168.31.182 192.168.31.183) 
+CONFIG_FILE=inventory/mycluster/hosts.yaml python3 contrib/inventory_builder/inventory.py ${IPS[@]}
+```
+
+
+
+## 3.3 配置集群环境
 
 如果是下载安装包进行安装，一下配置可以忽略不进行配置。
 
-### 3.2.1 main 配置文件
+### 3.3.1 main 配置文件
 
 如果有自己的harbor私服镜像地址，可以修改默认配置文件中的镜像地址。
 
@@ -105,7 +133,7 @@ quay_image_repo: "harbor.turbo.com/quay.io"
 
 
 
-### 3.2.2 k8s-cluster 配置文件
+### 3.3.2 k8s-cluster 配置文件
 
 如果有自己的harbor私服镜像地址，可以修改默认配置文件中的镜像地址。
 
@@ -130,9 +158,11 @@ kube_network_node_prefix: 16
 
 # 4 安装集群
 
+***只在 181节点 操作***
+
 ```bash
 cd /opt/kubespray
 
-ansible-playbook -i inventory/mycluster/hosts.yaml  --become --become-user=root cluster.yml
+ansible-playbook -i inventory/mycluster/hosts.yaml --become --become-user=root cluster.yml
 ```
 
