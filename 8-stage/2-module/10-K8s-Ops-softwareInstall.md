@@ -380,11 +380,11 @@ vi /etc/exports
 mkdir -p /nfs/data/mariadb 
 mkdir -p /nfs/data/nginx
 
-systemctl start rpcbind 
+systemctl start rpcbind
 systemctl start nfs
 
 设置开启启动
-systemctl enable rpcbind 
+systemctl enable rpcbind
 systemctl enable nfs
 ```
 
@@ -397,7 +397,63 @@ systemctl enable nfs
 nfsdynamic/nfsrbac.yml。每次配置文件，只需要调整 ClusterRoleBinding、RoleBinding 的 namespace 值，如果服务是部署在默认的namespace 中，配置文件不需要调整。
 
 ```yaml
-
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nfs-client-provisioner
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nfs-client-provisioner-runner
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: run-nfs-client-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: nfs-client-provisioner
+    namespace: default  #替换成要部署NFS Provisioner的namespace
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: nfs-client-provisioner-runner
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: leader-locking-nfs-client-provisioner
+rules:
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: leader-locking-nfs-client-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: nfs-client-provisioner
+    namespace: default # 替换成要部署NFS Provisioner的namespace
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: leader-locking-nfs-client-provisioner
 ```
 
 
@@ -407,19 +463,81 @@ nfsdynamic/nfsrbac.yml。每次配置文件，只需要调整 ClusterRoleBinding
 nfsdynamic/nfsstorage.yml
 
 ```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nfs-client-provisioner
+  labels:
+    app: nfs-client-provisioner
+spec:
+  replicas: 1
+  strategy:
+    #设置升级策略为删除再创建(默认为滚动更新)
+    type: Recreate
+  selector:
+    matchLabels:
+      app: nfs-client-provisioner
+  template:
+    metadata:
+      labels:
+        app: nfs-client-provisioner
+    spec:
+      serviceAccountName: nfs-client-provisioner
+      containers:
+        - name: nfs-client-provisioner
+          #由于quay.io仓库部分镜像国内无法下载，所以替换为其他镜像地址
+          image: vbouchaud/nfs-client-provisioner:v3.1.1
+          volumeMounts:
+            - mountPath: /persistentvolumes
+              name: nfs-client-root
+          env:
+            - name: PROVISIONER_NAME
+              value: nfs-client     # --- nfs-provisioner的名称，以后设置的 storageclass要和这个保持一致
+            - name: NFS_SERVER
+              value: 192.168.31.61  # NFS服务器地址，与volumes.nfs.servers保 持一致
+            - name: NFS_PATH
+              value: /nfs/data      # NFS服务共享目录地址，与volumes.nfs.path 保持一致
+      volumes:
+        - name: nfs-client-root
+          nfs:
+            path: /nfs/data         # NFS服务器目录，与 spec.containers.env.value保持一致
+            server: 192.168.31.61   # NFS服务器地址，与 spec.containers.env.value保持一致
 
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-storage
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true" #设置为默认的 storageclass
+provisioner: nfs-client                                 #动态卷分配者名称，必须 和创建的"provisioner"变量中设置的name一致
+parameters:
+  archiveOnDelete: "true"                               #设置为"false"时删除 PVC不会保留数据,"true"则保留数据
+mountOptions:
+  - hard                                                #指定为硬挂载方式
+  - nfsvers=4                                            #指定NFS版本，这个需要 根据    NFS Server 版本号设置
 ```
 
 
 
 ## 7.4 测试pvc
 
-nfsdynamic/nfspvc.yml
+nfsdynamic/nfstestpvc.yml
 
 用于测试nfs动态pv是否成功。
 
 ```yaml
-
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-pvc
+spec:
+  storageClassName: nfs-storage
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Mi
 ```
 
 
@@ -444,7 +562,7 @@ kubectl get sts
 kubectl get pods
 ```
 
-
+![image-20220218200549582](assest/image-20220218200549582.png)
 
 ## 7.6 删除服务
 
@@ -458,7 +576,7 @@ kubectl delete -f .
 kubectl get pv
 
 编译pv的配置文件
-kubectl edit pv pvc-59fb2735-9681-426a-8805-8c94685a07e3 
+kubectl edit pv pvc-054399e6-4cf1-4bc8-baec-c982ba5488ed 
 
 将spec.claimRef属性下的所有内容全部删除
 claimRef:
@@ -472,13 +590,13 @@ claimRef:
 kubectl get pv 
 
 删除pv
-kubectl delete pv pvc-59fb2735-9681-426a-8805-8c94685a07e3
+kubectl delete pv pvc-054399e6-4cf1-4bc8-baec-c982ba5488ed
 
 删除共享目录动态pv的目录
-rm -rf pvc-59fb2735-9681-426a-8805-8c94685a07e3
+rm -rf default-test-pvc-pvc-054399e6-4cf1-4bc8-baec-c982ba5488ed
 ```
 
-
+![image-20220218201225022](assest/image-20220218201225022.png)
 
 # 8 动态PV案例一
 
