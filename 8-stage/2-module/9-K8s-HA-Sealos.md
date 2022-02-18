@@ -200,6 +200,8 @@ EOF
 
 ## 3.3 初始化安装
 
+https://www.sealyun.com/instructions/1st
+
 ### 3.3.1 多master
 
 ```bash
