@@ -189,10 +189,429 @@ kubectl config use-context dashboard-admin@kubernetes --kubeconfig=/root/dashboa
 
 # 5 使用statefulSet创建Zookeeper集群
 
+https://kubernetes.io/zh/docs/tutorials/stateful-application/zookeeper/
+
+## 5.2 安装镜像
+
+```bash
+k8s官方提供进行国内无法下载，使用国内镜像地址下载。需要修改官网默认给的yaml文件，去掉官网镜 ，使用我们下载的镜像。
+docker pull mirrorgooglecontainers/kubernetes-zookeeper:1.0-3.4.10
+```
+
+
+
+## 5.3 资源文件清单
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: zk-hs
+  labels:
+    app: zk
+spec:
+  ports:
+    - port: 2888
+      name: server
+    - port: 3888
+      name: leader-election
+  clusterIP: None
+  selector:
+    app: zk
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zk-cs
+  labels:
+    app: zk
+spec:
+  ports:
+    - port: 2181
+      name: client
+  selector:
+    app: zk
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: zk-pdb
+spec:
+  selector:
+    matchLabels:
+      app: zk
+  maxUnavailable: 1
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: zk
+spec:
+  selector:
+    matchLabels:
+      app: zk
+  serviceName: zk-hs
+  replicas: 3
+  updateStrategy:
+    type: RollingUpdate
+  podManagementPolicy: OrderedReady
+  template:
+    metadata:
+      labels:
+        app: zk
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                      - zk
+              topologyKey: "kubernetes.io/hostname"
+      containers:
+        - name: kubernetes-zookeeper
+          imagePullPolicy: Always
+          image: "mirrorgooglecontainers/kubernetes-zookeeper:1.0-3.4.10"
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "0.5"
+          ports:
+            - containerPort: 2181
+              name: client
+            - containerPort: 2888
+              name: server
+            - containerPort: 3888
+              name: leader-election
+          command:
+            - sh
+            - -c
+            - "start-zookeeper \
+          --servers=3 \
+          --data_dir=/var/lib/zookeeper/data \
+          --data_log_dir=/var/lib/zookeeper/data/log \
+          --conf_dir=/opt/zookeeper/conf \
+          --client_port=2181 \
+          --election_port=3888 \
+          --server_port=2888 \
+          --tick_time=2000 \
+          --init_limit=10 \
+          --sync_limit=5 \
+          --heap=512M \
+          --max_client_cnxns=60 \
+          --snap_retain_count=3 \
+          --purge_interval=12 \
+          --max_session_timeout=40000 \
+          --min_session_timeout=4000 \
+          --log_level=INFO"
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "zookeeper-ready 2181"
+            initialDelaySeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "zookeeper-ready 2181"
+            initialDelaySeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: datadir
+              mountPath: /var/lib/zookeeper
+      securityContext:
+        runAsUser: 1000
+        fsGroup: 1000
+      volumes:
+        - name: datadir
+          emptyDir: {}
+```
+
+
+
+## 5.4 部署zookeeper
+
+```bash
+kubectl apply -f .
+
+监控zookeeper启动过程 
+kubectl get pods -o wide -w
+
+kubectl delete -f .
+```
+
+![image-20220218183216350](assest/image-20220218183216350.png)
+
 # 6 statefulSet
 
 # 7 动态PV
 
+## 7.1 安装镜像
+
+```bash
+由于quay.io仓库部分镜像国内无法下载，所以替换为其他镜像地址
+docker pull vbouchaud/nfs-client-provisioner:v3.1.1
+```
+
+
+
+## 7.2 nfs服务端配置
+
+```bash
+mkdir -p /nfs/data/
+chmod 777 /nfs/data/
+
+yum install -y nfs-utils rpcbind 
+
+更改归属组与用户
+chown nfsnobody /nfs/data/ 
+
+vi /etc/exports
+
+/nfs/data *(rw,fsid=0,sync,no_wdelay,insecure_locks,no_root_squash) 
+
+为了方便接下来两个实验，提前建立2个共享子目录。
+mkdir -p /nfs/data/mariadb 
+mkdir -p /nfs/data/nginx
+
+systemctl start rpcbind 
+systemctl start nfs
+
+设置开启启动
+systemctl enable rpcbind 
+systemctl enable nfs
+```
+
+
+
+## 7.3 nfs的storageClass配置
+
+### 7.3.1 rbac
+
+nfsdynamic/nfsrbac.yml。每次配置文件，只需要调整 ClusterRoleBinding、RoleBinding 的 namespace 值，如果服务是部署在默认的namespace 中，配置文件不需要调整。
+
+```yaml
+
+```
+
+
+
+### 7.3.2 storageClass
+
+nfsdynamic/nfsstorage.yml
+
+```yaml
+
+```
+
+
+
+## 7.4 测试pvc
+
+nfsdynamic/nfspvc.yml
+
+用于测试nfs动态pv是否成功。
+
+```yaml
+
+```
+
+
+
+## 7.5 部署nfs测试服务
+
+```yaml
+kubectl apply -f .
+
+查看storageClass
+kubectl get storageclasses.storage.k8s.io || kubectl get sc
+
+查看mariadb服务
+kubectl get svc 
+
+查看pv pvc 
+
+查看statefulSet 
+kubectl get sts
+
+查看mariadb、storageClass的pods 
+kubectl get pods
+```
+
+
+
+## 7.6 删除服务
+
+pv是动态生成，通过查看pv状态，发现pv不会自动回收。
+
+```bash
+删除mariadb服务 
+kubectl delete -f .
+
+查看动态nfs的pv状态。发现pv的status状态是：Released 
+kubectl get pv
+
+编译pv的配置文件
+kubectl edit pv pvc-59fb2735-9681-426a-8805-8c94685a07e3 
+
+将spec.claimRef属性下的所有内容全部删除
+claimRef:
+   apiVersion: v1
+   kind: PersistentVolumeClaim    name: test-pvc
+   namespace: default
+   resourceVersion: "162046"
+   uid: 59fb2735-9681-426a-8805-8c94685a07e3 
+   
+再次查看pv状态。发现pv的status状态是：Available
+kubectl get pv 
+
+删除pv
+kubectl delete pv pvc-59fb2735-9681-426a-8805-8c94685a07e3
+
+删除共享目录动态pv的目录
+rm -rf pvc-59fb2735-9681-426a-8805-8c94685a07e3
+```
+
+
+
 # 8 动态PV案例一
 
+部署3个副本的nginx服务。主要学习 **volumeClaimTemplate** 属性。
+
+## 8.1 statefulset组成
+
+## 8.2 nfs服务
+
+## 8.3 nginx服务
+
+## 8.4 部署nginx服务
+
 # 9 动态PV案例二
+
+## 9.1 nfs服务
+
+### 9.1.1 rbac
+
+nfsmariadb/nfsrbac.yml。与前文保持一致
+
+```yaml
+
+```
+
+
+
+### 9.1.2 storageClass
+
+nfsmariadb/nfsmariadbstorage.yml。与前文介绍类似，注意修改storageClass的名称
+
+```yaml
+
+```
+
+
+
+## 9.2 mariadb 资源文件
+
+
+
+## 9.3 部署 mariadb 服务
+
+```bash
+部署服务
+kubectl apply -f .
+
+查看storage
+kubectl get storageclasses.storage.k8s.io
+
+查看pv绑定情况
+kubectl get pv
+
+查看pvc绑定情况
+kubectl get pvc
+
+查看服务
+kubectl get svc
+
+查看statefulse
+kubectl get sts
+
+查看pod
+kubectl get pods
+```
+
+
+
+## 9.4 测试 mariadb
+
+```bash
+查看statefulset的服务名称 
+kubectl get svc
+
+创建一个临时的pod用于访问statefulset。通过statefulset的服务名进行访问：-hmariadbsvc。
+语法规则：--command -- mysql,mysql与--之间有空格。
+kubectl run mariadb-test --image=mariadb:10.5.2 --restart=Never -it --rm --command -- mysql -hmariadbsvc -uroot -padmin
+
+命令行方式查看database
+show databases;
+
+命令行方式创建database
+create database turbo;
+
+进入容器查看database目录
+kubectl exec -it mariadbsts-0 sh
+cd /var/lib/mysql
+ls
+exit
+
+查看nfs共享目录，自动创建目录格式为：${namespace}-${pvcName}-${pvName}的文件夹 
+cd /nfs/data
+ls
+cd default-mariadbpvc-pvc-26c5785e-5703-4175-bc6a-3f9097d51d98/
+ls
+```
+
+
+
+
+
+## 9.5 容灾测试
+
+### 9.5.1 删除 pod 测试
+
+```bash
+删除pod进行测试
+kubectl get pvc
+kubectl delete pod
+
+进入容器查看database目录
+kubectl exec -it mariadbsts-0 sh 
+cd /var/lib/mysql
+ls
+exit
+
+查看nfs共享目录中database保存情况 
+cd /nfs/data
+ls
+cd default-mariadbpvc-pvc-26c5785e-5703-4175-bc6a-3f9097d51d98/
+ls
+
+临时客户端查看
+kubectl run mariadb-test --image=mariadb:10.5.2 --restart=Never -it --rm --command -- mysql -hmariadbsvc -uroot -padmin
+show databases;
+exit
+```
+
+
+
+### 9.5.2 删除 statefulset
+
+```bash
+kubectl delete -f .
+```
+

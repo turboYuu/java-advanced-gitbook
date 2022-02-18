@@ -53,7 +53,7 @@ Controller Manager 由 kube-controller-manager 和 cloud-controller-manager 组�
 
    工作在ReplicaSet之上，用于管理无状态应用，目前来说最好的控制器，支持滚动更新和回滚功能，还提供声明式配置。
 
-3. StatefullSet：适合有状态的服务部署。需要学完存储卷后进行系统学习
+3. StatefulSet：适合有状态的服务部署。需要学完存储卷后进行系统学习
 
 4. Daemon：一次部署，所有的node节点都会部署，例如一些典型的应用场景：
 
