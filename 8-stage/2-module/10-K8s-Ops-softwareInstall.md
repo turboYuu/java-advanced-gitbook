@@ -606,9 +606,205 @@ rm -rf default-test-pvc-pvc-054399e6-4cf1-4bc8-baec-c982ba5488ed
 
 ## 8.2 nfs服务
 
+### 8.2.1 rbac
+
+nfsnginx/nfsnginxrbac.yml。与前文保持一致。
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nfs-client-provisioner
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nfs-client-provisioner-runner
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: run-nfs-client-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: nfs-client-provisioner
+    namespace: default  #替换成要部署NFS Provisioner的namespace
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: nfs-client-provisioner-runner
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: leader-locking-nfs-client-provisioner
+rules:
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: leader-locking-nfs-client-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: nfs-client-provisioner
+    namespace: default # 替换成要部署NFS Provisioner的namespace
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: leader-locking-nfs-client-provisioner
+```
+
+
+
+### 8.2.2 storageClass
+
+nfsnginx/nfsnginxstorage.yml。与前文介绍类似，注意修改storageClass的名称
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nfs-client-provisioner
+  labels:
+    app: nfs-client-provisioner
+spec:
+  replicas: 1
+  strategy:
+    #设置升级策略为删除再创建(默认为滚动更新)
+    type: Recreate
+  selector:
+    matchLabels:
+      app: nfs-client-provisioner
+  template:
+    metadata:
+      labels:
+        app: nfs-client-provisioner
+    spec:
+      serviceAccountName: nfs-client-provisioner
+      containers:
+        - name: nfs-client-provisioner
+          #由于quay.io仓库部分镜像国内无法下载，所以替换为其他镜像地址
+          image: vbouchaud/nfs-client-provisioner:v3.1.1
+          volumeMounts:
+            - mountPath: /persistentvolumes
+              name: nfs-client-root
+          env:
+            - name: PROVISIONER_NAME
+              value: nfs-client-nginx  # --- nfs-provisioner的名称，以后设置的 storageclass要和这个保持一致
+            - name: NFS_SERVER
+              value: 192.168.31.61  # NFS服务器地址，与volumes.nfs.servers保 持一致
+            - name: NFS_PATH
+              value: /nginx      # NFS服务共享目录地址，与volumes.nfs.path 保持一致
+      volumes:
+        - name: nfs-client-root
+          nfs:
+            path: /nginx         # NFS服务器目录，与 spec.containers.env.value保持一致
+            server: 192.168.31.61   # NFS服务器地址，与 spec.containers.env.value保持一致
+
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-storage-nginx
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true" #设置为默认的 storageclass
+provisioner: nfs-client-nginx    #动态卷分配者名称，必须 和创建的"provisioner"变量中设置的name一致
+parameters:
+  archiveOnDelete: "true"      #设置为"false"时删除 PVC不会保留数据,"true"则保留数据
+mountOptions:
+  - hard             #指定为硬挂载方式
+  - nfsvers=4        #指定NFS版本，这个需要 根据    NFS Server 版本号设置
+```
+
+
+
 ## 8.3 nginx服务
 
+如果定义多个副本。必须使用 volumeClaimTemplate 属性。如果定义1个副本。可以使用pod+pvc方式。
+
+nfsnginx/nginxstatefulset.yml
+
+```yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nginxdeployment
+  labels:
+    app: nginxdeployment
+spec:
+  replicas: 3
+  serviceName: nginxsvc
+  template:
+    metadata:
+      name: nginxdeployment
+      labels:
+        app: nginxdeployment
+    spec:
+      containers:
+        - name: nginxdeployment
+          image: nginx:1.17.10-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - mountPath: /usr/share/nginx/html
+              name: nginxvolume
+      restartPolicy: Always
+  volumeClaimTemplates:
+    - metadata:
+        name: nginxvolume
+        annotations:
+          volume.beta.kubernetes.io/storage-class: "nfs-storage-nginx"
+    - spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+  selector:
+    matchLabels:
+      app: nginxdeployment
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginxsvc
+spec:
+  selector:
+    app: nginxdeployment
+  ports:
+    - port: 80
+  clusterIP: None
+```
+
+
+
 ## 8.4 部署nginx服务
+
+```bash
+kubectl apply -f .
+kubectl get pods -o wide
+kubectl get pv
+kubectl get pvc
+```
+
+
 
 # 9 动态PV案例二
 
