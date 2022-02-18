@@ -166,3 +166,8 @@ cd /opt/kubespray
 ansible-playbook -i inventory/mycluster/hosts.yaml --become --become-user=root cluster.yml
 ```
 
+
+
+安装成功 有2个master节点
+
+![image-20220218155257233](assest/image-20220218155257233.png)
