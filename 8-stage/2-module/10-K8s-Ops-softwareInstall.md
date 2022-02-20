@@ -763,7 +763,7 @@ spec:
           ports:
             - containerPort: 80
           volumeMounts:
-            - mountPath: /usr/share/nginx/html
+            - mountPath: /usr/share/nginx/html/
               name: nginxvolume
       restartPolicy: Always
   volumeClaimTemplates:
@@ -771,7 +771,7 @@ spec:
         name: nginxvolume
         annotations:
           volume.beta.kubernetes.io/storage-class: "nfs-storage-nginx"
-    - spec:
+      spec:
         accessModes:
           - ReadWriteOnce
         resources:
@@ -804,9 +804,11 @@ kubectl get pv
 kubectl get pvc
 ```
 
-
+![image-20220220160537795](assest/image-20220220160537795.png)
 
 # 9 动态PV案例二
+
+部署mariadb数据库服务。
 
 ## 9.1 nfs服务
 
@@ -815,7 +817,63 @@ kubectl get pvc
 nfsmariadb/nfsrbac.yml。与前文保持一致
 
 ```yaml
-
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nfs-client-provisioner
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nfs-client-provisioner-runner
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: run-nfs-client-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: nfs-client-provisioner
+    namespace: default  #替换成要部署NFS Provisioner的namespace
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: nfs-client-provisioner-runner
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: leader-locking-nfs-client-provisioner
+rules:
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: leader-locking-nfs-client-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: nfs-client-provisioner
+    namespace: default # 替换成要部署NFS Provisioner的namespace
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: leader-locking-nfs-client-provisioner
 ```
 
 
@@ -825,12 +883,144 @@ nfsmariadb/nfsrbac.yml。与前文保持一致
 nfsmariadb/nfsmariadbstorage.yml。与前文介绍类似，注意修改storageClass的名称
 
 ```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nfs-client-provisioner
+  labels:
+    app: nfs-client-provisioner
+spec:
+  replicas: 1
+  strategy:
+    #设置升级策略为删除再创建(默认为滚动更新)
+    type: Recreate
+  selector:
+    matchLabels:
+      app: nfs-client-provisioner
+  template:
+    metadata:
+      labels:
+        app: nfs-client-provisioner
+    spec:
+      serviceAccountName: nfs-client-provisioner
+      containers:
+        - name: nfs-client-provisioner
+          #由于quay.io仓库部分镜像国内无法下载，所以替换为其他镜像地址
+          image: vbouchaud/nfs-client-provisioner:v3.1.1
+          volumeMounts:
+            - mountPath: /persistentvolumes
+              name: nfs-client-root
+          env:
+            - name: PROVISIONER_NAME
+              value: nfs-client-mariadb # --- nfs-provisioner的名称，以后设置的 storageclass要和这个保持一致
+            - name: NFS_SERVER
+              value: 192.168.31.61  # NFS服务器地址，与volumes.nfs.servers保 持一致
+            - name: NFS_PATH
+              value: /mariadb      # NFS服务共享目录地址，与volumes.nfs.path 保持一致
+      volumes:
+        - name: nfs-client-root
+          nfs:
+            path: /mariadb         # NFS服务器目录，与 spec.containers.env.value保持一致
+            server: 192.168.31.61   # NFS服务器地址，与 spec.containers.env.value保持一致
 
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-storage-mariadb
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true" #设置为默认的 storageclass
+provisioner: nfs-client-mariadb    #动态卷分配者名称，必须 和创建的"provisioner"变量中设置的name一致
+parameters:
+  archiveOnDelete: "true"          #设置为"false"时删除 PVC不会保留数据,"true"则保留数据
+mountOptions:
+  - hard                           #指定为硬挂载方式
+  - nfsvers=4                      #指定NFS版本，这个需要 根据    NFS Server 版本号设置
 ```
 
 
 
 ## 9.2 mariadb 资源文件
+
+### 9.2.1 pvc
+
+nfsmariadb/mariadbpvc.yml。为后续容灾测试方便。单独创建 pvc 文件
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mariadbpvc
+spec:
+  storageClassName: nfs-storage-mariadb
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+```
+
+
+
+### 9.2.2 statefulset
+
+nfsmariadb/mariadbstatefulset.yml
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mariadbsvc
+spec:
+  selector:
+    app: mariadbsts
+  ports:
+    - port: 3306
+  clusterIP: None
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mariadbsts
+  labels:
+    app: mariadbsts
+spec:
+  replicas: 1
+  serviceName: mariadbsvc
+  template:
+    metadata:
+      name: mariadbsts
+      labels:
+        app: mariadbsts
+    spec:
+      containers:
+        - name: mariadbsts
+          image: mariadb:10.5.2
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: admin
+            - name: TZ
+              value: Asia/Shanghai
+            - name: MYSQL_DATABASE
+              value: test
+          args:
+            - "--character-set-server=utf8mb4"
+            - "--collation-server=utf8mb4_unicode_ci"
+          volumeMounts:
+            - mountPath: /var/lib/mysql
+              name: mariadb-data
+      restartPolicy: Always
+      volumes:
+        - name: mariadb-data
+          persistentVolumeClaim:
+            claimName: mariadbpvc
+  selector:
+    matchLabels:
+      app: mariadbsts
+```
 
 
 
