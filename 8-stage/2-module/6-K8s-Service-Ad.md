@@ -226,7 +226,7 @@ LoadBalancer类型的 service 是可以实现集群外不访问服务的另外�
 apiVersion: v1
 kind: Service 
 metadata:
-  name: service-lagou 
+  name: service-turbo
 spec:
   ports:
   - port: 3000
