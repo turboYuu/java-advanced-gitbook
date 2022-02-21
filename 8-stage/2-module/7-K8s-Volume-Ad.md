@@ -1484,6 +1484,31 @@ prot: 30036
 
 ### 8.7.2 PV 支持存储的类型
 
+PersistentVolume 类型实现为插件，目前 Kubernetes 支持以下插件：
+
+```bash
+RBD：Ceph 块存储。
+FC：光纤存储设备。
+NFS：网络问卷存储卷。
+iSCSI：iSCSI 存储设备。
+CephFS：开源共享存储系统。
+Flocker：一种开源共享存储系统。
+Glusterfs：一种开源共享存储系统。
+Flexvolume：一种插件式的存储机制。
+HostPath：宿主机目录，仅能用于单机。
+AzureFile：Azure 公有云提供的 File。
+AzureDisk：Azure 公有云提供的 Disk。
+ScaleIO Volumes：DellEMC 的存储设备。
+StorageOS：StorageOS 提供的存储服务。
+VsphereVolume：VMWare 提供的存储系统。
+Quobyte Volumes：Quobyte 提供的存储服务。
+Portworx Volumes：Portworx 提供的存储服务。 
+GCEPersistentDisk：GCE 公有云提供的 PersistentDisk。
+AWSElasticBlockStore：AWS 公有云提供的 ElasticBlockStore。
+```
+
+
+
 ### 8.7.3 PV 的生命周期
 
 ### 8.7.4 PV 的常用配置参数
