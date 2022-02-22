@@ -678,7 +678,7 @@ RedisServer: siphash(hash算法)
 
 不同的key经过计算后出现数组下标一致，称为Hash冲突。
 
-采用单链表在相同的下标为止出存储原始key和value
+采用单链表在相同的下标位置出存储原始key和value
 
 当根据key找Value时，找到数组下标，遍历单链表可以找出key相同的value
 
