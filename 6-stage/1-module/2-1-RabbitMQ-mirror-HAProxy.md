@@ -104,7 +104,7 @@ rabbitmqctl cluster_status
 
 ![image-20210907175638592](assest/image-20210907175638592.png)
 
-```
+```shell
 #在node3上修改集群名称
 # 不一定在一个集群中，只要.erlang.cookie元数据一致，就可以连接到对应节点，进行修改
 rabbitmqctl --node rabbit@node4 set_cluster_name rabbits
