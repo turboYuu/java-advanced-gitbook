@@ -405,7 +405,7 @@ InnoDB数据字典由内部系统组成，这些表包含用于查找表、索�
 
 ##### 重做日志（Redo Log）
 
-重做日志是一种基于磁盘的数据结构，用于再崩溃回复期间更正不完整事务写入的数据。MySQL以循环方式写入重做日志文件，记录InnoDB中所有对Buffer Pool修改的日志。当出现实例故障（像断电），导致数据未能更新到数据文件，则数据库重启时须redo，重新把数据更新到数据文件。读写事务在执行过程中，会不断产生redo log。默认情况下，冲做日志在磁盘上由两个名为ib_logfile0和ib_logfile1的文件物理表示。
+重做日志是一种基于磁盘的数据结构，用于在崩溃恢复期间更正不完整事务写入的数据。MySQL以循环方式写入重做日志文件，记录InnoDB中所有对Buffer Pool修改的日志。当出现实例故障（像断电），导致数据未能更新到数据文件，则数据库重启时须redo，重新把数据更新到数据文件。读写事务在执行过程中，会不断产生redo log。默认情况下，重做日志在磁盘上由两个名为ib_logfile0和ib_logfile1的文件物理表示。
 
 ##### 撤销日志（Undo Logs）
 
@@ -647,7 +647,7 @@ Redo Log和Binlog时MySQL日志系统中非常重要的两种机制，也有很�
 
 - Redo Log介绍
 
-  Redo：顾名思义就是重做。一回复操作为目的，在数据量发生意外时重现操作。
+  Redo：顾名思义就是重做。以恢复操作为目的，在数据库发生意外时重现操作。
 
   Redo Log：指事务中修改的任何数据，将最新的数据备份存储的位置（Redo Log），被称为重做日志。
 
@@ -655,7 +655,7 @@ Redo Log和Binlog时MySQL日志系统中非常重要的两种机制，也有很�
 
 - Redo Log工作原理
 
-  Redo Log是为了实现事务的持久性而出现的产物。防止在发生故障的时间点，尚有脏页未写入表的ibd文件中，在重启MySQL服务的时候，根据Redo Log进行重做，从而达到事务的未入磁盘数据进行持久化这一特性。
+  Redo Log是为了实现事务的持久性而出现的产物。防止在发生故障的时间点，尚有脏页未写入表的IDB文件中，在重启MySQL服务的时候，根据Redo Log进行重做，从而达到事务的未入磁盘数据进行持久化这一特性。
 
 ![image-20210718205459464](assest/image-20210718205459464.png)
 
@@ -682,7 +682,7 @@ Redo Log和Binlog时MySQL日志系统中非常重要的两种机制，也有很�
 
 ![image-20210718211214248](assest/image-20210718211214248.png)
 
-  Redo Buffer持久化到Redo Log的策略，可通过Innodb_flush_log_at_trx_commit设置：
+  **Redo Buffer持久化到Redo Log的策略**，可通过Innodb_flush_log_at_trx_commit设置：
 
   - 0：每秒提交Redo Buffer ->OS cache->flush cache to disk，可能丢失1s内的事务数据。有后台Master线程每个1s执行一次操作。
   - 1（默认值）：每次事务提交执行Redo Buffer -> OS cache -> flush cache to disk，最安全，性能最差。
@@ -696,14 +696,14 @@ Redo Log和Binlog时MySQL日志系统中非常重要的两种机制，也有很�
 
 - Binlog记录模式
 
-  Redo Log是属于InnoDB引擎所特有的日志，而MySQL Server也有自己的日志，即Binary log（二进制日志），简称Binlog。Binlog是记录所有数据库表结构变更以及表数据修改的二进制日志，不会记录SELECT和SHOW这类日志。Binlog日志是以**事件**形式记录，还包含语句所执行的消耗事件。开启Binlog日志有以下两个重要的使用场景。
+  Redo Log是属于InnoDB引擎所特有的日志，而MySQL Server也有自己的日志，即Binary log（二进制日志），简称Binlog。Binlog是记录所有数据库表结构变更以及表数据修改的二进制日志，不会记录SELECT和SHOW这类日志。Binlog日志是以**事件**形式记录，还包含语句所执行的消耗时间。开启Binlog日志有以下两个重要的使用场景。
 
   - 主从复制：在主库中开启Binlog功能，这样主库就可以把Binlog传递给从库，从库拿到Binlog后实现数据恢复达到主从数据一致性。
   - 数据恢复：通过mysqlbinlog工具来恢复数据。
 
-  Binlog文件名默认为”主机名_binlog-序列号“格式，例如oak_binlog-000001，也可以在配置文件中指定名称。文件记录模式有STATEMENT、ROW和MIXED三种，具体含义如下。
+  Binlog文件名默认为”主机名_binlog-序列号“格式，例如 oak_binlog-000001，也可以在配置文件中指定名称。文件记录模式有STATEMENT、ROW 和 MIXED 三种，具体含义如下。
 
-  - ROW（row-based replication,RBR）：日志中会记录每一行数据被修改的情况，然后再slave端对相同的数据进行修改。
+  - ROW（row-based replication,RBR）：日志中会记录每一行数据被修改的情况，然后在 slave 端对相同的数据进行修改。
 
     优点：清楚记录每一个行数据的修改细节，能完全实现主从数据同步和数据恢复。
 
