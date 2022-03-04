@@ -278,10 +278,206 @@ SpringBoot不同版本之间 properties 和 yml 的优先级有所不同。
 
 ## 5.2 application.properties配置文件
 
-使用Spring Initializr 方式构建 SpringBoot项目时，会在 resources 目录下自动生成一个空的
+使用Spring Initializr 方式构建 SpringBoot项目时，会在 resources 目录下自动生成一个空的application.properties文件，Spring Boot项目启动时会自动加载 application.properties文件。
+
+可以在application.properties文件中定义 Spring Boot 项目的相关属性，当然，这些相关属性可以是 系统属性、环境变量、命令参数等信息，也可以是自定义配置文件名称和位置
+
+**演示**
+
+预先准备两个实体类文件，后续会演示将 application.properties 配置文件中的自定义配置属性注入到 Person实体类的对应属性中
+
+1. 先在项目的 com.turbo 包下创建一个 pojo 包，并在该包下创建两个实体类 Pet 和 Person
+
+   ```java
+   @Data
+   public class Pet {
+       private String type;
+       private String name;
+   }
+   ```
+
+   ```java
+   @Data
+   @Component // 用于将Person类作为 Bean 注入到 Spring 容器中
+   @ConfigurationProperties(prefix = "person") // 将配置文件中以 person开头的属性注入到该类中
+   public class Person {
+       
+       private String name;    
+       private List hobby;   
+       private String[] family; 
+       private Map map;    
+       private Pet pet;
+   }
+   ```
+
+   @ConfigurationProperties(prefix = "person") 注解的作用是将 配置文件中 以 person 开头的属性值通过 setXX() 方法注入到实体类对应属性中
+
+   @Component 注解的作用是将当前注入属性值的 Person 类对象作为 Bean 组件放到 Spring 容器中，只有这样才能被 @ConfigurationProperties 注解进行赋值
+
+2. 在application.properties 配置文件中编写需要 对 Person 类设置的配置属性
+
+   ```properties
+   person.id=1
+   person.name=turbo
+   person.hobby=eat,sleep,唱歌
+   person.family=father,mother
+   person.map.k1=v1
+   person.map.k2=v2
+   person.pet.type=dog
+   person.pet.name=wangwang
+   ```
+
+   
+
+   ![image-20220304162359189](assest/image-20220304162359189.png)
+
+   编写application.properties配置文件时，由于要配置的Person对象属性是自定义的，SpringBoot无法自动识别，所以不会有任何提示。在实际开发中，使用@ConfigurationProperties  注解进行配置文件属性值注入时，可以在 pom.xml 文件中添加一个 Spring Boot 提供的配置处理器依赖：
+
+   ```xml
+   <dependency>
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-configuration-processor</artifactId>
+       <optional>true</optional>
+   </dependency>
+   ```
+
+   在 pom.xml 中添加上述配置依赖后，还需要重新运行项目启动类或者使用 【Ctrl+F9】重构当前SpringBoot项目方可生效。
+
+3. 查看 application.properties 配置文件是否正确，同时查看属性配置效果，编写测试类，在测试类中引入 Person 实体类 Bean ，并打印。
+
+   ```java
+   @SpringBootTest // 标记为 Spring Boot 单元测试类，并加载项目的 ApplicationContext 上下文
+   @RunWith(SpringRunner.class) // 测试启动器，并加载 Spring Boot 测试注解
+   class SpringbootDemoApplicationTests {
+   
+       @Autowired
+       private Person person;
+   
+       @Test
+       void contextLoads() {
+           System.out.println(person);
+       }
+   }
+   ```
+
+   打印结果
+
+   ![image-20220304165249561](assest/image-20220304165249561.png)
+
+   
 
 ## 5.3 application.yml配置文件
+
+YAML文件格式是Spring Boot 支持的一种 JSON 超级文件格式，以数据为中心，比properties、xml 等更适合做配置文件
+
+```
+- yml和xml 相比，少了一些结构化的代码，使得数据更直接
+- 相比 properties 文件更简洁
+- YAML 文件的扩展名可以使用 .yml 或者 .yaml
+- application.yml 文件使用 "key:(空格)value" 格式配置属性，使用缩进控制层级关系
+```
+
+这里针对不同数据类型的属性值，介绍 YAML
+
+1. value值为普通数据类型（例如数字、字符串、布尔等）
+
+   可以直接配置对应的属性值，同时对于字符串类型的属性值，不需要额外添加引号，如下：
+
+   ```yaml
+   server:
+     port: 8080
+     servlet:
+       context-path: /hello
+   ```
+
+2. value 值为数组和单列集合
+
+   主要有两种书写方式：缩进式和行内式写法。
+
+   其中缩进式有两种形式，如下：
+
+   ```yaml
+   person:
+     hobby:
+       - play
+       - read
+       - sleep
+   ```
+
+   或者
+
+   ```yaml
+   person:
+     hobby:
+       play,
+       read,
+       sleep
+   ```
+
+   其中一种形式为 “-(空格)属性值” ，另一种形式为 多个属性值之后加英文分割（注意最后一个不要加逗号）。
+
+   ```yaml
+   person:
+     hobby: [play,read,sleep]
+   # 或
+   person:
+     hobby: play,read,sleep
+   ```
+
+3. value值为Map集合和对象
+
+   两种书写方式：缩进式和行内式
+
+   其中缩进式：
+
+   ```yaml
+   person:
+     map:
+       k1: v1
+       k2: v2
+   ```
+
+   行内式：
+
+   ```yaml
+   person:
+     map: {k1: v1,k2: v2}
+   ```
+
+   行内式写法的属性必须要用 大括号 "{}" 包含
+
+4. 测试，编写application.yaml配置文件，编写 Person 类设置的配置属性
+
+   ```yaml
+   person:
+     id: 1
+     name: lily
+     hobby: [sleep,read,sing]
+     family: [father,mother]
+     map: {k1: v1,k2: v2}
+     pet: {type: dog,name: Cligao}
+   ```
+
+   ![image-20220304172909358](assest/image-20220304172909358.png)
 
 # 6 属性注入
 
 # 7 SpringBoot日志框架
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+v
