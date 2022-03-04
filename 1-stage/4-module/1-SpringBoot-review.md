@@ -220,6 +220,68 @@ spring.devtools.restart.exclude=static/**,public/**
 
 # 5 全局配置文件
 
+## 5.1 全局配置文件概述及优先级
+
+全局配置文件能够对一些默认配置值进行修改及自定义配置。
+
+Spring Boot 使用一个 application.properties 或者 application.yaml 的文件作为全局配置文件：
+
+![image-20220304153056397](assest/image-20220304153056397.png)
+
+也可以从 ConfigFileApplicationListener 这个类中看出，其中 DEFAULT_SEARCH_LOCATIONS 属性设置了加载目录：
+
+![image-20220304153328900](assest/image-20220304153328900.png)
+
+翻译成文件系统：
+
+```xml
+-file:./config/
+-file:./
+-classpath:/config/
+-classpath:/
+```
+
+翻译成语言如下（`按照优先级从高到低`）：
+
+1. 先到项目根目录寻找 config 文件下找配置文件
+2. 再去根目录下找配置文件
+3. 去 resources 下找 config 文件夹下找配置文件
+4. 去 resources 下找配置文件
+
+![image-20220304153900169](assest/image-20220304153900169.png)
+
+整个设计非常巧妙。SpringBoot会从这四个位置全部加载主配置文件，如果高优先级中配置文件属性 与 低优先级配置文件不冲突的属性，则会共同存在-`互补配置`。
+
+SpringBoot会加载全部主配置文件；互补配置；
+
+```html
+备注：
+这里说的配置文件，都还是在项目里面。最终都会被打进 jar 包，需要注意。
+
+```
+
+如果我们的配置文件名字不叫 application.properties 或者 application.yml 可以通过以下参数来指定配置文件的名字，myproject是配置文件名（配置文件在项目中）
+
+```bash
+$ java -jar myproject.jar --spring.config.name=myproject
+```
+
+同时可以其他位置的配置文件来生效，指定配置文件和默认加载的这些配置文件共同起作用形成互补配置。
+
+```bash
+java -jar run-0.0.1-SNAPSHOT.jar --spring.config.location=D:/application.properties
+```
+
+**知识补充**
+
+SpringBoot不同版本之间 properties 和 yml 的优先级有所不同。
+
+## 5.2 application.properties配置文件
+
+使用Spring Initializr 方式构建 SpringBoot项目时，会在 resources 目录下自动生成一个空的
+
+## 5.3 application.yml配置文件
+
 # 6 属性注入
 
 # 7 SpringBoot日志框架
