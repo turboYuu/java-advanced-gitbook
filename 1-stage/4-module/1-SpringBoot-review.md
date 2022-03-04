@@ -111,6 +111,8 @@ spring开发团队带来一个插件：spring-boot-devtools，很好的解决了
 
 ## 4.1 热部署实现演示
 
+https://docs.spring.io/spring-boot/docs/current/reference/html/using.html#using.devtools
+
 1. **添加spring-boot-devtools热部署依赖启动器**
 
    在Spring Boot项目进行热部署测试之前，需要现在项目的pom.xml文件中添加 spring-boot-devtools热部署依赖启动器：
@@ -148,7 +150,73 @@ spring开发团队带来一个插件：spring-boot-devtools，很好的解决了
 
 ## 4.2 热部署原理分析
 
+该原理其实很好说明，就是我们编辑器上启动项目，然后改动相关的代码，然后编辑器自动触发替换掉历史的 .class 文件后，项目检测到有文件变更后会重启 spring-boot 项目。
+
+可以看官网的触发描述：
+
+[SpringBoot Automatic Restart](https://docs.spring.io/spring-boot/docs/current/reference/html/using.html#using.devtools.restart)
+
+![image-20220304141238131](assest/image-20220304141238131.png)
+
+可以看到，我们引入插件后，插件后监控我们classpath 的资源变化，当classpath 发生变化后，会触发重启。
+
+![image-20220304141538417](assest/image-20220304141538417.png)
+
+![image-20220304141929828](assest/image-20220304141929828.png)
+
+这里提到了，该插件重启快速的原因：这里对类加载器采用了两种类加载器，对于第三方 jar 包 采用 base-classloader 来加载，对于开发人员自己开发的代码则使用 restartClassLoader 来进行加载，这使得比停掉服务重启要快的多，因为使用插件只是重启开发人员编写的代码部分。
+
+做个简单的验证：
+
+```java
+package com.turbo.config;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.InitializingBean;
+import org.springframework.stereotype.Component;
+import org.springframework.web.servlet.DispatcherServlet;
+
+@Component
+public class Devtools implements InitializingBean {
+
+    private static final Logger log = LoggerFactory.getLogger(Devtools.class);
+
+    @Override
+    public void afterPropertiesSet() throws Exception {
+        log.info("guava-jar classLoader:" + DispatcDisherServlet.class.getClassLoader().toString());
+        log.info("Devtools classLoader:" + this.getClass().getClassLoader().toString());
+    }
+}
+```
+
+先去掉 spring-boot-devtools 插件，跑一下工程：
+
+![image-20220304144045293](assest/image-20220304144045293.png)
+
+可以看到，DispatcDisherServlet（第三方jar包）和 Devtools（自己编写的类）使用的都是 AppClassLoader 加载的。
+
+现在加上插件，然后执行下代码 ：
+
+![image-20220304144445179](assest/image-20220304144445179.png)
+
+发现第三方的 jar 包的类加载器缺失是使用的系统的类加载器，而我们自己写的代码的类加载器为 RestartClassLoader，并且每次重启，类加载器的实例都会改变，即 Devtools.jar 文件会被修改。
+
+
+
+
+
 ## 4.3 排除资源
+
+[Excluding Resource](https://docs.spring.io/spring-boot/docs/current/reference/html/using.html#using.devtools.restart.excluding-resources)
+
+某些资源在更改后不一定需要触发重新启动。例如 Thymeleaf 模板可以就地编辑。改变 `/META-INF/maven`, `/META-INF/resources`, `/resources`, `/static`, `/public`, or `/templates`  不需要重新启动，但会触发重新启动。如果要自定义这些排除项，则可以使用该`spring.devtools.restart.exclude`属性。例如，仅排除 `/static`，`/public` 你可以设置以下属性：
+
+```properties
+spring.devtools.restart.exclude=static/**,public/**
+```
+
+
 
 # 5 全局配置文件
 
