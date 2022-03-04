@@ -462,9 +462,33 @@ YAML文件格式是Spring Boot 支持的一种 JSON 超级文件格式，以数�
 
 # 6 属性注入
 
+## 6.1 属性注入常用注解
+
+## 6.2 @Value属性值注入
+
+## 6.3 @ConfigurationProperties 批量注入
+
+## 6.4 第三方配置
+
+## 6.5 松散绑定
+
+## 6.6 @ConfigurationProperties vs @Value
+
 # 7 SpringBoot日志框架
 
+## 7.1 日志框架介绍
 
+## 7.2 SLF4J 的使用
+
+## 7.3 统一日志框架的使用
+
+## 7.4 Spring Boot 的日志关系
+
+## 7.5 Spring Boot 的日志使用
+
+## 7.6 自定义日志输出
+
+## 7.7 替换日志框架
 
 
 
