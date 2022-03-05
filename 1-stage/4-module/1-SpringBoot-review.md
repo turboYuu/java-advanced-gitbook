@@ -462,46 +462,459 @@ YAML文件格式是Spring Boot 支持的一种 JSON 超级文件格式，以数�
 
 # 6 属性注入
 
+使用Spring Boot全局配置文件设置属性时：
+
+如果配置属性是 Spring Boot 已有属性，例如服务端口 server.port，那么SpringBoot内部会自动扫描并读取这些配置文件中的属性值并覆盖默认属性。
+
+如果配置的属性是用户自定义属性，还必须在程序中注入这些配置属性方可生效。
+
 ## 6.1 属性注入常用注解
+
+@Configuration：声明一个类作为配置类
+
+@Bean：声明在方法上，将方法的返回值加入 Bean 容器
+
+@Value：属性注入
+
+@ConfigurationProperties(prefix="person")：批量属性注入
+
+@PropertySource("classpath:/jdbc.properties")：指定外部属性文件，在类上添加
 
 ## 6.2 @Value属性值注入
 
+1. 引入数据源连接池依赖
+
+   ```xml
+   <dependency>
+       <groupId>com.github.drtrang</groupId>
+       <artifactId>druid-spring-boot2-starter</artifactId>
+       <version>1.1.10</version>
+   </dependency>
+   ```
+
+2. application.properties添加信息
+
+   ```properties
+   jdbc.driverClassName=com.mysql.jdbc.Driver
+   jdbc.url=jdbc:mysql://127.0.0.1:3306/springboot_h
+   jdbc.username=root
+   jdbc.password=123
+   ```
+   
+3. 配置数据源
+
+   创建JdbcConfiguration类：使用Spring中的`@Value`注解对每个属性进行注入，用`@Bean`注解将返回值添加到容器中
+
+   ```java
+   package com.turbo.config;
+   
+   import com.alibaba.druid.pool.DruidDataSource;
+   import org.springframework.beans.factory.annotation.Value;
+   import org.springframework.context.annotation.Bean;
+   import org.springframework.context.annotation.Configuration;
+   
+   import javax.sql.DataSource;
+   
+   @Configuration
+   public class JdbcConfiguration {
+   
+       @Value("${jdbc.url}")
+       private String url;
+   
+       @Value("${jdbc.driverClassName}")
+       private String driverClassName;
+   
+       @Value("${jdbc.username}")
+       private String username;
+   
+       @Value("${jdbc.password}")
+       private String password;
+   
+       @Bean
+       public DataSource dataSource(){
+           DruidDataSource dataSource = new DruidDataSource();
+           dataSource.setDriverClassName(driverClassName);
+           dataSource.setUrl(url);
+           dataSource.setUsername(username);
+           dataSource.setPassword(password);
+           return dataSource;
+       }
+   
+       @Override
+       public String toString() {
+           return "JdbcConfiguration{" +
+                   "url='" + url + '\'' +
+                   ", driverClassName='" + driverClassName + '\'' +
+                   ", username='" + username + '\'' +
+                   ", password='" + password + '\'' +
+                   '}';
+       }
+   }
+   ```
+
+4. 测试方法
+
+   ```java
+   @Autowired
+   private JdbcConfiguration jdbcConfiguration;
+   
+   @Autowired
+   private DataSource dataSource;
+   
+   @Test
+   public void test1(){
+       System.out.println(jdbcConfiguration);
+       System.out.println(dataSource);
+   }
+   ```
+
+   
+
 ## 6.3 @ConfigurationProperties 批量注入
+
+**新建`JdbcProperties`，用来属性注入**。
+
+```java
+@ConfigurationProperties(prefix = "jdbc")
+@Data
+public class JdbcProperties {
+
+    private String url;
+    private String driverClassName;
+    private String username;
+    private String password;
+}
+```
+
+有警告：
+
+![image-20220305123626057](assest/image-20220305123626057.png)
+
+`@EnableConfigurationProperties` 是 Spring Boot 提供的一个注解，使用该注解用于启用应用对另外一个注解 `@ConfigurationProperties`的支持，用于设置一组使用了`@ConfigurationProperties` 的类，用于作为`bean`定义到容器中。
+
+![image-20220305124934545](assest/image-20220305124934545.png)
+
+**application.properties添加信息**
+
+```properties
+jdbc.driverClassName=com.mysql.jdbc.Driver
+jdbc.url=jdbc:mysql://127.0.0.1:3306/springboot_h
+jdbc.username=root
+jdbc.password=123
+```
+
+注意：将配置信息添加到这里，通过前缀进行区分，进行引用
+
+**查看效果**
+
+```java
+@Autowired
+private JdbcProperties jdbcProperties;
+
+@Test
+public void test2(){
+    System.out.println(jdbcProperties);
+}
+```
+
+![image-20220305125011635](assest/image-20220305125011635.png)
 
 ## 6.4 第三方配置
 
+除了`@ConfigurationProperties` 用于注释类之外，还可以在公共`@Bean`方法上使用它。当要将属性绑定到控件之外的第三方组件时，这样做特别有用。
+
+创建一个其他组件类
+
+```java
+package com.turbo.pojo;
+
+import lombok.Data;
+import java.net.InetAddress;
+
+@Data
+public class AnotherComponent {
+    private boolean enabled;
+    private InetAddress remoteAddress;
+}
+```
+
+创建MyService
+
+```java
+package com.turbo.config;
+
+import com.turbo.pojo.AnotherComponent;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class MyService {
+
+    @Bean
+    @ConfigurationProperties(prefix = "another")
+    public AnotherComponent anotherComponent(){
+        return new AnotherComponent();
+    }
+}
+```
+
+配置文件
+
+```properties
+another.enabled=true
+another.remoteAddress=192.168.31.1
+```
+
+测试：
+
+```java
+@Autowired
+private AnotherComponent anotherComponent;
+
+@Test
+public void test3(){
+    System.out.println(anotherComponent);
+}
+```
+
+通过测试可以获得 AnotherComponent 组件的实例对象
+
+![image-20220305130228315](assest/image-20220305130228315.png)
+
 ## 6.5 松散绑定
 
+Spring Boot 使用一些宽松的规则将环境属性绑定到 `@ConfigurationProperties ` bean，因此环境属性名和bean属性名称之间不需要完全匹配
+
+例如属性类：
+
+```java
+package com.turbo.config;
+
+import lombok.Data;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.stereotype.Component;
+
+@Data
+@Component
+@ConfigurationProperties("acme.my-person.person")
+public class OwnerProperties {
+    private String firstName;
+}
+```
+
+```yaml
+acme:
+  my-person:
+    person:
+      firstName: 千万次地问
+```
+
+| 属性文件中配置                   | 说明                         |
+| -------------------------------- | ---------------------------- |
+| acme.my-person.person.first-name | 羊肉串模式，默认，推荐       |
+| acme.myPerson.person.firstName   | 标准驼峰模式                 |
+| acme.my_person.person.first_name | 下划线模式                   |
+| ACME.MYPERSON.PERSON.FIRSTNAME   | 大写，如果使用系统环境时推荐 |
+
+
+
 ## 6.6 @ConfigurationProperties vs @Value
+
+| 特征                                                         | `@ConfigurationProperties` | `@Value`                  |
+| ------------------------------------------------------------ | -------------------------- | ------------------------- |
+| [宽松的绑定](https://docs.spring.io/spring-boot/docs/2.4.0/reference/html/spring-boot-features.html#boot-features-external-config-relaxed-binding) | yes                        | Limited(详见下方官网截图) |
+| [元数据支持](https://docs.spring.io/spring-boot/docs/2.4.0/reference/html/appendix-configuration-metadata.html#configuration-metadata) | yes                        | no                        |
+| `SpEL`表达式                                                 | no                         | yes                       |
+| 应用场景                                                     | 批量属性绑定               | 单个属性绑定              |
+
+![image-20220305133055253](assest/image-20220305133055253.png)
 
 # 7 SpringBoot日志框架
 
 ## 7.1 日志框架介绍
 
+在项目的开发中，日志是必不可少的一个记录事件的组件，所以也会相应的在项目中实现和构建我们所需的日志框架。
+
+常见的日志框架：JCL(最后一次更新时间：2014)、SLF4J、Jboss-logging、jUL、log4j、log4j2、logback 等等，如何选择？
+
+通常情况下，日志是由一个抽象层 + 实现层 的组合来搭建的。（slf4j log4j logback 是同一个作者）
+
+| 日志抽象层                                                   | 日志实现层                                         |
+| ------------------------------------------------------------ | -------------------------------------------------- |
+| JCL(Jakarta Commons Logging)、**SLF4J**(Simple Logging Facade for Java)、jboss-logging | jul(java.util.logging)、log4j、**logback**、log4j2 |
+
+Spring 框架选择使用了 JCL 作为默认日志输出。而 Spring Boot 默认选择了 SLF4J 结合 LogBack。
+
+![image-20220305135320165](assest/image-20220305135320165.png)
+
 ## 7.2 SLF4J 的使用
+
+在开发的时候不应该直接使用日志实现类，应该使用日志的抽象层，具体参考[SLF4J 官方](https://www.slf4j.org/manual.html)
+
+SLF4J 官方给出了简单示例，首先要导入 SLF4J 的jar。
+
+![image-20220305135910705](assest/image-20220305135910705.png)
+
+下图是 SLF4J 结合各种日志框架的官方示例，从图中可以清晰的看出 SLF4J API 永远作为日志的门面，直接应用于程序中。
+
+![img](assest/concrete-bindings.png)
+
+注意：由于每一个日志的实现框架都有自己的配置文件，所以在使用SLF4J之后，配置文件还是要使用 ***实现日志框架的配置文件***。
 
 ## 7.3 统一日志框架的使用
 
+遗留问题：A项目（slf4j + logback）：Spring（commons logging）、Hibernate（jboss-logging）、mybatis...
+
+一般情况下，在项目中存在着各种不同的第三方 jar，且它们的日志选择也可能不尽相同，显然这样不利于我们使用，那么如果想为项目设置统一的日志框架怎么办？
+
+在[SLF4J 官方]()，也给了我们参考的例子
+
+![img](assest/legacy.png)
+
+从图中得到一种统一日志框架使用的方式，可以使用一种和要替换的日志框架类完全一样的jar进行替换，这样不至于原来的第三方 jar 报错，而这个替换的 jar 其实使用了 SLF4J API 。这样项目中的日志都可以通过 SLF4J API 结合自己的选择的 日志实现层框架进行日志输出。
+
+**统一日志框架使用步骤归纳如下**：
+
+1. 排除系统中的其他日志框架
+2. 使用中间包替换 要替换的日志框架
+3. 导入我们选择的 SLF4J 实现
+
 ## 7.4 Spring Boot 的日志关系
+
+### 7.4.1 排除其他日志框架
+
+根据上面总结的， 要统一日志框架的使用，第一步要排除其他日志框架，在Spring Boot 的Maven 依赖里可以清除的看到 Spring Boot 排除了其他日志框架。
+
+![image-20220305153746371](assest/image-20220305153746371.png)
+
+### 7.4.2 统一框架引入替换包
+
+Spring Boot 使用了 SLF4J + logback 的日志框架组合，查看 Spring Boot 项目的Maven依赖关系可以看到 Spring Boot 的核心启动器 spring-boot-starter 引入了 spring-boot-starter-logging 。
+
+![image-20220305144624827](assest/image-20220305144624827.png)
+
+而 spring-boot-starter-logging 的 Maven 依赖主要引入了 logback-classic（包含了日志框架 Logback的实现），log4j-to-slf4j（在log4j 日志框架作者此框架时，还没有想到使用日志抽象层进行开发，因此出现了log4j 向 slf4j 转换的工具），jul-to-slf4j（java自带的日志框架转换为 slf4j）。
+
+```xml
+<dependencies>
+    <dependency>
+        <groupId>ch.qos.logback</groupId>
+        <artifactId>logback-classic</artifactId>
+        <version>1.2.10</version>
+        <scope>compile</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.apache.logging.log4j</groupId>
+        <artifactId>log4j-to-slf4j</artifactId>
+        <version>2.17.1</version>
+        <scope>compile</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>jul-to-slf4j</artifactId>
+        <version>1.7.36</version>
+        <scope>compile</scope>
+    </dependency>
+</dependencies>
+```
+
+从上面的分析，Spring Boot 对日志框架的使用已经是清晰明了，使用IDEA 工具查看 Maven 依赖关系，可以清晰看到日志框架的引用
+
+![image-20220305151950689](assest/image-20220305151950689.png)
+
+由此可见，Spring Boot 可以自动地适配日志框架，而且底层使用 SLF4J+LogBack 记录日志，如果引入其他框架，需要排除其他日志框架。
 
 ## 7.5 Spring Boot 的日志使用
 
+**日志级别和格式**
+
+从上面的分析，发现 Spring Boot 默认已经使用了 **SLF4J + LogBack**，所以不在进行额外操作就可以使用 **SLF4J + LogBack** 进行日志输出。
+
+编写 Java 测试类进行测试：
+
+```java
+Logger logger = LoggerFactory.getLogger(this.getClass());
+
+@Test
+public void testLog(){
+    logger.trace("trace 日志 ...");
+    logger.debug("debug 日志 ...");
+    logger.info("info 日志 ...");
+    logger.warn("warn 日志 ...");
+    logger.error("error 日志 ...");
+}
+```
+
+已知 日志级别从小到大 trace < debug < info < warn < error。运行到的输出如下，由此可见 ***Spring Boot 默认日志隔离级别为 INFO***。
+
+![image-20220305160931575](assest/image-20220305160931575.png)
+
+从上面的日志结合 LogBack 日志格式可以知道 Spring Boot 默认日志格式是：
+
+```
+%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n 
+# %d{yyyy-MM-dd HH:mm:ss.SSS} 时间
+# %thread 线程名称
+# %-5level 日志级别从左显示5个字符宽度 
+# %logger{50} 类名
+# %msg%n 日志信息加换行
+```
+
+至于为什么 Spring Boot 的默认日子输出格式是这样？
+
+![image-20220305161740086](assest/image-20220305161740086.png)
+
+可以在 Spring Boot 的源码里找到答案。
+
+
+
 ## 7.6 自定义日志输出
+
+可以直接在配置文件编写日志相关配置
+
+```properties
+# 日志配置
+# 指定具体包的日记级别
+logging.level.com.turbo = debug
+# 控制台的日志输出格式
+logging.pattern.console=%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n
+# 日志文件输出格式
+logging.pattern.file=%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n
+
+# 日志输出路径(当前项目根目录下)
+#logging.file.path=turbo
+# 日志输出名字；默认spring.log
+logging.file.name=turbo/turbo.log
+# 日志输出到 D 盘根目录
+#logging.file.name=D:/turbo.log
+```
+
+关于日志的输出路径，可以使用 logging.file.name 或者 logging.file.path进行定义。
+
+
 
 ## 7.7 替换日志框架
 
+演示替换日志框架为 log4j2 的方式，根据 [官网](https://docs.spring.io/spring-boot/docs/current/reference/html/using-spring-boot.html#using-boot) 需要 Log4j 与 logging 二选一，因此修改 pom 如下：
 
+![image-20220305165845999](assest/image-20220305165845999.png)
 
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-web</artifactId>
+    <exclusions>
+        <exclusion>
+            <artifactId>spring-boot-starter-logging</artifactId>
+            <groupId>org.springframework.boot</groupId>
+        </exclusion>
+    </exclusions>
+</dependency>
 
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-log4j2</artifactId>
+</dependency>
+```
 
-
-
-
-
-
-
-
-
-
-
-v
