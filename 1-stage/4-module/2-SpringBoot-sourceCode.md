@@ -389,9 +389,92 @@ Spring 中有很多以 `Enable` 开头的注解，其作用就是借助 `@Import
 
 ### 3.3.1 @AutoConfigurationPackage
 
+```java
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@Inherited
+@Import(AutoConfigurationPackages.Registrar.class) // 导入Registrar中注册的组件
+public @interface AutoConfigurationPackage {
+
+}
+```
+
+`@AutoConfigurationPackage`：自动配置包，也是一个组合注解，其中最重要的注解是 `@Import(AutoConfigurationPackages.Registrar.class)` ，是 Spring 框架的底层注解，它的作用就是给容器中导入某个组件类，例如 `@Import(AutoConfigurationPackages.Registrar.class)` ，它就是将 `Registrar` 这个组件类导入到容器中，可查看 `Registrar` 类中 `registerBeanDefinitions` 方法：
+
+```java
+@Override
+public void registerBeanDefinitions(AnnotationMetadata metadata, BeanDefinitionRegistry registry) {
+    // 将注解标注的元信息传入，获取到相应的包名
+    register(registry, new PackageImport(metadata).getPackageName());
+}
+```
+
+对 `new PackageImport(metadata).getPackageName()` 进行检索，看其结果是什么：
+
+![image-20220306145603096](assest/image-20220306145603096.png)
+
+再看 register 方法：
+
+```java
+public static void register(BeanDefinitionRegistry registry, String... packageNames) {
+		// 这里参数 packageNames 缺省情况下就是一个字符串，是使用了注解
+		// @SpringBootApplication 的 Spring Boot 应用程序入口所在的包
+		if (registry.containsBeanDefinition(BEAN)) {
+			// 如果该bean已经注册，则将要注册包名称添加进去
+			BeanDefinition beanDefinition = registry.getBeanDefinition(BEAN);
+			ConstructorArgumentValues constructorArguments = beanDefinition
+                .getConstructorArgumentValues();
+			constructorArguments.addIndexedArgumentValue(0, 
+            	addBasePackages(constructorArguments, packageNames));
+		}
+		else {
+			// 如果该 bean 尚未注册，则注册该bean，参数中提供的包名会被设置到 bean 定义中去
+			GenericBeanDefinition beanDefinition = new GenericBeanDefinition();
+			beanDefinition.setBeanClass(BasePackages.class);
+            // packageNames = @AutoConfigurationPackage 这个注解的类所在包路径
+			beanDefinition.getConstructorArgumentValues().addIndexedArgumentValue(0, packageNames);
+			beanDefinition.setRole(BeanDefinition.ROLE_INFRASTRUCTURE);
+			registry.registerBeanDefinition(BEAN, beanDefinition);
+		}
+	}
+```
+
+AutoConfigurationPackages.Registrar 这个类就干一个事，注册一个 `Bean` ，这个 `Bean` 就是 `org.springframework.boot.autoconfigure.AutoConfigurationPackages.BasePackages`，它有一个参数，这个参数是使用了 `@AutoConfigurationPackage` 这个注解的类所在包路径，保存自动配置类以供之后的使用，比如给 `JPA entity` 扫描器用来扫描开发人员通过注解 `@Entity`定义的 `entity`类。
+
 ### 3.3.2 @Import(AutoConfigurationImportSelector.class)
 
-3.3.3 关于条件注解的讲解
+`@Import(AutoConfigurationImportSelector.class)`：将 `AutoConfigurationImportSelector` 这个类导入到 Spring 容器中，`AutoConfigurationImportSelector`  可以帮助 SpringBoot 应用将所有符合条件的 `@Configuration` 配置都加载到当前 Spring Boot 创建并使用的 IOC 容器（ApplicationContext）中。
+
+![image-20220306152703080](assest/image-20220306152703080.png)
+
+可以看到 `AutoConfigurationImportSelector` 重点是实现了 `DeferredImportSelector` 接口和各种 `Aware` 接口，然后 `DeferredImportSelector` 又继承了 `ImportSelector` 接口。
+
+其实不光实现了 `ImportSelector` 接口，还实现了很多其他的 `Aware` 接口，分别表示在某个时机会被回调。
+
+**确定自动配置实现逻辑的入口方法**：
+
+跟自动配置逻辑相关的入口方法在 `DeferredImportSelectorGrouping` 类的 `getImports` 方法处，因此我们就从 `org.springframework.context.annotation.ConfigurationClassParser.DeferredImportSelectorGrouping#getImports` 开始分析 SpringBoot的自动配置源码。
+
+先看 `getImports` 方法代码：
+
+```java
+// org.springframework.context.annotation.ConfigurationClassParser.DeferredImportSelectorGrouping
+public Iterable<Group.Entry> getImports() {
+    // 遍历 DeferredImportSelectorHolder 对象集合 deferredImport，deferredImport 集合装了各种 ImportSelector，当然这里装的是 AutoConfigurationImportSelector
+    for (DeferredImportSelectorHolder deferredImport : this.deferredImports) {
+        // 【1】 利用 AutoConfigurationGroup 的 process 方法来处理自动配置的相关逻辑，决定导入哪些配置类（这是分析重点，自动配置逻辑全在这里）
+        this.group.process(deferredImport.getConfigurationClass().getMetadata(),
+                           deferredImport.getImportSelector());
+    }
+    // 【2】 经过上面的处理后，然后再进行选择导入哪些配置类
+    return this.group.selectImports();
+}
+```
+
+
+
+###  3.3.3 **关于条件注解的讲解**
 
 3.3.4 以
 
