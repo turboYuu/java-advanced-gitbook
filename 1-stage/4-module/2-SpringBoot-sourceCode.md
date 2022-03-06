@@ -432,7 +432,7 @@ public static void register(BeanDefinitionRegistry registry, String... packageNa
 			// 如果该 bean 尚未注册，则注册该bean，参数中提供的包名会被设置到 bean 定义中去
 			GenericBeanDefinition beanDefinition = new GenericBeanDefinition();
 			beanDefinition.setBeanClass(BasePackages.class);
-            // packageNames = @AutoConfigurationPackage 这个注解的类所在包路径
+            // packageNames(com.turbo) = @AutoConfigurationPackage 这个注解的类所在包路径
 			beanDefinition.getConstructorArgumentValues().addIndexedArgumentValue(0, packageNames);
 			beanDefinition.setRole(BeanDefinition.ROLE_INFRASTRUCTURE);
 			registry.registerBeanDefinition(BEAN, beanDefinition);
@@ -452,9 +452,13 @@ AutoConfigurationPackages.Registrar 这个类就干一个事，注册一个 `Bea
 
 其实不止实现了 `ImportSelector` 接口，还实现了很多其他的 `Aware` 接口，分别表示在某个时机 会被回调。
 
+![image-20220306190410305](assest/image-20220306190410305.png)
+
 #### 3.3.2.1 确定自动配置实现逻辑的入口方法
 
-跟自动配置逻辑相关的入口方法在 `DeferredImportSelectorGrouping` 类的 `getImports` 方法处，因此我们就从 `org.springframework.context.annotation.ConfigurationClassParser.DeferredImportSelectorGrouping#getImports` 开始分析 SpringBoot的自动配置源码。
+因为 `AutoConfigurationImportSelector`  实现了 接口 `DeferredImportSelector`，那么在 SpringBoot启动时，就会执行 `org.springframework.context.annotation.ConfigurationClassParser.DeferredImportSelectorGrouping#getImports`方法。
+
+所以，和 自动配置逻辑相关的入口方法在 `DeferredImportSelectorGrouping` 类的 `getImports` 方法处，因此我们就从 `org.springframework.context.annotation.ConfigurationClassParser.DeferredImportSelectorGrouping#getImports` 开始分析 SpringBoot的自动配置源码。
 
 先看 `getImports` 方法代码：
 
@@ -481,7 +485,7 @@ public Iterable<Group.Entry> getImports() {
 >
 > Metadata：标注在 SpringBoot 启动类上的 @SpringBootApplication 注解元数据，标【2】的 this.group.selectImports 的方法主要针对前面的 process 方法处理后的自动配置类再进一步有选择地导入
 
-在进入到 AutoConfigurationImportSelector.AutoConfigurationGroup#process 方法：
+再进入到 AutoConfigurationImportSelector.AutoConfigurationGroup#process 方法：
 
 
 
