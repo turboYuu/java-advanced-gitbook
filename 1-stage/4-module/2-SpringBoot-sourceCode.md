@@ -356,11 +356,44 @@ public @interface SpringBootConfiguration {
 }
 ```
 
-从上述源码可以看出，@SpringBootConfiguration 注解内部有一个核心注解 @Configuration ，该注解是 Spring 框架提供的，表示当前类是一个配置类（XML配置文件的注解表现形式），并可以
-
-
+从上述源码可以看出，@SpringBootConfiguration 注解内部有一个核心注解 @Configuration ，该注解是 Spring 框架提供的，表示当前类是一个配置类（XML配置文件的注解表现形式），并可以被租价扫描器扫描。由此可见，@SpringBootConfiguration 注解的作用与 @Configuration 注解相同，**都是标识一个可以被组件扫描器扫描的配置类**，只不过 @SpringBootConfiguration 是被 SpringBoot进行了重新封装命名而已。
 
 ## 3.3 @EnableAutoConfiguration
+
+```java
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@Inherited
+// 自动配置包
+// 导入的组件是 AutoConfigurationPackages.Registrar.class
+@AutoConfigurationPackage 
+// Spring的底层注解@Import，给容器中导入一个组件
+@Import(AutoConfigurationImportSelector.class)
+// 告诉SpringBoot开启自动配置功能，这样自动配置才能生效
+public @interface EnableAutoConfiguration {
+
+	String ENABLED_OVERRIDE_PROPERTY = "spring.boot.enableautoconfiguration";
+
+	// 返回不会被导入到 Spring 容器中的类
+	Class<?>[] exclude() default {};
+
+	// 返回不会被导入到 Spring 容器中的类名
+	String[] excludeName() default {};
+}
+```
+
+Spring 中有很多以 `Enable` 开头的注解，其作用就是借助 `@Import` 来收集并注册特定场景相关的 `Bean`，并加载到`IOC`容器。
+
+@EnableAutoConfiguration 就是借助 @Import 来收集所有符合自动配置条件的 bean 定义，并加载到 IoC 容器。
+
+### 3.3.1 @AutoConfigurationPackage
+
+### 3.3.2 @Import(AutoConfigurationImportSelector.class)
+
+3.3.3 关于条件注解的讲解
+
+3.3.4 以
 
 ## 3.4 @ComponentScan 
 
