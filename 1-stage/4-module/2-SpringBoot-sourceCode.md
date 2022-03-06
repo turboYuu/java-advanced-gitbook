@@ -452,7 +452,7 @@ AutoConfigurationPackages.Registrar 这个类就干一个事，注册一个 `Bea
 
 其实不光实现了 `ImportSelector` 接口，还实现了很多其他的 `Aware` 接口，分别表示在某个时机会被回调。
 
-**确定自动配置实现逻辑的入口方法**：
+#### 3.3.2.1 确定自动配置实现逻辑的入口方法
 
 跟自动配置逻辑相关的入口方法在 `DeferredImportSelectorGrouping` 类的 `getImports` 方法处，因此我们就从 `org.springframework.context.annotation.ConfigurationClassParser.DeferredImportSelectorGrouping#getImports` 开始分析 SpringBoot的自动配置源码。
 
@@ -472,9 +472,165 @@ public Iterable<Group.Entry> getImports() {
 }
 ```
 
+标 【1】 处的代码是分析的**重点**，自动配置相关的绝大部分逻辑全在这里。那么 `this.group.process(deferredImport.getConfigurationClass().getMetadata(),deferredImport.getImportSelector())` 主要做的事情就是在 `this.group` 即 `AutoConfigurationGroup` 对象的 `process` 方法中，传入的`AutoConfigurationImportSelector` 对象 来选择一些符合条件的自动配置类，过滤掉一些不符合条件的自动配置类。
+
+> 注：
+> AutoConfigurationGroup：是 AutoConfigurationImportSelector 的内部类，主要用来处理自动配置相关的逻辑，拥有 process 和 selectImports 方法，然后拥有 entries 和 autoConfigurationEntries 集合属性，这两个集合分别存储被处理后的符合条件的自动配置类；
+>
+> AutoConfigurationImportSelector ：承担自动配置的绝大部分逻辑，负责选择一些符合条件的自动配置类；
+>
+> Metadata：标注在 SpringBoot 启动类上的 @SpringBootApplication 注解元数据，标【2】的 this.group.selectImports 的方法主要针对前面的 process 方法处理后的自动配置类再进一步有选择地导入
+
+在进入到 AutoConfigurationImportSelector.AutoConfigurationGroup#process 方法：
 
 
-###  3.3.3 **关于条件注解的讲解**
+
+通过图中可以看到，自动配置逻辑相关地入口方法在 process 方法中。
+
+#### 3.3.2.2 分析自动配置的主要逻辑
+
+```java
+// 这里用来处理自动配置类，比如过滤不符合匹配条件的自动配置类
+@Override
+public void process(AnnotationMetadata annotationMetadata, 
+                    DeferredImportSelector deferredImportSelector) {
+    Assert.state(deferredImportSelector instanceof AutoConfigurationImportSelector,
+                 () -> String.format("Only %s implementations are supported, got %s",
+                                     AutoConfigurationImportSelector.class.getSimpleName(),
+                                     deferredImportSelector.getClass().getName()));
+    // 【1】 调用 getAutoConfigurationEntry 方法得到自动配置类放入 autoConfigurationEntry 对象中
+    AutoConfigurationEntry autoConfigurationEntry = 
+        ((AutoConfigurationImportSelector) deferredImportSelector)
+        .getAutoConfigurationEntry(getAutoConfigurationMetadata(), annotationMetadata);
+    // 【2】 又封装了自动配置类的 autoConfigurationEntry 对象装进 autoConfigurationEntries 集合
+    this.autoConfigurationEntries.add(autoConfigurationEntry);
+    // 【3】 遍历刚获取的自动配置类
+    for (String importClassName : autoConfigurationEntry.getConfigurations()) {
+        // 这里符合条件的自动配置类作为 key,annotationMetadata作为值 放进 entries 集合
+        this.entries.putIfAbsent(importClassName, annotationMetadata);
+    }
+}
+```
+
+上面代码中我们再来看 标【1】的方法 `getAutoConfigurationEntry`，这个方法主要是用来获取自动配置类，承担了自动配置类的主要逻辑，代码：
+
+```java
+// org.springframework.boot.autoconfigure.AutoConfigurationImportSelector#getAutoConfigurationEntry
+// 获取符合条件自动配置类，避免加载不必要的自动配置类从而造成内存浪费
+protected AutoConfigurationEntry getAutoConfigurationEntry(
+    AutoConfigurationMetadata autoConfigurationMetadata,
+    AnnotationMetadata annotationMetadata) {
+    // 获取是否有配置 spring.boot.enableautoconfiguration 属性，默认返回true
+    if (!isEnabled(annotationMetadata)) {
+        return EMPTY_ENTRY;
+    }
+    // 获得 @Configuration 标注的 Configuration 类即被视为 introspectedClass 的注解数据
+    // 比如：@SpringBootApplication(exclude = FreeMarkerAutoConfiguration.class)
+    // 将会获取到 exclude = FreeMarkerAutoConfiguration.class 和 excludeName = "" 的注解数据
+    AnnotationAttributes attributes = getAttributes(annotationMetadata);
+    // 【1】 得到 spring.factories 文件配置的所有自动配置类
+    List<String> configurations = getCandidateConfigurations(annotationMetadata, attributes);
+    // 利用LinkedHashSet移除重复的配置类
+    configurations = removeDuplicates(configurations);
+    // 得到要排除的自动配置类，比如注解属性 exclude 的配置类
+    // 比如：@SpringBootApplication(exclude = FreeMarkerAutoConfiguration.class)
+    // 将会获取到 exclude = FreeMarkerAutoConfiguration.class 的注解数据
+    Set<String> exclusions = getExclusions(annotationMetadata, attributes);
+    // 检查要被排除的配置类，因为有些不是自动配置类，故要抛出异常
+    checkExcludedClasses(configurations, exclusions);
+    // 【2】 将要排除的配置类移除
+    configurations.removeAll(exclusions);
+    // 【3】 因为从  spring.factories 文件获取的自动配置类太多，如果有些不必要的自动配置类都加载进内存，会造成内存浪费，因此这里需要进行过滤
+    // 注意这里会调用 AutoConfigurationImportFilter 的 match 方法来判断是否符合 @ConditionalOnBean，@ConditionalOnClass 或 @ConditionalOnWebApplication，后面重点分析
+    configurations = filter(configurations, autoConfigurationMetadata);
+    // 【4】 获取了符合条件的自动配置类后，此时触发 AutoConfigurationImportEvent 事件
+    // 目的是告诉 ConditionEvaluationReport 条件评估器对象来记录符合条件的自动配置类
+    // 该事件什么时候会被触发？ --> 在刷新容器时调用 invokeBeanFactoryPostProcessors 后置处理器时触发
+    fireAutoConfigurationImportEvents(configurations, exclusions);
+    // 【5】 将符合条件和要排除的自动配置类封装进 AutoConfigurationEntry 对象，并返回
+    return new AutoConfigurationEntry(configurations, exclusions);
+}
+```
+
+#### 3.3.2.3 深入 getCandidateConfigurations 方法
+
+这个方法中有一种重要方法 `loadFactoryNames`，这个方法是让 `SpringFactoriesLoader` 去加载一些组件的名字。
+
+```java
+//org.springframework.boot.autoconfigure.AutoConfigurationImportSelector#getCandidateConfigurations
+protected List<String> getCandidateConfigurations(
+    AnnotationMetadata metadata, AnnotationAttributes attributes) {
+    
+    // 这个方法需要传入两个参数 getSpringFactoriesLoaderFactoryClass() 和 getBeanClassLoader()
+    // getSpringFactoriesLoaderFactoryClass() 返回的是 EnableAutoConfiguration.class
+    // getBeanClassLoader() 返回是 beanClassLoader（类加载器）
+    List<String> configurations = SpringFactoriesLoader.loadFactoryNames(
+        getSpringFactoriesLoaderFactoryClass(),
+        getBeanClassLoader());
+    Assert.notEmpty(configurations, "No auto configuration classes found in META-INF/spring.factories. If you "
+                    + "are using a custom packaging, make sure that file is correct.");
+    return configurations;
+}
+```
+
+继续点开 `loadFactoryNames` 方法
+
+```java
+// org.springframework.core.io.support.SpringFactoriesLoader#loadFactoryNames
+public static List<String> loadFactoryNames(Class<?> factoryType, @Nullable ClassLoader classLoader) {
+    // 获取出入的键
+    String factoryTypeName = factoryType.getName();
+    return loadSpringFactories(classLoader).getOrDefault(factoryTypeName, Collections.emptyList());
+}
+// org.springframework.core.io.support.SpringFactoriesLoader#loadSpringFactories
+private static Map<String, List<String>> loadSpringFactories(@Nullable ClassLoader classLoader) {
+    MultiValueMap<String, String> result = cache.get(classLoader);
+    if (result != null) {
+        return result;
+    }
+
+    try {
+        // 如果类加载器不为 null，则加载类路径下 spring.factories 文件，将其中设置的 配置类的全路径信息封装为 Enumeration 类对象
+        Enumeration<URL> urls = (classLoader != null ?
+                                 classLoader.getResources("META-INF/spring.factories") :
+                                 ClassLoader.getSystemResources("META-INF/spring.factories");
+        result = new LinkedMultiValueMap<>();
+		// 循环 Enumeration 类对象，根据相应的节点信息生成 Properties 对象，通过传入的键获取值，在将值切割为一个个小的字符串转化为 Array,方法 result 集合中
+        while (urls.hasMoreElements()) {
+            URL url = urls.nextElement();
+            UrlResource resource = new UrlResource(url);
+            Properties properties = PropertiesLoaderUtils.loadProperties(resource);
+            for (Map.Entry<?, ?> entry : properties.entrySet()) {
+                String factoryTypeName = ((String) entry.getKey()).trim();
+                for (String factoryImplementationName : 
+                     StringUtils.commaDelimitedListToStringArray((String) entry.getValue())) {
+                    result.add(factoryTypeName, factoryImplementationName.trim());
+                }
+            }
+        }
+        cache.put(classLoader, result);
+        return result;
+    }
+    catch (IOException ex) {
+        throw new IllegalArgumentException("Unable to load factories from location [" +
+                                           FACTORIES_RESOURCE_LOCATION + "]", ex);
+    }
+}
+```
+
+从代码中可以知道，这个方法中会遍历整个ClassLoader中所有所有 jar 包下的 spring.factories 文件。spring.factories 里面保存着 springboot的默认提供的自动配置类。
+
+![image-20220306171833733](assest/image-20220306171833733.png)
+
+
+
+
+
+`getAutoConfigurationEntry` 方法主要所做的事情就是获取符合条件的自动配置类，避免加载不必要的自动配置类从而造成内存浪费。下面总结下 `getAutoConfigurationEntry` 方法主要做的事情：
+
+1. 
+
+### 3.3.3 **关于条件注解的讲解**
 
 3.3.4 以
 
