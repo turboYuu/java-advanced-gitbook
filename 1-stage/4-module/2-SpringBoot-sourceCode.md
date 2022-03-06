@@ -450,7 +450,7 @@ AutoConfigurationPackages.Registrar 这个类就干一个事，注册一个 `Bea
 
 可以看到 `AutoConfigurationImportSelector` 重点是实现了 `DeferredImportSelector` 接口和各种 `Aware` 接口，然后 `DeferredImportSelector` 又继承了 `ImportSelector` 接口。
 
-其实不光实现了 `ImportSelector` 接口，还实现了很多其他的 `Aware` 接口，分别表示在某个时机会被回调。
+其实不止实现了 `ImportSelector` 接口，还实现了很多其他的 `Aware` 接口，分别表示在某个时机 会被回调。
 
 #### 3.3.2.1 确定自动配置实现逻辑的入口方法
 
@@ -626,13 +626,79 @@ private static Map<String, List<String>> loadSpringFactories(@Nullable ClassLoad
 
 
 
-`getAutoConfigurationEntry` 方法主要所做的事情就是获取符合条件的自动配置类，避免加载不必要的自动配置类从而造成内存浪费。下面总结下 `getAutoConfigurationEntry` 方法主要做的事情：
+`getAutoConfigurationEntry` 方法主要所做的事情就是获取符合条件的自动配置类，避免加载不必要的自动配置类从而造成内存浪费。**下面总结下 `getAutoConfigurationEntry` 方法主要做的事情**：
 
-1. 
+1. 从 `spring.factories` 配置文件中加载  `EnableAutoConfiguration` 自动配置类，获取的自动配置类如上图。
+2. 若 `@EnableAutoConfiguration`  等注解标有要 `exclude` 的自动配置类，那么再将这个自动配置类排除掉。
+3. 排除掉 `exclude`的自动配置类后，然后调用 `filter`方法进一步的过滤，再次排除一些不符合条件的自动配置类。
+4. 经过重重过滤后，此时再触发 `AutoConfigurationImportEvent` 事件，告诉 `ConditionEvaluationReport` 条件评估报告器来记录符合条件的自动配置类。
+5. 最后再将符合条件的自动配置类返回。
+
+再细看 `org.springframework.boot.autoconfigure.AutoConfigurationImportSelector#filter`  方法：
+
+```java
+private List<String> filter(List<String> configurations, 
+                            AutoConfigurationMetadata autoConfigurationMetadata) {
+    long startTime = System.nanoTime();
+    // 将从spring.factories 中获取的自动配置类转出字符串数组
+    String[] candidates = StringUtils.toStringArray(configurations);
+    // 定义skip数组，是否跳过。注意skip数组与candidates数组顺序一一对应
+    boolean[] skip = new boolean[candidates.length];
+    boolean skipped = false;
+    // getAutoConfigurationImportFilters 方法：拿到 OnBeanCondition，OnClassCondition 和 OnWebApplicationCondition
+    // 然后遍历这三个条件类 去过滤从 spring.factories 加载的大量配置类
+    for (AutoConfigurationImportFilter filter : getAutoConfigurationImportFilters()) {
+        // 调用各种 aware 方法，将beanClassLoader，beanFactory 等注入到 filter 对象中，
+        // 这里的 filter 对象即 OnBeanCondition，OnClassCondition 或 OnWebApplicationCondition
+        invokeAwareMethods(filter);
+        // 判断各种filter，来判断每个 candidates （这里实质要通过 candidates [自动配置类] 拿到其标注的
+        // @ConditionalOnClass,@ConditionalOnBean 和 @ConditionalOnWebApplication 里面的注解值）是否匹配。
+        // 注意 candidates 数组与 match 数组一一对应
+        /************************【主线，重点】******************************/
+        boolean[] match = filter.match(candidates, autoConfigurationMetadata);
+        // 遍历 match 数组，注意 match 顺序跟  candidates(自动配置类) 一一对应
+        for (int i = 0; i < match.length; i++) {
+            // 若不匹配的话
+            if (!match[i]) {
+                // 不匹配的将记录在 skip 数组，标志 skip[i]=true，也与 candidates 数组一一对应
+                skip[i] = true;
+                // 因为不匹配，将相应的自动配置类置空
+                candidates[i] = null;
+                // 标注 skipped 为 true
+                skipped = true;
+            }
+        }
+    }
+    // 这里表示若所有自动配置类经过  OnBeanCondition，OnClassCondition， OnWebApplicationCondition 过滤后，全部都匹配的话，则全部原样返回
+    if (!skipped) {
+        return configurations;
+    }
+    // 建立 result 集合来装配的自动配置类
+    List<String> result = new ArrayList<>(candidates.length);
+    for (int i = 0; i < candidates.length; i++) {
+        // 若 skip[i] 为 false，则说明是符合条件的自动配置类，添加到result集合中
+        if (!skip[i]) {
+            result.add(candidates[i]);
+        }
+    }
+    // 打印日志
+    if (logger.isTraceEnabled()) {
+        int numberFiltered = configurations.size() - result.size();
+        logger.trace("Filtered " + numberFiltered + " auto configuration class in "
+                     + TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime) + " ms");
+    }
+    // 最后返回符合条件的自动配置类
+    return new ArrayList<>(result);
+}
+```
+
+`AutoConfigurationImportSelector`的`filter` 方法主要所得事情就是 **调用** `org.springframework.boot.autoconfigure.AutoConfigurationImportFilter`接口的`match`  方法来判断每一个自动配置类上的条件注解 `@ConditionalOnClass`，`@ConditionalOnBean` 或 `@ConditionalOnWebApplication` 是否满足条件，若满足，返回true；否则返回 false。
 
 ### 3.3.3 **关于条件注解的讲解**
 
-3.3.4 以
+### 3.3.4 以
+
+### 3.3.5 精髓
 
 ## 3.4 @ComponentScan 
 
