@@ -923,7 +923,55 @@ public SpringApplication(ResourceLoader resourceLoader, Class<?>... primarySourc
 }
 ```
 
+### 4.1.1 deduceFromClasspath()
 
+```java
+// org.springframework.boot.WebApplicationType
+public enum WebApplicationType {
+    
+	// 应用程序不是web应用，也不应该用web服务器去启动
+	NONE,
+
+	// 应用程序应作为基于servlet的web应用程序运行，并应启动嵌入式servlet web（tomcat）服务器。
+	SERVLET,
+
+	// 应用程序应作为reactive web应用程序运行，并应启动嵌入式reactive web服务器。
+	REACTIVE;
+    
+    private static final String[] SERVLET_INDICATOR_CLASSES = { "javax.servlet.Servlet",
+                "org.springframework.web.context.ConfigurableWebApplicationContext" };
+
+    private static final String WEBFLUX_INDICATOR_CLASS = "org.springframework.web.reactive.DispatcherHandler";
+
+    // 判断应用类型
+    static WebApplicationType deduceFromClasspath() {
+        // classpath 下必须存在 org.springframework.web.reactive.DispatcherHandler
+        if (ClassUtils.isPresent(WEBFLUX_INDICATOR_CLASS, null) 
+            && !ClassUtils.isPresent(WEBMVC_INDICATOR_CLASS, null)
+            && !ClassUtils.isPresent(JERSEY_INDICATOR_CLASS, null)) {
+            return WebApplicationType.REACTIVE;
+        }
+        for (String className : SERVLET_INDICATOR_CLASSES) {
+            // classpath 环境下不存在 javax.servlet.Servlet 或 org.springframework.web.context.ConfigurableWebApplicationContext
+            if (!ClassUtils.isPresent(className, null)) {
+                return WebApplicationType.NONE;
+            }
+        }
+        return WebApplicationType.SERVLET;
+    }
+}
+```
+
+返回类型是 WebApplicationType 的枚举类型，WebApplicationType 有三个枚举，三个枚举的解释：
+
+- WebApplicationType.REACTIVE classpath下存在
+  org.springframework.web.reactive.DispatcherHandler；
+- WebApplicationType.SERVLET classpath下存在javax.servlet.Servlet或者 org.springframework.web.context.ConfigurableWebApplicationContext；
+- WebApplicationType.NONE 不满足以上条件。
+
+### 4.1.2 setInitializers((Collection) getSpringFactoriesInstances(ApplicationContextInitializer.class))
+
+初始化 classpath 下 META-INF/spring.factories 中已配置的  ApplicationContextInitializer
 
 ## 4.2 run(String... args) 
 
