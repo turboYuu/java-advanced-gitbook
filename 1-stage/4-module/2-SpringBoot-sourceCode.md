@@ -834,12 +834,136 @@ public class HttpProperties {
 
 `xxxProperties`：封装了对应自动配置类的默认属性值，如果我们需要自定义属性值，只需要根据 `xxxProperties` 寻找相关属性在配置文件设置即可。
 
-## 3.4 @ComponentScan 
+## 3.4 @ComponentScan  注解
+
+### 3.4.1 @ComponentScan 使用
+
+主要是从定义的扫描路径中，找出标识了需要装配的类自动装配到 Spring 的 Bean 容器中。
+
+常用属性如下：
+
+1. basePackages, value：指定扫描路径，如果为空则以 @ComponentScan 注解的类所在的包为基本的扫描路径
+2. basePackageClasses：指定具体扫描类
+3. includeFilters：指定满足Filter条件的类
+4. excludeFilters：指定排除Filter条件的类
+
+includeFilters 和 excludeFilters 的 FilterType 可选：ANNOTATION（注解类型 默认）、ASSIGNABLE_TYPE（指定固定类）、ASPECTJ（ASPECTJ类型），REGEX（正则表达式），CUSTOM（自定义类型），自定义的Filter需要实现 TypeFilter 接口。
+
+```java
+@ComponentScan(excludeFilters = { @Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
+		@Filter(type = FilterType.CUSTOM, classes = AutoConfigurationExcludeFilter.class) }) 
+```
+
+借助 excludeFilters 将 TypeExcludeFilter 及 AutoConfigurationExcludeFilter 这两个类进行排除。
+
+当前 @ComponentScan 注解没有标注 basePackages 及 value，所以扫描路径默认为 @ComponentScan  注解所在的包路径为基本的扫描路径（也就是标注了 @SpringBootApplication 注解的项目启动类所在的路径）。
+
+
+
+> 问题：@EnableAutoConfiguration 注解是通过 @Import 注解加载了自动配置的 bean，
+>
+> ​			@ComponentScan 注解自动进行扫描
+>
+> **那么 真正根据包扫描，把组件类生成实例对象存到 IOC 容器中，又是怎么来完成的**？
 
 # 4 Run方法执行流程
+
+SpringBoot 项目的 main 函数
+
+```java
+@SpringBootApplication // 标注一个主程序类，说明这是一个 Spring Boot 应用
+public class SpringBootMytestApplication {
+	public static void main(String[] args) {
+		SpringApplication.run(SpringBootMytestApplication.class, args);
+	}
+}
+```
+
+点击 `run`  方法 
+
+```java
+public static ConfigurableApplicationContext run(Class<?> primarySource, String... args) {
+    // 调用重载方法
+    return run(new Class<?>[] { primarySource }, args);
+}
+
+public static ConfigurableApplicationContext run(Class<?>[] primarySources, String[] args) {
+    // 两件事：1.初始化 SpringApplication 2.执行 run 方法
+    return new SpringApplication(primarySources).run(args);
+}
+```
+
+## 4.1 SpringApplication() 构造方法
+
+继续查看源码，SpringApplication 实例化过程，首先是进入带参数的构造方法，最终回来到两个参数的构造方法。
+
+```java
+public SpringApplication(Class<?>... primarySources) {
+    this(null, primarySources);
+}
+
+@SuppressWarnings({ "unchecked", "rawtypes" })
+public SpringApplication(ResourceLoader resourceLoader, Class<?>... primarySources) {
+    // 设置资源加载器为 null
+    this.resourceLoader = resourceLoader;
+
+    // 断言加载资源类不能为null
+    Assert.notNull(primarySources, "PrimarySources must not be null");
+
+    // 将 primarySources 数组转换为 List，最后 放到 LinkedHashSet 集合中
+    this.primarySources = new LinkedHashSet<>(Arrays.asList(primarySources));
+    // 【1.1】 推断应用类型，后面会根据类型初始化对应的环境。常用的一般都是 servlet 环境
+    this.webApplicationType = WebApplicationType.deduceFromClasspath();
+    // 【1.2】 初始化 classpath 下 META-INFO/spring.factories 中已配置的 ApplicationContextInitializer
+    setInitializers((Collection) getSpringFactoriesInstances(ApplicationContextInitializer.class));
+    // 【1.3】 初始化 classpath 下所有已配置的 ApplicationListener
+    setListeners((Collection) getSpringFactoriesInstances(ApplicationListener.class));
+    // 【1.4】 根据调用栈，推断出 main 方法的类名 
+    this.mainApplicationClass = deduceMainApplicationClass();
+}
+```
+
+
+
+## 4.2 run(String... args) 
 
 # 5 自定义Start
 
 # 6 内嵌Tomcat
 
 # 7 自动配置SpringMVC
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
