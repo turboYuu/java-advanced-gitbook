@@ -705,8 +705,59 @@ private List<String> filter(List<String> configurations,
 
 @Conditional 是 Spring4 新提供的注解，它的作用是按照一定的条件进行判断，满足条件就向容器注册bean。
 
-- @ConditionalOnBean：仅仅在当前上下文中存在某个对象时，才会实例化一个Bean。
-- 
+1. @ConditionalOnBean：仅仅在当前上下文中存在某个对象时，才会实例化一个Bean。
+2. @ConditionalOnMissingBean：仅仅在当前上下文中不存在某个对象时，才会实例化一个Bean。
+3. @ConditionalOnClass：某个class位于类路径上，才会实例化一个Bean。
+4. @ConditionalOnMissingClass：某个class在类路径上不存在时，才会实例化一个Bean。
+5. @ConditionalOnExpression：当表达式为true的时候，才会实例化一个Bean。基于SpEL表达式的条件判断。
+6. @ConditionalOnWebApplication：当项目是一个Web项目时，才进行实例化。
+7. @ConditionalOnNotWebApplication：当一个项目不是Web项目时进行实例化。
+8. @ConditionalOnProperty：当指定的属性有指定的值时进行实例化。
+9. @ConditionalOnJava：当JVM版本为指定的版本范围时触发实例化。
+10. @ConditionalOnResource：当类路径下有指定的资源时触发实例化。
+11. @ConditionalOnJndi：在JNDI村子啊的条件下触发实例化。
+12. @ConditionalOnSingleCandidate：当指定的Bean在容器中只有一个，或者有多个但是指定了首选的Bean时触发实例化。
+
+
+
+**有选择地导入自动配置类**
+
+`this.group.selectImports()`方法时如何进一步有效的导入自动配置类的：
+
+```java
+// AutoConfigurationImportSelector.AutoConfigurationGroup#selectImports
+public Iterable<Entry> selectImports() {
+    if (this.autoConfigurationEntries.isEmpty()) {
+        return Collections.emptyList();
+    }
+    // 这里得到所有要排除的自动配置类的set集合
+    Set<String> allExclusions = this.autoConfigurationEntries.stream()
+        .map(AutoConfigurationEntry::getExclusions)
+        .flatMap(Collection::stream)
+        .collect(Collectors.toSet());
+    // 这里得到过滤后所有符合条件的自动配置类的set集合
+    Set<String> processedConfigurations = this.autoConfigurationEntries.stream()
+        .map(AutoConfigurationEntry::getConfigurations)
+        .flatMap(Collection::stream)
+        .collect(Collectors.toCollection(LinkedHashSet::new));
+    // 移除掉要排除的自动配置类
+    processedConfigurations.removeAll(allExclusions);
+    // 对标注有 @Order 注解的自动配置类进行排序
+    return sortAutoConfigurations(processedConfigurations, getAutoConfigurationMetadata()).stream()
+        .map((importClassName) -> new Entry(this.entries.get(importClassName), importClassName))
+        .collect(Collectors.toList());
+}
+```
+
+可以看到，`selectImports` 方法主要是针对经过排除掉 `exclude` 的 和 被 `AutoConfigurationImportFilter` 接口过滤后的满足条件的自动配置类，**再进一步排除 `exclude` 的自动配置类**，然后再排序。
+
+最后，**总结下SpringBoot自动配置的原理**，主要做了以下事情：
+
+1. 从spring.factories 配置文件中加载自动配置类；
+2. 加载的自动配置类中排除掉 `@EnableAutoConfiguration`注解的 `exclude` 属性指定的自动配置类；
+3. 然后再用 `AutoConfigurationImportFilter` 接口去过滤自动配置类是否符合其标注注解（若有的话）`@ConditionalOnClass`，`@ConditionalOnBean` 或 `@ConditionalOnWebApplication` 的条件，若都符合的话则返回匹配结果；
+4. 再触发 `AutoConfigurationImportEvent` 事件，告诉 `ConditionEvaluationReport` 条件评估报告器来记录符合条件的自动配置类和 `exclude`的自动配置类；
+5. 最后Spring再将最后筛选后的自动配置类导入 IOC 容器中。
 
 ### 3.3.4 以
 
