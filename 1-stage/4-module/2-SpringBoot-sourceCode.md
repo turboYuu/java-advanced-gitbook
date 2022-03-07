@@ -759,9 +759,80 @@ public Iterable<Entry> selectImports() {
 4. 再触发 `AutoConfigurationImportEvent` 事件，告诉 `ConditionEvaluationReport` 条件评估报告器来记录符合条件的自动配置类和 `exclude`的自动配置类；
 5. 最后Spring再将最后筛选后的自动配置类导入 IOC 容器中。
 
-### 3.3.4 以
+### 3.3.4 以 `HttpEncodingAutoConfiguration` （`Http`编码自动配置）为例解释自动配置原理
+
+```java
+// org.springframework.boot.autoconfigure.web.servlet.HttpEncodingAutoConfiguration
+
+// 表示这是一个配置类，和以前编写的配置文件一样，也可以给容器中添加组件
+@Configuration(proxyBeanMethods = false)
+// 启动指定类的 ConfigurationProperties 功能：将配置文件中对应的值和 HttpProperties 绑定起来；
+@EnableConfigurationProperties(HttpProperties.class)
+// Spring 底层 @Conditional注解，根据不同的条件，如果满足指定的条件，整个配置类里面的配置就会生效
+// 判断当前应用是否是web应用，如果是，当前配置类生效。
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+// 判断当前项目中有没有这个 CharacterEncodingFilter ：SpringMVC中进行乱码解决的过滤器
+@ConditionalOnClass(CharacterEncodingFilter.class)
+// 判断配置文件中是否存在某个配置 spring.http.encoding ，如果不存在，判断也是成立的
+// matchIfMissing = true 表示即使配置文件中不配置  spring.http.encoding.enabled = true,也是默认生效的
+@ConditionalOnProperty(prefix = "spring.http.encoding", value = "enabled", matchIfMissing = true)
+public class HttpEncodingAutoConfiguration {
+
+	// 它已经和 SpringBoot 配置文件中的值进行映射了
+	private final HttpProperties.Encoding properties;
+
+	// 只有一个有参构造器的情况下，参数的值就会从容器中拿
+	public HttpEncodingAutoConfiguration(HttpProperties properties) {
+		this.properties = properties.getEncoding();
+	}
+
+	@Bean // 给容器中添加一个组件，这个组件中的某些值需要从 properties 中获取
+	@ConditionalOnMissingBean // 判断容器中 没有 这个组件
+	public CharacterEncodingFilter characterEncodingFilter() {
+		CharacterEncodingFilter filter = new OrderedCharacterEncodingFilter();
+		filter.setEncoding(this.properties.getCharset().name());
+		filter.setForceRequestEncoding(this.properties.shouldForce(Type.REQUEST));
+		filter.setForceResponseEncoding(this.properties.shouldForce(Type.RESPONSE));
+		return filter;
+	}
+}
+```
+
+根据当前不同的条件判断，决定这个配置类是否生效。
+
+一旦这个配置类生效，这个配置类就会给容器中添加各种组件；这些组件的属性是从对应的 `properties` 类中获取的，这些类里面的每一个属性又是和配置文件绑定的。
+
+```properties
+spring.http.encoding.enabled=true
+spring.http.encoding.charset=utf-8
+spring.http.encoding.force=true
+```
+
+所有在配置文件中能配置的属性都是在 `xxxProperties` 类中封装着，配置文件能配置什么就可以参照某个功能对应的这个属性类。
+
+```java
+@ConfigurationProperties(prefix = "spring.http")
+public class HttpProperties {
+    public static class Encoding {
+		public static final Charset DEFAULT_CHARSET = StandardCharsets.UTF_8;
+    }
+}
+```
+
+
 
 ### 3.3.5 精髓
+
+1. SpringBoot 启动会加载大量的自动配置类
+2. 看我们需要实现的功能有没有 `SpringBoot` 默认写好的自动配置类
+3. 再来看看这个自动配置类中到底设置了哪些组件（只要有我们要用的组件，我们就不需要再来配置了）
+4. 给容器中自动配置类添加组件的时候，会从 `properties` 类中获取某些属性，我们就可以在配置文件中指定这些属性的值。
+
+
+
+`xxxAutoConfiguration`：自动配置类，用于给容器中添加组件从而代替之前我们手动完成大量繁琐的配置。
+
+`xxxProperties`：封装了对应自动配置类的默认属性值，如果我们需要自定义属性值，只需要根据 `xxxProperties` 寻找相关属性在配置文件设置即可。
 
 ## 3.4 @ComponentScan 
 
