@@ -478,6 +478,8 @@ public Iterable<Group.Entry> getImports() {
 
 标 【1】 处的代码是分析的**重点**，自动配置相关的绝大部分逻辑全在这里。那么 `this.group.process(deferredImport.getConfigurationClass().getMetadata(),deferredImport.getImportSelector())` 主要做的事情就是在 `this.group` 即 `AutoConfigurationGroup` 对象的 `process` 方法中，传入的`AutoConfigurationImportSelector` 对象 来选择一些符合条件的自动配置类，过滤掉一些不符合条件的自动配置类。
 
+![image-20220307105636455](assest/image-20220307105636455.png)
+
 > 注：
 > AutoConfigurationGroup：是 AutoConfigurationImportSelector 的内部类，主要用来处理自动配置相关的逻辑，拥有 process 和 selectImports 方法，然后拥有 entries 和 autoConfigurationEntries 集合属性，这两个集合分别存储被处理后的符合条件的自动配置类；
 >
@@ -487,14 +489,15 @@ public Iterable<Group.Entry> getImports() {
 
 再进入到 AutoConfigurationImportSelector.AutoConfigurationGroup#process 方法：
 
+![image-20220307105917669](assest/image-20220307105917669.png)
 
-
-通过图中可以看到，自动配置逻辑相关地入口方法在 process 方法中。
+通过图中可以看到，自动配置逻辑相关的入口方法在 process 方法中。
 
 #### 3.3.2.2 分析自动配置的主要逻辑
 
 ```java
 // 这里用来处理自动配置类，比如过滤不符合匹配条件的自动配置类
+// org.springframework.boot.autoconfigure.AutoConfigurationImportSelector.AutoConfigurationGroup#process
 @Override
 public void process(AnnotationMetadata annotationMetadata, 
                     DeferredImportSelector deferredImportSelector) {
@@ -582,7 +585,7 @@ protected List<String> getCandidateConfigurations(
 ```java
 // org.springframework.core.io.support.SpringFactoriesLoader#loadFactoryNames
 public static List<String> loadFactoryNames(Class<?> factoryType, @Nullable ClassLoader classLoader) {
-    // 获取出入的键
+    // 获取注入的键 （在自动配置时=EnableAutoConfiguration.class）
     String factoryTypeName = factoryType.getName();
     return loadSpringFactories(classLoader).getOrDefault(factoryTypeName, Collections.emptyList());
 }
@@ -699,6 +702,11 @@ private List<String> filter(List<String> configurations,
 `AutoConfigurationImportSelector`的`filter` 方法主要所得事情就是 **调用** `org.springframework.boot.autoconfigure.AutoConfigurationImportFilter`接口的`match`  方法来判断每一个自动配置类上的条件注解 `@ConditionalOnClass`，`@ConditionalOnBean` 或 `@ConditionalOnWebApplication` 是否满足条件，若满足，返回true；否则返回 false。
 
 ### 3.3.3 **关于条件注解的讲解**
+
+@Conditional 是 Spring4 新提供的注解，它的作用是按照一定的条件进行判断，满足条件就向容器注册bean。
+
+- @ConditionalOnBean：仅仅在当前上下文中存在某个对象时，才会实例化一个Bean。
+- 
 
 ### 3.3.4 以
 
