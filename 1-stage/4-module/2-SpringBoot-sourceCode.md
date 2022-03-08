@@ -973,6 +973,65 @@ public enum WebApplicationType {
 
 初始化 classpath 下 META-INF/spring.factories 中已配置的  ApplicationContextInitializer
 
+```java
+private <T> Collection<T> getSpringFactoriesInstances(Class<T> type) {
+    return getSpringFactoriesInstances(type, new Class<?>[] {});
+}
+
+/**
+	 * 通过指定的 classloader 从 META-INF/spring.factories 获取指定的 Spring 的工厂实例
+	 * @param type
+	 * @param parameterTypes
+	 * @param args
+	 * @param <T>
+	 * @return
+	 */
+private <T> Collection<T> getSpringFactoriesInstances(Class<T> type, 
+                                                      Class<?>[] parameterTypes, 
+                                                      Object... args) {
+    ClassLoader classLoader = getClassLoader();
+    // Use names and ensure unique to protect against duplicates
+    // 通过指定的classLoader 从 META-INF/spring.factories 的资源文件中，
+    // 读取 key 为 type.getName() 的 value (ApplicationContextInitializer.class)
+    Set<String> names = new LinkedHashSet<>(SpringFactoriesLoader.loadFactoryNames(type, classLoader));
+    // 创建 Spring 工厂实例
+    List<T> instances = createSpringFactoriesInstances(type, parameterTypes, classLoader, args, names);
+    // 对 Spring 工厂实例排序（org.springframework.core.annotation.Order注解指定的顺序）
+    AnnotationAwareOrderComparator.sort(instances);
+    return instances;
+}
+```
+
+看看 getSpringFactoriesInstances 都做了什么，看源码，有一个很重要的  `SpringFactoriesLoader.loadFactoryNames` 方法，这个方法很重要，这个方法是 spring-core 中提供的从 META-INF/spring.factories中获取指定的类（key）的统一入口方法。
+
+在这里，获取的key 为 `org.springframework.context.ApplicationContextInitializer` 的类。
+
+![image-20220308103548821](assest/image-20220308103548821.png)
+
+上面说了，是从classpath 下 META-INF/spring.factories 中获取的，验证一下：
+
+![image-20220308103831027](assest/image-20220308103831027.png)
+
+![image-20220308103941201](assest/image-20220308103941201.png)
+
+发现在上图所示的两个工程中找到了 debug 中看到的结果。
+
+`ApplicationContextInitializer`  是 Spring 框架的类，这个类的主要目的就是在 ConfigurableApplicationContext 调用 refresh() 方法之前，回调这个类`ApplicationContextInitializer`  的 initialize 方法。
+
+通过 ConfigurableApplicationContext 的实例获取容器的环境 Environment，从而实现对配置文件的修改完善等工作。
+
+### 4.1.3 setListeners((Collection) getSpringFactoriesInstances(ApplicationListener.class))
+
+初始化classpath 下 META-INF/spring.facotires 中已配置的 ApplicationListener。
+
+ApplicationListener 的加载过程 和 上面的 ApplicationContextInitializer 类的加载过程是一样的。至于 ApplicationListener 是 Spring 的事件监听器，典型的观察者模式，通过 ApplicationEvent 类 和 ApplicationListener 接口，可以实现对 Spring 容器全生命周期的监听，当然也可以自定义监听事件。
+
+### 4.1.4 总结
+
+关于 SpringApplication 类的构造过程，到这里就梳理完了。纵观 SpringApplication 类的实例化过程，我们可以看到，合理的利用该类，我们能在 Spring 容器创建之前做一些预备工作，和定制化的需求。
+
+比如，自定义 SpringBoot 的 Banner，自定义事件监听器，再比如 在容器 refresh 之前通过自定义的 ApplicationContextInitializer 修改一些配置 或 获取指定的bean 都可以。
+
 ## 4.2 run(String... args) 
 
 # 5 自定义Start
