@@ -1122,6 +1122,50 @@ public ConfigurableApplicationContext run(String... args) {
 
 ### 4.2.1 获取并启动监听器
 
+事件机制在 Spring 中是很重要的一部分内容，通过事件机制我们可以监听Spring容器中正在发生的一些事件，同样也可以自定义监听事件。Spring的事件为 Bean 和 Bean 之间的消息传递提供支持。当一个对象处理完某种任务后，通知另外的对象进行某些处理，常用的场景有进行某些操作后发通知、消息、邮件等。
+
+```java
+private SpringApplicationRunListeners getRunListeners(String[] args) {
+    Class<?>[] types = new Class<?>[] { SpringApplication.class, String[].class };
+    return new SpringApplicationRunListeners(
+        logger,
+        getSpringFactoriesInstances(SpringApplicationRunListener.class, types, this, args));
+}
+```
+
+这里是不是看到一个熟悉的方法：`getSpringFactoriesInstances()`，可以看下面的注释，前面的小结已经详细介绍过该方法是怎么一步步获取到 META-INF/spring.factories 中的指定 key 的 value，获取到以后怎么实例化类的。
+
+```java
+/**
+	 * 通过指定的 classloader 从 META-INF/spring.factories 获取指定的 Spring 的工厂实例
+	 * @param type
+	 * @param parameterTypes
+	 * @param args
+	 * @param <T>
+	 * @return
+	 */
+private <T> Collection<T> getSpringFactoriesInstances(Class<T> type, 
+                                                      Class<?>[] parameterTypes, 
+                                                      Object... args) {
+    ClassLoader classLoader = getClassLoader();
+    // Use names and ensure unique to protect against duplicates
+    // 通过指定的classLoader 从 META-INF/spring.factories 的资源文件中，
+    // 读取 key 为 type.getName() 的 value
+    Set<String> names = new LinkedHashSet<>(SpringFactoriesLoader.loadFactoryNames(type, classLoader));
+    // 创建 Spring 工厂实例
+    List<T> instances = createSpringFactoriesInstances(type, parameterTypes, classLoader, args, names);
+    // 对 Spring 工厂实例排序（org.springframework.core.annotation.Order注解指定的顺序）
+    AnnotationAwareOrderComparator.sort(instances);
+    return instances;
+}
+```
+
+回到 run 方法，debug 这个代码 `SpringApplicationRunListeners listeners = getRunListeners(args);` 看一下获取到的是哪个监听器：
+
+![image-20220308144358708](assest/image-20220308144358708.png)
+
+EventPublishingRunListener 监听器是Spring容器的启动监听器。`listeners.starting();` 开启了监听事件。
+
 ### 4.2.2 构造应用上下文环境
 
 ### 4.2.3 初始化应用上下文
