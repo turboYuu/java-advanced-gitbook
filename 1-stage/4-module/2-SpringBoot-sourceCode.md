@@ -1034,6 +1034,104 @@ ApplicationListener 的加载过程 和 上面的 ApplicationContextInitializer 
 
 ## 4.2 run(String... args) 
 
+这一节，总结SpringBoot 启动流程最重要的部分 run 方法。通过 run 方法梳理出 SpringBoot 的启动流程。
+
+经过深入分析，会发现 SpringBoot 也就是给 Spring 包了一层，事先替我们准备好 Spring 所需的环境及一些基础。
+
+```java
+/**
+	 * Run the Spring application, creating and refreshing a new
+	 * {@link ApplicationContext}.
+	 * @param args the application arguments (usually passed from a Java main method)
+	 * @return a running {@link ApplicationContext}
+	 * 运行 Spring 应用，并刷新一个新的 ApplicationContext （Spring 的上下文）
+	 * ConfigurableApplicationContext 是 ApplicationContext 接口的子接口，
+	 * 在 ApplicationContext 的基础上增加了配置上下文的工具，
+	 * ConfigurableApplicationContext 是容器的高级接口。
+	 */
+public ConfigurableApplicationContext run(String... args) {
+    // 记录运行事件
+    StopWatch stopWatch = new StopWatch();
+    stopWatch.start();
+    // ConfigurableApplicationContext Spring de 上下文
+    ConfigurableApplicationContext context = null;
+    Collection<SpringBootExceptionReporter> exceptionReporters = new ArrayList<>();
+    configureHeadlessProperty();
+    // 从 META-INF/spring.factories 中获取监听器
+    // 1. 获取并启动监听器
+    SpringApplicationRunListeners listeners = getRunListeners(args);
+    listeners.starting();
+    try {
+        ApplicationArguments applicationArguments = new DefaultApplicationArguments(args);
+        // 2. 构造应用上下文环境
+        ConfigurableEnvironment environment = prepareEnvironment(listeners, applicationArguments);
+        // 处理需要忽略的Bean
+        configureIgnoreBeanInfo(environment);
+        // 打印 banner
+        Banner printedBanner = printBanner(environment);
+        // 3. 初始化应用上下文
+        context = createApplicationContext();
+        // 实例化 SpringBootExceptionReporter.class，用来支持报告关于启动的错误
+        exceptionReporters = getSpringFactoriesInstances(
+            SpringBootExceptionReporter.class,
+            new Class[] { ConfigurableApplicationContext.class }, 
+            context);
+        // 4. 刷新应用上下文前的准备阶段
+        prepareContext(context, environment, listeners, applicationArguments, printedBanner);
+        // 5. 刷新应用上下文
+        refreshContext(context);
+        // 6. 刷新应用上下文后的扩展接口
+        afterRefresh(context, applicationArguments);
+        // 时间记录停止
+        stopWatch.stop();
+        if (this.logStartupInfo) {
+            new StartupInfoLogger(
+                this.mainApplicationClass).logStarted(getApplicationLog(), 
+                                                      stopWatch);
+        }
+        // 发布容器启动完成事件
+        listeners.started(context);
+        callRunners(context, applicationArguments);
+    }
+    catch (Throwable ex) {
+        handleRunFailure(context, ex, exceptionReporters, listeners);
+        throw new IllegalStateException(ex);
+    }
+
+    try {
+        listeners.running(context);
+    }
+    catch (Throwable ex) {
+        handleRunFailure(context, ex, exceptionReporters, null);
+        throw new IllegalStateException(ex);
+    }
+    return context;
+}
+```
+
+在以上的代码中，启动过程中的重要步骤 分为六步：
+
+1. 获取并启动监听器
+2. 构造应用上下文环境
+3. 初始化应用上下文
+4. **刷新应用上下文前的准备阶段**  :star:
+5. **刷新应用上下文** :star:
+6. 刷新应用上下文后的扩展接口
+
+下马 SpringBoot 的启动流程分析，就根据这六大步骤进行详细解读。最重要的是 第4、第5步。
+
+### 4.2.1 获取并启动监听器
+
+### 4.2.2 构造应用上下文环境
+
+### 4.2.3 初始化应用上下文
+
+### 4.2.4 刷新应用上下文前的准备阶段
+
+### 4.2.5 刷新应用上下文（IOC容器的初始化过程）
+
+### 4.2.6 刷新应用上下文后的扩展接口
+
 # 5 自定义Start
 
 # 6 内嵌Tomcat
