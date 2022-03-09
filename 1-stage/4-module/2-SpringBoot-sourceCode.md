@@ -1643,9 +1643,210 @@ private <T> void doRegisterBean(Class<T> beanClass, @Nullable String name,
 }
 ```
 
+在该方法中将主类封装成 AnnotatedGenericBeanDefinition ，BeanDefinitionReaderUtils.registerBeanDefinition(definitionHolder, this.registry); 方法将 BeanDefinition 注册进 beanDefinitionMap 。
 
+```java
+public static void registerBeanDefinition(
+			BeanDefinitionHolder definitionHolder, BeanDefinitionRegistry registry)
+			throws BeanDefinitionStoreException {
+
+    // Register bean definition under primary name.
+    // primary name 其实就是 id
+    String beanName = definitionHolder.getBeanName();
+    registry.registerBeanDefinition(beanName, definitionHolder.getBeanDefinition());
+
+    // Register aliases for bean name, if any.
+    // 然后就是注册别名
+    String[] aliases = definitionHolder.getAliases();
+    if (aliases != null) {
+        for (String alias : aliases) {
+            registry.registerAlias(beanName, alias);
+        }
+    }
+}
+```
+
+继续跟进 registerBeanDefinition() 方法：
+
+```java
+// org.springframework.beans.factory.support.DefaultListableBeanFactory#registerBeanDefinition
+@Override
+public void registerBeanDefinition(String beanName, BeanDefinition beanDefinition)
+    throws BeanDefinitionStoreException {
+
+    Assert.hasText(beanName, "Bean name must not be empty");
+    Assert.notNull(beanDefinition, "BeanDefinition must not be null");
+
+    if (beanDefinition instanceof AbstractBeanDefinition) {
+        try {
+            // 最后一次校验了
+            // 对 bean 的 Overrides 进行校验，还不知道会在哪处理这些 overrides
+            ((AbstractBeanDefinition) beanDefinition).validate();
+        }
+        catch (BeanDefinitionValidationException ex) {
+            throw new BeanDefinitionStoreException(beanDefinition.getResourceDescription(), beanName,
+                                                   "Validation of bean definition failed", ex);
+        }
+    }
+
+    // 判断是否存在重复名字的bean，之后看允不允许 overrides
+    // 以前使用 synchronized 实现互斥访问，现在采用 ConcurrentHashMap
+    BeanDefinition existingDefinition = this.beanDefinitionMap.get(beanName);
+    if (existingDefinition != null) {
+        // 如果该类不允许 overriding 直接抛出异常
+        if (!isAllowBeanDefinitionOverriding()) {
+            throw new BeanDefinitionOverrideException(beanName, beanDefinition, existingDefinition);
+        }
+        else if (existingDefinition.getRole() < beanDefinition.getRole()) {
+            // e.g. was ROLE_APPLICATION, now overriding with ROLE_SUPPORT or ROLE_INFRASTRUCTURE
+            if (logger.isInfoEnabled()) {
+                logger.info("Overriding user-defined bean definition for bean '" + beanName +
+                            "' with a framework-generated bean definition: replacing [" +
+                            existingDefinition + "] with [" + beanDefinition + "]");
+            }
+        }
+        else if (!beanDefinition.equals(existingDefinition)) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Overriding bean definition for bean '" + beanName +
+                             "' with a different definition: replacing [" + existingDefinition +
+                             "] with [" + beanDefinition + "]");
+            }
+        }
+        else {
+            if (logger.isTraceEnabled()) {
+                logger.trace("Overriding bean definition for bean '" + beanName +
+                             "' with an equivalent definition: replacing [" + existingDefinition +
+                             "] with [" + beanDefinition + "]");
+            }
+        }
+        // 注册进 beanDefinitionMap
+        this.beanDefinitionMap.put(beanName, beanDefinition);
+    }
+    else {
+        if (hasBeanCreationStarted()) {
+            // Cannot modify startup-time collection elements anymore (for stable iteration)
+            synchronized (this.beanDefinitionMap) {
+                this.beanDefinitionMap.put(beanName, beanDefinition);
+                List<String> updatedDefinitions = new ArrayList<>(this.beanDefinitionNames.size() + 1);
+                updatedDefinitions.addAll(this.beanDefinitionNames);
+                updatedDefinitions.add(beanName);
+                this.beanDefinitionNames = updatedDefinitions;
+                removeManualSingletonName(beanName);
+            }
+        }
+        else {
+            // Still in startup registration phase
+            // 如果仍处于启动注册阶段，注册进 beanDefinitionMap
+            this.beanDefinitionMap.put(beanName, beanDefinition);
+            this.beanDefinitionNames.add(beanName);
+            removeManualSingletonName(beanName);
+        }
+        this.frozenBeanDefinitionNames = null;
+    }
+
+    if (existingDefinition != null || containsSingleton(beanName)) {
+        resetBeanDefinition(beanName);
+    }
+    else if (isConfigurationFrozen()) {
+        clearByTypeCache();
+    }
+}
+```
+
+最终来到 org.springframework.beans.factory.support.DefaultListableBeanFactory#registerBeanDefinition ，DefaultListableBeanFactory 是 IoC 容器的具体产品。
+
+仔细看这个方法 registerBeanDefinition()，首先会检查是否已经存在，如果存在并且不允许被覆盖则直接抛出异常。不存在的话直接注册进 beanDefinitionMap 中。
+
+debug 跳过 prepareContext() 方法，可以看到，启动类的 BeanDefinition 已经注册进来了：
+
+![image-20220309185315506](assest/image-20220309185315506.png)
+
+OK，到这里启动流程的第五步就讲解完了，其实在没必要讲这么细，因为启动类 BeanDefinition 的注册流程和 后面 自定义的 BeanDefinition 注册流程是一样的。
 
 ### 4.2.5 刷新应用上下文（IOC容器的初始化过程）
+
+首先我们要知道 IoC 容器的初始化过程，主要分为下面三步：
+
+1. BeanDefinition 的 Resource 定位
+2. BeanDefinition 的载入
+3. 向 IoC 容器中注册 BeanDefinition 
+
+接下来，主要从 refresh() 方法中总结 IoC 容器的初始化过程。从 run 方法的 refreshContext() 方法一路跟下去，最终来到 org.springframework.context.support.AbstractApplicationContext#refresh 方法 ：
+
+```java
+@Override
+public void refresh() throws BeansException, IllegalStateException {
+    synchronized (this.startupShutdownMonitor) {
+        // Prepare this context for refreshing.
+        // 刷新上下文环境
+        prepareRefresh();
+
+        // Tell the subclass to refresh the internal bean factory.
+        // 这里是在子类中启动 refreshBeanFactory() 的地方
+        ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
+
+        // Prepare the bean factory for use in this context.
+        // 准备 bean 工厂，以便在此上下文中使用 
+        prepareBeanFactory(beanFactory);
+
+        try {
+            // Allows post-processing of the bean factory in context subclasses.
+            // 设置 beanFactory 的后置处理
+            postProcessBeanFactory(beanFactory);
+
+            // Invoke factory processors registered as beans in the context.
+            // 调用 beanFactory 的后置处理器，这些处理器是在 Bean 定义中向容器注册的
+            invokeBeanFactoryPostProcessors(beanFactory);
+
+            // Register bean processors that intercept bean creation.
+            // 注册 Bean 的后置处理器，在 Bean 创建过程中调用
+            registerBeanPostProcessors(beanFactory);
+
+            // Initialize message source for this context.
+            initMessageSource();
+
+            // Initialize event multicaster for this context.
+            initApplicationEventMulticaster();
+
+            // Initialize other special beans in specific context subclasses.
+            onRefresh();
+
+            // Check for listener beans and register them.
+            registerListeners();
+
+            // Instantiate all remaining (non-lazy-init) singletons.
+            finishBeanFactoryInitialization(beanFactory);
+
+            // Last step: publish corresponding event.
+            finishRefresh();
+        }
+
+        catch (BeansException ex) {
+            if (logger.isWarnEnabled()) {
+                logger.warn("Exception encountered during context initialization - " +
+                            "cancelling refresh attempt: " + ex);
+            }
+
+            // Destroy already created singletons to avoid dangling resources.
+            destroyBeans();
+
+            // Reset 'active' flag.
+            cancelRefresh(ex);
+
+            // Propagate exception to caller.
+            throw ex;
+        }
+
+        finally {
+            // Reset common introspection caches in Spring's core, since we
+            // might not ever need metadata for singleton beans anymore...
+            resetCommonCaches();
+        }
+    }
+}
+```
+
+
 
 ### 4.2.6 刷新应用上下文后的扩展接口
 
