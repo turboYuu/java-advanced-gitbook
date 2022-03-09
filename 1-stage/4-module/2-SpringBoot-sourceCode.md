@@ -1422,6 +1422,229 @@ beanFactory 正是在 `AnnotationConfigServletWebServerApplicationContext` 实�
 
 ### 4.2.4 刷新应用上下文前的准备阶段
 
+#### 4.2.4.1 prepareContext() 方法
+
+首先看 `prepareContext()` 方法：
+
+```java
+private void prepareContext(ConfigurableApplicationContext context, 
+                            ConfigurableEnvironment environment,
+							SpringApplicationRunListeners listeners, 
+                            ApplicationArguments applicationArguments, 
+                            Banner printedBanner) {
+    // 设置容器环境
+    context.setEnvironment(environment);
+    // 执行容器后置处理
+    postProcessApplicationContext(context);
+    // 执行容器中的 ApplicationContextInitializer 包括 spring.factories 和 通过三种方式自定义的
+    applyInitializers(context);
+    // 向各个监听器发送容器已经准备好的事件
+    listeners.contextPrepared(context);
+    if (this.logStartupInfo) {
+        logStartupInfo(context.getParent() == null);
+        logStartupProfileInfo(context);
+    }
+    // Add boot specific singleton beans
+    // 将 main 函数中的 args 参数封装成单例 Bean，注册容器
+    ConfigurableListableBeanFactory beanFactory = context.getBeanFactory();
+    beanFactory.registerSingleton("springApplicationArguments", applicationArguments);
+    // 将 printedBanner 也封装成单例，注册进容器
+    if (printedBanner != null) {
+        beanFactory.registerSingleton("springBootBanner", printedBanner);
+    }
+    if (beanFactory instanceof DefaultListableBeanFactory) {
+        ((DefaultListableBeanFactory) beanFactory)
+        .setAllowBeanDefinitionOverriding(this.allowBeanDefinitionOverriding);
+    }
+    if (this.lazyInitialization) {
+        context.addBeanFactoryPostProcessor(new LazyInitializationBeanFactoryPostProcessor());
+    }
+    // Load the sources
+    Set<Object> sources = getAllSources();
+    Assert.notEmpty(sources, "Sources must not be empty");
+    // 加载我们的启动类，将启动类注入容器
+    load(context, sources.toArray(new Object[0]));
+    // 发布容器已加载事件
+    listeners.contextLoaded(context);
+}
+```
+
+首先看这行 Set< Object> sources = getAllSources(); 在 getAllSources() 中拿到了我们的启动类。
+
+将重点讲解这行 load(context, sources.toArray(new Object[0]));，其他方法参阅注释。
+
+进入 load() 方法，看源码：
+
+```java
+protected void load(ApplicationContext context, Object[] sources) {
+    if (logger.isDebugEnabled()) {
+        logger.debug("Loading source " + StringUtils.arrayToCommaDelimitedString(sources));
+    }
+    // 创建 BeanDefinitionLoader
+    BeanDefinitionLoader loader = createBeanDefinitionLoader(
+        getBeanDefinitionRegistry(context), sources);
+    if (this.beanNameGenerator != null) {
+        loader.setBeanNameGenerator(this.beanNameGenerator);
+    }
+    if (this.resourceLoader != null) {
+        loader.setResourceLoader(this.resourceLoader);
+    }
+    if (this.environment != null) {
+        loader.setEnvironment(this.environment);
+    }
+    loader.load();
+}
+```
+
+#### 4.2.4.2 getBeanDefinitionRegistry()
+
+继续看 getBeanDefinitionRegistry() 方法的源码：
+
+```java
+private BeanDefinitionRegistry getBeanDefinitionRegistry(ApplicationContext context) {
+    if (context instanceof BeanDefinitionRegistry) {
+        return (BeanDefinitionRegistry) context;
+    }
+    ...
+}
+```
+
+这里将我们前文创建的上下文强转为 `BeanDefinitionRegistry`，它们之间有继承关系。`BeanDefinitionRegistry`定义了很重要的方法 `registerBeanDefinition()`，该方法将 BeanDefinition  注册进`DefaultListableBeanFactory` 容器的 beanDefinitionMap 中。
+
+#### 4.2.4.3 createBeanDefinitionLoader()
+
+继续看 createBeanDefinitionLoader() 方法，最终进入了 BeanDefinitionLoader 类的构造方法，如下：
+
+```java
+BeanDefinitionLoader(BeanDefinitionRegistry registry, Object... sources) {
+    Assert.notNull(registry, "Registry must not be null");
+    Assert.notEmpty(sources, "Sources must not be empty");
+    this.sources = sources;
+    // 注解形式的 Bean 定义读取器 比如： @Configuration @Bean @Component @Controller @Service 等
+    this.annotatedReader = new AnnotatedBeanDefinitionReader(registry);
+    // XML 形式的 Bean 定义读取器
+    this.xmlReader = new XmlBeanDefinitionReader(registry);
+    if (isGroovyPresent()) {
+        this.groovyReader = new GroovyBeanDefinitionReader(registry);
+    }
+    // 类路径扫描器
+    this.scanner = new ClassPathBeanDefinitionScanner(registry);
+    // 扫描器添加排除过滤器
+    this.scanner.addExcludeFilter(new ClassExcludeFilter(sources));
+}
+```
+
+先记住上面的三个属性，上面三个属性在 BeanDefinition 的 Resource 定位 和 BeanDefinition  的注册中起到了很重要的作用。
+
+#### 4.2.4.4 loader.load()
+
+跟进 load() 方法
+
+```java
+int load() {
+    int count = 0;
+    for (Object source : this.sources) {
+        count += load(source);
+    }
+    return count;
+}
+
+private int load(Object source) {
+    Assert.notNull(source, "Source must not be null");
+    // 从Class加载
+    if (source instanceof Class<?>) {
+        return load((Class<?>) source);
+    }
+    // 从Resource加载
+    if (source instanceof Resource) {
+        return load((Resource) source);
+    }
+    // 从 Package 加载
+    if (source instanceof Package) {
+        return load((Package) source);
+    }
+    // 从 CharSequence 加载
+    if (source instanceof CharSequence) {
+        return load((CharSequence) source);
+    }
+    throw new IllegalArgumentException("Invalid source type " + source.getClass());
+}
+```
+
+当前我们的主类会按 Class 加载，继续跟进 load() 方法：
+
+```java
+private int load(Class<?> source) {
+    if (isGroovyPresent() && GroovyBeanDefinitionSource.class.isAssignableFrom(source)) {
+        // Any GroovyLoaders added in beans{} DSL can contribute beans here
+        GroovyBeanDefinitionSource loader = BeanUtils
+            .instantiateClass(source,
+                              GroovyBeanDefinitionSource.class);
+        load(loader);
+    }
+    if (isComponent(source)) {
+        // 将启动类的BeanDefinition 注册进 beanDefinitionMap
+        this.annotatedReader.register(source);
+        return 1;
+    }
+    return 0;
+}
+```
+
+isComponent(source) 判断主类是不是存在 @Component 注解，主类 @SpringBootApplication是一个组合注解，包含 @Component。
+
+this.annotatedReader.register(source); 跟进 register() 方法，最终进到 AnnotatedBeanDefinitionReader#doRegisterBean 方法：
+
+```java
+private <T> void doRegisterBean(Class<T> beanClass, @Nullable String name,
+			@Nullable Class<? extends Annotation>[] qualifiers, 
+                                @Nullable Supplier<T> supplier,
+			@Nullable BeanDefinitionCustomizer[] customizers) {
+	// 将指定的类，封装为 AnnotatedGenericBeanDefinition
+    AnnotatedGenericBeanDefinition abd = new AnnotatedGenericBeanDefinition(beanClass);
+    if (this.conditionEvaluator.shouldSkip(abd.getMetadata())) {
+        return;
+    }
+
+    abd.setInstanceSupplier(supplier);
+    // 获取该类的 scope 属性
+    ScopeMetadata scopeMetadata = this.scopeMetadataResolver.resolveScopeMetadata(abd);
+    abd.setScope(scopeMetadata.getScopeName());
+    String beanName = (name != null ? name : this.beanNameGenerator
+                       .generateBeanName(abd, this.registry));
+
+    AnnotationConfigUtils.processCommonDefinitionAnnotations(abd);
+    if (qualifiers != null) {
+        for (Class<? extends Annotation> qualifier : qualifiers) {
+            if (Primary.class == qualifier) {
+                abd.setPrimary(true);
+            }
+            else if (Lazy.class == qualifier) {
+                abd.setLazyInit(true);
+            }
+            else {
+                abd.addQualifier(new AutowireCandidateQualifier(qualifier));
+            }
+        }
+    }
+    if (customizers != null) {
+        for (BeanDefinitionCustomizer customizer : customizers) {
+            customizer.customize(abd);
+        }
+    }
+
+    BeanDefinitionHolder definitionHolder = new BeanDefinitionHolder(abd, beanName);
+    definitionHolder = AnnotationConfigUtils
+        .applyScopedProxyMode(scopeMetadata, 
+                              definitionHolder, 
+                              this.registry);
+    // 将该 BeanDefinition 注册到 IoC 容器的 beanDefinitionMap 中
+    BeanDefinitionReaderUtils.registerBeanDefinition(definitionHolder, this.registry);
+}
+```
+
+
+
 ### 4.2.5 刷新应用上下文（IOC容器的初始化过程）
 
 ### 4.2.6 刷新应用上下文后的扩展接口
