@@ -1168,7 +1168,153 @@ EventPublishingRunListener 监听器是Spring容器的启动监听器。`listene
 
 ### 4.2.2 构造应用上下文环境
 
+应用上下文环境包括什么？包括计算机的环境，Java环境，Spring的运行环境，Spring项目的配置（在SpringBoot中就是那个熟悉的 application.properties/yml）等等。
+
+首先看一下 `prepareEnvironment()` 方法：
+
+```java
+private ConfigurableEnvironment prepareEnvironment(SpringApplicationRunListeners listeners,
+			ApplicationArguments applicationArguments) {
+    // Create and configure the environment
+    // 创建并配置相应的环境
+    ConfigurableEnvironment environment = getOrCreateEnvironment();
+    // 根据用户配置，配置 environment 系统环境
+    configureEnvironment(environment, applicationArguments.getSourceArgs());
+    ConfigurationPropertySources.attach(environment);
+    // 启动响用的监听器，其中一个重要的监听器 ConfigFileApplicationListener 就是加载项目配置文件的监听器
+    listeners.environmentPrepared(environment);
+    bindToSpringApplication(environment);
+    if (!this.isCustomEnvironment) {
+        environment = new EnvironmentConverter(getClassLoader()).
+            convertEnvironmentIfNecessary(environment, deduceEnvironmentClass());
+    }
+    ConfigurationPropertySources.attach(environment);
+    return environment;
+}
+```
+
+看上面的注释，方法中主要完成的工作，首先是创建并按相应的应用类型配置相应的环境，然后根据用户的配置，配置系统环境，然后启动监听器，并加载系统配置文件。
+
+#### 4.2.2.1 ConfigurableEnvironment environment = getOrCreateEnvironment()
+
+看看 `getOrCreateEnvironment()` 做了什么？
+
+```java
+private ConfigurableEnvironment getOrCreateEnvironment() {
+    if (this.environment != null) {
+        return this.environment;
+    }
+    switch (this.webApplicationType) {
+            // 如果应用类型是 SERVLET 则实例化 StandardServletEnvironment
+        case SERVLET:
+            return new StandardServletEnvironment();
+        case REACTIVE:
+            return new StandardReactiveWebEnvironment();
+        default:
+            return new StandardEnvironment();
+    }
+}
+```
+
+通过代码可以看到根据不同的应用类型初始化不同的系统环境实例。
+
+![image-20220309110309313](assest/image-20220309110309313.png)
+
+从上面的继承关系可以看出，`StandardServletEnvironment` 是 `StandardEnvironment` 的子类。这两个对象没有什么好讲的，当是web项目的时候，环境上会多一些关于web环境的配置。
+
+#### 4.2.2.2 configureEnvironment(environment, applicationArguments.getSourceArgs())
+
+```java
+protected void configureEnvironment(ConfigurableEnvironment environment, String[] args) {
+    if (this.addConversionService) {
+        ConversionService conversionService = ApplicationConversionService.getSharedInstance();
+        environment.setConversionService((ConfigurableConversionService) conversionService);
+    }
+    // 将 main 函数的 args 封装成 SimpleCommandlinePropertySource 加入环境中。 
+    configurePropertySources(environment, args);
+    // 激活相应的配置文件
+    configureProfiles(environment, args);
+}
+```
+
+在执行完方法中的两行代码后，debug的截图如下：
+
+![image-20220309112253031](assest/image-20220309112253031.png)
+
+如下图所示，在 springboot 的启动中指定了参数 `--spring.profiles.active=prod` （就是启动多个实例用的）
+
+![image-20220309111239924](assest/image-20220309111239924.png)
+
+在 `configureEnvironment(ConfigurableEnvironment environment, String[] args)` 中将 args 封装成了 `SimpleCommandLinePropertySource` 并加入到 environment 中。
+
+`configureProfiles(environment, args)` 根据指定启动参数激活了相应的配置文件。
+
+#### 4.2.2.3 listeners.environmentPrepared(environment)
+
+进入到方法一路跟下去，就到了`SimpleApplicationEventMulticaster#multicastEvent(org.springframework.context.ApplicationEvent)` 方法。
+
+```java
+@Override
+public void multicastEvent(ApplicationEvent event) {
+    multicastEvent(event, resolveDefaultEventType(event));
+}
+```
+
+![image-20220309120037891](assest/image-20220309120037891.png)
+
+查看 `getApplicationListeners(event, type)` 执行结果，发现一个重要的监听器 `ConfigFileApplicationListener`。
+
+先看看这个类的注释：
+
+```java
+/**
+ * {@link EnvironmentPostProcessor} that configures the context environment by loading
+ * properties from well known file locations. By default properties will be loaded from
+ * 'application.properties' and/or 'application.yml' files in the following locations:
+ * <ul>
+ * <li>file:./config/</li>
+ * <li>file:./</li>
+ * <li>classpath:config/</li>
+ * <li>classpath:</li>
+ * </ul>
+ * The list is ordered by precedence (properties defined in locations higher in the list
+ * override those defined in lower locations).
+ * <p>
+ * Alternative search locations and names can be specified using
+ * {@link #setSearchLocations(String)} and {@link #setSearchNames(String)}.
+ * <p>
+ * Additional files will also be loaded based on active profiles. For example if a 'web'
+ * profile is active 'application-web.properties' and 'application-web.yml' will be
+ * considered.
+ * <p>
+ * The 'spring.config.name' property can be used to specify an alternative name to load
+ * and the 'spring.config.location' property can be used to specify alternative search
+ * locations or specific files.
+ * <p>
+ * 从默认的位置加载配置文件，将其加入上下文的 environment 变量中
+ * @author Dave Syer
+ * @author Phillip Webb
+ * @author Stephane Nicoll
+ * @author Andy Wilkinson
+ * @author Eddú Meléndez
+ * @author Madhura Bhave
+ * @since 1.0.0
+ */
+```
+
+这个监听器默认的从注释中 标签所示的几个位置加载配置文件，并将其加入上下文的 environment 变量中。当然能也可以通过配置指定。
+
+debug 跳过 `listeners.environmentPrepared(environment);` 查看 environment 属性，配置文件的配置信息已经加上来了。
+
+![image-20220309122515886](assest/image-20220309122515886.png)
+
+注：如果debug没有出现 `OriginTrackedMapPropertySource`，可以在配置文件中添加一些配置信息。
+
+
+
 ### 4.2.3 初始化应用上下文
+
+
 
 ### 4.2.4 刷新应用上下文前的准备阶段
 
