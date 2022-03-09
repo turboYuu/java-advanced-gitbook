@@ -1314,7 +1314,111 @@ debug 跳过 `listeners.environmentPrepared(environment);` 查看 environment �
 
 ### 4.2.3 初始化应用上下文
 
+在SpringBoot工程中，应用类型分为三种，如下代码所示。
 
+```java
+public enum WebApplicationType {
+
+	/**
+	 * 应用程序不是Web应用，也不应该用web服务器去启动
+	 */
+	NONE,
+
+	/**
+	 * 应用程序作为基于servlet 的 web 应用程序运行，并应启动嵌入式 servlet web (tomcat) 服务器
+	 */
+	SERVLET,
+
+	/**
+	 * 应用程序作为 reactive web 应用程序运行，并启动嵌入式 reactive web 服务器
+	 */
+	REACTIVE;
+}
+```
+
+对用三种应用类型，SpringBoot项目有三种对应的应用上下文，我们以 web 工程为例，即其上下文为 `AnnotationConfigServletWebServerApplicationContext`。
+
+```java
+/**
+	 * The class name of application context that will be used by default for non-web
+	 * environments.
+	 */
+public static final String DEFAULT_CONTEXT_CLASS = "org.springframework.context."
+			+ "annotation.AnnotationConfigApplicationContext";
+
+/**
+	 * The class name of application context that will be used by default for web
+	 * environments.
+	 */
+public static final String DEFAULT_SERVLET_WEB_CONTEXT_CLASS = "org.springframework.boot."
+    + "web.servlet.context.AnnotationConfigServletWebServerApplicationContext";
+
+/**
+	 * The class name of application context that will be used by default for reactive web
+	 * environments.
+	 */
+public static final String DEFAULT_REACTIVE_WEB_CONTEXT_CLASS = "org.springframework."
+    + "boot.web.reactive.context.AnnotationConfigReactiveWebServerApplicationContext";
+
+protected ConfigurableApplicationContext createApplicationContext() {
+    Class<?> contextClass = this.applicationContextClass;
+    if (contextClass == null) {
+        try {
+            switch (this.webApplicationType) {
+                case SERVLET:
+                    contextClass = Class.forName(DEFAULT_SERVLET_WEB_CONTEXT_CLASS);
+                    break;
+                case REACTIVE:
+                    contextClass = Class.forName(DEFAULT_REACTIVE_WEB_CONTEXT_CLASS);
+                    break;
+                default:
+                    contextClass = Class.forName(DEFAULT_CONTEXT_CLASS);
+            }
+        }
+        catch (ClassNotFoundException ex) {
+            throw new IllegalStateException(
+                "Unable create a default ApplicationContext, "
+                +"please specify an ApplicationContextClass", ex);
+        }
+    }
+    return (ConfigurableApplicationContext) BeanUtils.instantiateClass(contextClass);
+}
+```
+
+先看一下 `AnnotationConfigServletWebServerApplicationContext` 的设计：
+
+![image-20220309133900712](assest/image-20220309133900712.png)
+
+应用上下文可以理解成 IoC 容器的高级表现形式，应用上下文确实是在 IoC 容器的基础上丰富了一些高级功能。
+
+应用上下文对 IoC 容器是持有的关系。它的一个属性 beanFactor 就是 IoC 容器 （DefaultListableBeanFactory）。所以它们之间是持有 和 扩展的。
+
+接下来看 `GenericApplicationContext` 类
+
+```java
+public class GenericApplicationContext extends AbstractApplicationContext implements BeanDefinitionRegistry {
+
+	private final DefaultListableBeanFactory beanFactory;
+    ...
+	/**
+	 * Create a new GenericApplicationContext.
+	 * @see #registerBeanDefinition
+	 * @see #refresh
+	 */
+	public GenericApplicationContext() {
+		this.beanFactory = new DefaultListableBeanFactory();
+	}
+    ...
+}
+```
+
+beanFactory 正是在 `AnnotationConfigServletWebServerApplicationContext` 实现的接口 `GenericApplicationContext` 中定义的。在上面 `createApplicationContext()`方法中的 `BeanUtils.instantiateClass(contextClass)` 这个方法，不但初始化了 `AnnotationConfigServletWebServerApplicationContext` 类，也就是我们的上下文 context，同样也触发了 `GenericApplicationContext`  类的构造函数，从而 IoC 容器也被创建了。
+
+仔细看它的构造函数，有没有发现一个很熟悉的类 `DefaultListableBeanFactory`，没错，`DefaultListableBeanFactory` 就是 IoC 容器的真实面目。在后面的 refresh() 方法分析中，`DefaultListableBeanFactory` 是无处不在的存在感。
+
+![image-20220309142354126](assest/image-20220309142354126.png)
+
+如上图所示，context 就是我们熟悉的上下文（也有人称之为容器，都可以，看个人理解），beanFactory 就是我们常说的 IoC 容器的真实面孔了。喜喜感受下上下文和容器的联系和区别，对于我们理解源码有很大的帮助。在我们的学习过程中，我们也是将上下文和容器严格区分开来的。
 
 ### 4.2.4 刷新应用上下文前的准备阶段
 
