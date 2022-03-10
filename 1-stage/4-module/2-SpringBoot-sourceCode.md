@@ -2098,7 +2098,235 @@ public void parse(Set<BeanDefinitionHolder> configCandidates) {
 }
 ```
 
+看上面的注释，在前面的 `prepareContext()`  方法中，我们详细介绍了我们的主类是如何一步步的封装成 AnnotatedGenericBeanDefinition ，并注册进 IoC 容器的 beanDefinitionMap 中的。
 
+![image-20220310162546651](assest/image-20220310162546651.png)
+
+继续沿着 parse(((AnnotatedBeanDefinition) bd).getMetadata(), holder.getBeanName()); 方法跟下去，看 org.springframework.context.annotation.ConfigurationClassParser#doProcessConfigurationClass 方法。（SpringBoot 的包扫描的入口方法，重点  :star: ）
+
+```java
+// org.springframework.context.annotation.ConfigurationClassParser#parse(org.springframework.core.type.AnnotationMetadata, java.lang.String)
+protected final void parse(AnnotationMetadata metadata, String beanName) throws IOException {
+    processConfigurationClass(new ConfigurationClass(metadata, beanName), DEFAULT_EXCLUSION_FILTER);
+}
+// org.springframework.context.annotation.ConfigurationClassParser#processConfigurationClass
+protected void processConfigurationClass(ConfigurationClass configClass, Predicate<String> filter) throws IOException {
+    ...
+    // Recursively process the configuration class and its superclass hierarchy.
+    // 递归地处理配置类及其父类层次结构
+    SourceClass sourceClass = asSourceClass(configClass, filter);
+    do {
+        // 递归处理 Bean，如果有父类，递归处理，直到顶层父类
+        sourceClass = doProcessConfigurationClass(configClass, sourceClass, filter);
+    }
+    while (sourceClass != null);
+
+    this.configurationClasses.put(configClass, configClass);
+}
+
+// org.springframework.context.annotation.ConfigurationClassParser#doProcessConfigurationClass
+@Nullable
+protected final SourceClass doProcessConfigurationClass(
+    ConfigurationClass configClass, 
+    SourceClass sourceClass, 
+    Predicate<String> filter) throws IOException {
+
+    if (configClass.getMetadata().isAnnotated(Component.class.getName())) {
+        // Recursively process any member (nested) classes first
+        // 首先递归处理内部类，（SpringBoot项目的主类一般没有内部类）
+        processMemberClasses(configClass, sourceClass, filter);
+    }
+
+    // Process any @PropertySource annotations
+    // 针对 @PropertySource 注解的属性配置处理
+    for (AnnotationAttributes propertySource : AnnotationConfigUtils.attributesForRepeatable(
+        sourceClass.getMetadata(), PropertySources.class,
+        org.springframework.context.annotation.PropertySource.class)) {
+        if (this.environment instanceof ConfigurableEnvironment) {
+            processPropertySource(propertySource);
+        }
+        else {
+            logger.info("Ignoring @PropertySource annotation on [" + sourceClass.getMetadata().getClassName() +
+                        "]. Reason: Environment must implement ConfigurableEnvironment");
+        }
+    }
+
+    // Process any @ComponentScan annotations
+    // 根据 @ComponentScan 注解，扫描项目中的 Bean (SpringBoot 启动类上有该注解)
+    Set<AnnotationAttributes> componentScans = AnnotationConfigUtils.attributesForRepeatable(
+        sourceClass.getMetadata(), ComponentScans.class, ComponentScan.class);
+    if (!componentScans.isEmpty() &&
+        !this.conditionEvaluator.shouldSkip(sourceClass.getMetadata(), 
+                                            ConfigurationPhase.REGISTER_BEAN)) {
+        for (AnnotationAttributes componentScan : componentScans) {
+            // The config class is annotated with @ComponentScan -> perform the scan immediately
+            // 立即执行扫描，（SpringBoot项目为什么是从主类所在的包扫描，这就是关键了）
+            Set<BeanDefinitionHolder> scannedBeanDefinitions =
+                this.componentScanParser.parse(componentScan, sourceClass.getMetadata().getClassName());
+            // Check the set of scanned definitions for any further config classes and parse recursively if needed
+            for (BeanDefinitionHolder holder : scannedBeanDefinitions) {
+                BeanDefinition bdCand = holder.getBeanDefinition().getOriginatingBeanDefinition();
+                if (bdCand == null) {
+                    bdCand = holder.getBeanDefinition();
+                }
+                // 检查是否是 ConfigurationClass（是否有Configuration，Component两个注解），如果是，递归查找该类相关联的配置类
+                // 所谓相关配置类，比如 @Configuration 中的@Bean 定义的 bean。或者在有 @Component 注解的类上继续存在 @Import注解
+                if (ConfigurationClassUtils.checkConfigurationClassCandidate(bdCand, this.metadataReaderFactory)) {
+                    parse(bdCand.getBeanClassName(), holder.getBeanName());
+                }
+            }
+        }
+    }
+
+    // Process any @Import annotations
+    // 递归处理 @Import 注解（SpringBoot 项目中经常用的各种 @Enable*** ，注解基本都是封装的 @Import）
+    processImports(configClass, sourceClass, getImports(sourceClass), filter, true);
+
+    // Process any @ImportResource annotations
+    AnnotationAttributes importResource =
+        AnnotationConfigUtils.attributesFor(sourceClass.getMetadata(), ImportResource.class);
+    if (importResource != null) {
+        String[] resources = importResource.getStringArray("locations");
+        Class<? extends BeanDefinitionReader> readerClass = importResource.getClass("reader");
+        for (String resource : resources) {
+            String resolvedResource = this.environment.resolveRequiredPlaceholders(resource);
+            configClass.addImportedResource(resolvedResource, readerClass);
+        }
+    }
+
+    // Process individual @Bean methods
+    Set<MethodMetadata> beanMethods = retrieveBeanMethodMetadata(sourceClass);
+    for (MethodMetadata methodMetadata : beanMethods) {
+        configClass.addBeanMethod(new BeanMethod(methodMetadata, configClass));
+    }
+
+    // Process default methods on interfaces
+    processInterfaces(configClass, sourceClass);
+
+    // Process superclass, if any
+    if (sourceClass.getMetadata().hasSuperClass()) {
+        String superclass = sourceClass.getMetadata().getSuperClassName();
+        if (superclass != null && !superclass.startsWith("java") &&
+            !this.knownSuperclasses.containsKey(superclass)) {
+            this.knownSuperclasses.put(superclass, configClass);
+            // Superclass found, return its annotation metadata and recurse
+            return sourceClass.getSuperClass();
+        }
+    }
+
+    // No superclass -> processing is complete
+    return null;
+}
+```
+
+大致说一下这个方法里面都做了什么：
+
+> TIPS:
+>
+> 在以上代码的 parse(bdCand.getBeanClassName(), holder.getBeanName()); （68行）会进行递归调用，因为当 Spring 扫描倒需要加载的类会进一步判断每一个类是否满足  @Configuration，@Component 注解的类，如果满足会递归调用 parse() 方法，查找其相关的类。
+>
+> 同样的 processImports(configClass, sourceClass, getImports(sourceClass), filter, true); （76行）通过 @Import 注解查找到类同样也会递归查找其相关的类。
+>
+> 两个递归在 debug 的时候会很乱，用文字描述起来更让人难以理解，所以，只关注对主类的解析，及其类的扫描过程。
+
+上面代码中 for (AnnotationAttributes propertySource : AnnotationConfigUtils.attributesForRepeatable(... 获取主类上的 @PropertySources注解))，解析该注解并将该注解指定的 properties 配置文件中的值存储到 Spring 的 Environment 中，解析该注解并将该注解指定的 properties 配置文件中的值存储到 Spring 的 Environment 中，Environment 接口提供方法去读取配置文件中的值，参数是 properties 文件中定义的 key 值。
+
+```java
+// 解析主类上的 @ComponentScan 注解，后面的代码将会解析该注解并进行包扫描
+Set<AnnotationAttributes> componentScans = AnnotationConfigUtils.attributesForRepeatable(
+      sourceClass.getMetadata(), ComponentScans.class, ComponentScan.class);
+      
+```
+
+```java
+// 解析主类上的@Import注解，并加载该注解指定的配置类
+processImports(configClass, sourceClass, getImports(sourceClass), filter, true);
+```
+
+> TIPS：
+>
+> 在 Spring 中有好多注解都是一层一层封装的，比如 @EnableXXX，是对 @Import 注解的二次封装。
+>
+> @SpringBootApplication注解  = @ComponentScan + @EnableAutoConfiguration + @Import + @Configuration + @Component。
+>
+> @Controller，@Service 等等是对 @Component 的二次封装....
+
+继续向下看：
+
+```java
+Set<BeanDefinitionHolder> scannedBeanDefinitions =
+      this.componentScanParser.parse(componentScan, sourceClass.getMetadata().getClassName());
+```
+
+进入该方法：
+
+```java
+public Set<BeanDefinitionHolder> parse(AnnotationAttributes componentScan, final String declaringClass) {
+    ClassPathBeanDefinitionScanner scanner = new ClassPathBeanDefinitionScanner(
+        this.registry,
+        componentScan.getBoolean("useDefaultFilters"), 
+        this.environment, 
+        this.resourceLoader);
+
+    // ...
+    // 根据 declaringClass （如果是SpringBoot项目，则参数为主类的全路径名）
+    if (basePackages.isEmpty()) {
+        basePackages.add(ClassUtils.getPackageName(declaringClass));
+    }
+
+    // ...
+    // 根据 basePackages 扫描类
+    return scanner.doScan(StringUtils.toStringArray(basePackages));
+}
+```
+
+发现有两行重要的代码，为了验证代码中的注释，debug，看一下 declaringClass ，如下图所示确实是我们的主类的全路径名。
+
+![image-20220310185906423](assest/image-20220310185906423.png)
+
+跳过这一行，继续 debug，查看 basePackages，该set集合中只有一个，就是主类所在的路径。
+
+![image-20220310190053794](assest/image-20220310190053794.png)
+
+> TIPS：为什么只有一个还要用集合，因为我们也可以用 @ComponentScan 注解指定扫描路径。
+
+到这里 IoC 容器初始化三个步骤的第一步，Resource 定位就完成了，成功定位到了主类所在的包。
+
+接着往下看 return scanner.doScan(StringUtils.toStringArray(basePackages));，Spring 是如何进行类扫描的，进入 doScan() 方法。
+
+```java
+// org.springframework.context.annotation.ClassPathBeanDefinitionScanner#doScan
+protected Set<BeanDefinitionHolder> doScan(String... basePackages) {
+    Assert.notEmpty(basePackages, "At least one base package must be specified");
+    Set<BeanDefinitionHolder> beanDefinitions = new LinkedHashSet<>();
+    for (String basePackage : basePackages) {
+        // 从指定的包中扫描需要装载的Bean
+        Set<BeanDefinition> candidates = findCandidateComponents(basePackage);
+        for (BeanDefinition candidate : candidates) {
+            ScopeMetadata scopeMetadata = this.scopeMetadataResolver.resolveScopeMetadata(candidate);
+            candidate.setScope(scopeMetadata.getScopeName());
+            String beanName = this.beanNameGenerator.generateBeanName(candidate, this.registry);
+            if (candidate instanceof AbstractBeanDefinition) {
+                postProcessBeanDefinition((AbstractBeanDefinition) candidate, beanName);
+            }
+            if (candidate instanceof AnnotatedBeanDefinition) {
+                AnnotationConfigUtils.processCommonDefinitionAnnotations((AnnotatedBeanDefinition) candidate);
+            }
+            if (checkCandidate(beanName, candidate)) {
+                BeanDefinitionHolder definitionHolder = new BeanDefinitionHolder(candidate, beanName);
+                definitionHolder =
+                    AnnotationConfigUtils.applyScopedProxyMode(scopeMetadata, definitionHolder, this.registry);
+                beanDefinitions.add(definitionHolder);
+                // 将该 Bean 注册进 IoC 容器（beanDefinitionMap）
+                registerBeanDefinition(definitionHolder, this.registry);
+            }
+        }
+    }
+    return beanDefinitions;
+}
+```
+
+这个方法中有两个比较重要的方法，第7行 `Set<BeanDefinition> candidates = findCandidateComponents(basePackage);` 从 basePackage 中扫描类并解析成 BeanDefinition，拿到所有符合条件的类后，在第24行 `registerBeanDefinition(definitionHolder, this.registry);` 将该类注册进 IoC 容器。也就是说在这个方法中完成了 IoC 容器初始化过程的 第二三步，BeanDefinition 的载入，和 BeanDefinition 的注册。
 
 
 
