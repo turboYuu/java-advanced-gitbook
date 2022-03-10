@@ -1997,11 +1997,108 @@ IoC 容器的初始化过程包括三个步骤，在 invokeBeanFactoryPostProces
 
 在 SpringBoot 中，我们知道它的包扫描是从主类所在的包开始扫描的，prepareContext()（第4步，刷新应用上下文前的准备阶段）方法中，会先将主类解析成 BeanDefinition，然后在 refresh() 方法的 invokeBeanFactoryPostProcessors() 方法中解析主类的 BeanDefinition 获取 basePackage 的 路径。这样就完成了定位的过程。
 
-其次 SpringBoot的各种 starter 是通过 SPI 扩展机制实现的自动装配，SpringBoot 的自动装配同样也是在 invokeBeanFactoryPostProcessors() 方法中实现的。还有 一种情况，在 SpringBoot 中有很多的 @EnableXXX 注解，细心点进去
+其次 SpringBoot的各种 starter 是通过 SPI 扩展机制实现的自动装配，SpringBoot 的自动装配同样也是在 invokeBeanFactoryPostProcessors() 方法中实现的。还有 一种情况，在 SpringBoot 中有很多的 @EnableXXX 注解，细心点进去应该知道其底层是 @Import 注解，在invokeBeanFactoryPostProcessors() 方法中也实现了对该注解指定的配置类的定位加载。
+
+常规的在 SpringBoot 中有三种实现定位，第一个是主类所在包的，第二个是 SPI 扩展机制实现的自动装配（比如各种 starter），第三种就是 @Import 注解指定的类。（非常规的不讨论）
 
 ##### 4.2.5.4.2 第二步，BeanDefinition的载入
 
+在第一步中说了三种 Resource 的定位情况，定位后紧接着就是 BeanDefinition 的分别载入。所谓的载入就是通过上面的定位得到的 basePackage，SpringBoot 会将该路径拼接成：classpath:com.turbo/**/.class 这样的形式，然后一个叫做 xPathMatchingResourcePatternResolver 的类会将该路径下的所有的 .class 文件都加载进来，然后遍历判断是不是有 @Component 注解，如果有的话，就是我们要装载的 BeanDefinition。大致过程就是这样了。
+
+> TIPS:
+>
+> @Configuration，@Controller，@Service 等注解底层都是 @Component 注解，只不过包装了一层罢了。
+
+
+
 ##### 4.2.5.4.3 第三步，注册BeanDefinition
+
+这个过程通过调用上下文提到的 BeanDefinitionRegistry 接口的实现来完成。这个注册过程把载入过程中解析得到的 BeanDefinition 向 IoC 容器进行注册。通过上下文的分析，我们可以看到，在 IoC 容器中将 BeanDefinition  注入到一个 ConcurrentHashMap中，IoC 容器就是通过 HashMap 来持有这些 BeanDefinition 数据的。比如  DefaultListableBeanFactory 中的 beanDefinitionMap属性。
+
+总结完了，加下来通过代码看看具体实现：
+
+```java
+// org.springframework.context.support.AbstractApplicationContext#invokeBeanFactoryPostProcessors
+protected void invokeBeanFactoryPostProcessors(ConfigurableListableBeanFactory beanFactory) {
+    PostProcessorRegistrationDelegate
+        .invokeBeanFactoryPostProcessors(beanFactory, getBeanFactoryPostProcessors());
+	...
+}
+
+// org.springframework.context.support.PostProcessorRegistrationDelegate#invokeBeanFactoryPostProcessors(org.springframework.beans.factory.config.ConfigurableListableBeanFactory, java.util.List<org.springframework.beans.factory.config.BeanFactoryPostProcessor>)
+public static void invokeBeanFactoryPostProcessors(
+			ConfigurableListableBeanFactory beanFactory, 
+    List<BeanFactoryPostProcessor> beanFactoryPostProcessors) {
+	...
+        invokeBeanDefinitionRegistryPostProcessors(currentRegistryProcessors, registry);
+    ...
+}
+
+// org.springframework.context.support.PostProcessorRegistrationDelegate#invokeBeanDefinitionRegistryPostProcessors
+private static void invokeBeanDefinitionRegistryPostProcessors(
+			Collection<? extends BeanDefinitionRegistryPostProcessor> postProcessors, 
+    BeanDefinitionRegistry registry) {
+    for (BeanDefinitionRegistryPostProcessor postProcessor : postProcessors) {
+        postProcessor.postProcessBeanDefinitionRegistry(registry);
+    }
+}	
+
+// org.springframework.context.annotation.ConfigurationClassPostProcessor#postProcessBeanDefinitionRegistry
+/**
+	 * Derive further bean definitions from the configuration classes in the registry.
+	 */
+@Override
+public void postProcessBeanDefinitionRegistry(BeanDefinitionRegistry registry) {
+	...
+    processConfigBeanDefinitions(registry);
+}
+
+// org.springframework.context.annotation.ConfigurationClassPostProcessor#processConfigBeanDefinitions
+public void processConfigBeanDefinitions(BeanDefinitionRegistry registry) {
+    ...
+    do {
+        parser.parse(candidates);
+        parser.validate();
+        ...
+    }
+    ...
+}
+```
+
+一路跟踪调用栈，来到  org.springframework.context.annotation.ConfigurationClassParser 类的 parse() 方法：
+
+```java
+// org.springframework.context.annotation.ConfigurationClassParser#parse(java.util.Set<org.springframework.beans.factory.config.BeanDefinitionHolder>)
+public void parse(Set<BeanDefinitionHolder> configCandidates) {
+    for (BeanDefinitionHolder holder : configCandidates) {
+        BeanDefinition bd = holder.getBeanDefinition();
+        try {
+            // 如果是 SpringBoot 项目进来的，bd 其实就是前面主类封装成的 AnnotatedGenericBeanDefinition（AnnotatedBeanDefinition接口的实现类）
+            if (bd instanceof AnnotatedBeanDefinition) {
+                parse(((AnnotatedBeanDefinition) bd).getMetadata(), holder.getBeanName());
+            }
+            else if (bd instanceof AbstractBeanDefinition 
+                     && ((AbstractBeanDefinition) bd).hasBeanClass()) {
+                parse(((AbstractBeanDefinition) bd).getBeanClass(), holder.getBeanName());
+            }
+            else {
+                parse(bd.getBeanClassName(), holder.getBeanName());
+            }
+        }
+        catch (BeanDefinitionStoreException ex) {
+            throw ex;
+        }
+        catch (Throwable ex) {
+            throw new BeanDefinitionStoreException(
+                "Failed to parse configuration class [" + bd.getBeanClassName() + "]", ex);
+        }
+    }
+
+    this.deferredImportSelectorHandler.process();
+}
+```
+
+
 
 
 
