@@ -1803,21 +1803,27 @@ public void refresh() throws BeansException, IllegalStateException {
             registerBeanPostProcessors(beanFactory);
 
             // Initialize message source for this context.
+            // 对上下文中的消息源进行初始化
             initMessageSource();
 
             // Initialize event multicaster for this context.
+            // 初始化上下文中的事件机制
             initApplicationEventMulticaster();
 
             // Initialize other special beans in specific context subclasses.
+            // 初始化其他特殊的 Bean
             onRefresh();
 
             // Check for listener beans and register them.
+            // 检查监听Bean并且将这些监听Bean向容器注册
             registerListeners();
 
             // Instantiate all remaining (non-lazy-init) singletons.
+            // 实例化所有的（non-lazy-init）单件
             finishBeanFactoryInitialization(beanFactory);
 
             // Last step: publish corresponding event.
+            // 发布容器事件，结束Refresh过程
             finishRefresh();
         }
 
@@ -1845,6 +1851,157 @@ public void refresh() throws BeansException, IllegalStateException {
     }
 }
 ```
+
+从以上代码中可以看到，refresh() 方法中所作的工作也挺多，我们没有办法面面俱到，主要根据 IoC 容器的初始化步骤进行分析，所以我们主要介绍重要的方法。
+
+#### 4.2.5.1 obtainFreshBeanFactory()
+
+在启动流程的第三步：初始化应用上下文中，我们创建的应用上下文，并触发了 `GenericApplicationContext` 类的构造方法如下，创建了 beanFactory，也就是创建了 DefaultListableBeanFactory 类。
+
+```java
+public class GenericApplicationContext extends AbstractApplicationContext implements BeanDefinitionRegistry {
+
+	private final DefaultListableBeanFactory beanFactory;
+    ...
+	/**
+	 * Create a new GenericApplicationContext.
+	 * @see #registerBeanDefinition
+	 * @see #refresh
+	 */
+	public GenericApplicationContext() {
+		this.beanFactory = new DefaultListableBeanFactory();
+	}
+    ...
+}
+```
+
+关于 obtainFreshBeanFactory() 方法，其实就是拿到我们之前创建的 beanFactory。
+
+```java
+// org.springframework.context.support.AbstractApplicationContext#obtainFreshBeanFactory
+protected ConfigurableListableBeanFactory obtainFreshBeanFactory() {
+    //刷新 BeanFactory
+    refreshBeanFactory();
+    // 获取beanFactory
+    return getBeanFactory();
+}
+```
+
+从上面代码可知，在该方法中主要做了三个工作，刷新 beanFactory ，获取 beanFactory ，返回 beanFactory 。
+
+首先，看一下 refreshBeanFactory() 方法，跟下去来到 GenericApplicationContext#refreshBeanFactory 方法，发现并没有做什么。
+
+```java
+@Override
+protected final void refreshBeanFactory() throws IllegalStateException {
+    if (!this.refreshed.compareAndSet(false, true)) {
+        throw new IllegalStateException(
+            "GenericApplicationContext does not support multiple refresh attempts: just call 'refresh' once");
+    }
+    this.beanFactory.setSerializationId(getId());
+}
+```
+
+> TIPS：
+>
+> 1. AbstractApplicationContext 类 有两个子类实现了 refreshBeanFactory()，但是在前面第三步初始化上下文的时候，实例化了 GenericApplicationContex 类，所以没有进入 AbstractRefreshableApplicationContext 中的 refreshBeanFactory() 方法。
+>
+> 2. this.refreshed.compareAndSet(false, true) ，这行代码在这里表示：GenericApplicationContex 只允许刷新一次，这行代码很重要，不是在 Spring 中很重要，而是这行代码本身。首先看一下 this.refreshed 属性：
+>
+>    private final AtomicBoolean refreshed = new AtomicBoolean(); java JUC 并发包中一个很重要的原子类 AtomicBoolean 。通过该类的 compareAndSet() 方法可以实现一段代码绝对 只实现一次的功能。
+
+![image-20220310110258020](assest/image-20220310110258020.png)
+
+#### 4.2.5.2 prepareBeanFactory(beanFactory)
+
+字面意思是准备 BeanFactory。
+
+看代码，具体看看做了哪些准备工作。这个方法不是重点，
+
+```java
+protected void prepareBeanFactory(ConfigurableListableBeanFactory beanFactory) {
+    // Tell the internal bean factory to use the context's class loader etc.
+    // 配置类加载器：默认使用当前上下文的类加载器
+    beanFactory.setBeanClassLoader(getClassLoader());
+    // 配置 EL 表达式：在Bean 初始化完成，填充属性的时候用到
+    beanFactory.setBeanExpressionResolver(
+        new StandardBeanExpressionResolver(beanFactory.getBeanClassLoader()));
+    // 添加属性编辑器 PropertyEditor
+    beanFactory.addPropertyEditorRegistrar(new ResourceEditorRegistrar(this, getEnvironment()));
+
+    // Configure the bean factory with context callbacks.
+    // 添加 Bean 的后置处理器类
+    beanFactory.addBeanPostProcessor(new ApplicationContextAwareProcessor(this));
+    // 忽略装配以下指定的类
+    beanFactory.ignoreDependencyInterface(EnvironmentAware.class);
+    beanFactory.ignoreDependencyInterface(EmbeddedValueResolverAware.class);
+    beanFactory.ignoreDependencyInterface(ResourceLoaderAware.class);
+    beanFactory.ignoreDependencyInterface(ApplicationEventPublisherAware.class);
+    beanFactory.ignoreDependencyInterface(MessageSourceAware.class);
+    beanFactory.ignoreDependencyInterface(ApplicationContextAware.class);
+
+    // BeanFactory interface not registered as resolvable type in a plain factory.
+    // MessageSource registered (and found for autowiring) as a bean.
+    // 将以下类 注册到 beanFactory （DefaultListableBeanFactory）ResolvableDependencies 属性中。
+    beanFactory.registerResolvableDependency(BeanFactory.class, beanFactory);
+    beanFactory.registerResolvableDependency(ResourceLoader.class, this);
+    beanFactory.registerResolvableDependency(ApplicationEventPublisher.class, this);
+    beanFactory.registerResolvableDependency(ApplicationContext.class, this);
+
+    // Register early post-processor for detecting inner beans as ApplicationListeners.
+    // 将早期的后置处理器注册为 application 监听器，用于检测内部 bean
+    beanFactory.addBeanPostProcessor(new ApplicationListenerDetector(this));
+
+    // Detect a LoadTimeWeaver and prepare for weaving, if found.
+    // 如果当前 BeanFactory 包含 loadTimeWeaver Bean，说明存在类加载织入 AspectJ,
+    // 则把当前 BeanFactory 交给类加载器 BeanPostProcessor 实现类 LoadTimeWeaverAwareProcessor 来处理，
+    // 从而实现类加载期间织入 AspectJ 的目的。
+    if (beanFactory.containsBean(LOAD_TIME_WEAVER_BEAN_NAME)) {
+        beanFactory.addBeanPostProcessor(new LoadTimeWeaverAwareProcessor(beanFactory));
+        // Set a temporary ClassLoader for type matching.
+        beanFactory.setTempClassLoader(
+            new ContextTypeMatchClassLoader(beanFactory.getBeanClassLoader()));
+    }
+
+    // Register default environment beans.
+    // 将当前环境变量（environment）注册为单例 bean
+    if (!beanFactory.containsLocalBean(ENVIRONMENT_BEAN_NAME)) {
+        beanFactory.registerSingleton(ENVIRONMENT_BEAN_NAME, getEnvironment());
+    }
+    // 将当前系统配置（systemProperties）注册为单例 Bean
+    if (!beanFactory.containsLocalBean(SYSTEM_PROPERTIES_BEAN_NAME)) {
+        beanFactory.registerSingleton(
+            SYSTEM_PROPERTIES_BEAN_NAME, 
+            getEnvironment().getSystemProperties());
+    }
+    // 将当前系统环境（systemEnvironment）注册为单例 Bean
+    if (!beanFactory.containsLocalBean(SYSTEM_ENVIRONMENT_BEAN_NAME)) {
+        beanFactory.registerSingleton(
+            SYSTEM_ENVIRONMENT_BEAN_NAME, 
+            getEnvironment().getSystemEnvironment());
+    }
+}
+```
+
+#### 4.2.5.3 postProcessBeanFactory(beanFactory)
+
+postProcessBeanFactory() 方法向上下文中添加了一些列的 Bean 后置处理器。
+
+后置处理器工作时机是在所有beanDenfition 加载完成之后，bean 实例化之前。简单来说明Bean的后置处理器可以修改 BeanDenfition   的属性信息。
+
+#### 4.2.5.4 invokeBeanFactoryPostProcessors(beanFactory) :star:
+
+IoC 容器的初始化过程包括三个步骤，在 invokeBeanFactoryPostProcessors() 方法中完成了 IoC 容器初始化过程的三个步骤。
+
+##### 4.2.5.4.1 第一步，Resource 定位
+
+在 SpringBoot 中，我们知道它的包扫描是从主类所在的包开始扫描的，prepareContext()（第4步，刷新应用上下文前的准备阶段）方法中，会先将主类解析成 BeanDefinition，然后在 refresh() 方法的 invokeBeanFactoryPostProcessors() 方法中解析主类的 BeanDefinition 获取 basePackage 的 路径。这样就完成了定位的过程。
+
+其次 SpringBoot的各种 starter 是通过 SPI 扩展机制实现的自动装配，SpringBoot 的自动装配同样也是在 invokeBeanFactoryPostProcessors() 方法中实现的。还有 一种情况，在 SpringBoot 中有很多的 @EnableXXX 注解，细心点进去
+
+##### 4.2.5.4.2 第二步，BeanDefinition的载入
+
+##### 4.2.5.4.3 第三步，注册BeanDefinition
 
 
 
