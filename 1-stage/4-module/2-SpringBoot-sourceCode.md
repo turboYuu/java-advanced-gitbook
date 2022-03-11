@@ -2577,6 +2577,74 @@ protected void afterRefresh(ConfigurableApplicationContext context, ApplicationA
 
 # 5 自定义Start
 
+## 5.1 SpringBoot starter 机制
+
+SpringBoot 中的 starter 是一种非常重要的机制，能够抛弃以前繁杂的配置，将其统一集成进 starter，应用着只需要在 maven 中引入 starter 依赖，SpringBoot 就能自动扫描到要加载的信息并启动相应的默认配置。starter 让完美摆脱了各种依赖库的处理，需要配置各种信息的困扰。SpringBoot 会自动通过 classpath 路径下的类发现需要的 Bean，并注册进 IOC 容器。SpringBoot 提供了针对日常企业应用研发各种场景的 spring-boot-starter 依赖模块。所有这些依赖模块都遵循着约定成俗的默认配置，并允许完美调整这些配置，即遵循 "约定大于配置" 的理念。
+
+比如我们在 SpringBoot 里面要引入 redis，那么我们就需要在 pom 中引入以下内容。
+
+```xml
+<dependency>
+	<groupId>org.springframework.boot</groupId>
+	<artifactId>spring-boot-starter-data-redis</artifactId>
+</dependency>
+```
+
+着其实就是一个 starter。
+
+简而言之，starter就是一个外部的项目，我们需要使用它的使用就可以在当前SpringBoot 项目中引入它。
+
+**为什么要自定义 starter**
+
+在我们的日常开发工作中，经常有一些独立于业务之外的配置模块，经常将其放到一个特定的包下，然后如果另一个工程复用这个功能模块的时候，需要将代码拷贝到另一个工程，重新集成以便，麻烦。
+
+如果我们将这些可独立于业务代码之外的配置模块封装成一个个 starter，复用的时候只需要将其在 pom 中引入依赖即可，再由 SpringBoot 为我们完成自动装配，就非常轻松了。
+
+## 5.2 自定义 starter 的案例
+
+以下案例是开发中遇到的部分场景：
+
+- 动态数据源
+- 登录模块
+- 基于 AOP 技术实现日志切面。
+
+
+
+## 5.3 自定义 starter 的命名规则
+
+SpringBoot 提供的 starter 以 `spring-boot-starter-xxx` 的方式命名的。
+
+官方建议自定义的 starter 使用 `xxx-spring-boot-starter` 命名规则，以区分 SpringBoot 生态提供的 starter
+
+## 5.4 自定义 starter 代码的实现
+
+整个过程分为两部分：
+
+1. 自定义 starter
+2. 使用 starter
+
+### 5.4.1 自定义 starter
+
+首先，先完成自定义 starter
+
+1. 新建 maven jar 工程，工程名为 customize-spring-boot-starter，导入依赖：
+
+   ```xml
+   
+   ```
+
+   
+
+### 5.4.2 使用自定义 starter
+
+
+
+## 5.5 热插拔技术
+
+## 5.6 关于条件注解的讲解
+
+参考 3.3.3 
+
 # 6 内嵌Tomcat
 
 # 7 自动配置SpringMVC
