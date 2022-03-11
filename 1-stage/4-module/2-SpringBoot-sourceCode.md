@@ -2328,9 +2328,252 @@ protected Set<BeanDefinitionHolder> doScan(String... basePackages) {
 
 这个方法中有两个比较重要的方法，第7行 `Set<BeanDefinition> candidates = findCandidateComponents(basePackage);` 从 basePackage 中扫描类并解析成 BeanDefinition，拿到所有符合条件的类后，在第24行 `registerBeanDefinition(definitionHolder, this.registry);` 将该类注册进 IoC 容器。也就是说在这个方法中完成了 IoC 容器初始化过程的 第二三步，BeanDefinition 的载入，和 BeanDefinition 的注册。
 
+`findCandidateComponents(basePackage)` 跟踪调用栈
+
+```java
+// org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider#findCandidateComponents
+public Set<BeanDefinition> findCandidateComponents(String basePackage) {
+    // ...
+    else {
+        return scanCandidateComponents(basePackage);
+    }
+}
+// org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider#scanCandidateComponents
+private Set<BeanDefinition> scanCandidateComponents(String basePackage) {
+    Set<BeanDefinition> candidates = new LinkedHashSet<>();
+    try {
+        // 拼接扫描路径，比如：classpath*:com/turbo/**/*.class
+        String packageSearchPath = ResourcePatternResolver.CLASSPATH_ALL_URL_PREFIX +
+            resolveBasePackage(basePackage) + '/' + this.resourcePattern;
+        // 从 packageSearchPath 路径中扫描所有的类
+        Resource[] resources = getResourcePatternResolver().getResources(packageSearchPath);
+        boolean traceEnabled = logger.isTraceEnabled();
+        boolean debugEnabled = logger.isDebugEnabled();
+        for (Resource resource : resources) {
+            if (traceEnabled) {
+                logger.trace("Scanning " + resource);
+            }
+            if (resource.isReadable()) {
+                try {
+                    MetadataReader metadataReader = getMetadataReaderFactory().getMetadataReader(resource);
+                    // 判断该类是不是 @Component 注解标注的类，并且不是需要排除掉的类
+                    if (isCandidateComponent(metadataReader)) {
+                        // 将该类封装成 ScannedGenericBeanDefinition（BeanDefinition 接口的实现类）类
+                        ScannedGenericBeanDefinition sbd = new ScannedGenericBeanDefinition(metadataReader);
+                        sbd.setSource(resource);
+                        if (isCandidateComponent(sbd)) {
+                            if (debugEnabled) {
+                                logger.debug("Identified candidate component class: " + resource);
+                            }
+                            candidates.add(sbd);
+                        }
+                        else {
+                            if (debugEnabled) {
+                                logger.debug("Ignored because not a concrete top-level class: " + resource);
+                            }
+                        }
+                    }
+                    else {
+                        if (traceEnabled) {
+                            logger.trace("Ignored because not matching any filter: " + resource);
+                        }
+                    }
+                }
+                catch (Throwable ex) {
+                    throw new BeanDefinitionStoreException(
+                        "Failed to read candidate component class: " + resource, ex);
+                }
+            }
+            else {
+                if (traceEnabled) {
+                    logger.trace("Ignored because not readable: " + resource);
+                }
+            }
+        }
+    }
+    catch (IOException ex) {
+        throw new BeanDefinitionStoreException("I/O failure during classpath scanning", ex);
+    }
+    return candidates;
+}
+```
+
+在第 13 行 将 basePackage 拼接成 classpath*:com/turbo/**/*.class，在第 16 行 的 getResources(packageSearchPath) 方法中扫描到了该路径下的所有类。然后遍历这些 resources，在第 27 行判断该类是不是 @Component 注解标注的类，并且不是需要排除掉的类。在第 29 行 将扫描倒类解析成 ScannedGenericBeanDefinition，该类是 BeanDefinition 接口的实现类。OK，IoC 容器的 BeanDefinition 载入到这里就结束了。
+
+回到前面的 doScan() 方法，debug 看一下结果（截图中所示的就是定位的需要）
+
+
+
+` doScan` 中的 `registerBeanDefinition(definitionHolder, this.registry);` 方法，是不是有点眼熟，在前面介绍的 prepareContext() 方法是，我们主要介绍了主类 BeanDefinition 是怎么一步一步注册进 DefaultListableBeanFactory 的 beanDefinitionMap 中的。完成了 BeanDefinition 的注册，就完成了 IoC 容器的初始化过程。此时，在使用的 IoC 容器 DefaultListableBeanFactory 中已经建立了整个 Bean 的配置信息，而这些 BeanDefinition 已经可以被容器使用了。它们都在 beanDefinitionMap 里被检索和使用。容器的作用就是对这些信息进行处理和维护。这些信息是容器 依赖反转的基础。
+
+```java
+// org.springframework.context.annotation.ClassPathBeanDefinitionScanner#registerBeanDefinition
+protected void registerBeanDefinition(BeanDefinitionHolder definitionHolder, 
+                                      BeanDefinitionRegistry registry) {
+    BeanDefinitionReaderUtils.registerBeanDefinition(definitionHolder, registry);
+}
+```
+
+OK，到这里 IoC 容器的初始化过程的三个步骤就梳理完了，当然这只是针对 SpringBoot 的包扫描的定位方式的 BeanDefinition 的定位，加载，和注册过程。前面说过，还有两种方式 @Import 和 SPI 扩展实现的 starter 的自动装配。
+
+#### 4.2.5.5 @Import注解的解析过程
+
+现在大家也应该知道了，各种 @EnableXXX 注解，很大一部分都是对 @Import 的二次封装（其实也是为了解耦，比如当 @Import 导入的类发生变化时，我们的业务系统也不需要修改任何代码）。
+
+又要回到 上文中的 org.springframework.context.annotation.ConfigurationClassParser#doProcessConfigurationClass 方法的 processImports(configClass, sourceClass, getImports(sourceClass), filter, true); 跳跃比较大，只针对主类进行分析，因为这里有递归。
+
+`processImports(configClass, sourceClass, getImports(sourceClass), filter, true);` 中的 configClass 和 sourceClass 参数都是主类相对应的。
+
+首先看 getImports(sourceClass) ：
+
+```java
+private Set<SourceClass> getImports(SourceClass sourceClass) throws IOException {
+    Set<SourceClass> imports = new LinkedHashSet<>();
+    Set<SourceClass> visited = new LinkedHashSet<>();
+    collectImports(sourceClass, imports, visited);
+    return imports;
+}
+```
+
+debug 
+
+![image-20220311121131044](assest/image-20220311121131044.png)
+
+两个是主类的 @SpringBootApplication 中的 @Import 注解指定的类
+
+接下来，是不是要进行执行了 
+
+记下来，再回到 org.springframework.context.annotation.ConfigurationClassParser#parse(java.util.Set<org.springframework.beans.factory.config.BeanDefinitionHolder>) 方法：
+
+```java
+public void parse(Set<BeanDefinitionHolder> configCandidates) {
+    for (BeanDefinitionHolder holder : configCandidates) {
+        BeanDefinition bd = holder.getBeanDefinition();
+        try {
+            if (bd instanceof AnnotatedBeanDefinition) {
+                parse(((AnnotatedBeanDefinition) bd).getMetadata(), holder.getBeanName());
+            }
+            else if (bd instanceof AbstractBeanDefinition 
+                     && ((AbstractBeanDefinition) bd).hasBeanClass()) {
+                parse(((AbstractBeanDefinition) bd).getBeanClass(), holder.getBeanName());
+            }
+            else {
+                parse(bd.getBeanClassName(), holder.getBeanName());
+            }
+        }
+        catch (BeanDefinitionStoreException ex) {
+            throw ex;
+        }
+        catch (Throwable ex) {
+            throw new BeanDefinitionStoreException(
+                "Failed to parse configuration class [" + bd.getBeanClassName() + "]", ex);
+        }
+    }
+	// 去执行组件类
+    this.deferredImportSelectorHandler.process();
+}
+```
+
+点击 process 方法：
+
+```java
+//org.springframework.context.annotation.ConfigurationClassParser.DeferredImportSelectorHandler#process
+public void process() {
+    List<DeferredImportSelectorHolder> deferredImports = this.deferredImportSelectors;
+    this.deferredImportSelectors = null;
+    try {
+        if (deferredImports != null) {
+            DeferredImportSelectorGroupingHandler handler = new DeferredImportSelectorGroupingHandler();
+            deferredImports.sort(DEFERRED_IMPORT_COMPARATOR);
+            deferredImports.forEach(handler::register);
+            // 继续点进
+            handler.processGroupImports();
+        }
+    }
+    finally {
+        this.deferredImportSelectors = new ArrayList<>();
+    }
+}
+```
+
+继续点击  handler.processGroupImports();
+
+```java
+public void processGroupImports() {
+    for (DeferredImportSelectorGrouping grouping : this.groupings.values()) {
+        Predicate<String> exclusionFilter = grouping.getCandidateFilter();
+        // 查看调用的 getimports
+        grouping.getImports().forEach(entry -> {
+            ConfigurationClass configurationClass = this.configurationClasses.get(entry.getMetadata());
+            try {
+                processImports(configurationClass, asSourceClass(configurationClass, exclusionFilter),
+                               Collections.singleton(asSourceClass(entry.getImportClassName(), exclusionFilter)),
+                               exclusionFilter, false);
+            }
+            catch (BeanDefinitionStoreException ex) {
+                throw ex;
+            }
+            catch (Throwable ex) {
+                throw new BeanDefinitionStoreException(
+                    "Failed to process import candidates for configuration class [" +
+                    configurationClass.getMetadata().getClassName() + "]", ex);
+            }
+        });
+    }
+}
+```
+
+```java
+// org.springframework.context.annotation.ConfigurationClassParser.DeferredImportSelectorGrouping#getImports
+public Iterable<Group.Entry> getImports() {
+    for (DeferredImportSelectorHolder deferredImport : this.deferredImports) {
+        // 调用了 process 方法
+        this.group.process(deferredImport.getConfigurationClass().getMetadata(),
+                           deferredImport.getImportSelector());
+    }
+    return this.group.selectImports();
+}
+```
+
+和之前 分析的自动配置主要逻辑 完美衔接
+
+```java
+// 这里用来处理自动配置类，比如过滤不符合匹配条件的自动配置类
+// org.springframework.boot.autoconfigure.AutoConfigurationImportSelector.AutoConfigurationGroup#process
+@Override
+public void process(AnnotationMetadata annotationMetadata, 
+                    DeferredImportSelector deferredImportSelector) {
+    Assert.state(deferredImportSelector instanceof AutoConfigurationImportSelector,
+                 () -> String.format("Only %s implementations are supported, got %s",
+                                     AutoConfigurationImportSelector.class.getSimpleName(),
+                                     deferredImportSelector.getClass().getName()));
+    // 【1】 调用 getAutoConfigurationEntry 方法得到自动配置类放入 autoConfigurationEntry 对象中
+    AutoConfigurationEntry autoConfigurationEntry = 
+        ((AutoConfigurationImportSelector) deferredImportSelector)
+        .getAutoConfigurationEntry(getAutoConfigurationMetadata(), annotationMetadata);
+    // 【2】 又封装了自动配置类的 autoConfigurationEntry 对象装进 autoConfigurationEntries 集合
+    this.autoConfigurationEntries.add(autoConfigurationEntry);
+    // 【3】 遍历刚获取的自动配置类
+    for (String importClassName : autoConfigurationEntry.getConfigurations()) {
+        // 这里符合条件的自动配置类作为 key,annotationMetadata作为值 放进 entries 集合
+        this.entries.putIfAbsent(importClassName, annotationMetadata);
+    }
+}
+```
+
 
 
 ### 4.2.6 刷新应用上下文后的扩展接口
+
+```java
+// org.springframework.boot.SpringApplication#afterRefresh
+protected void afterRefresh(ConfigurableApplicationContext context, ApplicationArguments args) {
+}
+```
+
+扩展接口，设计模式中的模板方法，默认为空实现。如果有自定义需求，可以重写该方法。比如打印一些启动结束 log，或者一些其他后置处理。
+
+
 
 # 5 自定义Start
 
