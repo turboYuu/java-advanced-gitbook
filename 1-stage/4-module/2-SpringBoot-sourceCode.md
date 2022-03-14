@@ -1176,12 +1176,12 @@ EventPublishingRunListener 监听器是Spring容器的启动监听器。`listene
 private ConfigurableEnvironment prepareEnvironment(SpringApplicationRunListeners listeners,
 			ApplicationArguments applicationArguments) {
     // Create and configure the environment
-    // 创建并配置相应的环境
+    // 1.创建并配置相应的环境
     ConfigurableEnvironment environment = getOrCreateEnvironment();
-    // 根据用户配置，配置 environment 系统环境
+    // 2.根据用户配置，配置 environment 系统环境
     configureEnvironment(environment, applicationArguments.getSourceArgs());
     ConfigurationPropertySources.attach(environment);
-    // 启动响用的监听器，其中一个重要的监听器 ConfigFileApplicationListener 就是加载项目配置文件的监听器
+    // 3.启动响用的监听器，其中一个重要的监听器 ConfigFileApplicationListener 就是加载项目配置文件的监听器
     listeners.environmentPrepared(environment);
     bindToSpringApplication(environment);
     if (!this.isCustomEnvironment) {
@@ -1418,7 +1418,7 @@ beanFactory 正是在 `AnnotationConfigServletWebServerApplicationContext` 实�
 
 ![image-20220309142354126](assest/image-20220309142354126.png)
 
-如上图所示，context 就是我们熟悉的上下文（也有人称之为容器，都可以，看个人理解），beanFactory 就是我们常说的 IoC 容器的真实面孔了。喜喜感受下上下文和容器的联系和区别，对于我们理解源码有很大的帮助。在我们的学习过程中，我们也是将上下文和容器严格区分开来的。
+如上图所示，context 就是我们熟悉的上下文（也有人称之为容器，都可以，看个人理解），beanFactory 就是我们常说的 IoC 容器的真实面孔了。细细感受下上下文和容器的联系和区别，对于我们理解源码有很大的帮助。在我们的学习过程中，我们也是将上下文和容器严格区分开来的。
 
 ### 4.2.4 刷新应用上下文前的准备阶段
 
@@ -1596,6 +1596,7 @@ isComponent(source) 判断主类是不是存在 @Component 注解，主类 @Spri
 this.annotatedReader.register(source); 跟进 register() 方法，最终进到 AnnotatedBeanDefinitionReader#doRegisterBean 方法：
 
 ```java
+// org.springframework.context.annotation.AnnotatedBeanDefinitionReader#doRegisterBean
 private <T> void doRegisterBean(Class<T> beanClass, @Nullable String name,
 			@Nullable Class<? extends Annotation>[] qualifiers, 
                                 @Nullable Supplier<T> supplier,
@@ -1646,6 +1647,7 @@ private <T> void doRegisterBean(Class<T> beanClass, @Nullable String name,
 在该方法中将主类封装成 AnnotatedGenericBeanDefinition ，BeanDefinitionReaderUtils.registerBeanDefinition(definitionHolder, this.registry); 方法将 BeanDefinition 注册进 beanDefinitionMap 。
 
 ```java
+// org.springframework.beans.factory.support.BeanDefinitionReaderUtils#registerBeanDefinition
 public static void registerBeanDefinition(
 			BeanDefinitionHolder definitionHolder, BeanDefinitionRegistry registry)
 			throws BeanDefinitionStoreException {
@@ -1761,7 +1763,7 @@ debug 跳过 prepareContext() 方法，可以看到，启动类的 BeanDefinitio
 
 ![image-20220309185315506](assest/image-20220309185315506.png)
 
-OK，到这里启动流程的第五步就讲解完了，其实在没必要讲这么细，因为启动类 BeanDefinition 的注册流程和 后面 自定义的 BeanDefinition 注册流程是一样的。
+OK，到这里启动流程的第四步就讲解完了，其实在没必要讲这么细，因为启动类 BeanDefinition 的注册流程和 后面 自定义的 BeanDefinition 注册流程是一样的。
 
 ### 4.2.5 刷新应用上下文（IOC容器的初始化过程）
 
@@ -2045,8 +2047,8 @@ private static void invokeBeanDefinitionRegistryPostProcessors(
 
 // org.springframework.context.annotation.ConfigurationClassPostProcessor#postProcessBeanDefinitionRegistry
 /**
-	 * Derive further bean definitions from the configuration classes in the registry.
-	 */
+* Derive further bean definitions from the configuration classes in the registry.
+*/
 @Override
 public void postProcessBeanDefinitionRegistry(BeanDefinitionRegistry registry) {
 	...
@@ -2633,13 +2635,71 @@ SpringBoot 提供的 starter 以 `spring-boot-starter-xxx` 的方式命名的。
    
    ```
 
+2. 编写javaBean
+
+   ```java
    
+   ```
+
+3. 编写配置类 MyAutoConfiguration
+
+   ```java
+   
+   ```
+
+4. resources 下创建 /META-INF/spring.factories
+
+   注意：META-INF 是自己手动创建的目录，spring.factories 也是手动创建的文件，在该文件中配置自己的自动配置类
+
+   ```properties
+   
+   ```
+
+   上面这句话的意思就是SpringBoot启动的时候会去加载我们的 simpleBean 到 IOC 容器中。这其实是一种变形的 SPI 机制。
 
 ### 5.4.2 使用自定义 starter
 
+1. 导入自定义 starter 的依赖
 
+   ```xml
+   
+   ```
+
+2. 在全局配置文件中配置属性值
+
+   ```properties
+   
+   ```
+
+3. 编写测试方法
+
+   ```java
+   
+   ```
+
+但此处有一个问题，如果有一天我们不想要启动工程的时候装配 simpleBean，参考 下一节。
 
 ## 5.5 热插拔技术
+
+还记得我们经常在启动类 Application 上面加 @EnableXXX 注解。
+
+
+
+其实这个 @EnableXXX 注解就是一种热插拔技术，加了这个注解可以启动对应的 starter，当不需要对应的 starter 的时候只需要把这个注解注释掉就可以了，比较优雅。
+
+改造 customize 工程新增热插拔支持类
+
+新增标记类 ConfigMarker
+
+
+
+新增 EnableRegisterServer 注解
+
+```java
+
+```
+
+
 
 ## 5.6 关于条件注解的讲解
 
