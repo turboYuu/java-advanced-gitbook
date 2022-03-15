@@ -1127,13 +1127,15 @@ public ConfigurableApplicationContext run(String... args) {
 ```java
 private SpringApplicationRunListeners getRunListeners(String[] args) {
     Class<?>[] types = new Class<?>[] { SpringApplication.class, String[].class };
+    // SpringApplicationRunListener 负责在 SpringBoot 启动的不同阶段
+	// 广播出不同的消息，传递给ApplicationListener 监听器实现类
     return new SpringApplicationRunListeners(
         logger,
         getSpringFactoriesInstances(SpringApplicationRunListener.class, types, this, args));
 }
 ```
 
-这里是不是看到一个熟悉的方法：`getSpringFactoriesInstances()`，可以看下面的注释，前面的小结已经详细介绍过该方法是怎么一步步获取到 META-INF/spring.factories 中的指定 key 的 value，获取到以后怎么实例化类的。
+这里是不是看到一个熟悉的方法：`getSpringFactoriesInstances()`，可以看下面的注释，前面的小节已经详细介绍过该方法是怎么一步步获取到 META-INF/spring.factories 中的指定 key 的 value，获取到以后怎么实例化类的。
 
 ```java
 /**
@@ -1418,9 +1420,11 @@ beanFactory 正是在 `AnnotationConfigServletWebServerApplicationContext` 实�
 
 ![image-20220309142354126](assest/image-20220309142354126.png)
 
-如上图所示，context 就是我们熟悉的上下文（也有人称之为容器，都可以，看个人理解），beanFactory 就是我们常说的 IoC 容器的真实面孔了。细细感受下上下文和容器的联系和区别，对于我们理解源码有很大的帮助。在我们的学习过程中，我们也是将上下文和容器严格区分开来的。
+如上图所示，context 就是我们熟悉的上下文（也有人称之为容器，都可以，看个人理解），beanFactory 就是我们常说的 IoC 容器的真实面孔了（beanFactory是 context 上下文的一个属性）。细细感受下上下文和容器的联系和区别，对于我们理解源码有很大的帮助。在我们的学习过程中，我们也是将上下文和容器严格区分开来的。
 
 ### 4.2.4 刷新应用上下文前的准备阶段
+
+就是完成context上下文 属性的设置。包含核心启动类 Bean 对象的创建。
 
 #### 4.2.4.1 prepareContext() 方法
 
