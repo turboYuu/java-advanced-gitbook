@@ -1513,6 +1513,8 @@ private BeanDefinitionRegistry getBeanDefinitionRegistry(ApplicationContext cont
 }
 ```
 
+> Spring 容器在启动的时候，会将类解析成 spring 内部的 beanDefinition 结构，并将 beanDefinition 存储到 `DefaultListableBeanFactory`  的 beanDefinitionMap 中。
+
 这里将我们前文创建的上下文强转为 `BeanDefinitionRegistry`，它们之间有继承关系。`BeanDefinitionRegistry`定义了很重要的方法 `registerBeanDefinition()`，该方法将 BeanDefinition  注册进`DefaultListableBeanFactory` 容器的 beanDefinitionMap 中。
 
 #### 4.2.4.3 createBeanDefinitionLoader()
@@ -1586,6 +1588,7 @@ private int load(Class<?> source) {
                               GroovyBeanDefinitionSource.class);
         load(loader);
     }
+    // 核心启动类上是否标注了 @Component 注解
     if (isComponent(source)) {
         // 将启动类的BeanDefinition 注册进 beanDefinitionMap
         this.annotatedReader.register(source);
