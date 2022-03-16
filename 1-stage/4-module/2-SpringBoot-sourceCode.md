@@ -2000,6 +2000,8 @@ postProcessBeanFactory() 方法向上下文中添加了一些列的 Bean 后置�
 
 #### 4.2.5.4 invokeBeanFactoryPostProcessors(beanFactory) :star:
 
+> 在该方法中解析 核心启动类上的注解，
+
 IoC 容器的初始化过程包括三个步骤，在 invokeBeanFactoryPostProcessors() 方法中完成了 IoC 容器初始化过程的三个步骤。
 
 ##### 4.2.5.4.1 第一步，Resource 定位
@@ -2023,6 +2025,14 @@ IoC 容器的初始化过程包括三个步骤，在 invokeBeanFactoryPostProces
 ##### 4.2.5.4.3 第三步，注册BeanDefinition
 
 这个过程通过调用上下文提到的 BeanDefinitionRegistry 接口的实现来完成。这个注册过程把载入过程中解析得到的 BeanDefinition 向 IoC 容器进行注册。通过上下文的分析，我们可以看到，在 IoC 容器中将 BeanDefinition  注入到一个 ConcurrentHashMap中，IoC 容器就是通过 HashMap 来持有这些 BeanDefinition 数据的。比如  DefaultListableBeanFactory 中的 beanDefinitionMap属性。
+
+> Spring 容器在启动的时候，会将类解析成 spring 内部的 beanDefinition 结构，并将 beanDefinition 存储到 `DefaultListableBeanFactory`  的 beanDefinitionMap 中。
+
+
+
+------
+
+
 
 总结完了，加下来通过代码看看具体实现：
 
@@ -2297,7 +2307,7 @@ public Set<BeanDefinitionHolder> parse(AnnotationAttributes componentScan, final
 
 ![image-20220310190053794](assest/image-20220310190053794.png)
 
-> TIPS：为什么只有一个还要用集合，因为我们也可以用 @ComponentScan 注解指定扫描路径。
+> TIPS：为什么只有一个还要用集合，因为我们也可以用多个 @ComponentScan 注解指定扫描路径。
 
 到这里 IoC 容器初始化三个步骤的第一步，Resource 定位就完成了，成功定位到了主类所在的包。
 
