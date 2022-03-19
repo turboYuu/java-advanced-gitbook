@@ -2462,7 +2462,7 @@ debug
 
 接下来，是不是要进行执行了 
 
-记下来，再回到 org.springframework.context.annotation.ConfigurationClassParser#parse(java.util.Set<org.springframework.beans.factory.config.BeanDefinitionHolder>) 方法：
+记下来，再回到 `org.springframework.context.annotation.ConfigurationClassParser#parse(java.util.Set<org.springframework.beans.factory.config.BeanDefinitionHolder>) ` 方法：
 
 ```java
 public void parse(Set<BeanDefinitionHolder> configCandidates) {
@@ -2488,7 +2488,7 @@ public void parse(Set<BeanDefinitionHolder> configCandidates) {
                 "Failed to parse configuration class [" + bd.getBeanClassName() + "]", ex);
         }
     }
-	// 去执行组件类
+	// 去执行组件类 点进去
     this.deferredImportSelectorHandler.process();
 }
 ```
@@ -2521,7 +2521,7 @@ public void process() {
 public void processGroupImports() {
     for (DeferredImportSelectorGrouping grouping : this.groupings.values()) {
         Predicate<String> exclusionFilter = grouping.getCandidateFilter();
-        // 查看调用的 getimports
+        // 查看调用的 getImports
         grouping.getImports().forEach(entry -> {
             ConfigurationClass configurationClass = this.configurationClasses.get(entry.getMetadata());
             try {
@@ -2580,7 +2580,13 @@ public void process(AnnotationMetadata annotationMetadata,
 }
 ```
 
+但 此时 还没有添加到容器中的，debug中看到自动配置类还没有注册进入容器中。
 
+![image-20220319154309610](assest/image-20220319154309610.png)
+
+在 `org.springframework.context.annotation.ConfigurationClassPostProcessor#processConfigBeanDefinitions` 方法中的 `this.reader.loadBeanDefinitions(configClasses);` 中完成自动配置类的注入。
+
+![image-20220319155759313](assest/image-20220319155759313.png)
 
 ### 4.2.6 刷新应用上下文后的扩展接口
 
