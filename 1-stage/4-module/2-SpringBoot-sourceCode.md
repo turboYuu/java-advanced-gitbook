@@ -2621,7 +2621,7 @@ SpringBoot 中的 starter 是一种非常重要的机制，能够抛弃以前繁
 
 **为什么要自定义 starter**
 
-在我们的日常开发工作中，经常有一些独立于业务之外的配置模块，经常将其放到一个特定的包下，然后如果另一个工程复用这个功能模块的时候，需要将代码拷贝到另一个工程，重新集成以便，麻烦。
+在我们的日常开发工作中，经常有一些独立于业务之外的配置模块，经常将其放到一个特定的包下，然后如果另一个工程复用这个功能模块的时候，需要将代码拷贝到另一个工程，重新集成一遍，麻烦。
 
 如果我们将这些可独立于业务代码之外的配置模块封装成一个个 starter，复用的时候只需要将其在 pom 中引入依赖即可，再由 SpringBoot 为我们完成自动装配，就非常轻松了。
 
@@ -2655,19 +2655,69 @@ SpringBoot 提供的 starter 以 `spring-boot-starter-xxx` 的方式命名的。
 1. 新建 maven jar 工程，工程名为 customize-spring-boot-starter，导入依赖：
 
    ```xml
-   
+   <dependencies>
+       <dependency>
+           <groupId>org.springframework.boot</groupId>
+           <artifactId>spring-boot-autoconfigure</artifactId>
+           <version>2.2.9.RELEASE</version>
+       </dependency>
+   </dependencies>
    ```
 
 2. 编写javaBean
 
    ```java
+   package com.turbo.pojo;
    
+   import org.springframework.boot.context.properties.ConfigurationProperties;
+   import org.springframework.boot.context.properties.EnableConfigurationProperties;
+   import org.springframework.context.annotation.Configuration;
+   
+   @EnableConfigurationProperties
+   @ConfigurationProperties(prefix = "simplebean")
+   public class SimpleBean {
+   	private int id;
+   	private String name;
+   
+   	public int getId() {
+   		return id;
+   	}
+   
+   	public void setId(int id) {
+   		this.id = id;
+   	}
+   
+   	public String getName() {
+   		return name;
+   	}
+   
+   	public void setName(String name) {
+   		this.name = name;
+   	}
+   }
    ```
 
 3. 编写配置类 MyAutoConfiguration
 
    ```java
+   package com.turbo.config;
    
+   import com.turbo.pojo.SimpleBean;
+   import org.springframework.context.annotation.Bean;
+   import org.springframework.context.annotation.Configuration;
+   
+   @Configuration
+   public class MyAutoConfiguration {
+   
+   	static {
+   		System.out.println("MyAutoConfiguration init ... ");
+   	}
+   
+   	@Bean
+   	public SimpleBean simpleBean(){
+   		return new SimpleBean();
+   	}
+   }
    ```
 
 4. resources 下创建 /META-INF/spring.factories
@@ -2675,9 +2725,11 @@ SpringBoot 提供的 starter 以 `spring-boot-starter-xxx` 的方式命名的。
    注意：META-INF 是自己手动创建的目录，spring.factories 也是手动创建的文件，在该文件中配置自己的自动配置类
 
    ```properties
-   
+   # Auto Configure
+   org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+com.turbo.config.MyAutoConfiguration
    ```
-
+   
    上面这句话的意思就是SpringBoot启动的时候会去加载我们的 simpleBean 到 IOC 容器中。这其实是一种变形的 SPI 机制。
 
 ### 5.4.2 使用自定义 starter
@@ -2685,19 +2737,36 @@ SpringBoot 提供的 starter 以 `spring-boot-starter-xxx` 的方式命名的。
 1. 导入自定义 starter 的依赖
 
    ```xml
-   
+   <dependency>
+       <groupId>com.turbo</groupId>
+       <artifactId>customize-spring-boot-starter</artifactId>
+       <version>1.0-SNAPSHAOT</version>
+   </dependency>
    ```
 
 2. 在全局配置文件中配置属性值
 
    ```properties
-   
+   simplebean.id=1
+   simplebean.name=turbo
    ```
 
 3. 编写测试方法
 
    ```java
+   @RunWith(SpringRunner.class)
+   @SpringBootTest
+   class SpringBootMytestApplicationTests {
    
+   	@Autowired
+   	private SimpleBean simpleBean;
+   
+   	@Test
+   	void contextLoads() {
+   		System.out.println(simpleBean);
+   	}
+   	
+   }
    ```
 
 但此处有一个问题，如果有一天我们不想要启动工程的时候装配 simpleBean，参考 下一节。
@@ -2710,17 +2779,61 @@ SpringBoot 提供的 starter 以 `spring-boot-starter-xxx` 的方式命名的。
 
 其实这个 @EnableXXX 注解就是一种热插拔技术，加了这个注解可以启动对应的 starter，当不需要对应的 starter 的时候只需要把这个注解注释掉就可以了，比较优雅。
 
-改造 customize 工程新增热插拔支持类
-
-新增标记类 ConfigMarker
-
-
-
-新增 EnableRegisterServer 注解
+改造 customize 工程新增热插拔支持类，新增标记类 ConfigMarker：
 
 ```java
+package com.turbo.config;
 
+public class ConfigMark {
+}
 ```
+
+
+
+新增 EnableRegisterServer 注解：
+
+```java
+package com.turbo.config;
+
+import org.springframework.context.annotation.Import;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@Import(ConfigMark.class)
+public @interface EnableRegisterServer {
+}
+```
+
+改造 `MyAutoConfiguration` 新增条件注解 `@ConditionalOnBean(ConfigMark.class)`，这个是条件注解，前面的意思代表只有当前上下文中含有 `ConfigMark` 对象，被标注的类才会被实例化。
+
+```java
+@Configuration
+@ConditionalOnBean(ConfigMark.class)
+public class MyAutoConfiguration {
+
+	static {
+		System.out.println("MyAutoConfiguration init ... ");
+	}
+
+	@Bean
+	public SimpleBean simpleBean(){
+		return new SimpleBean();
+	}
+}
+```
+
+改造 mytest 工程，在启动类上新增 `@EnableRegisterServer` 注解：
+
+![image-20220319171603768](assest/image-20220319171603768.png)
+
+到此，热插拔就实现好了，当你加了 `@EnableRegisterServer` 的时候启动 customize 工程就会自动装配 SimpleBean，反之则不装配。
+
+让装配的原理也很简单，当加了   `@EnableRegisterServer` 注解的时候，由于这个注解使用了 `@Import(ConfigMark.class)` ，所以会导致Spring去加载 `ConfigMark` 到上下文中，而又因为条件注解 `@ConditionalOnBean(ConfigMark.class)` 的存在，所以 `MyAutoConfiguration` 类就会被实例化。
 
 
 
@@ -2730,7 +2843,47 @@ SpringBoot 提供的 starter 以 `spring-boot-starter-xxx` 的方式命名的。
 
 # 6 内嵌Tomcat
 
+## 6.1 Servlet 容器的使用
+
+### 6.1.1 默认 Servlet 容器
+
+## 6.2 切换 Servlet 容器
+
+## 6.3 内嵌 Tomcat 自动配置原理
+
+### 6.3.1 SpringBoot 启动内置 tomcat 流程
+
+### 6.3.2 getWebServer() 的调用分析
+
+### 6.3.3 小结
+
 # 7 自动配置SpringMVC
+
+## 7.1 自动配置一 自动配置 DispatcherServlet 和 DispatcherServletRegistry
+
+### 7.1.1 DispatcherServletAutoConfiguration 自动配置类
+
+### 7.1.2 配置 DispatcherServletConfiguration 这个配置类
+
+### 7.1.3 配置 DispatcherServletRegistrationConfiguration
+
+### 7.1.4 总结
+
+## 7.2 自动配置二 注册 DispatcherServlet 到 ServletContext
+
+### 7.2.1 DispatcherServletRegistrationBean 的类图
+
+### 7.2.2 注册 DispatcherServlet 流程
+
+### 7.2.3 ServletContextInitializer
+
+### 7.2.4 RegistrationBean
+
+### 7.2.5 DynamicRegistrationBean
+
+### 7.2.6 ServletRegistrationBean
+
+### 7.2.7 SpringBoot启动流程中具体体现
 
 
 
