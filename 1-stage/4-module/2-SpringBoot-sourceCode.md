@@ -3127,9 +3127,21 @@ private void createWebServer() {
 }
 ```
 
+createWebServer() 就是启动 web 服务，但是还没有真正启动 Tomcat，既然 webServer 是通过 ServletWebServerFactory 来获取的，那就是看看这个工厂的真面目：
 
+![image-20220320111059938](assest/image-20220320111059938.png)
+
+可以看到，tomcat，Jetty，undertow 都实现了这个 getWebServer 方法，TomcatServletWebServerFactory 中的 getWebServer(ServletContextInitializer... initializers)：
+
+![image-20220320111631833](assest/image-20220320111631833.png)
+
+最终就调用了 org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory#getWebServer 方法。
+
+![image-20220320113101604](assest/image-20220320113101604.png)
 
 ### 6.3.3 小结
+
+SpringBoot 的内部通过 `new Tomcat()` 的方式启动了一个内置 Tomcat。但这里还有一个问题，这里只是启动了 tomcat，但是我们的 SpringMVC 是如何加载的？
 
 # 7 自动配置SpringMVC
 
