@@ -126,6 +126,43 @@ SpringBoot 提供了三种数据库连接池：
 
 ## 1.3 数据源自动配置
 
+spring.factories 中找到数据源的配置类：
+
+![image-20220321000528589](assest/image-20220321000528589.png)
+
+```java
+@Configuration(proxyBeanMethods = false)
+@ConditionalOnClass({ DataSource.class, EmbeddedDatabaseType.class })
+@EnableConfigurationProperties(DataSourceProperties.class)
+@Import({ DataSourcePoolMetadataProvidersConfiguration.class, 
+         DataSourceInitializationConfiguration.class })
+public class DataSourceAutoConfiguration {
+
+	@Configuration(proxyBeanMethods = false)
+	@Conditional(EmbeddedDatabaseCondition.class)
+	@ConditionalOnMissingBean({ DataSource.class, XADataSource.class })
+	@Import(EmbeddedDataSourceConfiguration.class)
+	protected static class EmbeddedDatabaseConfiguration {
+
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	@Conditional(PooledDataSourceCondition.class)
+	@ConditionalOnMissingBean({ DataSource.class, XADataSource.class })
+	@Import({ DataSourceConfiguration.Hikari.class, DataSourceConfiguration.Tomcat.class,
+			DataSourceConfiguration.Dbcp2.class, DataSourceConfiguration.Generic.class,
+			DataSourceJmxConfiguration.class })
+	protected static class PooledDataSourceConfiguration {
+
+	}
+    // ...
+}
+```
+
+
+
+
+
 # 2 Druid连接池配置
 
 ## 2.1 整合效果实现
