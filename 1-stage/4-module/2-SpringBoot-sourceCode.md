@@ -3074,6 +3074,7 @@ public void refresh() throws BeansException, IllegalStateException {
             finishBeanFactoryInitialization(beanFactory);
 
             // Last step: publish corresponding event.
+            // tomcat Servlet容器的刷新
             finishRefresh();
         }
 
@@ -3139,6 +3140,80 @@ createWebServer() 就是启动 web 服务，但是还没有真正启动 Tomcat�
 
 ![image-20220320113101604](assest/image-20220320113101604.png)
 
+**finishRefresh()**方法：tomcat Servlet 容器的刷新：
+
+![image-20220320163706408](assest/image-20220320163706408.png)
+
+```java
+// org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext#finishRefresh
+@Override
+protected void finishRefresh() {
+    super.finishRefresh();
+    // 启动在 Tomcat 启动时就要完成启动的 Servlet，检查 Connector 是否都启动完成，打印最终启动完成日志
+    WebServer webServer = startWebServer();
+    if (webServer != null) {
+        publishEvent(new ServletWebServerInitializedEvent(webServer, this));
+    }
+}
+```
+
+```java
+private WebServer startWebServer() {
+    WebServer webServer = this.webServer;
+    if (webServer != null) {
+        // 完成最后的启动操作：将loadStartUp>0的Servlet启动起来
+        webServer.start();
+    }
+    return webServer;
+}
+```
+
+![image-20220320163838693](assest/image-20220320163838693.png)
+
+```java
+@Override
+public void start() throws WebServerException {
+    synchronized (this.monitor) {
+        if (this.started) {
+            return;
+        }
+        try {
+            addPreviouslyRemovedConnectors();
+            Connector connector = this.tomcat.getConnector();
+            if (connector != null && this.autoStart) {
+                // 启动那些在 Tomcat 启动时就需要启动的 Servlet
+                performDeferredLoadOnStartup();
+            }
+            // 检查Connector是否都启动了
+            checkThatConnectorsHaveStarted();
+            this.started = true;
+            // 打印最终启动完成的日志
+            logger.info("Tomcat started on port(s): " 
+                        + getPortsDescription(true) 
+                        + " with context path '"
+                        + getContextPath() + "'");
+        }
+        catch (ConnectorStartFailedException ex) {
+            stopSilently();
+            throw ex;
+        }
+        catch (Exception ex) {
+            PortInUseException.throwIfPortBindingException(ex, 
+                                                           () -> this.tomcat.getConnector().getPort());
+            throw new WebServerException("Unable to start embedded Tomcat server", ex);
+        }
+        finally {
+            Context context = findContext();
+            ContextBindings.unbindClassLoader(context, 
+                                              context.getNamingToken(), 
+                                              getClass().getClassLoader());
+        }
+    }
+}
+```
+
+
+
 ### 6.3.3 小结
 
 SpringBoot 的内部通过 `new Tomcat()` 的方式启动了一个内置 Tomcat。但这里还有一个问题，这里只是启动了 tomcat，但是我们的 SpringMVC 是如何加载的？
@@ -3160,7 +3235,7 @@ SpringBoot 的内部通过 `new Tomcat()` 的方式启动了一个内置 Tomcat�
 </servlet-mapping>
 ```
 
-但是在 SpringBoot 中没有了 web.xml 文件，我们如何配置一个 `DispatcherServlet` 呢？其实 Servlet 3.0 规范中，只添加一个 Servlet，除了采用 xml 配置的方式，还有一种通过代码的方式，伪代码如下：
+但是在 SpringBoot 中没有了 web.xml 文件，我们如何配置一个 `DispatcherServlet` 呢？其实 Servlet 3.0 规范中，要添加一个 Servlet，除了采用 xml 配置的方式，还有一种通过代码的方式，伪代码如下：
 
 ```jaba
 servletContext.addServlet(name, this.servlet);
