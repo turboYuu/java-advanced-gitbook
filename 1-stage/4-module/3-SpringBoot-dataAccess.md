@@ -6,9 +6,31 @@
 
 ### 1.1.1 选择数据库驱动的库文件
 
+在 maven 中配置数据库驱动
+
+```xml
+
+```
+
+
+
 ### 1.1.2 配置数据库连接
 
+在application.properties中配置数据库连接
+
+```properties
+
+```
+
+
+
 ### 1.1.3 配置 spring-boot-starter-jdbc
+
+```xml
+
+```
+
+
 
 ### 1.1.4 编写测试类
 
