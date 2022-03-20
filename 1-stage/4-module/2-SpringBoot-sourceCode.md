@@ -3243,6 +3243,18 @@ servletContext.addServlet(name, this.servlet);
 
 那么也就是说，如果我们能动态往 web 容器中添加一个我们构造好的 `DispatcherServlet`  对象，是不是就实现了自动装配 SpringMVC 了。
 
+
+
+> TIPS
+>
+> Servlet 3.0 规范的诞生为 SpringBoot 彻底去掉xml（web.xml）奠定了理论基础。
+>
+> 当实现了 Servlet规范的容器（比如 tomcat7 及以上版本）启动时，通过 SPI 扩展机制自动扫描所有已添加的 jar 包下的 META-INF/services/javax.servlet.ServletContainerIniltializer（Servlet容器管理其生命周期） 中指定的全路径的类，并实例化该类，然后回调 META-INF/services/javax.servlet.ServletContainerIniltializer 文件中指定的 ServletContainerIniltializer 的实现类的 onStartup 方法。
+
+![image-20220320165354824](assest/image-20220320165354824.png)
+
+
+
 ## 7.1 自动配置一 自动配置 DispatcherServlet 和 DispatcherServletRegistry
 
 SpringBoot 的自动配置基于 SPI 机制，实现自动配置的核心要点就是添加一个自动配置的类，SpringBoot MVC 的自动配置自然也是相同原理。
@@ -3269,7 +3281,7 @@ public class DispatcherServletAutoConfiguration {
 1. 首先注意到，@Configuration 表明这是一个配置类，将会被 Spring 解析。
 2. @ConditionalOnWebApplication 意味着当是一个 web 项目，且是 Servlet 项目的时候才会被解析。
 3. @ConditionalOnClass 指明 DispatcherServlet 这个核心类必须存在才解析该类。
-4. @AutoConfigureAfter 指明在 ServletWebServerFactoryAutoConfiguration 这个类之后在解析，设定了一个顺序。
+4. @AutoConfigureAfter 指明在 ServletWebServerFactoryAutoConfiguration 这个类之后再解析，设定了一个顺序。
 
 总的来说，这些注解表明了该自动配置类 会解析的前置条件。
 
@@ -3380,8 +3392,10 @@ public DispatcherServletRegistrationBean
 
 SpringBoot mvc 的自动配置类是 DispatcherServletAutoConfiguration ，主要做了两件事：
 
-1. 配置 DispatcherServlet
+1. 配置 DispatcherServlet：前端控制器
 2. 配置 DispatcherServlet 的注册 Bean（DispatcherServletRegistrationBean）
+
+
 
 ## 7.2 自动配置二 注册 DispatcherServlet 到 ServletContext
 
@@ -3401,7 +3415,7 @@ SpringBoot mvc 的自动配置类是 DispatcherServletAutoConfiguration ，主�
 
 ### 7.2.3 ServletContextInitializer
 
-看到，最上面是一个 ServletContextInitializer 接口。我们可以知道，实现该接口意味着是用来初始化  ServletContext 的。看看该接口：
+看到，最上面是一个 ServletContextInitializer（Spring管理器生命周期） 接口。我们可以知道，实现该接口意味着是用来初始化  ServletContext 的。看看该接口：
 
 ```java
 @FunctionalInterface
@@ -3475,6 +3489,7 @@ protected ServletRegistration.Dynamic addRegistration(String description, Servle
 ### 7.2.7 SpringBoot启动流程中具体体现
 
 ```java
+// org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext#createWebServer
 getSelfInitializer().onStartup(servletContext);
 ```
 
