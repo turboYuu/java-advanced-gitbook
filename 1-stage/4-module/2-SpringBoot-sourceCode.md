@@ -3145,63 +3145,333 @@ SpringBoot 的内部通过 `new Tomcat()` 的方式启动了一个内置 Tomcat�
 
 # 7 自动配置SpringMVC
 
+其实仅仅引入starter是不够的，回忆一下，在一个普通的 web 项目中如何使用 SpringMVC，我们首先就是要在 web.xml 中配置如下配置：
+
+```xml
+<servlet>
+   <description>spring mvc servlet</description>
+    <servlet-name>springMvc</servlet-name>
+	<servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
+    <load-on-startup>1</load-on-startup>
+</servlet>
+<servlet-mapping>
+	<servlet-name>springMvc</servlet-name>
+    <url-pattern>*.do</url-pattern> 
+</servlet-mapping>
+```
+
+但是在 SpringBoot 中没有了 web.xml 文件，我们如何配置一个 `DispatcherServlet` 呢？其实 Servlet 3.0 规范中，只添加一个 Servlet，除了采用 xml 配置的方式，还有一种通过代码的方式，伪代码如下：
+
+```jaba
+servletContext.addServlet(name, this.servlet);
+```
+
+那么也就是说，如果我们能动态往 web 容器中添加一个我们构造好的 `DispatcherServlet`  对象，是不是就实现了自动装配 SpringMVC 了。
+
 ## 7.1 自动配置一 自动配置 DispatcherServlet 和 DispatcherServletRegistry
+
+SpringBoot 的自动配置基于 SPI 机制，实现自动配置的核心要点就是添加一个自动配置的类，SpringBoot MVC 的自动配置自然也是相同原理。
+
+所以，先找到 SpringMVC 对应的自动配置类：
+
+![image-20220320121030063](assest/image-20220320121030063.png)
+
+
 
 ### 7.1.1 DispatcherServletAutoConfiguration 自动配置类
 
+```java
+@AutoConfigureOrder(Ordered.HIGHEST_PRECEDENCE)
+@Configuration(proxyBeanMethods = false)
+@ConditionalOnWebApplication(type = Type.SERVLET)
+@ConditionalOnClass(DispatcherServlet.class)
+@AutoConfigureAfter(ServletWebServerFactoryAutoConfiguration.class)
+public class DispatcherServletAutoConfiguration {
+    // ...
+}
+```
+
+1. 首先注意到，@Configuration 表明这是一个配置类，将会被 Spring 解析。
+2. @ConditionalOnWebApplication 意味着当是一个 web 项目，且是 Servlet 项目的时候才会被解析。
+3. @ConditionalOnClass 指明 DispatcherServlet 这个核心类必须存在才解析该类。
+4. @AutoConfigureAfter 指明在 ServletWebServerFactoryAutoConfiguration 这个类之后在解析，设定了一个顺序。
+
+总的来说，这些注解表明了该自动配置类 会解析的前置条件。
+
+其次，**DispatcherServletAutoConfiguration** 类主要包含了两个内部类，分别是：
+
+1. DispatcherServletConfiguration
+2. DispatcherServletRegistrationConfiguration
+
+顾名思义，前者是配置 DispatcherServlet ，后者是配置 DispatcherServlet 的注册类。什么是注册类，我们知道 Servlet 实例是要被添加到（注册）到如 tomcat 这样的 ServletContext 里的，这样才能够提供请求服务，这样才能够提供请求服务。所以，DispatcherServletRegistrationConfiguration 将生成一个 Bean，负责将 DispatcherServlet 注册到 ServletContext 中。
+
 ### 7.1.2 配置 DispatcherServletConfiguration 这个配置类
+
+先看看 DispatcherServletConfiguration 这个配置类：
+
+```java
+@Configuration(proxyBeanMethods = false)
+@Conditional(DefaultDispatcherServletCondition.class)
+@ConditionalOnClass(ServletRegistration.class)
+@EnableConfigurationProperties({ HttpProperties.class, WebMvcProperties.class })
+protected static class DispatcherServletConfiguration {
+	// ...
+}
+```
+
+@Conditional 指明了一个前置条件判断，由 DefaultDispatcherServletCondition 实现。主要是判断了是否已经存在 DispatcherServlet，如果没有才会触发解析。
+
+@ConditionalOnClass 指明了当 ServletRegistration 这个类存在的时候才会出发解析，生成的 DispatcherServlet 才能注册到 ServletContext 中。
+
+最后，@EnableConfigurationProperties 将会从 application.properties 这样的配置文件中读取 spring.http 和 spring.mvc 前缀的属性生成配置对象 HttpProperties 和 WebMvcProperties 。
+
+再看 **DispatcherServletConfiguration** 这个内部类的内部代码：
+
+```java
+@Bean(name = DEFAULT_DISPATCHER_SERVLET_BEAN_NAME)
+public DispatcherServlet dispatcherServlet(HttpProperties httpProperties, WebMvcProperties webMvcProperties) {
+    DispatcherServlet dispatcherServlet = new DispatcherServlet();
+    dispatcherServlet.setDispatchOptionsRequest(webMvcProperties.isDispatchOptionsRequest());
+    dispatcherServlet.setDispatchTraceRequest(webMvcProperties.isDispatchTraceRequest());
+    dispatcherServlet.setThrowExceptionIfNoHandlerFound(webMvcProperties.isThrowExceptionIfNoHandlerFound());
+    dispatcherServlet.setPublishEvents(webMvcProperties.isPublishRequestHandledEvents());
+    dispatcherServlet.setEnableLoggingRequestDetails(httpProperties.isLogRequestDetails());
+    return dispatcherServlet;
+}
+
+@Bean
+@ConditionalOnBean(MultipartResolver.class)
+@ConditionalOnMissingBean(name = DispatcherServlet.MULTIPART_RESOLVER_BEAN_NAME)
+public MultipartResolver multipartResolver(MultipartResolver resolver) {
+    // Detect if the user has created a MultipartResolver but named it incorrectly
+    return resolver;
+}
+```
+
+这两个方法比较熟悉，就是生成了 Bean。
+
+dispatcherServlet 方法将生成一个 DispatcherServlet 的 Bean 对象。比较简单，就是获取一个实例，然后添加一些属性设置。
+
+multipartResolver 方法只要是把你配置的 MultipartResolver 的 Bean 给重新命名一下，防止你不是用 multipartResolver 这个名字作为 Bean 的名字。
 
 ### 7.1.3 配置 DispatcherServletRegistrationConfiguration
 
+再看注册类的 Bean 配置：
+
+```java
+@Configuration(proxyBeanMethods = false)
+@Conditional(DispatcherServletRegistrationCondition.class)
+@ConditionalOnClass(ServletRegistration.class)
+@EnableConfigurationProperties(WebMvcProperties.class)
+@Import(DispatcherServletConfiguration.class)
+protected static class DispatcherServletRegistrationConfiguration {
+    // ...
+}
+```
+
+同样的，@Conditional 有一个前置判断，DispatcherServletRegistrationCondition 主要判断该注册类的Bean是否存在。
+
+@ConditionalOnClass 也判断了 ServletRegistration 是否存在。
+
+@EnableConfigurationProperties 生成了 WebMvcProperties 的属性对象。
+
+@Import 导入了 DispatcherServletConfiguration，也就是我们上面的配置对象。
+
+再看 **DispatcherServletRegistrationConfiguration** 的内部实现：
+
+```java
+@Bean(name = DEFAULT_DISPATCHER_SERVLET_REGISTRATION_BEAN_NAME)
+@ConditionalOnBean(value = DispatcherServlet.class, name = DEFAULT_DISPATCHER_SERVLET_BEAN_NAME)
+public DispatcherServletRegistrationBean 
+    dispatcherServletRegistration(DispatcherServlet dispatcherServlet,
+                                  WebMvcProperties webMvcProperties, 
+                                  ObjectProvider<MultipartConfigElement> multipartConfig) {
+    
+    DispatcherServletRegistrationBean registration = 
+        new DispatcherServletRegistrationBean(dispatcherServlet,
+                                              webMvcProperties.getServlet().getPath());
+    registration.setName(DEFAULT_DISPATCHER_SERVLET_BEAN_NAME);
+    registration.setLoadOnStartup(webMvcProperties.getServlet().getLoadOnStartup());
+    multipartConfig.ifAvailable(registration::setMultipartConfig);
+    return registration;
+}
+```
+
+内部只有一个方法，生成了 DispatcherServletRegistrationBean。核心逻辑就是实例化了一个 Bean，设置了一些参数，如 dispatcherServlet，loadOnStartup 等。
+
+
+
 ### 7.1.4 总结
+
+SpringBoot mvc 的自动配置类是 DispatcherServletAutoConfiguration ，主要做了两件事：
+
+1. 配置 DispatcherServlet
+2. 配置 DispatcherServlet 的注册 Bean（DispatcherServletRegistrationBean）
 
 ## 7.2 自动配置二 注册 DispatcherServlet 到 ServletContext
 
+在上一小节的源码翻阅中，我们看到了 DispatcherServlet 和 DispatcherServletRegistrationBean 这两个 Bean 的自动配置。DispatcherServlet 我们属性，DispatcherServletRegistrationBean 负责将 DispatcherServlet 注册到 ServletContext 当中。
+
 ### 7.2.1 DispatcherServletRegistrationBean 的类图
+
+既然该类的职责是负责注册 DispatcherServlet ，那么我们要知道什么时候触发注册操作。为此，我们先看看 DispatcherServletRegistrationBean 的类图：
+
+![image-20220320140950709](assest/image-20220320140950709.png)
+
+![image-20220320141121775](assest/image-20220320141121775.png)
+
+
 
 ### 7.2.2 注册 DispatcherServlet 流程
 
 ### 7.2.3 ServletContextInitializer
 
+看到，最上面是一个 ServletContextInitializer 接口。我们可以知道，实现该接口意味着是用来初始化  ServletContext 的。看看该接口：
+
+```java
+@FunctionalInterface
+public interface ServletContextInitializer {
+	void onStartup(ServletContext servletContext) throws ServletException;
+}
+```
+
 ### 7.2.4 RegistrationBean
+
+看看 RegistrationBean 是怎么实现 onStartup 方法的：
+
+```java
+@Override
+public final void onStartup(ServletContext servletContext) throws ServletException {
+    String description = getDescription();
+    if (!isEnabled()) {
+        logger.info(StringUtils.capitalize(description) + " was not registered (disabled)");
+        return;
+    }
+    register(description, servletContext);
+}
+```
+
+调用了内部 register 方法，跟进它：
+
+```java
+protected abstract void register(String description, ServletContext servletContext);
+```
+
+是一个抽象方法
 
 ### 7.2.5 DynamicRegistrationBean
 
+再看 DynamicRegistrationBean 是怎么实现 register 方法的：
+
+```java
+@Override
+protected final void register(String description, ServletContext servletContext) {
+    D registration = addRegistration(description, servletContext);
+    if (registration == null) {
+        logger.info(StringUtils.capitalize(description) + " was not registered (possibly already registered?)");
+        return;
+    }
+    configure(registration);
+}
+```
+
+跟进 addRegistration 方法：
+
+```java
+protected abstract D addRegistration(String description, ServletContext servletContext);
+```
+
+也是一个抽象方法。
+
 ### 7.2.6 ServletRegistrationBean
+
+在看看  ServletRegistrationBean 是怎么实现 addRegistration 方法的：
+
+```java
+@Override
+protected ServletRegistration.Dynamic addRegistration(String description, ServletContext servletContext) {
+    String name = getServletName();
+    return servletContext.addServlet(name, this.servlet);
+}
+```
+
+看到，这里直接将 DispatcherServlet  给 add 到了 servletContext 当中。
 
 ### 7.2.7 SpringBoot启动流程中具体体现
 
+```java
+getSelfInitializer().onStartup(servletContext);
+```
 
+这段代码其实就是去加载 SpringMVC，那么它是如何做到的呢？`getSelfInitializer()` 最终会去调用到 `org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext#selfInitialize` 方法，该方法代码如下：
 
+![image-20220320142940008](assest/image-20220320142940008.png)
 
+```java
+// org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext#selfInitialize
+private void selfInitialize(ServletContext servletContext) throws ServletException {
+    prepareWebApplicationContext(servletContext);
+    registerApplicationScope(servletContext);
+    WebApplicationContextUtils.registerEnvironmentBeans(getBeanFactory(), servletContext);
+    for (ServletContextInitializer beans : getServletContextInitializerBeans()) {
+        beans.onStartup(servletContext);
+    }
+}
+```
 
+通过debug，知道 `getServletContextInitializerBeans()` 返回的是一个 `ServletContextInitializer` 集合，集合中有以下几个对象：
 
+![image-20220320143350633](assest/image-20220320143350633.png)
 
+然后依次去调用对象的 `onStartup` 方法，那么对于上图标红的对象来说，就是会调用到 `DispatcherServletRegistrationBean`  的 `onStartup` 方法，这个类并没有这个方法，所以最终会调用父类 `RegistrationBean` 的 `onStartup` 方法，代码如下：
 
+```java
+@Override
+public final void onStartup(ServletContext servletContext) throws ServletException {
+    // 获取当前环境到底是一个 filter，还是一个 servlet，还是一个 listener
+    String description = getDescription();
+    if (!isEnabled()) {
+        logger.info(StringUtils.capitalize(description) + " was not registered (disabled)");
+        return;
+    }
+    register(description, servletContext);
+}
+```
 
+这边 `register(description, servletContext)` 会调用到 `DynamicRegistrationBean` 的 `register` 方法，代码如下：
 
+```java
+@Override
+protected final void register(String description, ServletContext servletContext) {
+    D registration = addRegistration(description, servletContext);
+    if (registration == null) {
+        logger.info(StringUtils.capitalize(description) + " was not registered (possibly already registered?)");
+        return;
+    }
+    configure(registration);
+}
+```
 
+`addRegistration(description, servletContext)` 又会调用到 `ServletRegistrationBean` 中的 `addRegistration` 方法，代码如下：
 
+```java
+@Override
+protected ServletRegistration.Dynamic addRegistration(String description, ServletContext servletContext) {
+    String name = getServletName();
+    return servletContext.addServlet(name, this.servlet);
+}
+```
 
+看到了关键的 `servletContext.addServlet` ，通过debug，就可知道 `this.servlet` 就是 `dispatcherServlet`：
 
+![image-20220320144945917](assest/image-20220320144945917.png)
 
+### 7.2.8 总结
 
+SpringBoot 自动装配 SpringMVC 其实就是往 ServletContext 中加入了一个 `DispatcherServlet`。 Servlet 3.0 规范中有这个说明，除了可以动态加 Servlet ，还可以动态加 Listener，Filter
 
+- addFilter
+- addListener
+- addServlet
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+![image-20220320145455689](assest/image-20220320145455689.png)
