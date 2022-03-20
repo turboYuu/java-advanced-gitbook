@@ -75,7 +75,54 @@ SpringBoot 提供了三种数据库连接池：
 - Commons DBCP2
 - Tomcat JDBC Connection Pool
 
-其中 Spring
+其中 SpringBoot 2.x 版本默认使用 HikariCP，Maven 中配置如下：
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-jdbc</artifactId>
+</dependency>
+```
+
+如果不使用HikariCP，改用 Commons DBCP2 ，则配置如下：
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-jdbc</artifactId>
+    <exclusions>
+        <exclusion>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+        </exclusion>
+    </exclusions>
+</dependency>
+<dependency>
+    <groupId>org.apache.commons</groupId>
+    <artifactId>commons-dbcp2</artifactId>
+</dependency>
+```
+
+如果不使用HikariCP，改用 Tomcat JDBC Connection Pool ，则配置如下：
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-jdbc</artifactId>
+    <exclusions>
+        <exclusion>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+        </exclusion>
+    </exclusions>
+</dependency>
+<dependency>
+    <groupId>org.apache.tomcat</groupId>
+    <artifactId>tomcat-jdbc</artifactId>
+</dependency>
+```
+
+> 思考：为什么说SpringBoot默认使用的连接池类型时HikariCP，在哪里指定的？
 
 ## 1.3 数据源自动配置
 
