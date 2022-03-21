@@ -475,7 +475,33 @@ private static final String[] DATA_SOURCE_TYPE_NAMES = new String[]
 
 # 3 SpringBoot整合 Mybatis
 
+Mybatis 是一款优秀的持久层框架，SpringBoot 官方虽然没有对 Mybatis 进行整合，但是 Mybatis 团队自定适配了对应的启动器，进一步简化了使用 Mybatis 进行数据的操作
+
+因为 SpringBoot 框架开发的便利性，所以实现 SpringBoot 与 数据访问层框架（例如 Mybatis）的整合非常简单，主要是引入对应的依赖启动器，并进行数据库相关参数设置即可。
+
 ## 3.1 整合效果实现
+
+1. 新建SpringBoot 项目，并导入 mybatis 的 pom.xml 配置
+
+   ```xml
+   
+   ```
+
+   application.yml
+
+   ```yaml
+   
+   ```
+
+2. 基础类
+
+3. 测试 dao（mybatis 使用注解开发）
+
+4. 测试 service
+
+5. service对应的 test类
+
+6. 运行测试类输出结果
 
 # 4 Mybatis 自动配置源码分析
 
