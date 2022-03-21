@@ -598,6 +598,120 @@ Mybatis 是一款优秀的持久层框架，SpringBoot 官方虽然没有对 Myb
 
 以 mybatis 为例，`AutoConfigurationImportSelector`  通过反射加载 spring.factories 中指定的 java 类，也就是加载 MybatisAutoConfiguration 类（该类有 @Configuration 注解，属于配置类）
 
+![image-20220322000227887](assest/image-20220322000227887.png)
+
+![image-20220322000304907](assest/image-20220322000304907.png)
+
+```java
+/**
+ * {@link EnableAutoConfiguration Auto-Configuration} for Mybatis. Contributes a
+ * {@link SqlSessionFactory} and a {@link SqlSessionTemplate}.
+ *
+ * If {@link org.mybatis.spring.annotation.MapperScan} is used, or a
+ * configuration file is specified as a property, those will be considered,
+ * otherwise this auto-configuration will attempt to register mappers based on
+ * the interface definitions in or under the root auto-configuration package.
+ *
+ * @author Eddú Meléndez
+ * @author Josh Long
+ * @author Kazuki Shimizu
+ * @author Eduardo Macarrón
+ */
+@org.springframework.context.annotation.Configuration
+@ConditionalOnClass({ SqlSessionFactory.class, SqlSessionFactoryBean.class })
+@ConditionalOnBean(DataSource.class)
+@EnableConfigurationProperties(MybatisProperties.class)
+@AutoConfigureAfter(DataSourceAutoConfiguration.class)
+public class MybatisAutoConfiguration {
+
+  private static final Logger logger = LoggerFactory.getLogger(MybatisAutoConfiguration.class);
+
+  private final MybatisProperties properties;
+
+  private final Interceptor[] interceptors;
+
+  private final ResourceLoader resourceLoader;
+
+  private final DatabaseIdProvider databaseIdProvider;
+
+  private final List<ConfigurationCustomizer> configurationCustomizers;
+
+  public MybatisAutoConfiguration(MybatisProperties properties,
+                                  ObjectProvider<Interceptor[]> interceptorsProvider,
+                                  ResourceLoader resourceLoader,
+                                  ObjectProvider<DatabaseIdProvider> databaseIdProvider,
+                                  ObjectProvider<List<ConfigurationCustomizer>> configurationCustomizersProvider) {
+    this.properties = properties;
+    this.interceptors = interceptorsProvider.getIfAvailable();
+    this.resourceLoader = resourceLoader;
+    this.databaseIdProvider = databaseIdProvider.getIfAvailable();
+    this.configurationCustomizers = configurationCustomizersProvider.getIfAvailable();
+  }
+
+  @PostConstruct
+  public void checkConfigFileExists() {
+    if (this.properties.isCheckConfigLocation() 
+        && StringUtils.hasText(this.properties.getConfigLocation())) {
+      Resource resource = this.resourceLoader.getResource(this.properties.getConfigLocation());
+      Assert.state(resource.exists(), "Cannot find config location: " + resource
+          + " (please add config file or check your Mybatis configuration)");
+    }
+  }
+
+  @Bean
+  @ConditionalOnMissingBean
+  public SqlSessionFactory sqlSessionFactory(DataSource dataSource) throws Exception {
+    SqlSessionFactoryBean factory = new SqlSessionFactoryBean();
+    factory.setDataSource(dataSource);
+    factory.setVfs(SpringBootVFS.class);
+    if (StringUtils.hasText(this.properties.getConfigLocation())) {
+      factory.setConfigLocation(this.resourceLoader.getResource(this.properties.getConfigLocation()));
+    }
+    Configuration configuration = this.properties.getConfiguration();
+    if (configuration == null && !StringUtils.hasText(this.properties.getConfigLocation())) {
+      configuration = new Configuration();
+    }
+    if (configuration != null && !CollectionUtils.isEmpty(this.configurationCustomizers)) {
+      for (ConfigurationCustomizer customizer : this.configurationCustomizers) {
+        customizer.customize(configuration);
+      }
+    }
+    factory.setConfiguration(configuration);
+    if (this.properties.getConfigurationProperties() != null) {
+      factory.setConfigurationProperties(this.properties.getConfigurationProperties());
+    }
+    if (!ObjectUtils.isEmpty(this.interceptors)) {
+      factory.setPlugins(this.interceptors);
+    }
+    if (this.databaseIdProvider != null) {
+      factory.setDatabaseIdProvider(this.databaseIdProvider);
+    }
+    if (StringUtils.hasLength(this.properties.getTypeAliasesPackage())) {
+      factory.setTypeAliasesPackage(this.properties.getTypeAliasesPackage());
+    }
+    if (StringUtils.hasLength(this.properties.getTypeHandlersPackage())) {
+      factory.setTypeHandlersPackage(this.properties.getTypeHandlersPackage());
+    }
+    if (!ObjectUtils.isEmpty(this.properties.resolveMapperLocations())) {
+      factory.setMapperLocations(this.properties.resolveMapperLocations());
+    }
+
+    return factory.getObject();
+  }
+
+  @Bean
+  @ConditionalOnMissingBean
+  public SqlSessionTemplate sqlSessionTemplate(SqlSessionFactory sqlSessionFactory) {
+    ExecutorType executorType = this.properties.getExecutorType();
+    if (executorType != null) {
+      return new SqlSessionTemplate(sqlSessionFactory, executorType);
+    } else {
+      return new SqlSessionTemplate(sqlSessionFactory);
+    }
+  }
+}
+```
+
 
 
 # 5 SpringBoot + Mybatis 实现动态数据源切换
