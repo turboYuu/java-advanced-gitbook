@@ -481,27 +481,115 @@ Mybatis 是一款优秀的持久层框架，SpringBoot 官方虽然没有对 Myb
 
 ## 3.1 整合效果实现
 
-1. 新建SpringBoot 项目，并导入 mybatis 的 pom.xml 配置
+1. spring-boot-03-dataaccess 项目，并导入 mybatis 的 pom.xml 配置
 
    ```xml
-   
+   <dependency>
+       <groupId>org.mybatis.spring.boot</groupId>
+       <artifactId>mybatis-spring-boot-starter</artifactId>
+       <version>1.3.2</version>
+   </dependency>
+   <dependency>
+       <groupId>org.projectlombok</groupId>
+       <artifactId>lombok</artifactId>
+       <optional>true</optional>
+   </dependency>
    ```
 
    application.yml
 
    ```yaml
-   
+   spring:
+     datasource:
+       username: root
+       password: 123456
+       url: jdbc:mysql://152.136.177.192:3306/springboot_h?useUnicode=true&characterEncoding=utf-8&useSSL=true&serverTimezone=UTC
+       driver-class-name: com.mysql.cj.jdbc.Driver
+       initialization-mode: always
+       # 使用druid数据源
+       type: com.alibaba.druid.pool.DruidDataSource
    ```
 
 2. 基础类
 
+   ```java
+   package com.turbo.pojo;
+   
+   import lombok.Data;
+   
+   @Data
+   public class User {
+   	private Integer id;
+   	private String username;
+   	private Integer age;
+   }
+   ```
+
+   
+
 3. 测试 dao（mybatis 使用注解开发）
+
+   ```java
+   package com.turbo.mapper;
+   
+   import com.turbo.pojo.User;
+   import org.apache.ibatis.annotations.Select;
+   
+   import java.util.List;
+   
+   public interface UserMapper {
+   
+   	@Select("select * from user")
+   	public List<User> findAllUser();
+   }
+   ```
+
+   在启动类上增加注解：`@MapperScan("com.turbo.mapper")`
 
 4. 测试 service
 
+   ```java
+   package com.turbo.service;
+   
+   import com.turbo.mapper.UserMapper;
+   import com.turbo.pojo.User;
+   import org.slf4j.Logger;
+   import org.slf4j.LoggerFactory;
+   import org.springframework.beans.factory.annotation.Autowired;
+   import org.springframework.stereotype.Service;
+   import java.util.List;
+   
+   @Service
+   public class UserService {
+   
+   	final Logger logger = LoggerFactory.getLogger(UserService.class);
+   
+   	@Autowired
+   	private UserMapper userMapper;
+   
+   	public List<User> findAllUser(){
+   		final List<User> allUser = userMapper.findAllUser();
+   		logger.info("查询出来的用户信息："+allUser.toString());
+   		return allUser;
+   	}
+   }
+   ```
+
 5. service对应的 test类
 
+   ```java
+   @Autowired
+   private UserService userService;
+   
+   @Test
+   public void test1(){
+       final List<User> allUser = userService.findAllUser();
+   }
+   ```
+
 6. 运行测试类输出结果
+
+   ![image-20220321235100946](assest/image-20220321235100946.png)
 
 # 4 Mybatis 自动配置源码分析
 
