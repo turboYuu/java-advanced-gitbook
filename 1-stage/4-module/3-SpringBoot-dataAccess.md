@@ -505,6 +505,13 @@ Mybatis 是一款优秀的持久层框架，SpringBoot 官方虽然没有对 Myb
 
 # 4 Mybatis 自动配置源码分析
 
+1. SpringBoot 项目最核心的就是自动加载配置，该功能则依赖的是一个注解 `@SpringBootApplication` 中的 `@EnableAutoConfiguration`
+2. `@EnableAutoConfiguration` 主要是通过 `AutoConfigurationImportSelector` 类来加载。
+
+以 mybatis 为例，`AutoConfigurationImportSelector`  通过反射加载 spring.factories 中指定的 java 类，也就是加载 MybatisAutoConfiguration 类（该类有 @Configuration 注解，属于配置类）
+
+
+
 # 5 SpringBoot + Mybatis 实现动态数据源切换
 
 ## 5.1 动态数据源介绍
