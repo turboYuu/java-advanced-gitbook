@@ -309,7 +309,9 @@ protected static <T> T createDataSource(DataSourceProperties properties,
 }
 ```
 
-DataSourceBuilder 类
+**DataSourceBuilder** 类
+
+![image-20220321143707871](assest/image-20220321143707871.png)
 
 设置 type
 
@@ -317,6 +319,18 @@ DataSourceBuilder 类
 public <D extends DataSource> DataSourceBuilder<D> type(Class<D> type) {
     this.type = type;
     return (DataSourceBuilder<D>) this;
+}
+```
+
+```java
+@SuppressWarnings("unchecked")
+public T build() {
+    // getType 点进去
+    Class<? extends DataSource> type = getType();
+    DataSource result = BeanUtils.instantiateClass(type);
+    maybeGetDriverClassName();
+    bind(result);
+    return (T) result;
 }
 ```
 
@@ -360,11 +374,104 @@ private static final String[] DATA_SOURCE_TYPE_NAMES = new String[]
 
 
 
-
-
 # 2 Druid连接池配置
 
 ## 2.1 整合效果实现
+
+1. 在pom.xml中引入druid数据源
+
+   ```xml
+   <dependency>
+       <groupId>com.alibaba</groupId>
+       <artifactId>druid-spring-boot-starter</artifactId>
+       <version>1.1.10</version>
+   </dependency>
+   ```
+
+2. 在application.yml中引入druid的相关配置
+
+   ```yaml
+   spring:
+     datasource:
+       username: root
+       password: 123456
+       url: jdbc:mysql://152.136.177.192:3306/springboot_h?useUnicode=true&characterEncoding=utf-8&useSSL=true&serverTimezone=UTC
+       driver-class-name: com.mysql.cj.jdbc.Driver
+       initialization-mode: always
+       # 使用druid数据源
+       type: com.alibaba.druid.pool.DruidDataSource
+       # 数据源其他配置
+       initialSize: 5
+       minIdle: 5
+       maxActive: 20
+       maxWait: 60000
+       timeBetweenEvictionRunsMillis: 60000
+       minEvictableIdleTimeMillis: 300000
+       validationQuery: SELECT 1 FROM DUAL
+       testWhileIdle: true
+       testOnBorrow: false
+       testOnReturn: false
+       poolPreparedStatements: true
+       # 配置监控统计拦截的filters，去掉后监控界面sql无法统计，'wall'用于防火墙
+       filters: stat,wall,log4j
+       maxPoolPreparedStatementPerConnectionSize: 20
+       useGlobalDataSourceStat: true
+       connectionProperties: druid.stat.mergeSql=true;druid.stat.slowSqlMillis=500
+   ```
+
+3. 进行测试：
+
+   ![image-20220321155504683](assest/image-20220321155504683.png)
+
+   但是debug查看 DataSource 的值，会发现有些属性是没有生效的：
+
+   ![image-20220321155432592](assest/image-20220321155432592.png)
+
+   这是因为：如果单纯在 yml 文件中编写如上的配置，SpringBoot肯定是读取不到 druid 的相关配置的。因为它并不像原生的 jdbc，系统默认就使用 `DataSourceProperties` 与其属性进行了绑定。所以我们应该编写一个类与其属性进行绑定
+
+4. 编写整合 druid 的配置类 DruidConfig
+
+   ```java
+   package com.turbo.config;
+   
+   import com.alibaba.druid.pool.DruidDataSource;
+   import org.springframework.boot.context.properties.ConfigurationProperties;
+   import org.springframework.context.annotation.Bean;
+   import org.springframework.context.annotation.Configuration;
+   
+   import javax.sql.DataSource;
+   
+   @Configuration
+   public class DruidConfig {
+   
+   	@Bean
+   	@ConfigurationProperties(prefix = "spring.datasource")
+   	public DataSource dataSource(){
+   		return new DruidDataSource();
+   	}
+   }
+   ```
+
+   测试的时候，发现报错。发现是yml文件里的：
+
+   ```yaml
+   # 配置监控统计拦截的filters，去掉后监控界面sql无法统计，'wall'用于防火墙
+   filters: stat,wall,log4j
+   ```
+
+   因为 SpringBoot 2.0 以后使用的日志框架已经不再使用 log4j。此时引入相应的适配器，可以在 pom.xml 文件上加入：
+
+   ```xml
+   <!--引入适配器-->
+   <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-log4j12</artifactId>
+   </dependency>
+   ```
+
+   OK。
+
+   ![image-20220321160520452](assest/image-20220321160520452.png)
 
 # 3 SpringBoot整合 Mybatis
 
