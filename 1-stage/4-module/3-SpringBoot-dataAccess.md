@@ -606,6 +606,7 @@ Mybatis 是一款优秀的持久层框架，SpringBoot 官方虽然没有对 Myb
 /**
  * {@link EnableAutoConfiguration Auto-Configuration} for Mybatis. Contributes a
  * {@link SqlSessionFactory} and a {@link SqlSessionTemplate}.
+ * 重点： SqlSessionFactory 和 SqlSessionTemplate 两个类
  *
  * If {@link org.mybatis.spring.annotation.MapperScan} is used, or a
  * configuration file is specified as a property, those will be considered,
@@ -626,6 +627,7 @@ public class MybatisAutoConfiguration {
 
   private static final Logger logger = LoggerFactory.getLogger(MybatisAutoConfiguration.class);
 
+  // 与 mybatis 配置文件对应
   private final MybatisProperties properties;
 
   private final Interceptor[] interceptors;
@@ -648,6 +650,7 @@ public class MybatisAutoConfiguration {
     this.configurationCustomizers = configurationCustomizersProvider.getIfAvailable();
   }
 
+  // PostConstruct 作用是在创建类的时候先调用，校验配置文件是否存在
   @PostConstruct
   public void checkConfigFileExists() {
     if (this.properties.isCheckConfigLocation() 
@@ -658,6 +661,7 @@ public class MybatisAutoConfiguration {
     }
   }
 
+  // conditionalOnMissingBean 作用：在没有类的时候调用，创建 SqlSessionFactory,SqlSessionFactory最主要是创建并保存了ConfigLocation类
   @Bean
   @ConditionalOnMissingBean
   public SqlSessionFactory sqlSessionFactory(DataSource dataSource) throws Exception {
@@ -695,12 +699,13 @@ public class MybatisAutoConfiguration {
     if (!ObjectUtils.isEmpty(this.properties.resolveMapperLocations())) {
       factory.setMapperLocations(this.properties.resolveMapperLocations());
     }
-
+	// 获取SqlSessionFactoryBean的.getObject()中的对象注入Spring容器，也就是SqlSessionFactory对象
     return factory.getObject();
   }
 
   @Bean
   @ConditionalOnMissingBean
+    //往Spring容器中注入SqlSessionTemplate对象
   public SqlSessionTemplate sqlSessionTemplate(SqlSessionFactory sqlSessionFactory) {
     ExecutorType executorType = this.properties.getExecutorType();
     if (executorType != null) {
@@ -711,6 +716,284 @@ public class MybatisAutoConfiguration {
   }
 }
 ```
+
+**MybatisAutoConfiguration类**：
+
+1. 类中有个  MybatisProperties 类，该类对应的是 mybatis 的配置文件
+2. 类中有个 sqlSessionFactory 方法，作用是创建 SqlSessionFactory 类，Configuration 类（mybatis最主要的类，保存着与 mybatis相关的东西）
+3. SqlSessionTemplate ，作用是与 mapperProxy 代理类有关
+
+
+
+sqlSessionFactory 主要是通过创建一个 SqlSessionFactoryBean ，这个类实现了 FactoryBean 接口，所以在 Spring 容器就会注入这个类中定义的 getObject 方法返回的对象。
+
+看一下 getObject() 方法做了什么？：
+
+```java
+public SqlSessionFactory getObject() throws Exception {
+    if (this.sqlSessionFactory == null) {
+        this.afterPropertiesSet();
+    }
+    return this.sqlSessionFactory;
+}
+```
+
+```java
+public void afterPropertiesSet() throws Exception {
+    Assert.notNull(this.dataSource, "Property 'dataSource' is required");
+    Assert.notNull(this.sqlSessionFactoryBuilder, "Property 'sqlSessionFactoryBuilder' is required");
+    Assert.state(this.configuration == null && this.configLocation == null || this.configuration == null || this.configLocation == null, "Property 'configuration' and 'configLocation' can not specified with together");
+    this.sqlSessionFactory = this.buildSqlSessionFactory();
+}
+```
+
+```java
+ protected SqlSessionFactory buildSqlSessionFactory() throws IOException {
+     XMLConfigBuilder xmlConfigBuilder = null;
+     Configuration configuration;
+     if (this.configuration != null) {
+         configuration = this.configuration;
+         if (configuration.getVariables() == null) {
+             configuration.setVariables(this.configurationProperties);
+         } else if (this.configurationProperties != null) {
+             configuration.getVariables().putAll(this.configurationProperties);
+         }
+     } else if (this.configLocation != null) {
+         xmlConfigBuilder = new XMLConfigBuilder(this.configLocation.getInputStream(), (String)null, this.configurationProperties);
+         configuration = xmlConfigBuilder.getConfiguration();
+     } else {
+         if (LOGGER.isDebugEnabled()) {
+             LOGGER.debug("Property 'configuration' or 'configLocation' not specified, using default MyBatis Configuration");
+         }
+
+         configuration = new Configuration();
+         if (this.configurationProperties != null) {
+             configuration.setVariables(this.configurationProperties);
+         }
+     }
+
+     if (this.objectFactory != null) {
+         configuration.setObjectFactory(this.objectFactory);
+     }
+
+     if (this.objectWrapperFactory != null) {
+         configuration.setObjectWrapperFactory(this.objectWrapperFactory);
+     }
+
+     if (this.vfs != null) {
+         configuration.setVfsImpl(this.vfs);
+     }
+
+     String[] typeHandlersPackageArray;
+     String[] var4;
+     int var5;
+     int var6;
+     String packageToScan;
+     if (StringUtils.hasLength(this.typeAliasesPackage)) {
+         typeHandlersPackageArray = StringUtils.tokenizeToStringArray(this.typeAliasesPackage, ",; \t\n");
+         var4 = typeHandlersPackageArray;
+         var5 = typeHandlersPackageArray.length;
+
+         for(var6 = 0; var6 < var5; ++var6) {
+             packageToScan = var4[var6];
+             configuration.getTypeAliasRegistry().registerAliases(packageToScan, this.typeAliasesSuperType == null ? Object.class : this.typeAliasesSuperType);
+             if (LOGGER.isDebugEnabled()) {
+                 LOGGER.debug("Scanned package: '" + packageToScan + "' for aliases");
+             }
+         }
+     }
+
+     int var27;
+     if (!ObjectUtils.isEmpty(this.typeAliases)) {
+         Class[] var25 = this.typeAliases;
+         var27 = var25.length;
+
+         for(var5 = 0; var5 < var27; ++var5) {
+             Class<?> typeAlias = var25[var5];
+             configuration.getTypeAliasRegistry().registerAlias(typeAlias);
+             if (LOGGER.isDebugEnabled()) {
+                 LOGGER.debug("Registered type alias: '" + typeAlias + "'");
+             }
+         }
+     }
+
+     if (!ObjectUtils.isEmpty(this.plugins)) {
+         Interceptor[] var26 = this.plugins;
+         var27 = var26.length;
+
+         for(var5 = 0; var5 < var27; ++var5) {
+             Interceptor plugin = var26[var5];
+             configuration.addInterceptor(plugin);
+             if (LOGGER.isDebugEnabled()) {
+                 LOGGER.debug("Registered plugin: '" + plugin + "'");
+             }
+         }
+     }
+
+     if (StringUtils.hasLength(this.typeHandlersPackage)) {
+         typeHandlersPackageArray = StringUtils.tokenizeToStringArray(this.typeHandlersPackage, ",; \t\n");
+         var4 = typeHandlersPackageArray;
+         var5 = typeHandlersPackageArray.length;
+
+         for(var6 = 0; var6 < var5; ++var6) {
+             packageToScan = var4[var6];
+             configuration.getTypeHandlerRegistry().register(packageToScan);
+             if (LOGGER.isDebugEnabled()) {
+                 LOGGER.debug("Scanned package: '" + packageToScan + "' for type handlers");
+             }
+         }
+     }
+
+     if (!ObjectUtils.isEmpty(this.typeHandlers)) {
+         TypeHandler[] var28 = this.typeHandlers;
+         var27 = var28.length;
+
+         for(var5 = 0; var5 < var27; ++var5) {
+             TypeHandler<?> typeHandler = var28[var5];
+             configuration.getTypeHandlerRegistry().register(typeHandler);
+             if (LOGGER.isDebugEnabled()) {
+                 LOGGER.debug("Registered type handler: '" + typeHandler + "'");
+             }
+         }
+     }
+
+     if (this.databaseIdProvider != null) {
+         try {
+             configuration.setDatabaseId(this.databaseIdProvider.getDatabaseId(this.dataSource));
+         } catch (SQLException var24) {
+             throw new NestedIOException("Failed getting a databaseId", var24);
+         }
+     }
+
+     if (this.cache != null) {
+         configuration.addCache(this.cache);
+     }
+
+     if (xmlConfigBuilder != null) {
+         try {
+             xmlConfigBuilder.parse();
+             if (LOGGER.isDebugEnabled()) {
+                 LOGGER.debug("Parsed configuration file: '" + this.configLocation + "'");
+             }
+         } catch (Exception var22) {
+             throw new NestedIOException("Failed to parse config resource: " + this.configLocation, var22);
+         } finally {
+             ErrorContext.instance().reset();
+         }
+     }
+
+     if (this.transactionFactory == null) {
+         this.transactionFactory = new SpringManagedTransactionFactory();
+     }
+
+     configuration.setEnvironment(new Environment(this.environment, this.transactionFactory, this.dataSource));
+     if (!ObjectUtils.isEmpty(this.mapperLocations)) {
+         Resource[] var29 = this.mapperLocations;
+         var27 = var29.length;
+
+         for(var5 = 0; var5 < var27; ++var5) {
+             Resource mapperLocation = var29[var5];
+             if (mapperLocation != null) {
+                 try {
+                     XMLMapperBuilder xmlMapperBuilder = new XMLMapperBuilder(mapperLocation.getInputStream(), configuration, mapperLocation.toString(), configuration.getSqlFragments());
+                     // 这个方法已经是 mybatis 的源码，初始化流程
+                     xmlMapperBuilder.parse();
+                 } catch (Exception var20) {
+                     throw new NestedIOException("Failed to parse mapping resource: '" + mapperLocation + "'", var20);
+                 } finally {
+                     ErrorContext.instance().reset();
+                 }
+
+                 if (LOGGER.isDebugEnabled()) {
+                     LOGGER.debug("Parsed mapper file: '" + mapperLocation + "'");
+                 }
+             }
+         }
+     } else if (LOGGER.isDebugEnabled()) {
+         LOGGER.debug("Property 'mapperLocations' was not specified or no matching resources found");
+     }
+	 // 这个方法已经是 mybatis 的源码，初始化流程
+     return this.sqlSessionFactoryBuilder.build(configuration);
+ }
+```
+
+这个已经很明显了，实际上就是调用了 Mybatis 的初始化流程，现在已经得到了 SqlSessionFactory 了，接下来就是如何扫描到相关的Mapper接口了。
+
+这个需要看这个注解：`@MapperScan("com.turbo.mapper")`
+
+```java
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.TYPE})
+@Documented
+@Import({MapperScannerRegistrar.class})
+public @interface MapperScan {
+```
+
+通过 @Import 的方式扫描到 MapperScannerRegistrar 类。
+
+MapperScannerRegistrar 实现了 ImportBeanDefinitionRegistrar 接口，那么在Spring 实例化之前就会调用到 `org.mybatis.spring.annotation.MapperScannerRegistrar#registerBeanDefinitions` 方法：
+
+```java
+public class MapperScannerRegistrar implements ImportBeanDefinitionRegistrar, ResourceLoaderAware 
+```
+
+```java
+@Override
+public void registerBeanDefinitions(AnnotationMetadata importingClassMetadata, 
+                                    BeanDefinitionRegistry registry) {
+	// 拿到MapperScan注解，并解析注解中定义的属性封装成 AnnotationAttributes 对象
+    AnnotationAttributes annoAttrs = AnnotationAttributes
+        .fromMap(importingClassMetadata.getAnnotationAttributes(MapperScan.class.getName()));
+    ClassPathMapperScanner scanner = new ClassPathMapperScanner(registry);
+
+    // this check is needed in Spring 3.1
+    if (resourceLoader != null) {
+        scanner.setResourceLoader(resourceLoader);
+    }
+
+    Class<? extends Annotation> annotationClass = annoAttrs.getClass("annotationClass");
+    if (!Annotation.class.equals(annotationClass)) {
+        scanner.setAnnotationClass(annotationClass);
+    }
+
+    Class<?> markerInterface = annoAttrs.getClass("markerInterface");
+    if (!Class.class.equals(markerInterface)) {
+        scanner.setMarkerInterface(markerInterface);
+    }
+
+    Class<? extends BeanNameGenerator> generatorClass = annoAttrs.getClass("nameGenerator");
+    if (!BeanNameGenerator.class.equals(generatorClass)) {
+        scanner.setBeanNameGenerator(BeanUtils.instantiateClass(generatorClass));
+    }
+
+    Class<? extends MapperFactoryBean> mapperFactoryBeanClass = annoAttrs.getClass("factoryBean");
+    if (!MapperFactoryBean.class.equals(mapperFactoryBeanClass)) {
+        scanner.setMapperFactoryBean(BeanUtils.instantiateClass(mapperFactoryBeanClass));
+    }
+
+    scanner.setSqlSessionTemplateBeanName(annoAttrs.getString("sqlSessionTemplateRef"));
+    scanner.setSqlSessionFactoryBeanName(annoAttrs.getString("sqlSessionFactoryRef"));
+
+    List<String> basePackages = new ArrayList<String>();
+    for (String pkg : annoAttrs.getStringArray("value")) {
+        if (StringUtils.hasText(pkg)) {
+            basePackages.add(pkg);
+        }
+    }
+    for (String pkg : annoAttrs.getStringArray("basePackages")) {
+        if (StringUtils.hasText(pkg)) {
+            basePackages.add(pkg);
+        }
+    }
+    for (Class<?> clazz : annoAttrs.getClassArray("basePackageClasses")) {
+        basePackages.add(ClassUtils.getPackageName(clazz));
+    }
+    scanner.registerFilters();
+    scanner.doScan(StringUtils.toStringArray(basePackages));
+}
+```
+
+  
 
 
 
