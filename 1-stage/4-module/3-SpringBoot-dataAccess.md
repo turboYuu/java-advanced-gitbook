@@ -1237,9 +1237,21 @@ public abstract class AbstractRoutingDataSource extends AbstractDataSource imple
 }
 ```
 
+上面源码中还有另一个核心的方法 `setTargetDataSources(Map<Object, Object> targetDataSources)`，它需要一个Map，在方法注释中可得知，这个 Map 存储的就是我们配置的多个数据源的键值对。整理一下这个切换数据源的运作方式，这个类在连接数据库之前会执行 determineCurrentLookupKey() 方法，这个方法返回的数据将作为 key 去 `targetDataSources` 获取数据库连接。
 
+它是是一个 `abstract` 类，所以我们使用的话，推荐的方式是创建一个类来继承它并且实现它的 `determineCurrentLookupKey()` 方法，就是通过这个方法进行数据源的切换。
 
 ## 5.2 环境准备
+
+1. 实体类
+
+2. ProductMapper
+
+3. ProductService
+
+4. ProductController
+
+   
 
 ## 5.3 具体实现
 
@@ -1248,3 +1260,16 @@ public abstract class AbstractRoutingDataSource extends AbstractDataSource imple
 ### 5.3.2 编写 RoutingDataSource
 
 ## 5.4 优化
+
+
+
+
+
+
+
+
+
+
+
+
+
