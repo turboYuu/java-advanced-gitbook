@@ -989,17 +989,255 @@ public void registerBeanDefinitions(AnnotationMetadata importingClassMetadata,
         basePackages.add(ClassUtils.getPackageName(clazz));
     }
     scanner.registerFilters();
+    // 点击去
     scanner.doScan(StringUtils.toStringArray(basePackages));
 }
 ```
 
-  
+  ```java
+// org.mybatis.spring.mapper.ClassPathMapperScanner#doScan
+@Override
+public Set<BeanDefinitionHolder> doScan(String... basePackages) {
+    // 点击去
+    Set<BeanDefinitionHolder> beanDefinitions = super.doScan(basePackages);
+
+    if (beanDefinitions.isEmpty()) {
+        logger.warn("No MyBatis mapper was found in '" + Arrays.toString(basePackages) + "' package. Please check your configuration.");
+    } else {
+        processBeanDefinitions(beanDefinitions);
+    }
+
+    return beanDefinitions;
+}
+  ```
+
+```java
+// org.springframework.context.annotation.ClassPathBeanDefinitionScanner#doScan
+// 这个方法在 SpringBoot 源码解析中也遇到过
+protected Set<BeanDefinitionHolder> doScan(String... basePackages) {
+    Assert.notEmpty(basePackages, "At least one base package must be specified");
+    Set<BeanDefinitionHolder> beanDefinitions = new LinkedHashSet<>();
+    for (String basePackage : basePackages) {
+        // resource 定位
+        Set<BeanDefinition> candidates = findCandidateComponents(basePackage);
+        for (BeanDefinition candidate : candidates) {
+            ScopeMetadata scopeMetadata = this.scopeMetadataResolver.resolveScopeMetadata(candidate);
+            candidate.setScope(scopeMetadata.getScopeName());
+            String beanName = this.beanNameGenerator.generateBeanName(candidate, this.registry);
+            if (candidate instanceof AbstractBeanDefinition) {
+                postProcessBeanDefinition((AbstractBeanDefinition) candidate, beanName);
+            }
+            if (candidate instanceof AnnotatedBeanDefinition) {
+                AnnotationConfigUtils.processCommonDefinitionAnnotations((AnnotatedBeanDefinition) candidate);
+            }
+            if (checkCandidate(beanName, candidate)) {
+                BeanDefinitionHolder definitionHolder = new BeanDefinitionHolder(candidate, beanName);
+                definitionHolder =
+                    AnnotationConfigUtils.applyScopedProxyMode(scopeMetadata, definitionHolder, this.registry);
+                beanDefinitions.add(definitionHolder);
+                // 将该 Bean 注册进 IoC 容器（beanDefinitionMap）
+                registerBeanDefinition(definitionHolder, this.registry);
+            }
+        }
+    }
+    return beanDefinitions;
+}
+```
+
+在回到 `org.mybatis.spring.mapper.ClassPathMapperScanner#doScan` 方法中的 `processBeanDefinitions(beanDefinitions)`：
+
+```java
+private void processBeanDefinitions(Set<BeanDefinitionHolder> beanDefinitions) {
+    GenericBeanDefinition definition;
+    for (BeanDefinitionHolder holder : beanDefinitions) {
+        definition = (GenericBeanDefinition) holder.getBeanDefinition();
+
+        if (logger.isDebugEnabled()) {
+            logger.debug("Creating MapperFactoryBean with name '" + holder.getBeanName() 
+                         + "' and '" + definition.getBeanClassName() + "' mapperInterface");
+        }
+
+        // the mapper interface is the original class of the bean
+        // but, the actual class of the bean is MapperFactoryBean
+        definition.getConstructorArgumentValues().addGenericArgumentValue(definition.getBeanClassName()); // issue #59
+        // 重要的方法，debug 观察前后 
+        definition.setBeanClass(this.mapperFactoryBean.getClass());
+
+        definition.getPropertyValues().add("addToConfig", this.addToConfig);
+
+        boolean explicitFactoryUsed = false;
+        if (StringUtils.hasText(this.sqlSessionFactoryBeanName)) {
+            definition.getPropertyValues().add("sqlSessionFactory", new RuntimeBeanReference(this.sqlSessionFactoryBeanName));
+            explicitFactoryUsed = true;
+        } else if (this.sqlSessionFactory != null) {
+            definition.getPropertyValues().add("sqlSessionFactory", this.sqlSessionFactory);
+            explicitFactoryUsed = true;
+        }
+
+        if (StringUtils.hasText(this.sqlSessionTemplateBeanName)) {
+            if (explicitFactoryUsed) {
+                logger.warn("Cannot use both: sqlSessionTemplate and sqlSessionFactory together. sqlSessionFactory is ignored.");
+            }
+            definition.getPropertyValues().add("sqlSessionTemplate", new RuntimeBeanReference(this.sqlSessionTemplateBeanName));
+            explicitFactoryUsed = true;
+        } else if (this.sqlSessionTemplate != null) {
+            if (explicitFactoryUsed) {
+                logger.warn("Cannot use both: sqlSessionTemplate and sqlSessionFactory together. sqlSessionFactory is ignored.");
+            }
+            definition.getPropertyValues().add("sqlSessionTemplate", this.sqlSessionTemplate);
+            explicitFactoryUsed = true;
+        }
+
+        if (!explicitFactoryUsed) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Enabling autowire by type for MapperFactoryBean with name '" + holder.getBeanName() + "'.");
+            }
+            definition.setAutowireMode(AbstractBeanDefinition.AUTOWIRE_BY_TYPE);
+        }
+    }
+}
+```
+
+![image-20220323175056614](assest/image-20220323175056614.png)
+
+![image-20220323175126314](assest/image-20220323175126314.png)
+
+**上述几步主要是完成通过 @MapperScan("com.turbo.mapper") 这个定义，扫描指定包下的 mapper 接口，然后设置每个 mapper 接口的 beanClass 属性为 MapperFactoryBean 类型加入到 Spring 的 bean 容器中**。
+
+MapperFactoryBean 实现了 FactoryBean 接口，所以当 Spring 从待实例化的 bean 容器中遍历到这个 bean 并开始执行实例化时返回的对象实际上是 getObject 方法中返回的对象。
+
+然后观察 MapperFactoryBean的 getObject()方法，实际上返回的就是 mybatis 中通过 getMapper 拿到的对象，熟悉mybatis 源码的就应该清除，这个就是 mybatis 通过动态代理生成的 mapper 接口实现类。
+
+```java
+public class MapperFactoryBean<T> extends SqlSessionDaoSupport implements FactoryBean<T> {
+    // ...
+  @Override
+  public T getObject() throws Exception {
+    // 观察该方法
+    return getSqlSession().getMapper(this.mapperInterface);
+  }
+}
+```
+
+![image-20220323175457223](assest/image-20220323175457223.png)
+
+```java
+// org.mybatis.spring.SqlSessionTemplate#getMapper
+@Override
+public <T> T getMapper(Class<T> type) {
+    return getConfiguration().getMapper(type, this);
+}
+```
+
+```java
+// org.apache.ibatis.session.Configuration#getMapper
+public <T> T getMapper(Class<T> type, SqlSession sqlSession) {
+    return this.mapperRegistry.getMapper(type, sqlSession);
+}
+```
+
+```java
+public <T> T getMapper(Class<T> type, SqlSession sqlSession) {
+    MapperProxyFactory<T> mapperProxyFactory = (MapperProxyFactory)this.knownMappers.get(type);
+    if (mapperProxyFactory == null) {
+        throw new BindingException("Type " + type + " is not known to the MapperRegistry.");
+    } else {
+        try {
+            // 点进去
+            return mapperProxyFactory.newInstance(sqlSession);
+        } catch (Exception var5) {
+            throw new BindingException("Error getting mapper instance. Cause: " + var5, var5);
+        }
+    }
+}
+```
+
+```java
+// org.apache.ibatis.binding.MapperProxyFactory
+protected T newInstance(MapperProxy<T> mapperProxy) {
+    return Proxy.newProxyInstance(this.mapperInterface.getClassLoader(), 
+                                  new Class[]{this.mapperInterface}, mapperProxy);
+}
+
+public T newInstance(SqlSession sqlSession) {
+    MapperProxy<T> mapperProxy = new MapperProxy(sqlSession, this.mapperInterface, this.methodCache);
+    // 返回代理对象
+    return this.newInstance(mapperProxy);
+}
+```
+
+到此，mapper接口现在也通过动态代理生成了实现类，并且注入到 Spring 的 bean 容器中了。之后使用者就可以通过 @Autowired 或者 getBean 等方式，从Spring容器中获取到了。
+
+
 
 
 
 # 5 SpringBoot + Mybatis 实现动态数据源切换
 
 ## 5.1 动态数据源介绍
+
+**原理图**
+
+![image-20220323182533778](assest/image-20220323182533778.png)
+
+Spring 内置了一个 AbstractRoutingDataSource ，它可以把多个数据源配置成一个 Map，然后，根据不同的 key 返回不同的数据源。因为 AbstractRoutingDataSource 也是一个 DataSource 接口，因此，应用程序应该预先设置好 key ，访问数据的代码就可以从 AbstractRoutingDataSource 拿到对应的一个真实数据源，从而访问指定的数据库
+
+查看 **AbstractRoutingDataSource**类：
+
+```java
+/**
+ * Abstract {@link javax.sql.DataSource} implementation that routes {@link #getConnection()}
+ * calls to one of various target DataSources based on a lookup key. The latter is usually
+ * (but not necessarily) determined through some thread-bound transaction context.
+ * 
+ * 抽象 {@link javax.sql.DataSource} 路由 {@link #getConnection()} 的实现
+ * 根据查找键调用不同的目标数据之一。后者通常是
+ * （但不一定）通过某些线程绑定事务上下文来确定。
+ *
+ * @author Juergen Hoeller
+ * @since 2.0.1
+ * @see #setTargetDataSources
+ * @see #setDefaultTargetDataSource
+ * @see #determineCurrentLookupKey()
+ */
+public abstract class AbstractRoutingDataSource extends AbstractDataSource implements InitializingBean {
+    
+    /**
+	 * Specify the map of target DataSources, with the lookup key as key.
+	 * The mapped value can either be a corresponding {@link javax.sql.DataSource}
+	 * instance or a data source name String (to be resolved via a
+	 * {@link #setDataSourceLookup DataSourceLookup}).
+	 * <p>The key can be of arbitrary type; this class implements the
+	 * generic lookup process only. The concrete key representation will
+	 * be handled by {@link #resolveSpecifiedLookupKey(Object)} and
+	 * {@link #determineCurrentLookupKey()}.
+	 * 
+	 * 指定目标数据源的映射，查找键为 键。
+	 * 映射的值可以是相应的 {@link javax.sql.DataSource}
+	 * 实例或数据源名称字符串（要通过 {@link #setDataSourceLookup DataSourceLookup})）
+	 * 键 可以是 任意类型的；这个类实现了通用查找过程。具体的关键表示将由
+	 * {@link #resolveSpecifiedLookupKey(Object)} 和 {@link #determineCurrentLookupKey()}
+	 */
+	public void setTargetDataSources(Map<Object, Object> targetDataSources) {
+		this.targetDataSources = targetDataSources;
+	}
+    // ...
+    /**
+	 * Determine the current lookup key. This will typically be
+	 * implemented to check a thread-bound transaction context.
+	 * <p>Allows for arbitrary keys. The returned key needs
+	 * to match the stored lookup key type, as resolved by the
+	 * {@link #resolveSpecifiedLookupKey} method.
+	 * 确定当前的查找键。这通常会实现以检查线程绑定的事务上下文。
+	 * 允许任意键。返回的密钥需要与存储的查找密钥类型匹配，如：
+	 * {@link #resolveSpecifiedLookupKey}
+	 */
+	@Nullable
+	protected abstract Object determineCurrentLookupKey();
+}
+```
+
+
 
 ## 5.2 环境准备
 
