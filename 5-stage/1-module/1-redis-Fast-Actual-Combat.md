@@ -94,7 +94,7 @@ cp  redis.conf /usr/redis/bin/
 
 2.修改redis.conf
 
-```
+```bash
 # 将`daemonize`由`no`改为`yes`
 daemonize yes
 
@@ -341,7 +341,7 @@ https://gitee.com/turboYuu/redis5.1/tree/master/lab/springboot_redis
 
 选择Spring Web依赖，添加redis依赖
 
-```
+```xml
 <dependency>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-data-redis</artifactId>
