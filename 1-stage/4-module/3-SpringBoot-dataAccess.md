@@ -1257,11 +1257,61 @@ public abstract class AbstractRoutingDataSource extends AbstractDataSource imple
 
 ### 5.3.1 配置多数据源
 
+首先在 application.properties 中配置两个数据源
+
+```properties
+
+```
+
+在 SpringBoot 的配置代码中，初始化两个数据源：
+
+```java
+
+```
+
+
+
 ### 5.3.2 编写 RoutingDataSource
+
+然后，用 Spring 内置的 RoutingDataSource，把两个真实的数据源代理为一个动态数据源：
+
+```java
+
+```
+
+对于这个 `RoutingDataSource` ，需要在 SpringBoot 中配置好并设置为主数据源：
+
+```java
+
+```
+
+现在，`RoutingDataSource` 配置好了，但是路由的选择是写死的，即永远返回 "masterDataSource"。
+
+现在问题来了：***如何存储动态选择的key 以及在哪里设置 key ?*** 
+
+在 Servlet 的线程模型中，使用 ThreadLocal 存储 key 最合适，因此，编写一个 `RoutingDataSourceContext` ，来设置并动态存储 key：
+
+```java
+
+```
+
+然后，修改 `RoutingDataSource` ，获取 key 的代码如下：
+
+```java
+
+```
+
+这样，在某个地方，例如一个 Controller 的方法内部，就可以动态设置 DataSource 的 key：
+
+```java
+
+```
+
+到此为止，就成功实现了数据库的动态路由访问。
 
 ## 5.4 优化
 
-
+以上代码是可行的，
 
 
 
