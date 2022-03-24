@@ -1637,31 +1637,83 @@ public class ProductController {
 
 想想，Spring 提供的声明式事务管理，就只需要一个 `@Transactional()`注解，放在某个 java 方法上，这个方法就自动具有了事务。
 
-我们也可以编写一个类似的 `@RoutingWith("slaveDataSource")` 注解，放到某个 Controller 的方法生，这个方法内部就自动选择了对应的数据源。
+我们也可以编写一个类似的 `@RoutingWith("slaveDataSource")` 注解，放到某个 Controller 的方法上，这个方法内部就自动选择了对应的数据源。
 
 ```java
+package com.turbo.config;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface RoutingWith {
+
+	String value() default "master";
+}
 ```
 
 编译前需要添加一个 Maven 依赖：
 
 ```xml
-
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-aop</artifactId>
+</dependency>
 ```
 
 切面类：
 
 ```java
+package com.turbo.config;
+
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.springframework.stereotype.Component;
+
+@Aspect
+@Component
+public class RoutingAspect {
+
+	@Around("@annotation(routingWith)")
+	public Object routingWithDataSource(ProceedingJoinPoint joinPoint,
+                                        RoutingWith routingWith) throws Throwable {
+		final String key = routingWith.value();
+		RoutingDataSourceContext routingDataSourceContext = 
+            new RoutingDataSourceContext(key);
+		return joinPoint.proceed();
+	}
+}
 
 ```
 
 注意方法的第二个参数 `RoutingWith` 是 Spring 传入的注解实例，我们根据注解的 value() 获取配置的 key。
 
-改造方法：
+改造Controller 方法：
 
 ```java
+@RoutingWith("master")
+@RequestMapping("/findAllProductM")
+public String findAllProductM(){
+    //		String key = "master";
+    //		RoutingDataSourceContext routingDataSourceContext = new RoutingDataSourceContext(key);
+    productService.findAllProductM();
+    return "master";
+}
 
+@RoutingWith("slave")
+@RequestMapping("/findAllProductS")
+public String findAllProductS(){
+    //		String key = "slave";
+    //		RoutingDataSourceContext routingDataSourceContext = new RoutingDataSourceContext(key);
+    productService.findAllProductS();
+    return "slave";
+}
 ```
 
 到此为止，我们就实现了用注解动态选择数据源的功能。
 
+![image-20220324162003577](assest/image-20220324162003577.png)
