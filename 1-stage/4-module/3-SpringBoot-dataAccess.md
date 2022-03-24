@@ -1180,11 +1180,14 @@ public T newInstance(SqlSession sqlSession) {
 
 ![image-20220323182533778](assest/image-20220323182533778.png)
 
-Spring 内置了一个 AbstractRoutingDataSource ，它可以把多个数据源配置成一个 Map，然后，根据不同的 key 返回不同的数据源。因为 AbstractRoutingDataSource 也是一个 DataSource 接口，因此，应用程序应该预先设置好 key ，访问数据的代码就可以从 AbstractRoutingDataSource 拿到对应的一个真实数据源，从而访问指定的数据库
+Spring 内置了一个 AbstractRoutingDataSource ，它可以把多个数据源配置成一个 Map，然后，根据不同的 key 返回不同的数据源。因为 AbstractRoutingDataSource 也是一个 DataSource 接口，因此，应用程序应该预先设置好 key ，访问数据的代码就可以从 AbstractRoutingDataSource 拿到对应的一个真实数据源，从而访问指定的数据库。
+
+![image-20220324144732311](assest/image-20220324144732311.png)
 
 查看 **AbstractRoutingDataSource**类：
 
 ```java
+// org.springframework.jdbc.datasource.lookup.AbstractRoutingDataSource
 /**
  * Abstract {@link javax.sql.DataSource} implementation that routes {@link #getConnection()}
  * calls to one of various target DataSources based on a lookup key. The latter is usually
@@ -1201,6 +1204,22 @@ Spring 内置了一个 AbstractRoutingDataSource ，它可以把多个数据源�
  * @see #determineCurrentLookupKey()
  */
 public abstract class AbstractRoutingDataSource extends AbstractDataSource implements InitializingBean {
+    
+    @Nullable
+	private Map<Object, Object> targetDataSources; // 存放多个数据源的 map （解析前）
+
+	@Nullable
+	private Object defaultTargetDataSource; // 默认使用的数据源是哪一个
+
+	private boolean lenientFallback = true;
+
+	private DataSourceLookup dataSourceLookup = new JndiDataSourceLookup();
+
+	@Nullable
+	private Map<Object, DataSource> resolvedDataSources; // targetDataSources 也会存到这个 map 中一份
+
+	@Nullable
+	private DataSource resolvedDefaultDataSource;
     
     /**
 	 * Specify the map of target DataSources, with the lookup key as key.
@@ -1221,6 +1240,30 @@ public abstract class AbstractRoutingDataSource extends AbstractDataSource imple
 	public void setTargetDataSources(Map<Object, Object> targetDataSources) {
 		this.targetDataSources = targetDataSources;
 	}
+    
+    /**
+	 * Retrieve the current target DataSource. Determines the
+	 * {@link #determineCurrentLookupKey() current lookup key}, performs
+	 * a lookup in the {@link #setTargetDataSources targetDataSources} map,
+	 * falls back to the specified
+	 * {@link #setDefaultTargetDataSource default target DataSource} if necessary.
+	 * @see #determineCurrentLookupKey()
+	 */
+	protected DataSource determineTargetDataSource() {
+		Assert.notNull(this.resolvedDataSources, "DataSource router not initialized");
+        // 获取 key
+		Object lookupKey = determineCurrentLookupKey();
+        // 获取具体的 DataSource 对象
+		DataSource dataSource = this.resolvedDataSources.get(lookupKey);
+		if (dataSource == null && (this.lenientFallback || lookupKey == null)) {
+			dataSource = this.resolvedDefaultDataSource;
+		}
+		if (dataSource == null) {
+			throw new IllegalStateException("Cannot determine target DataSource for lookup key [" + lookupKey + "]");
+		}
+		return dataSource;
+	}
+    
     // ...
     /**
 	 * Determine the current lookup key. This will typically be
@@ -1241,15 +1284,125 @@ public abstract class AbstractRoutingDataSource extends AbstractDataSource imple
 
 它是是一个 `abstract` 类，所以我们使用的话，推荐的方式是创建一个类来继承它并且实现它的 `determineCurrentLookupKey()` 方法，就是通过这个方法进行数据源的切换。
 
+> 思路分析：
+>
+> 1. 项目中准备两部分数据源配置信息，master : product_master，slave：product_slave
+>
+> 2. 创建数据源自动配置类，完成 master\slave 这两个数据源对象的创建
+>
+> 3. 创建 AbstractRoutingDataSource 的子类，重写 determineCurrentLookupKey() 方法（return "master"从容器中获取 key ）
+>
+> 4. 要将两个数据源对象 添加到 AbstractRoutingDataSource 的 targetDataSources 这个map 中
+>
+>    map.put("master",masterDataSource);
+>
+>    map.put("slave",slaveDataSource);
+>
+>    问题：如何存储动态选择的 key？ThreadLoal
+>
+> 5. 创建 RoutingDataSourceContext 类，在该类中 通过 ThreadLocal 来存储 dataSource的key。
+
 ## 5.2 环境准备
 
 1. 实体类
 
+   ```java
+   package com.turbo.pojo;
+   
+   import lombok.Data;
+   
+   @Data
+   public class Product {
+   	private Integer id;
+   	private String name;
+   	private Double price;
+   }
+   ```
+
 2. ProductMapper
+
+   ```java
+   package com.turbo.mapper;
+   
+   import com.turbo.pojo.Product;
+   import org.apache.ibatis.annotations.Select;
+   
+   import java.util.List;
+   
+   public interface ProductMapper {
+   
+   	@Select("select * from product")
+   	public List<Product> findAllProductM();
+   
+   	@Select("select * from product")
+   	public List<Product> findAllProductS();
+   }
+   ```
+
+   
 
 3. ProductService
 
+   ```java
+   package com.turbo.service;
+   
+   import com.turbo.mapper.ProductMapper;
+   import com.turbo.pojo.Product;
+   import org.springframework.beans.factory.annotation.Autowired;
+   import org.springframework.stereotype.Service;
+   
+   import java.util.List;
+   
+   @Service
+   public class ProductService {
+   
+   	@Autowired
+   	private ProductMapper productMapper;
+   
+   	public void findAllProductM(){
+   		final List<Product> allProductM = productMapper.findAllProductM();
+   		System.out.println(allProductM);
+   	}
+   
+   	public void findAllProductS(){
+   		final List<Product> allProductS = productMapper.findAllProductS();
+   		System.out.println(allProductS);
+   	}
+   }
+   ```
+
+   
+
 4. ProductController
+
+   ```java
+   package com.turbo.controller;
+   
+   import com.turbo.config.RoutingDataSourceContext;
+   import com.turbo.service.ProductService;
+   import org.springframework.beans.factory.annotation.Autowired;
+   import org.springframework.web.bind.annotation.RequestMapping;
+   import org.springframework.web.bind.annotation.RestController;
+   
+   @RestController
+   public class ProductController {
+   
+   	@Autowired
+   	private ProductService productService;
+   
+   	@RequestMapping("/findAllProductM")
+   	public String findAllProductM(){
+   		productService.findAllProductM();
+   		return "master";
+   	}
+   
+   	@RequestMapping("/findAllProductS")
+   	public String findAllProductS(){
+   		productService.findAllProductS();
+   		return "slave";
+   	}
+   }
+   ```
 
    
 
@@ -1260,12 +1413,57 @@ public abstract class AbstractRoutingDataSource extends AbstractDataSource imple
 首先在 application.properties 中配置两个数据源
 
 ```properties
+spring.druid.datasource.master.password=123456
+spring.druid.datasource.master.username=root
+spring.druid.datasource.master.jdbc-url=jdbc:mysql://152.136.177.192:3306/product_master?useUnicode=true&characterEncoding=utf-8&useSSL=true&serverTimezone=UTC
+spring.druid.datasource.master.driver-class-name=com.mysql.cj.jdbc.Driver
 
+spring.druid.datasource.slave.password=123456
+spring.druid.datasource.slave.username=root
+spring.druid.datasource.slave.jdbc-url=jdbc:mysql://152.136.177.192:3306/product_slave?useUnicode=true&characterEncoding=utf-8&useSSL=true&serverTimezone=UTC
+spring.druid.datasource.slave.driver-class-name=com.mysql.cj.jdbc.Driver
 ```
 
 在 SpringBoot 的配置代码中，初始化两个数据源：
 
 ```java
+package com.turbo.config;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.jdbc.DataSourceBuilder;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import javax.sql.DataSource;
+
+@Configuration
+public class MyDataSourceAutoConfiguration {
+
+	final Logger logger = LoggerFactory.getLogger(MyDataSourceAutoConfiguration.class);
+
+	/**
+	 * master dataSource
+	 */
+	@Bean
+	@ConfigurationProperties(prefix = "spring.druid.datasource.master")
+	public DataSource masterDataSource(){
+		logger.info("create master dataSource ...");
+		return DataSourceBuilder.create().build();
+	}
+
+	/**
+	 * slave dataSource
+	 */
+	@Bean
+	@ConfigurationProperties(prefix = "spring.druid.datasource.slave")
+	public DataSource slaveDataSource(){
+		logger.info("create slave dataSource ...");
+		return DataSourceBuilder.create().build();
+	}
+}
 
 ```
 
@@ -1276,50 +1474,194 @@ public abstract class AbstractRoutingDataSource extends AbstractDataSource imple
 然后，用 Spring 内置的 RoutingDataSource，把两个真实的数据源代理为一个动态数据源：
 
 ```java
+package com.turbo.config;
 
+import org.springframework.jdbc.datasource.lookup.AbstractRoutingDataSource;
+
+public class RoutingDataSource extends AbstractRoutingDataSource {
+	
+	@Override
+	protected Object determineCurrentLookupKey() {
+		return "master";
+	}
+}
 ```
 
 对于这个 `RoutingDataSource` ，需要在 SpringBoot 中配置好并设置为主数据源：
 
 ```java
+package com.turbo.config;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.jdbc.DataSourceBuilder;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+
+import javax.sql.DataSource;
+import java.util.HashMap;
+import java.util.Map;
+
+@Configuration
+public class MyDataSourceAutoConfiguration {
+
+	final Logger logger = LoggerFactory.getLogger(MyDataSourceAutoConfiguration.class);
+
+	/**
+	 * master dataSource
+	 */
+	@Bean
+	@ConfigurationProperties(prefix = "spring.druid.datasource.master")
+	public DataSource masterDataSource(){
+		logger.info("create master dataSource ...");
+		return DataSourceBuilder.create().build();
+	}
+
+	/**
+	 * slave dataSource
+	 */
+	@Bean
+	@ConfigurationProperties(prefix = "spring.druid.datasource.slave")
+	public DataSource slaveDataSource(){
+		logger.info("create slave dataSource ...");
+		return DataSourceBuilder.create().build();
+	}
+
+    // 主数据源
+	@Bean
+	@Primary
+	public DataSource primaryDataSource(
+			@Autowired @Qualifier("masterDataSource") DataSource masterDataSource,
+			@Autowired @Qualifier("slaveDataSource") DataSource slaveDataSource
+	){
+
+		final RoutingDataSource routingDataSource = new RoutingDataSource();
+
+		Map<Object,Object> map = new HashMap<>();
+		map.put("master",masterDataSource);
+		map.put("slave",slaveDataSource);
+		routingDataSource.setTargetDataSources(map);
+		return routingDataSource;
+	}
+}
 ```
 
-现在，`RoutingDataSource` 配置好了，但是路由的选择是写死的，即永远返回 "masterDataSource"。
+现在，`RoutingDataSource` 配置好了，但是路由的选择是写死的，即永远返回 "master"。
 
 现在问题来了：***如何存储动态选择的key 以及在哪里设置 key ?*** 
 
 在 Servlet 的线程模型中，使用 ThreadLocal 存储 key 最合适，因此，编写一个 `RoutingDataSourceContext` ，来设置并动态存储 key：
 
 ```java
+package com.turbo.config;
 
+public class RoutingDataSourceContext {
+
+	static final ThreadLocal<String>  threadLocal = new ThreadLocal<>();
+
+	// key: 指定数据源类型 master slave
+	public RoutingDataSourceContext(String key) {
+		threadLocal.set(key);
+	}
+
+	public static String getDataSourceRoutingkey(){
+		return threadLocal.get()==null?"master":threadLocal.get();
+	}
+
+	public void close(){
+		threadLocal.remove();
+	}
+}
 ```
 
 然后，修改 `RoutingDataSource` ，获取 key 的代码如下：
 
 ```java
-
+public class RoutingDataSource extends AbstractRoutingDataSource {
+    @Override
+    protected Object determineCurrentLookupKey() {
+        return RoutingDataSourceContext.getDataSourceRoutingkey();
+    }
+}
 ```
 
 这样，在某个地方，例如一个 Controller 的方法内部，就可以动态设置 DataSource 的 key：
 
 ```java
+package com.turbo.controller;
 
+import com.turbo.config.RoutingDataSourceContext;
+import com.turbo.service.ProductService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+public class ProductController {
+
+	@Autowired
+	private ProductService productService;
+
+
+	@RequestMapping("/findAllProductM")
+	public String findAllProductM(){
+		String key = "master";
+		RoutingDataSourceContext routingDataSourceContext = 
+            new RoutingDataSourceContext(key);
+		productService.findAllProductM();
+		return "master";
+	}
+
+	@RequestMapping("/findAllProductS")
+	public String findAllProductS(){
+		String key = "slave";
+		RoutingDataSourceContext routingDataSourceContext = 
+            new RoutingDataSourceContext(key);
+		productService.findAllProductS();
+		return "slave";
+	}
+}
 ```
 
 到此为止，就成功实现了数据库的动态路由访问。
 
+![image-20220324162003577](assest/image-20220324162003577.png)
+
 ## 5.4 优化
 
-以上代码是可行的，
+以上代码是可行的，但是，需要读数据库的地方，就需要加上一大段 `RoutingDataSourceContext routingDataSourceContext = new RoutingDataSourceContext(key);` 代码，使用起来不方便。
 
+想想，Spring 提供的声明式事务管理，就只需要一个 `@Transactional()`注解，放在某个 java 方法上，这个方法就自动具有了事务。
 
+我们也可以编写一个类似的 `@RoutingWith("slaveDataSource")` 注解，放到某个 Controller 的方法生，这个方法内部就自动选择了对应的数据源。
 
+```java
 
+```
 
+编译前需要添加一个 Maven 依赖：
 
+```xml
 
+```
 
+切面类：
 
+```java
 
+```
+
+注意方法的第二个参数 `RoutingWith` 是 Spring 传入的注解实例，我们根据注解的 value() 获取配置的 key。
+
+改造方法：
+
+```java
+
+```
+
+到此为止，我们就实现了用注解动态选择数据源的功能。
 
