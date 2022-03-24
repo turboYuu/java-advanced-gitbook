@@ -1627,6 +1627,15 @@ public class ProductController {
 }
 ```
 
+还有一个比较重要的注解在核心启动类上：
+
+```java
+// 排除掉 DataSourceAutoConfiguration 自动配置类
+@SpringBootApplication(exclude = {DataSourceAutoConfiguration.class})
+@MapperScan("com.turbo.mapper")
+public class SpringBoot03DataaccessApplication {
+```
+
 到此为止，就成功实现了数据库的动态路由访问。
 
 ![image-20220324162003577](assest/image-20220324162003577.png)
