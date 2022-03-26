@@ -3399,7 +3399,7 @@ SpringBoot mvc 的自动配置类是 DispatcherServletAutoConfiguration ，主�
 
 ## 7.2 自动配置二 注册 DispatcherServlet 到 ServletContext
 
-在上一小节的源码翻阅中，我们看到了 DispatcherServlet 和 DispatcherServletRegistrationBean 这两个 Bean 的自动配置。DispatcherServlet 我们属性，DispatcherServletRegistrationBean 负责将 DispatcherServlet 注册到 ServletContext 当中。
+在上一小节的源码翻阅中，我们看到了 DispatcherServlet 和 DispatcherServletRegistrationBean 这两个 Bean 的自动配置。DispatcherServlet 我们熟悉，DispatcherServletRegistrationBean 负责将 DispatcherServlet 注册到 ServletContext 当中。
 
 ### 7.2.1 DispatcherServletRegistrationBean 的类图
 
