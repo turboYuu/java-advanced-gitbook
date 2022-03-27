@@ -532,7 +532,7 @@
   ```java
   package com.turbo.edu.servlet;
   
-import com.turbo.edu.factory.BeanFactory;
+  import com.turbo.edu.factory.BeanFactory;
   import com.turbo.edu.factory.ProxyFactory;
   import com.turbo.edu.utils.JsonUtils;
   import com.turbo.edu.pojo.Result;
@@ -553,19 +553,16 @@ import com.turbo.edu.factory.BeanFactory;
   
       // 首先从 BeanFactory 获取到 proxyFactory 代理工厂的实例化对象
       ProxyFactory proxyFactory = (ProxyFactory) BeanFactory.getBean("proxyFactory");
-      private TransferService transferService = 
-          (TransferService) proxyFactory.getJDKProxy(BeanFactory.getBean("transferService"));
+      private TransferService transferService = (TransferService) proxyFactory.getJDKProxy(BeanFactory.getBean("transferService"));
   
   
       @Override
-      protected void doGet(HttpServletRequest req, HttpServletResponse resp) 
-          throws ServletException, IOException {
+      protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
           doPost(req,resp);
       }
   
       @Override
-      protected void doPost(HttpServletRequest req, HttpServletResponse resp) 
-          throws ServletException, IOException {
+      protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
   
           // 设置请求体的字符编码
           req.setCharacterEncoding("UTF-8");
@@ -578,6 +575,7 @@ import com.turbo.edu.factory.BeanFactory;
           Result result = new Result();
   
           try {
+  
               // 2. 调用service层方法
               transferService.transfer(fromCardNo,toCardNo,money);
               result.setStatus("200");
@@ -593,5 +591,3 @@ import com.turbo.edu.factory.BeanFactory;
       }
   }
   ```
-  
-  
