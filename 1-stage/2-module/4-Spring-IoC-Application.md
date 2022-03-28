@@ -320,9 +320,36 @@ ApplicationContext 容器的默认行为是在启动服务器时将所有 single
 </beans>
 ```
 
-如果一个 bean 的 scope 属性为 scope="prototype" 时，
+如果一个 bean 的 scope 属性为 scope="prototype" 时，即使设置了 `lazy-init="false"`，容器启动时也不会实例化 bean，而是调用 getBean 方法实例化的。
+
+**应用场景**
+
+1. 开启延迟加载一定程度提高容器启动和运转性能。
+2. 对于不常使用的 Bean 设置延迟加载，这样偶尔使用的时候在加载，不必要从一开始该 Bean 就占用资源。
 
 ## 2.2 FactoryBean 和 BeanFactory
+
+BeanFactory 接口使容器的顶级接口，定义了容器的一些基础行为，负责生产和管理 Bean 的一个工厂，具体使用它下面的子接口类型，比如 ApplicationContext；此处重点分析 FactoryBean。
+
+Bean 创建的三种方式中的静态方法和实例化方法 和 FactoryBean 作用类似，FactoryBean 使用较多，尤其在 Spring 框架一些组件中会使用，还有其他框架和 Spring 框架整合时使用
+
+```java
+
+```
+
+Company 类
+
+```java
+
+```
+
+CompanyFactoryBean 类
+
+```java
+
+```
+
+
 
 ## 2.3 后置处理器
 
