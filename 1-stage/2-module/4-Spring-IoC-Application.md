@@ -401,17 +401,17 @@ BeanFactory 级别的处理，是针对整个 Bean 的工厂进行处理的，�
 
 
 
+此接口只提供了一个方法，方法参数为 ConfigurableListableBeanFactory，该参数类型定义了一些方法：
 
 
 
+其中有个方法名为 getBeanDefinition 的方法，我们可以根据此方法，找到我们定义 bean 的 BeanDefinition 对象。然后我们可以对定义的属性进行修改，以下是 BeanDefinition 中的方法
 
 
 
+方法名字类似我们 bean 标签的属性，setBeanClassName 对应 bean 标签中的 class 属性，所以我们拿到 BeanDefinition 对象时，我们可以手动修改 bean 标签中所定义的属性值。
 
+**BeanDefinition对象**：我们在 xml 定义的 bean 标签，Spring 解析 bean 标签成为一个 JavaBean，这个 JavaBean 就是 BeanDefinition。
 
-
-
-
-
-
+注意：调用 BeanFactoryPostProcessor方法时，这时候 bean 还没有实例化，此时 bean 刚被解析成 BeanDefinition 对象。
 
