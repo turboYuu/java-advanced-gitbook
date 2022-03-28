@@ -349,10 +349,69 @@ CompanyFactoryBean 类
 
 ```
 
+xml配置
+
+```xml
+
+```
+
+测试，获取 FactoryBean 产生的对象
+
+```java
+
+```
+
+测试，获取 FactoryBean，需要在 id 之间添加 ”&“
+
+```java
+
+```
+
 
 
 ## 2.3 后置处理器
 
+Spring 提供了两种后置处理 bean 的扩展接口：分别是 `BeanPostProcessor` 和 `BeanFactoryPostProcessor`，两者在使用上是有所区别的。
+
+工厂初始化（BeanFactory）-> Bean 对象
+
+在 Bean 对象实例化之后可以使用 BeanFactoryPostProcessor 进行后置处理一些事情，
+
+在 Bean 对象实例化（并不是Bean的整个生命周期完成）之后可以使用 BeanPostProcessor 进行后置处理做一些事情。
+
+> 注意：对象不一定是 springbean，而 springbean 一定是个对象
+
+SpringBean 的生命周期
+
 ### 2.3.1 BeanPostProcessor
 
+BeanPostProcessor 是针对 Bean 级别的处理，可以针对某个具体的 Bean.
+
+
+
+该接口提供了两个方法，分别在 Bean 的**初始化方法前**和**初始化方法后**执行，具体这个初始化方法指的是什么方法，类似我们在定义 bean 时，定义了 init-method 所指定的方法。
+
+定义一个类实现了 BeanPostProcessor，**默认是会对整个 Spring 容器中所有的 bean 进行处理**。如果要对具体的某个 bean 处理，可以通过方法参数判断，两个类型参数分别为 Object 和 String ，第一个参数是每个 bean 的实例，第二个参数是每个 bean 的 name 或者 id 属性的值。所以我们可以通过第二个参数，来判断我们将要处理的具体的 bean。
+
+注意：处理时发生在 Spring 容器的实例化和依赖注入之后。
+
 ### 2.3.2 BeanFactoryPostProcessor
+
+BeanFactory 级别的处理，是针对整个 Bean 的工厂进行处理的，典型应用：`PropertyPlaceholderConfigurer`
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
