@@ -290,7 +290,37 @@ BeanFactory 是 Spring 框架中 IoC 容器的顶层接口，它只是用来定�
 
 Bean 的延迟加载（延迟创建）
 
-ApplicationContext 容器的默认行为是在启动服务器时将所有 singleton bean 提前进行实例化。提前实例化意味着
+ApplicationContext 容器的默认行为是在启动服务器时将所有 singleton bean 提前进行实例化。提前实例化意味着作为初始化过程的一部分，ApplicationContext 实例会创建并配置所有的 singleton bean。
+
+比如：
+
+```xml
+<bean id="testBean" class="cn.turbo.LazyBean" /> 
+该bean默认的设置为:
+<bean id="testBean" calss="cn.turbo.LazyBean" lazy-init="false" />
+```
+
+`lazy-init="false"`，立即加载，表示在 Spring 启动时，立刻进行实例化。
+
+如果不想让一个 singleton bean 在 ApplicationContext 实现初始化时被提前实例化，那么可以将 bean 设置为延迟实例化。
+
+```xml
+<bean id="testBean" calss="cn.turbo.LazyBean" lazy-init="true" />
+```
+
+设置 `lazy-init` 为 `true` 的 bean 将不会在 ApplicationContext 启动时提前被实例化，而是第一次向容器通过 getBean 索取 bean 时实例化的。
+
+如果一个设置了立即加载的 bean1，引用了一个延迟加载的 bean2，那么 bean1 在容器启动时被实例化，而 bean2 由于被 bean1 引用，所以也被实例化。这种情况也符合延时加载的 bean 的第一次调用时才被实例化的规则。
+
+也可以在容器层次中通过在 元素上使用 `default-lazy-init` 属性来控制延时初始化。如下面配置：
+
+```xml
+<beans default-lazy-init="true">
+	<!-- no beans will be eagerly pre-instantiated... -->
+</beans>
+```
+
+如果一个 bean 的 scope 属性为 scope="prototype" 时，
 
 ## 2.2 FactoryBean 和 BeanFactory
 
