@@ -188,13 +188,109 @@ BeanFactory 是 Spring 框架中 IoC 容器的顶层接口，它只是用来定�
 
 ## 1.3 xml 与注解相结合模式
 
+> 注意：
+>
+> 1. 实际企业开发中，纯 xml 模式已经很少使用了
+> 2. 引入注解，不需要引入额外的 jar
+> 3. xml + 注解结合模式，xml 文件依然存在。所以，Spring IoC 容器的启动仍然从加载 xml 开始
+> 4. 哪些 bean 的定义写在 xml，哪些bean的定义使用注解
+>    - **第三方jar包中的bean 定义在 xml，比如 druid 数据库连接池**
+>    - **自己开发的 bean 定义使用注解**
 
+
+
+- xml 中标签与注解的对应 （IoC）
+
+  | xml形式                    | 对应注解形式                                                 |
+  | -------------------------- | ------------------------------------------------------------ |
+  | 标签                       | @Component("accountDao")，注解加在类上<br>bean 的 id 属性内容直接配置在注解后面，如果不配置，默认定义这个 bean 的 id 为类名（首字母小写）；<br>另外针对分层代码开发提供了 @Component 的三种别名 <br>@Controller、@Service、@Repository 分别用于控制层类、服务层类、dao层类的 bean 定义，这四个注解的用法完全一致，只是为了更清晰的区分而已 |
+  | 标签的scope属性            | @Scope("prototype")，默认单例，注解加在类上                  |
+  | 标签的 init-method 属性    | @PostConstruct，注解加在方法上，该方法就是初始化后调用的方法 |
+  | 标签的 destory-method 属性 | @PreDestory，注解加在方法上，该方法就是销毁前调用的方法      |
+
+- DI 依赖注入的注解实现方式
+
+  **@Autowired**（推荐使用）
+
+  @Autowired 为 Spring 提供的注解，需要导入包 `org.springframework.beans.factory.annotation.Autowired`。
+
+  @Autowired 采取的策略是按照类型注入。
+
+  ```xml
+  
+  ```
+
+  如上代码所示，这样装配会去 Spring 容器中找到类型为 AccountDao 的类，然后将其注入进来。这样会产生一个问题，当一个类型有多个 bean 值的时候，会造成无法选择具体注入哪一个的情况，这个时候我们就需要配合着使用 `@Qualifier` 。
+
+  `@Qualifier` 告诉 Spring 具体去装配哪个对象。
+
+  ```java
+  
+  ```
+
+   这个时候就可以通过类型和名称定位到我们想要注入的对象。
+
+  ------
+
+  **@Resource**
+
+  `@Resource` 注解是由 J2EE 提供，需要导入包 `javax.annotation.Resource`
+
+  `@Resource` 默认按照 ByName 自动注入。
+
+  ```java
+  public class TransferService {
+  	@Resource
+  	private AccountDao accountDao; 
+      @Resource(name="studentDao")  
+      private StudentDao studentDao; 
+      @Resource(type="TeacherDao")  
+      private TeacherDao teacherDao;
+      @Resource(name="manDao",type="ManDao")  
+      private ManDao manDao;
+  }    
+  ```
+
+  - 如果同时指定了 name 和 type，则从 Spring 上下文中找到唯一匹配的 bean 进行装配，找不到则抛出异常
+  - 如果指定了 name，则从上下文中查找名称 （id）匹配的 bean 进行装配，找不到则抛出异常
+  - 如果指定了 type，则从上下文中找到类似匹配的唯一 bean 进行装配，找不到或是找到多个，都会抛出异常
+  - 如果既没有指定 name，有没有指定 type，则自动按照 byName 方式进行装配；
+
+  **注意**：@Resource 在 Jdk 11 中已经移除，如果要使用，需要单独引入 jar 包
+
+  ```xml
+  <dependency>
+      <groupId>javax.annotation</groupId>
+      <artifactId>javax.annotation-api</artifactId>
+      <version>1.3.2</version>
+  </dependency>
+  ```
+
+  
 
 ## 1.4 纯注解模式
+
+改造 xml + 注解模式，将 xml 中遗留的内容全部以注解的形式迁移出去，最终删除 xml，从 Java 配置类启动。
+
+`@Configuration` 注解，表明当前类是一个配置类
+
+`@ComponentScan` 注解，替代 `context:component-scan`
+
+`@PropertySource`，引入外部属性配置文件
+
+`@Import` 引入其他配置类
+
+`@Value` 对变量赋值，可以直接赋值，也可以使用 ${} 读取资源配置文件中的信息
+
+`@Bean` 将方法返回对象加入 Spring IoC 容器
 
 # 2 Spring IoC 高级特性
 
 ## 2.1 lazy-Init 延迟加载
+
+Bean 的延迟加载（延迟创建）
+
+ApplicationContext 容器的默认行为是在启动服务器时将所有 singleton bean 提前进行实例化。提前实例化意味着
 
 ## 2.2 FactoryBean 和 BeanFactory
 
