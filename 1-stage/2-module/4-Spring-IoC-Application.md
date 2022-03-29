@@ -29,22 +29,168 @@ BeanFactory 是 Spring 框架中 IoC 容器的顶层接口，它只是用来定�
   - 从 xml 启动容器
 
     ```xml
-    
+    <!DOCTYPE web-app PUBLIC
+     "-//Sun Microsystems, Inc.//DTD Web Application 2.3//EN"  "http://java.sun.com/dtd/web-app_2_3.dtd" >
+  <web-app>
+    	<display-name>Archetype Created Web Application</display-name> 
+      <!--配置Spring ioc容器的配置⽂件-->
+    	<context-param>
+    		<param-name>contextConfigLocation</param-name>
+    		<param-value>classpath:applicationContext.xml</param-value> 
+      </context-param>
+    	<!--使⽤监听器启动Spring的IOC容器-->
+    	<listener>
+            <listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
+        </listener>
+    </web-app>
     ```
-
+  
   - 从配置类启动容器
-
+  
     ```xml
-    
+    <!DOCTYPE web-app PUBLIC
+      "-//Sun Microsystems, Inc.//DTD Web Application 2.3//EN"
+    "http://java.sun.com/dtd/web-app_2_3.dtd" >
+    <web-app>
+    	<display-name>Archetype Created Web Application</display-name>
+        
+        <!--告诉ContextloaderListener知道我们使⽤注解的⽅式启动ioc容器-->
+    	<context-param>
+            <param-name>contextClass</param-name> 
+            <param-value>org.springframework.web.context.support.AnnotationConfigWebAppli cationContext</param-value>
+        </context-param>
+        
+        <!--配置启动类的全限定类名-->
+    	<context-param>
+            <param-name>contextConfigLocation</param-name>
+            <param-value>com.lagou.edu.SpringConfig</param-value>
+        </context-param>
+        
+    	<!--使⽤监听器启动Spring的IOC容器-->
+        <listener>
+            <listener-
+    class>org.springframework.web.context.ContextLoaderListener</listener-class>
+        </listener>
+    </web-app>
     ```
-
+    
     
 
 ## 1.2 纯 xml 模式
 
+（复制 turbo-transfer 到 turbo-transfer-iocxml）
+
+```xml
+<!--引入 spring ioc 容器功能-->
+<dependency>
+    <groupId>org.springframework</groupId>
+    <artifactId>spring-context</artifactId>
+    <version>5.1.12.RELEASE</version>
+</dependency>
+```
+
+
+
 本部分内容不采用一一讲解知识点的方式，而是采用 Spring IoC 纯 xml 模式改造前面手写的 IoC 和 AOP 实现，在改造的过程中，把各个知识点串起来。
 
 ### 1.2.1 xml 文件头
+
+[XML-based configuration metadata](https://docs.spring.io/spring-framework/docs/current/reference/html/core.html#beans-factory-metadata)
+
+![image-20220329095211432](assest/image-20220329095211432.png)
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans
+        https://www.springframework.org/schema/beans/spring-beans.xsd">
+```
+
+#### 1.2.1.1 JavaSE 应用模式下启动 IoC 容器
+
+```java
+import com.turbo.edu.dao.AccountDao;
+import org.junit.Test;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.support.ClassPathXmlApplicationContext;
+import org.springframework.context.support.FileSystemXmlApplicationContext;
+
+public class IoCTest {
+
+    @Test
+    public void testIoC(){
+        // 通过读取 classPath 下的 xml 文件来启动容器（xml模式SE应用下推荐使用的）
+        ApplicationContext applicationContext = 
+            new ClassPathXmlApplicationContext("applicationContext.xml");
+        // 不推荐使用
+        // ApplicationContext applicationContext1 = new FileSystemXmlApplicationContext("文件系统的绝对路径");
+        final AccountDao accountDao = (AccountDao) applicationContext.getBean("accountDao");
+        System.out.println(accountDao);
+    }
+}
+```
+
+![image-20220329122213903](assest/image-20220329122213903.png)
+
+#### 1.2.1.2 JavaWeb 应用模式下启动 IoC 容器
+
+1. 需要引入 spring-web 模块（ContextLoaderListener 在 spring-web 模块下）
+
+   ```xml
+   <!--引入spring web 功能-->
+   <dependency>
+       <groupId>org.springframework</groupId>
+       <artifactId>spring-web</artifactId>
+       <version>5.1.12.RELEASE</version>
+   </dependency>
+   ```
+
+2. 在 web.xml 中配置监听器（监听器是 java 中的组件，做一些初始化的工作）
+
+   ```xml
+   <!--配置Spring IoC 容器的配置文件-->
+   <context-param>
+       <param-name>contextConfigLocation</param-name>
+       <param-value>classpath:applicationContext.xml</param-value>
+   </context-param>
+   <!--使用监听器启动spring 的IoC 容器-->
+   <listener>
+       <listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
+   </listener>
+   ```
+
+   ![image-20220329124051018](assest/image-20220329124051018.png)
+
+   ![image-20220329124222297](assest/image-20220329124222297.png)
+
+3. 修改 TransferServlet
+
+   ```java
+   @WebServlet(name="transferServlet",urlPatterns = "/transferServlet")
+   public class TransferServlet extends HttpServlet {
+   
+       // 1. 实例化service层对象
+       //private TransferService transferService = new TransferServiceImpl();
+       //private TransferService transferService = (TransferService) BeanFactory.getBean("transferService");
+   
+       // 首先从 BeanFactory 获取到 proxyFactory 代理工厂的实例化对象
+       //ProxyFactory proxyFactory = (ProxyFactory) BeanFactory.getBean("proxyFactory");
+       private TransferService transferService = null;
+   
+       @Override
+       public void init() throws ServletException {
+           WebApplicationContext webApplicationContext = WebApplicationContextUtils.getWebApplicationContext(this.getServletContext());
+           ProxyFactory proxyFactory = (ProxyFactory) webApplicationContext.getBean("proxyFactory");
+           transferService = (TransferService) proxyFactory.getJDKProxy(webApplicationContext.getBean("transferService"));
+       }
+       // ....
+   }
+   ```
+
+4. 测试成功
+
+   ![image-20220329130049669](assest/image-20220329130049669.png)
 
 ### 12.2 实例化 Bean 的 三种方式
 
