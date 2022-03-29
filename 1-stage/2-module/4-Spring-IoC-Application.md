@@ -10,6 +10,10 @@ BeanFactory 是 Spring 框架中 IoC 容器的顶层接口，它只是用来定�
 
 通常，我们称 BeanFactory 为 SpringIOC 的基础容器，ApplicationContext 是容器的高级接口，比 BeanFactory 要拥有更多的功能，比如说国际化支持和资源访问（xml，java配置类）等等。
 
+（*Ctrl+H 查看 hierarchy*）
+
+![image-20220329084838508](assest/image-20220329084838508.png)
+
 
 
 启动 IoC 容器的方式：
