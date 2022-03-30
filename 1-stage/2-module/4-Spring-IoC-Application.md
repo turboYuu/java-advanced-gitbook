@@ -576,7 +576,11 @@ public class IoCTest {
 
 ## 1.4 纯注解模式
 
-改造 xml + 注解模式，将 xml 中遗留的内容全部以注解的形式迁移出去，最终删除 xml，从 Java 配置类启动。
+（复制 turbo-transfer-iocxml-anno 到 turbo-transfer-ioc-anno 项目）代码地址：
+
+
+
+改造 xml + 注解模式，将 xml 中遗留的内容全部以注解的形式迁移出去，**最终删除 xml**，**从 Java 配置类启动**。
 
 `@Configuration` 注解，表明当前类是一个配置类
 
@@ -584,11 +588,109 @@ public class IoCTest {
 
 `@PropertySource`，引入外部属性配置文件
 
-`@Import` 引入其他配置类
+`@Import` 引入其他配置类（如果有多个配置类的话，可以关联到这一个类中）
 
 `@Value` 对变量赋值，可以直接赋值，也可以使用 ${} 读取资源配置文件中的信息
 
 `@Bean` 将方法返回对象加入 Spring IoC 容器
+
+
+
+1. 添加配置类
+
+   ```java
+   package com.turbo.edu;
+   
+   import com.alibaba.druid.pool.DruidDataSource;
+   import org.springframework.beans.factory.annotation.Value;
+   import org.springframework.context.annotation.Bean;
+   import org.springframework.context.annotation.ComponentScan;
+   import org.springframework.context.annotation.Configuration;
+   import org.springframework.context.annotation.PropertySource;
+   
+   import javax.sql.DataSource;
+   
+   // @Configuration 表明当前是一个配置类
+   @Configuration
+   @ComponentScan(basePackages = {"com.turbo.edu"}) // 开启注解扫描，base-package 指定扫描的包路径
+   @PropertySource({"classpath:jdbc.properties"}) // 引入外部资源文件
+   public class SpringConfig {
+   
+       @Value("${jdbc.driver}")
+       private String driverClassName;
+       @Value("${jdbc.url}")
+       private String url;
+       @Value("${jdbc.username}")
+       private String username;
+       @Value("${jdbc.password}")
+       private String password;
+   
+       @Bean("dataSource")
+       public DataSource createDataSource(){
+           DruidDataSource druidDataSource = new DruidDataSource();
+           druidDataSource.setDriverClassName(driverClassName);
+           druidDataSource.setUrl(url);
+           druidDataSource.setUsername(username);
+           druidDataSource.setPassword(password);
+           return druidDataSource;
+       }
+   }
+   ```
+
+2. 删除 applicationContext.xml
+
+3. javaSE 应用下的启动
+
+   ```java
+   import com.turbo.edu.SpringConfig;
+   import com.turbo.edu.dao.AccountDao;
+   import com.turbo.edu.utils.ConnectionUtils;
+   import org.junit.Test;
+   import org.springframework.context.ApplicationContext;
+   import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+   import org.springframework.context.support.ClassPathXmlApplicationContext;
+   import org.springframework.context.support.FileSystemXmlApplicationContext;
+   
+   public class IoCTest {
+   
+       @Test
+       public void testIoC() throws Exception {
+           // 通纯注解模式下启动Spring容器（SE应用下）
+           ApplicationContext applicationContext = 
+               new AnnotationConfigApplicationContext(SpringConfig.class);
+   
+           final AccountDao accountDao = 
+               (AccountDao) applicationContext.getBean("accountDao");
+           System.out.println(accountDao);
+       }
+   }
+   ```
+
+4. JavaWeb 启动
+
+   修改 web.xml
+
+   ```xml
+   <!DOCTYPE web-app PUBLIC
+    "-//Sun Microsystems, Inc.//DTD Web Application 2.3//EN"
+    "http://java.sun.com/dtd/web-app_2_3.dtd" >
+   
+   <web-app>
+     <display-name>Archetype Created Web Application</display-name>
+   
+     <!--配置Spring IoC 容器的配置文件-->
+     <context-param>
+       <param-name>contextConfigLocation</param-name>
+       <param-value>classpath:applicationContext.xml</param-value>
+     </context-param>
+     <!--使用监听器启动spring 的IoC 容器-->
+     <listener>
+       <listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
+     </listener>
+   </web-app>
+   ```
+
+   
 
 # 2 Spring IoC 高级特性
 
