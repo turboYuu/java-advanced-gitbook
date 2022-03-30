@@ -78,7 +78,7 @@ BeanFactory 是 Spring 框架中 IoC 容器的顶层接口，它只是用来定�
 
 ## 1.2 纯 xml 模式
 
-（复制 turbo-transfer 到 turbo-transfer-iocxml）
+（复制 turbo-transfer 到 turbo-transfer-iocxml）代码地址：
 
 ```xml
 <!--引入 spring ioc 容器功能-->
@@ -199,7 +199,8 @@ public class IoCTest {
   在默认情况下，它会通过反射调用无参构造函数来创建对象。如果类中没有无参构造函数，将创建失败
 
   ```xml
-  
+  <!--方式一：使用无参构造器 （推荐）-->
+  <bean id="connectionUtils" class="com.turbo.edu.utils.ConnectionUtils"></bean>
   ```
 
 - 方式二：使用静态方法创建
@@ -210,8 +211,24 @@ public class IoCTest {
 
   那么在实际开发中，尤其早期的项目中没有使用Spring框架来管理对象的创建，但是在设计时使用了工厂模式解耦，那么当接入 Spring 之后，工厂类创建对象就具有和上述例子相同特征，即可采用此种方式配置。
 
-  ```xml
+  ```java
+  package com.turbo.edu.factory;
   
+  import com.turbo.edu.utils.ConnectionUtils;
+  
+  public class CreateBeanFactory {
+  
+      public static ConnectionUtils getInstanceStatic(){
+          return new ConnectionUtils();
+      }
+  }
+  ```
+
+  
+
+  ```xml
+  <!--方式二：静态方法-->
+  <bean id="connectionUtils" class="com.turbo.edu.factory.CreateBeanFactory" factory-method="getInstanceStatic"/>
   ```
 
 - 方式三：使用实例化方法创建
@@ -220,8 +237,25 @@ public class IoCTest {
 
   在早期开发的项目中，工厂类中的方法有可能是静态的，也有可能是非静态方法，当是非静态方法时，即可采用下面的配置方式：
 
-  ```xml
+  ```java
+  package com.turbo.edu.factory;
   
+  import com.turbo.edu.utils.ConnectionUtils;
+  
+  public class CreateBeanFactory {
+  
+      public  ConnectionUtils getInstance(){
+          return new ConnectionUtils();
+      }
+  }
+  ```
+  
+  
+  
+  ```xml
+  <!--方式三：实例化方法-->
+  <bean id="createBeanFactory" class="com.turbo.edu.factory.CreateBeanFactory"></bean>
+  <bean id="connectionUtils" factory-bean="createBeanFactory" factory-method="getInstance"></bean>
   ```
 
 ### 1.2.3 Bean的作用范围及生命周期
