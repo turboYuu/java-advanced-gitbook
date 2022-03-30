@@ -78,7 +78,7 @@ BeanFactory 是 Spring 框架中 IoC 容器的顶层接口，它只是用来定�
 
 ## 1.2 纯 xml 模式
 
-（复制 turbo-transfer 到 turbo-transfer-iocxml）代码地址：
+（复制 turbo-transfer 到 turbo-transfer-iocxml）代码地址：https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-iocxml
 
 ```xml
 <!--引入 spring ioc 容器功能-->
@@ -89,7 +89,7 @@ BeanFactory 是 Spring 框架中 IoC 容器的顶层接口，它只是用来定�
 </dependency>
 ```
 
-
+![image-20220330152559734](assest/image-20220330152559734.png)
 
 本部分内容不采用一一讲解知识点的方式，而是采用 Spring IoC 纯 xml 模式改造前面手写的 IoC 和 AOP 实现，在改造的过程中，把各个知识点串起来。
 
@@ -452,7 +452,7 @@ public class IoCTest {
 >    - **第三方jar包中的bean 定义在 xml，比如 druid 数据库连接池**
 >    - **自己开发的 bean 定义使用注解**
 
-
+（复制 turbo-transfer-iocxml 到 turbo-transfer-iocxml-anno 项目）代码地址：https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-iocxml-anno
 
 - xml 中标签与注解的对应 （IoC）
 
@@ -471,48 +471,60 @@ public class IoCTest {
 
   @Autowired 采取的策略是按照类型注入。
 
-  ```xml
-  
+  ```java
+  @Service("transferService")
+  public class TransferServiceImpl implements TransferService {
+    @Autowired
+      private AccountDao accountDao;
+
   ```
 
   如上代码所示，这样装配会去 Spring 容器中找到类型为 AccountDao 的类，然后将其注入进来。这样会产生一个问题，当一个类型有多个 bean 值的时候，会造成无法选择具体注入哪一个的情况，这个时候我们就需要配合着使用 `@Qualifier` 。
-
+  
   `@Qualifier` 告诉 Spring 具体去装配哪个对象。
 
   ```java
-  
+@Service("transferService")
+  public class TransferServiceImpl implements TransferService {
+
+      // 按照类型注入
+    // 如果按照类型无法唯一锁定对象 可以结合 @Qualifier 指定具体的 id
+      @Qualifier("accountDao")
+    @Autowired
+      private AccountDao accountDao;
+
   ```
-
+  
    这个时候就可以通过类型和名称定位到我们想要注入的对象。
-
+  
   ------
-
+  
   **@Resource**
-
+  
   `@Resource` 注解是由 J2EE 提供，需要导入包 `javax.annotation.Resource`
-
+  
   `@Resource` 默认按照 ByName 自动注入。
-
-  ```java
+  
+```java
   public class TransferService {
   	@Resource
   	private AccountDao accountDao; 
       @Resource(name="studentDao")  
-      private StudentDao studentDao; 
+    private StudentDao studentDao; 
       @Resource(type="TeacherDao")  
-      private TeacherDao teacherDao;
+    private TeacherDao teacherDao;
       @Resource(name="manDao",type="ManDao")  
       private ManDao manDao;
   }    
   ```
-
+  
   - 如果同时指定了 name 和 type，则从 Spring 上下文中找到唯一匹配的 bean 进行装配，找不到则抛出异常
   - 如果指定了 name，则从上下文中查找名称 （id）匹配的 bean 进行装配，找不到则抛出异常
-  - 如果指定了 type，则从上下文中找到类似匹配的唯一 bean 进行装配，找不到或是找到多个，都会抛出异常
+- 如果指定了 type，则从上下文中找到类似匹配的唯一 bean 进行装配，找不到或是找到多个，都会抛出异常
   - 如果既没有指定 name，有没有指定 type，则自动按照 byName 方式进行装配；
-
+  
   **注意**：@Resource 在 Jdk 11 中已经移除，如果要使用，需要单独引入 jar 包
-
+  
   ```xml
   <dependency>
       <groupId>javax.annotation</groupId>
@@ -520,8 +532,47 @@ public class IoCTest {
       <version>1.3.2</version>
   </dependency>
   ```
-
   
+
+
+
+**配置注解扫描 和 提取数据库配置文件到 properties 文件中**
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:context="http://www.springframework.org/schema/context"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="
+        http://www.springframework.org/schema/beans
+        https://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/context
+        https://www.springframework.org/schema/context/spring-context.xsd
+
+">
+
+    <!--开启注解扫描，base-package 指定扫描的包路径-->
+    <context:component-scan base-package="com.turbo.edu"/>
+
+    <!--引入外部资源文件-->
+    <context:property-placeholder location="classpath:jdbc.properties"/>
+
+    <!--第三方 jar 包中的 bean 定义在 xml 中-->
+    <bean id="dataSource" class="com.alibaba.druid.pool.DruidDataSource">
+        <property name="driverClassName" value="${jdbc.driver}"/>
+        <property name="url" value="${jdbc.url}"/>
+        <property name="username" value="${jdbc.username}"/>
+        <property name="password" value="${jdbc.password}"/>
+    </bean>
+
+</beans>
+```
+
+
+
+![image-20220330161128176](assest/image-20220330161128176.png)
+
+
 
 ## 1.4 纯注解模式
 
