@@ -353,9 +353,15 @@ public class IoCTest {
   }
   ```
   
+  ```
+  初始化方法...
+  com.turbo.edu.dao.impl.JdbcAccountDaoImpl@3e27ba32
+  销毁方法...
+  ```
+  
   
 
-#### 1.2.3.1 DI 依赖注入的 xml 配置
+### 1.2.4 DI 依赖注入的 xml 配置
 
 - 依赖注入分类
 
@@ -377,7 +383,7 @@ public class IoCTest {
 
 依赖注入的配置实现之 **构造函数** 注入，就是利用构造函数实现对类成员的赋值。它的使用要求是。类中提供的构造函数参数个数必须和配置的参数个数一致，且数据类型匹配。同时需要注意的是，当没有无参构造时，则必须提供构造函数参数的注入，否则 Spring 框架会报错。
 
-在使用构造函数注入时，涉及的标签是 `constructor-arg`，该标签有如下属性：
+在使用**构造函数**注入时，涉及的标签是 `constructor-arg`，该标签有如下属性：
 
 **name**：用于给构造函数中指定名称的参数赋值
 
@@ -387,7 +393,13 @@ public class IoCTest {
 
 **ref**：用于指定其他 Bean 类型的数据。写的是其他 bean 的唯一标识
 
+![applicationContext 构造方法注入配置](assest/image-20220330150049625.png)
 
+![构造函数](assest/image-20220330150138766.png)
+
+
+
+------
 
 依赖注入的配置实现之 **set方法** 注入。此种方式在实际开发中是使用最多的注入方式。
 
@@ -401,13 +413,33 @@ public class IoCTest {
 
 - 复杂数据类型注入，首先，解释一下复杂类型数据，它指的是集合类型数据。集合分为两类，一类是 List 结构（数组结构），一类是Map接口（键值对）。
 
+![applicationContext Set注入配置](assest/image-20220330144833572.png)
 
+![set方法](assest/image-20220330144857887.png)
+
+![debug测试](assest/image-20220330145721339.png)
+
+![测试结果](assest/image-20220330145640790.png)
+
+------
 
 接下来就是注入的方式选择，只能在构造函数和set方法中选择，示例选用 set 方法注入。
 
 在 List 结构的集合数据注入时，`array`,`list`,`set` 这三个标签通用，另外 注入的值 `value` 标签内部可以直接写值，也可以使用 `bean` 标签配置一个对象，或者用 `ref` 标签引用一个已经配合 bean 的唯一标识。
 
 在 Map 结构的集合数据注入时，`map` 标签使用 `entry` 子标签实现数据注入，`entry` 标签可以使用 `key` 和 `value` 属性 指定存入 map 中的数据。使用 **value-ref** 属性指定已经配置好的 bean 的引用。同时 `entry` 标签中也可以使用 `ref` 标签 ，但是不能使用 `bean` 标签。而 `property` 标签中不能使用 `ref` 或者 `bean` 标签引用对象。
+
+![applicationContext 复杂数据类型 set 导入配置](assest/image-20220330151335898.png)
+
+![image-20220330151429637](assest/image-20220330151429637.png)
+
+![debug测试](assest/image-20220330145721339.png)
+
+![image-20220330151222410](assest/image-20220330151222410.png)
+
+
+
+
 
 ## 1.3 xml 与注解相结合模式
 
