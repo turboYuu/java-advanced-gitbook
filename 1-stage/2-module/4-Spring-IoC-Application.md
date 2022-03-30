@@ -63,7 +63,7 @@ BeanFactory 是 Spring 框架中 IoC 容器的顶层接口，它只是用来定�
         <!--配置启动类的全限定类名-->
     	<context-param>
             <param-name>contextConfigLocation</param-name>
-            <param-value>com.lagou.edu.SpringConfig</param-value>
+            <param-value>com.turbo.edu.SpringConfig</param-value>
         </context-param>
         
     	<!--使⽤监听器启动Spring的IOC容器-->
@@ -516,8 +516,8 @@ public class IoCTest {
       @Resource(name="manDao",type="ManDao")  
       private ManDao manDao;
   }    
-  ```
-  
+```
+
   - 如果同时指定了 name 和 type，则从 Spring 上下文中找到唯一匹配的 bean 进行装配，找不到则抛出异常
   - 如果指定了 name，则从上下文中查找名称 （id）匹配的 bean 进行装配，找不到则抛出异常
 - 如果指定了 type，则从上下文中找到类似匹配的唯一 bean 进行装配，找不到或是找到多个，都会抛出异常
