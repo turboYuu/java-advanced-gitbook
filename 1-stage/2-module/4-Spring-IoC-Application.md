@@ -269,7 +269,7 @@ public class IoCTest {
   在上图中提供的这些选项中，我们实际开发中用到做多的作用范围就是 `singleton`（单例模式）和 `prototype` （原型模式，也叫多例模式）。配置方式参考下面的代码：
 
   ```xml
-  
+  <bean id="transferService" class="com.turbo.edu.service.impl.TransferServiceImpl" scope="singleton"/>
   ```
 
 - 不同作用范围的生命周期
@@ -313,8 +313,47 @@ public class IoCTest {
   **init-method属性**：用于指定 bean 对象的初始化方法，此方法会在 bean 对象装配后调用。必须是一个无参方法。
 
   **destory-method属性**：用于指定 bean 对象的销毁方法，此方法会在 bean 对象销毁前执行。它只能当 scope 是 singleton 时起作用。
-
-
+  
+  ```xml
+  <bean id="accountDao" class="com.turbo.edu.dao.impl.JdbcAccountDaoImpl" init-method="init" destroy-method="destory">
+  ```
+  
+  ```java
+  public class JdbcAccountDaoImpl implements AccountDao {
+      // ...
+      public void init(){
+          System.out.println("初始化方法...");
+      }
+      public void destory(){
+          System.out.println("销毁方法...");
+      }
+      // ...
+  }
+  ```
+  
+  ```java
+  import com.turbo.edu.dao.AccountDao;
+  import com.turbo.edu.utils.ConnectionUtils;
+  import org.junit.Test;
+  import org.springframework.context.ApplicationContext;
+  import org.springframework.context.support.ClassPathXmlApplicationContext;
+  import org.springframework.context.support.FileSystemXmlApplicationContext;
+  
+  public class IoCTest {
+  
+      @Test
+      public void testIoC(){
+          // 通过读取 classPath 下的 xml 文件来启动容器（xml模式SE应用下推荐使用的）
+          ClassPathXmlApplicationContext applicationContext = 
+              new ClassPathXmlApplicationContext("applicationContext.xml");    
+          final AccountDao accountDao = (AccountDao) applicationContext.getBean("accountDao");
+          System.out.println(accountDao);
+          applicationContext.close();
+      }
+  }
+  ```
+  
+  
 
 #### 1.2.3.1 DI 依赖注入的 xml 配置
 
