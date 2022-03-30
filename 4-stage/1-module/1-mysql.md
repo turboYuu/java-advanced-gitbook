@@ -1492,14 +1492,14 @@ MVCC（Multi Version Concurrency Control）被称为多版本控制，是指在�
 
 #### 2.5.2 MVCC实现原理
 
-MVCC最大的好处是读不加锁，读写不冲突。在读多写少的系统中，读写不冲突是非常重要的，极大的提升系统并发性能。目前MVCC只在Read Commited和Repeatable Read两种隔离级别下工作。
+MVCC最大的好处是读不加锁，读写不冲突。在读多写少的系统中，读写不冲突是非常重要的，极大的提升系统并发性能。目前MVCC只在 Read Commited 和 Repeatable Read 两种隔离级别下工作。
 
 在MVCC并发控制中，读操作可以分为两类：快照读（Snapshot Read）与当前读（Current Read）。
 
 - 快照读：读取的是记录的快照版本（有可能是历史版本），不用加锁。(select)
 - 当前读：读取的是记录最新版本，并且当前读返回的记录，都会加锁，保证其他事务不会再并发修改这条记录。（select...for update(排他锁)或lock in share mode(乐观锁)，insert/delete/update）
 
-> 快照读，在RR中第一次读，read view，下一次就读取read view，
+> 快照读，在RR中第一次读，read view，下一次就读取 read view，
 >
 > 快照读，在RC中每一次读，都会创建一个read view。
 
@@ -1515,9 +1515,9 @@ MVCC最大的好处是读不加锁，读写不冲突。在读多写少的系统�
 
 ![image-20210723142946391](assest/image-20210723142946391.png)
 
-- 用排他锁锁定该行，记录Redo log;
-- 把改行修改前的值复制到Undo log；
-- 修改当前行的值，填写事务编号，使回滚指针指向Undo log中修改前的行。
+- `1`：用排他锁锁定该行，记录Redo log;
+- `2`：把改行修改前的值复制到Undo log；
+- `3`：修改当前行的值，填写事务编号，使回滚指针指向Undo log中修改前的行。
 
 接下来事务2操作，过程与事务1相同，此时Undo log中会有两行记录，并且通过回滚指针连在一起，通过当前记录的回滚指针回溯到该行创建时的初始内容。
 
