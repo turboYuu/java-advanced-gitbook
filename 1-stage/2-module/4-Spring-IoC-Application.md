@@ -762,7 +762,7 @@ public class Result {
 
 BeanFactory 接口使容器的顶级接口，定义了容器的一些基础行为，负责生产和管理 Bean 的一个工厂，具体使用它下面的子接口类型，比如 ApplicationContext；此处重点分析 **FactoryBean**。
 
-Spring 中 Bean 有两种，一种是普通 Bean，一种是工厂Bean（FactoryBean），FactoryBean 可以生成某一个类型的 Bean 实例（返回给我们），也就是说我们可以借助于它自定义 Bean 的创建过程。
+Spring 中 Bean 有两种，一种是普通 Bean，一种是**工厂Bean**（FactoryBean），**FactoryBean 可以生成某一个类型的 Bean 实例（返回给我们），也就是说我们可以借助于它自定义 Bean 的创建过程。**
 
 Bean 创建的三种方式中的静态方法和实例化方法 和 FactoryBean 作用类似，FactoryBean 使用较多，尤其在 Spring 框架一些组件中会使用，还有其他框架和 Spring 框架整合时使用。
 
@@ -907,45 +907,140 @@ public void testFactoryBean(){
 
 Spring 提供了两种后置处理 bean 的扩展接口：分别是 `BeanPostProcessor` 和 `BeanFactoryPostProcessor`，两者在使用上是有所区别的。
 
-工厂初始化（BeanFactory）-> Bean 对象
+> 工厂初始化（BeanFactory）-> 然后 由工厂生产 Bean 对象
+>
+> 在 BeanFactory 对象实例化之后可以使用 `BeanFactoryPostProcessor` 进行后置处理一些事情，
+>
+> 在 Bean 对象实例化（并不是Bean的整个生命周期完成）之后可以使用 `BeanPostProcessor` 进行后置处理做一些事情。
 
-在 Bean 对象实例化之后可以使用 BeanFactoryPostProcessor 进行后置处理一些事情，
+> 注意：对象不一定是 springbean，而 springbean 一定是个对象（因为要走完一个流水线，走完后才称为 springbean）
 
-在 Bean 对象实例化（并不是Bean的整个生命周期完成）之后可以使用 BeanPostProcessor 进行后置处理做一些事情。
+**SpringBean 的生命周期图**：
 
-> 注意：对象不一定是 springbean，而 springbean 一定是个对象
+![image-20220331161142188](assest/image-20220331161142188.png)
 
-SpringBean 的生命周期
+![image-20220331161209503](assest/image-20220331161209503.png)
 
 ### 2.3.1 BeanPostProcessor
 
-BeanPostProcessor 是针对 Bean 级别的处理，可以针对某个具体的 Bean.
+BeanPostProcessor 是针对 Bean 级别的处理，可以针对某个具体的 Bean。
 
+![image-20220331141821687](assest/image-20220331141821687.png)
 
-
-该接口提供了两个方法，分别在 Bean 的**初始化方法前**和**初始化方法后**执行，具体这个初始化方法指的是什么方法，类似我们在定义 bean 时，定义了 init-method 所指定的方法。
+该接口提供了两个方法，分别在 Bean 的**初始化方法前**（init-method之前）和**初始化方法后**（init-method 之后）执行，具体这个初始化方法指的是什么方法，类似我们在定义 bean 时，定义了 init-method 所指定的方法。
 
 定义一个类实现了 BeanPostProcessor，**默认是会对整个 Spring 容器中所有的 bean 进行处理**。如果要对具体的某个 bean 处理，可以通过方法参数判断，两个类型参数分别为 Object 和 String ，第一个参数是每个 bean 的实例，第二个参数是每个 bean 的 name 或者 id 属性的值。所以我们可以通过第二个参数，来判断我们将要处理的具体的 bean。
 
-注意：处理时发生在 Spring 容器的实例化和依赖注入之后。
+注意：**处理是发生在 Spring 容器的实例化和依赖注入之后**。
+
+```java
+package com.turbo.edu.pojo;
+
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.*;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+import org.springframework.context.annotation.Lazy;
+
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+
+/**
+ * @author turbo
+ */
+public class Result implements BeanNameAware, BeanFactoryAware, ApplicationContextAware, InitializingBean, DisposableBean {
+
+    private String status;
+    private String message;
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public void setMessage(String message) {
+        this.message = message;
+    }
+
+    @Override
+    public String toString() {
+        return "Result{" +
+                "status='" + status + '\'' +
+                ", message='" + message + '\'' +
+                '}';
+    }
+
+
+    @Override
+    public void setBeanName(String name) {
+        System.out.println("注册我成为bean时定义的id:"+name);
+    }
+
+
+
+    @Override
+    public void setBeanFactory(BeanFactory beanFactory) throws BeansException {
+        System.out.println("管理我的beanFactory为："+beanFactory);
+    }
+
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        System.out.println("高级容器接口ApplicationContext:"+applicationContext);
+    }
+
+    @Override
+    public void afterPropertiesSet() throws Exception {
+        System.out.println("afterPropertiesSet .....");
+    }
+
+    public void initMethod(){
+        System.out.println("init-method .....");
+    }
+
+    // 需要引入 javax.annotation-api 依赖
+    @PostConstruct
+    public void postConustruct(){
+        System.out.println("postConustruct .....");
+    }
+
+    @PreDestroy
+    public void destory(){
+        System.out.println("PreDestroy......");
+    }
+
+
+    @Override
+    public void destroy() throws Exception {
+        System.out.println("destory......");
+    }
+}
+```
+
+![image-20220331145528864](assest/image-20220331145528864.png)
 
 ### 2.3.2 BeanFactoryPostProcessor
 
 BeanFactory 级别的处理，是针对整个 Bean 的工厂进行处理的，典型应用：`PropertyPlaceholderConfigurer`
 
-
+![image-20220331165431242](assest/image-20220331165431242.png)
 
 此接口只提供了一个方法，方法参数为 ConfigurableListableBeanFactory，该参数类型定义了一些方法：
 
-
+![image-20220331165544647](assest/image-20220331165544647.png)
 
 其中有个方法名为 getBeanDefinition 的方法，我们可以根据此方法，找到我们定义 bean 的 BeanDefinition 对象。然后我们可以对定义的属性进行修改，以下是 BeanDefinition 中的方法
 
-
+![image-20220331165706744](assest/image-20220331165706744.png)
 
 方法名字类似我们 bean 标签的属性，setBeanClassName 对应 bean 标签中的 class 属性，所以我们拿到 BeanDefinition 对象时，我们可以手动修改 bean 标签中所定义的属性值。
 
 **BeanDefinition对象**：我们在 xml 定义的 bean 标签，Spring 解析 bean 标签成为一个 JavaBean，这个 JavaBean 就是 BeanDefinition。
 
 注意：调用 BeanFactoryPostProcessor方法时，这时候 bean 还没有实例化，此时 bean 刚被解析成 BeanDefinition 对象。
-
