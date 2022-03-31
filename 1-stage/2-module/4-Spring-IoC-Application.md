@@ -773,50 +773,135 @@ import org.springframework.lang.Nullable;
 
 // 可以让我们自定义 Bean 的创建过程（完成复杂bean的定义）
 public interface FactoryBean<T> {
-	
+	// 返回FactoryBea创建的 Bean 实例，如果isSingleton返回true,则该实例会放到Spring容器的单例缓冲池中Map
 	@Nullable
 	T getObject() throws Exception;
 	
+    // 返回 FactoryBean 创建的Bean类型
 	@Nullable
 	Class<?> getObjectType();
 	
+    // 返回作用域是否单例
 	default boolean isSingleton() {
 		return true;
 	}
 }
 ```
 
+测试：代码地址：https://gitee.com/turboYuu/spring-1-2/blob/master/lab/turbo-transfer-iocxml-anno/src/main/java/com/turbo/edu/factory/CompanyFactoryBean.java
+
 Company 类
 
 ```java
+package com.turbo.edu.pojo;
 
+
+public class Company {
+
+    private String name;
+    private String address;
+    private int scale;
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
+    public int getScale() {
+        return scale;
+    }
+
+    public void setScale(int scale) {
+        this.scale = scale;
+    }
+
+    @Override
+    public String toString() {
+        return "Company{" +
+                "name='" + name + '\'' +
+                ", address='" + address + '\'' +
+                ", scale=" + scale +
+                '}';
+    }
+}
 ```
 
 CompanyFactoryBean 类
 
 ```java
+package com.turbo.edu.factory;
 
+import com.turbo.edu.pojo.Company;
+import org.springframework.beans.factory.FactoryBean;
+
+public class CompanyFactoryBean implements FactoryBean<Company> {
+
+    private String companyInfo; // 公司名称,地址,规模
+
+    public void setCompanyInfo(String companyInfo) {
+        this.companyInfo = companyInfo;
+    }
+
+    @Override
+    public Company getObject() throws Exception {
+        // 创建复杂对象 Company
+        Company company = new Company();
+        final String[] strings = companyInfo.split(",");
+        company.setName(strings[0]);
+        company.setAddress(strings[1]);
+        company.setScale(Integer.parseInt(strings[2]));
+        return company;
+    }
+
+    @Override
+    public Class<?> getObjectType() {
+        return Company.class;
+    }
+
+    @Override
+    public boolean isSingleton() {
+        return true;
+    }
+}
 ```
 
 xml配置
 
 ```xml
-
+<bean id="company" class="com.turbo.edu.factory.CompanyFactoryBean">
+    <property name="companyInfo" value="turbo,beijing,500"/>
+</bean>
 ```
 
-测试，获取 FactoryBean 产生的对象
+测试，获取 FactoryBean 产生的对象；获取 FactoryBean，需要在 id 之间添加 ”&“
 
 ```java
+@Test
+public void testFactoryBean(){
+    ClassPathXmlApplicationContext applicationContext = 
+        new ClassPathXmlApplicationContext("applicationContext.xml");
+    // 获取 Company 的实例化Bean
+    final Object company = applicationContext.getBean("company");
+    System.out.println(company);
+    // 获取 FactoryBean 的实现类 CompanyFactoryBean 的 实例化 Bean
+    final Object companyFactoryBean = applicationContext.getBean("&company");
+    System.out.println(companyFactoryBean);
 
+}
 ```
 
-测试，获取 FactoryBean，需要在 id 之间添加 ”&“
-
-```java
-
-```
-
-
+![image-20220331135502769](assest/image-20220331135502769.png)
 
 ## 2.3 后置处理器
 
