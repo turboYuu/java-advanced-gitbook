@@ -760,12 +760,30 @@ public class Result {
 
 ## 2.2 FactoryBean 和 BeanFactory
 
-BeanFactory 接口使容器的顶级接口，定义了容器的一些基础行为，负责生产和管理 Bean 的一个工厂，具体使用它下面的子接口类型，比如 ApplicationContext；此处重点分析 FactoryBean。
+BeanFactory 接口使容器的顶级接口，定义了容器的一些基础行为，负责生产和管理 Bean 的一个工厂，具体使用它下面的子接口类型，比如 ApplicationContext；此处重点分析 **FactoryBean**。
 
-Bean 创建的三种方式中的静态方法和实例化方法 和 FactoryBean 作用类似，FactoryBean 使用较多，尤其在 Spring 框架一些组件中会使用，还有其他框架和 Spring 框架整合时使用
+Spring 中 Bean 有两种，一种是普通 Bean，一种是工厂Bean（FactoryBean），FactoryBean 可以生成某一个类型的 Bean 实例（返回给我们），也就是说我们可以借助于它自定义 Bean 的创建过程。
+
+Bean 创建的三种方式中的静态方法和实例化方法 和 FactoryBean 作用类似，FactoryBean 使用较多，尤其在 Spring 框架一些组件中会使用，还有其他框架和 Spring 框架整合时使用。
 
 ```java
+package org.springframework.beans.factory;
 
+import org.springframework.lang.Nullable;
+
+// 可以让我们自定义 Bean 的创建过程（完成复杂bean的定义）
+public interface FactoryBean<T> {
+	
+	@Nullable
+	T getObject() throws Exception;
+	
+	@Nullable
+	Class<?> getObjectType();
+	
+	default boolean isSingleton() {
+		return true;
+	}
+}
 ```
 
 Company 类
