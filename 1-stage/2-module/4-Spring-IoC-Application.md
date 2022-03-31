@@ -728,11 +728,28 @@ ApplicationContext 容器的默认行为是在启动服务器时将所有 single
 </beans>
 ```
 
+![image-20220331112050907](assest/image-20220331112050907.png)
+
 如果一个 bean 的 scope 属性为 scope="prototype" 时，即使设置了 `lazy-init="false"`，容器启动时也不会实例化 bean，而是调用 getBean 方法实例化的。
 
 ![image-20220331110409709](assest/image-20220331110409709.png)
 
 ![image-20220331110333833](assest/image-20220331110333833.png)
+
+![image-20220331111303629](assest/image-20220331111303629.png)
+
+
+
+![image-20220331111704410](assest/image-20220331111704410.png)
+
+
+
+注解方式 配置延迟加载
+
+```java
+@Lazy
+public class Result {
+```
 
 
 
