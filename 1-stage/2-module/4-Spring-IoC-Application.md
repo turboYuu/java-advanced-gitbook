@@ -730,6 +730,12 @@ ApplicationContext 容器的默认行为是在启动服务器时将所有 single
 
 如果一个 bean 的 scope 属性为 scope="prototype" 时，即使设置了 `lazy-init="false"`，容器启动时也不会实例化 bean，而是调用 getBean 方法实例化的。
 
+![image-20220331110409709](assest/image-20220331110409709.png)
+
+![image-20220331110333833](assest/image-20220331110333833.png)
+
+
+
 **应用场景**
 
 1. 开启延迟加载一定程度提高容器启动和运转性能。
