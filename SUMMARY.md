@@ -11,6 +11,7 @@
         * [第五部分 Spring IOC 源码深度剖析](1-stage/2-module/5-Spring-IoC-SourceCode-Ana.md)
         * [第六部分 Spring AOP 应用](1-stage/2-module/6-Spring-AOP-Application.md)
         * [第七部分 Spring AOP 源码深度剖析](1-stage/2-module/7-Spring-AOP-SourceCode-Ana.md)
+        * [第八部分 Spring 源码编译和环境搭建](1-stage/2-module/8-Spring-SourceCode-CompileBuild.md)
     * [模块三 SpringMVC源码分析、SpringData高级应用](1-stage/3-module/READE.md)
         * [SpringMVC源码分析 通用数据操作接口设计](1-stage/3-module/1-springmvc.md)
         * [SpringData高级应用](1-stage/3-module/2-spring-data-jpa.md)
