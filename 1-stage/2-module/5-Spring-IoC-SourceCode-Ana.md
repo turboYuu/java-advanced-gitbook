@@ -457,7 +457,8 @@ public void preInstantiateSingletons() throws BeansException {
 
 总结：
 
-- 对于被修饰为 lazy-init 的 bean  
+- 对于被修饰为 lazy-init 的 bean，Spring 容器初始化阶段不会进行 init 和 依赖注入；当第一次进行 getBean 时，才进行初始化和依赖注入。
+- 对于非懒加载的 bean，getBean 的时候会从缓存里获取，因为容器初始化阶段 Bean 已经初始化完成并缓存了起来。
 
 # 5 Spring IoC 循环依赖问题
 
