@@ -464,4 +464,17 @@ public void preInstantiateSingletons() throws BeansException {
 
 ## 5.1 什么是循环依赖
 
+循环依赖其实就是循环引用，也就是两个或者两个以上的 Bean 互相持有对象，最终形成闭环。比如A依赖于B，B依赖于C，C依赖于A。
+
+
+
+注意，这里不是函数的循环调用，是对象的相互依赖关系。循环调用其实就是一个死循环，除非有终结条件。
+
+Spring 中循环依赖场景有：
+
+- 构造器的循环依赖（构造器注入）
+- Field 属性的循环依赖（set注入）
+
+其中，构造器的循环依赖问题无法解决，只能抛出 `BeanCurrentlyCreationException` 异常，在解决属性循环依赖时，Spring采用的是**提前暴露对象**的方法。
+
 ## 5.2 循环依赖处理机制
