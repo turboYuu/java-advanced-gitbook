@@ -93,7 +93,7 @@ idea 中 gradle 的配置：
 
 ## 2.4 编译工程
 
-顺序
+顺序：
 
 ```
 core	⼯程  —>tasks  —>other  —>compileTestJava
