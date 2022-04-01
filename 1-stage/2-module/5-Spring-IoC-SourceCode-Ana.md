@@ -225,9 +225,9 @@ public void refresh() throws BeansException, IllegalStateException {
 
         // Tell the subclass to refresh the internal bean factory.
         /**
-			 * 第二步：获取 BeanFactory：默认实现是 DefaultListableBeanFactory
-			 * 加载 BeanDefinition,并注册到 BeanDefinitionRegistry
-			 */
+		* 第二步：获取 BeanFactory：默认实现是 DefaultListableBeanFactory
+		* 加载 BeanDefinition,并注册到 BeanDefinitionRegistry
+		*/
         ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
 
         // Prepare the bean factory for use in this context.
@@ -265,21 +265,21 @@ public void refresh() throws BeansException, IllegalStateException {
 
             // Instantiate all remaining (non-lazy-init) singletons.
             /**
-				 * 第十一步：
-				 * 初始化所有剩下的非依赖加载的单例 bean
-				 * 初始化创建非懒加载方式的单例 Bean 实例（未设置属性）
-				 * 		填充属性
-				 * 		初始化方法调用（比如调用 afterPropertiesSet 方法、init-method 方法）
-				 * 		调用 BeanPostProcessor（后置处理器）对实例 bean 进行后置处理
-				 */
+			* 第十一步：
+			* 初始化所有剩下的非依赖加载的单例 bean
+			* 初始化创建非懒加载方式的单例 Bean 实例（未设置属性）
+			* 		填充属性
+			* 		初始化方法调用（比如调用 afterPropertiesSet 方法、init-method 方法）
+			* 		调用 BeanPostProcessor（后置处理器）对实例 bean 进行后置处理
+			*/
             finishBeanFactoryInitialization(beanFactory);
 
             // Last step: publish corresponding event.
             /**
-				 * 第十二步：
-				 * 完成 context 的刷新。主要是调用 LifecycleProcessor#onRefresh() 方法，
-				 * 并且发布事件（ContextRefreshedEvent）
-				 */
+			* 第十二步：
+			* 完成 context 的刷新。主要是调用 LifecycleProcessor#onRefresh() 方法，
+			* 并且发布事件（ContextRefreshedEvent）
+			*/
             finishRefresh();
         }
 
@@ -378,7 +378,86 @@ public void refresh() throws BeansException, IllegalStateException {
 
 
 
+继续跟踪下去，我们进入到了 AbstractBeanFactory#doGetBean 方法，这个方法中的代码很多，直接找到核心部分：
+
+
+
+接着进入到 AbstractAutowireCapableBeanFactory#createBean 方法，找到以下代码部分：
+
+![image-20220401190012306](assest/image-20220401190012306.png)
+
+进入 AbstractAutowireCapableBeanFactory#doCreateBean 方法，该方法我们关注两块重点区域：
+
+- 创建Bean实例，此时尚未设置属性
+
+  ![image-20220401190523917](assest/image-20220401190523917.png)
+
+- 给 Bean 填充属性，调用初始化方法，应用 BeanPostProcessor 后置处理器
+
+  ![image-20220401190559854](assest/image-20220401190559854.png)
+
 # 4 lazy-init 延迟加载机制原理
+
+普通 Bean 的初始化是在容器启动初始化阶段执行的，而被 lazy-init=true 修饰的 bean 则是在从容器里第一次进行 context.getBean() 是进行触发。
+
+Spring 启动的时候会把所有 bean 信息（包括 XML 和注解）解析转化成 Spring 能够识别的 BeanDefinition 并存到 HashMap 里 供下面的初始化使用，然后对每个 BeanDefinition 进行处理，如果是懒加载则在容器初始化阶段不处理，其他的则在容器初始化阶段进行初始化并依赖注入。
+
+```java
+// org.springframework.beans.factory.support.DefaultListableBeanFactory#preInstantiateSingletons
+public void preInstantiateSingletons() throws BeansException {
+    if (logger.isTraceEnabled()) {
+        logger.trace("Pre-instantiating singletons in " + this);
+    }
+
+    // Iterate over a copy to allow for init methods which in turn register new bean definitions.
+    // While this may not be part of the regular factory bootstrap, it does otherwise work fine.
+    // 所有 beanDefinition 集合
+    List<String> beanNames = new ArrayList<>(this.beanDefinitionNames);
+
+    // Trigger initialization of all non-lazy singleton beans...
+    // 触发所有非懒加载单例 bean 的初始化
+    for (String beanName : beanNames) {
+        // 获取 bean 定义
+        RootBeanDefinition bd = getMergedLocalBeanDefinition(beanName);
+        // 判断是否是懒加载单例 bean，如果是单例的并且不是懒加载的，则在容器创建时初始化
+        if (!bd.isAbstract() && bd.isSingleton() && !bd.isLazyInit()) {
+            // 判断是否是 FactoryBean
+            if (isFactoryBean(beanName)) {
+                Object bean = getBean(FACTORY_BEAN_PREFIX + beanName);
+                if (bean instanceof FactoryBean) {
+                    FactoryBean<?> factory = (FactoryBean<?>) bean;
+                    boolean isEagerInit;
+                    if (System.getSecurityManager() != null && factory instanceof SmartFactoryBean) {
+                        isEagerInit = AccessController.doPrivileged(
+                            (PrivilegedAction<Boolean>) ((SmartFactoryBean<?>) factory)::isEagerInit,
+                            getAccessControlContext());
+                    }
+                    else {
+                        isEagerInit = (factory instanceof SmartFactoryBean &&
+                                       ((SmartFactoryBean<?>) factory).isEagerInit());
+                    }
+                    if (isEagerInit) {
+                        getBean(beanName);
+                    }
+                }
+            }
+            else {
+                /**
+					 * 如果是 普通 bean 则进行初始化并依赖注入，此 getBean(beanName) 接下来触发的逻辑
+					 * 和 懒加载 context.getBean("beanName") 所触发的逻辑是一样的
+					 */
+                // 实例化当前 bean
+                getBean(beanName);
+            }
+        }
+    }
+    // ...
+}
+```
+
+总结：
+
+- 对于被修饰为 lazy-init 的 bean  
 
 # 5 Spring IoC 循环依赖问题
 
