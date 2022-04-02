@@ -466,7 +466,7 @@ public void preInstantiateSingletons() throws BeansException {
 
 循环依赖其实就是循环引用，也就是两个或者两个以上的 Bean 互相持有对象，最终形成闭环。比如A依赖于B，B依赖于C，C依赖于A。
 
-
+![image-20220402100734664](assest/image-20220402100734664.png)
 
 注意，这里不是函数的循环调用，是对象的相互依赖关系。循环调用其实就是一个死循环，除非有终结条件。
 
@@ -478,3 +478,53 @@ Spring 中循环依赖场景有：
 其中，构造器的循环依赖问题无法解决，只能抛出 `BeanCurrentlyCreationException` 异常，在解决属性循环依赖时，Spring采用的是**提前暴露对象**的方法。
 
 ## 5.2 循环依赖处理机制
+
+### 5.2.1 单例 bean 构造器参数循环依赖（无法解决）
+
+### 5.2.2 prototype 原型 bean 循环依赖（无法解决）
+
+对于原型 bean 的初始化过程中不论是通过构造器参数循环依赖还是通过 setXxx 方法产生循环依赖，Spring 都会直接报错处理。
+
+*AbstractBeanFactory#doGetBean*
+
+![AbstractBeanFactory#doGetBean](assest/image-20220402101905840.png)
+
+![image-20220402102117330](assest/image-20220402102117330.png)
+
+在获取 bean 之前如果这个原型 bean 正在被创建则直接抛出异常。原型 bean 在创建之前会进行标记 `这个 beanName 正在被创建`，等创建结束之后会删除标记。
+
+![image-20220402113142734](assest/image-20220402113142734.png)
+
+总结：Spring 不支持原型 bean 的循环依赖。
+
+### 5.2.3 单例 bean 通过 setXxx 或者 @Autowired 进行循环依赖
+
+Spring 的循环依赖的理论依据是基于 Java 的引用传递，当获得对象的引用时，对象的属性是可以延后设置的，但是构造器必须是在获取引用之前。
+
+Spring 通过setXxx 或者 @Autowired 方法解决循环依赖其实是通过提前暴露一个 ObjectFactory 对象来完成的，简单来说 ClassA 在调用构造器完成对象初始化之后，在调用 ClassA 的 setClassB 方法之前就把 ClassA 实例化的对象通过 ObjectFactory 提前暴露到 Spring 容器中。
+
+- Spring 容器初始化 ClassA 通过构造器初始化对象后提前暴露到 Spring 容器。
+
+  ```java
+  protected Object doCreateBean(String beanName, RootBeanDefinition mbd, @Nullable Object[] args)
+  			throws BeanCreationException {
+      // ...
+      // Eagerly cache singletons to be able to resolve circular references
+      // even when triggered by lifecycle interfaces like BeanFactoryAware.
+      boolean earlySingletonExposure = (mbd.isSingleton() && this.allowCircularReferences &&
+                                        isSingletonCurrentlyInCreation(beanName));
+      if (earlySingletonExposure) {
+          if (logger.isTraceEnabled()) {
+              logger.trace("Eagerly caching bean '" + beanName +
+                           "' to allow for resolving potential circular references");
+          }
+          // 将初始化的对象提前 通过 ObjectFactory 对象注入到容器中
+          addSingletonFactory(beanName, () -> getEarlyBeanReference(beanName, mbd, bean));
+      }
+      // ...
+  }
+  ```
+
+- ClassA 调用 setClassB 方法，Spring 首先尝试从容器中获取 ClassB，此时 ClassB 不存在 Spring 容器中。
+
+- 
