@@ -527,4 +527,10 @@ Spring 通过setXxx 或者 @Autowired 方法解决循环依赖其实是通过提
 
 - ClassA 调用 setClassB 方法，Spring 首先尝试从容器中获取 ClassB，此时 ClassB 不存在 Spring 容器中。
 
-- 
+- Spring 容器初始化 ClassB，同时也会将 ClassB 提前暴露到 Spring 容器中。
+
+- ClassB 调用 setClassA 方法，Spring 从容器中获取 ClassA，因为第一步中已经提前暴露了ClassA，因此可以获取到 ClassA 实例
+
+  - ClassA 通过 Spring 容器获取到 ClassB，完成了对象初始化操作。
+
+- 这样 ClassA 和 ClassB 都完成了对象初始化操作，解决了循环依赖的问题。
