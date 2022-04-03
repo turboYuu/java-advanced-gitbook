@@ -578,7 +578,7 @@ public class IoCTest {
 
 （复制 turbo-transfer-iocxml-anno 到 turbo-transfer-ioc-anno 项目）代码地址：
 
-
+https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-ioc-anno
 
 改造 xml + 注解模式，将 xml 中遗留的内容全部以注解的形式迁移出去，**最终删除 xml**，**从 Java 配置类启动**。
 
@@ -1043,4 +1043,4 @@ BeanFactory 级别的处理，是针对整个 Bean 的工厂进行处理的，�
 
 **BeanDefinition对象**：我们在 xml 定义的 bean 标签，Spring 解析 bean 标签成为一个 JavaBean，这个 JavaBean 就是 BeanDefinition。
 
-注意：调用 BeanFactoryPostProcessor方法时，这时候 bean 还没有实例化，此时 bean 刚被解析成 BeanDefinition 对象。
+注意：**调用 BeanFactoryPostProcessor方法时，这时候 bean 还没有实例化，此时 bean 刚被解析成 BeanDefinition 对象**。
