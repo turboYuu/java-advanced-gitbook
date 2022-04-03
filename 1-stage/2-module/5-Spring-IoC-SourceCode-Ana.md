@@ -1,4 +1,4 @@
-第五部分 Spring IOC 源码深度剖析
+​	第五部分 Spring IOC 源码深度剖析
 
 # 1 Spring IoC 容器初始化主体流程
 
@@ -227,6 +227,7 @@ public void refresh() throws BeansException, IllegalStateException {
         /**
 		* 第二步：获取 BeanFactory：默认实现是 DefaultListableBeanFactory
 		* 加载 BeanDefinition,并注册到 BeanDefinitionRegistry
+		* 重点
 		*/
         ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
 
@@ -336,28 +337,50 @@ public void refresh() throws BeansException, IllegalStateException {
 
 2. 依次调用多个类的 loadBeanDefinitions 方法 -> AbstractXmlApplicationContext -> AbstractBeanDefinitionReader -> XmlBeanDefinitionReader  一直执行到 XmlBeanDefinitionReader#doLoadBeanDefinitions 方法。
 
-   ![image-20220401163729822](assest/image-20220401163729822.png)
+   ![image-20220403125909350](assest/image-20220403125909350.png)
 
 3. 终端观察 XmlBeanDefinitionReader#registerBeanDefinitions 方法，期间产生了多次重载调用，我们定位到最后一个。
 
+   ![image-20220403130548378](assest/image-20220403130548378.png)
+
    此处关注两个地方：一个 createReaderContext 方法，一个是 DefaultBeanDefinitionDocumentReader#registerBeanDefinitions 方法，先进入 createReaderContext 方法看看：
+
+   ![image-20220403130658158](assest/image-20220403130658158.png)
+
+   ![image-20220403130838652](assest/image-20220403130838652.png)
+
+   ![image-20220403130920467](assest/image-20220403130920467.png)
 
    我们可以看到，此处 Spring 首先完成了 NamespaceHandlerResolver 的初始化。
 
+   
+
    我们再进入 registerBeanDefinitions 方法中追踪，调用了 DefaultBeanDefinitionDocumentReader#registerBeanDefinitions 方法：
 
+   ![image-20220403131254110](assest/image-20220403131254110.png)
+
    进入 doRegisterBeanDefinitions 方法：
-
+   
+   ![image-20220403131546964](assest/image-20220403131546964.png)
+   
    进入 parseBeanDefinitions 方法：
-
+   
+   ![image-20220403131933255](assest/image-20220403131933255.png)
+   
    进入 parseDefaultElement 方法：
-
+   
+   ![image-20220403132118061](assest/image-20220403132118061.png)
+   
    进入 processBeanDefinition 方法：
-
+   
+   ![image-20220403132430734](assest/image-20220403132430734.png)
+   
    至此，注册流程结束，我们发现，所谓的注册就是把封装的 XML 中定义的 Bean 信息封装为 BeanDefinition 对象之后放入到一个 Map 中，BeanFactory 是以 Map 的结构组织这些 BeanDefinition 的。
-
+   
+   ![image-20220403132827502](assest/image-20220403132827502.png)
+   
    可以在 DefaultListableBeanFactory中看到此Map的定义 ：
-
+   
    ![image-20220401172711233](assest/image-20220401172711233.png)
 
 ### 2.2.3 时序图
@@ -376,15 +399,15 @@ public void refresh() throws BeansException, IllegalStateException {
 
 继续进入 DefaultListableBeanFactory 类的 preInstantiateSingletons  方法，我们找到下面部分的代码，看到工厂 Bean 或者普通 Bean，最终都是通过 getBean 的方法获取实例：
 
-
+![image-20220403135607616](assest/image-20220403135607616.png)
 
 继续跟踪下去，我们进入到了 AbstractBeanFactory#doGetBean 方法，这个方法中的代码很多，直接找到核心部分：
 
-
+![image-20220403141336858](assest/image-20220403141336858.png)
 
 接着进入到 AbstractAutowireCapableBeanFactory#createBean 方法，找到以下代码部分：
 
-![image-20220401190012306](assest/image-20220401190012306.png)
+![image-20220403141600842](assest/image-20220403141600842.png)
 
 进入 AbstractAutowireCapableBeanFactory#doCreateBean 方法，该方法我们关注两块重点区域：
 
@@ -394,6 +417,8 @@ public void refresh() throws BeansException, IllegalStateException {
 
 - 给 Bean 填充属性，调用初始化方法，应用 BeanPostProcessor 后置处理器
 
+  ![image-20220403142142874](assest/image-20220403142142874.png)
+  
   ![image-20220401190559854](assest/image-20220401190559854.png)
 
 # 4 lazy-init 延迟加载机制原理
