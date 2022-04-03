@@ -28,13 +28,15 @@
 
 1. 连接点：方法开始时，结束时，正常运行完毕时、方法异常时等这些特殊的时机点，我们称之为连接点，项目中每个方法都有连接点，连接点是一种**候选点**。
 
-2. 切入点：指 AOP 思想要影响的具体方法是哪些，描述感兴趣的方法
+2. 切入点：指定 AOP 思想要影响的具体方法是哪些，描述感兴趣的方法
 
 3. Advice增强：
 
    第一个层次：指的是横切逻辑
 
    第二个层次：方位点（在某一些连接点上加入横切逻辑，那么这些连接点就叫做方位点，描述的是具体的特殊时机）
+
+   
 
    Aspect 切面：切面是对上述概念的一个综合
 
@@ -62,18 +64,66 @@ Spring 实现 AOP 思想使用的是动态代理技术
 
 ## 4.1 xml 模式
 
+（复制 turbo-transfer-iocxml-anno 到 turbo-transfer-aopxml）
+
+代码地址：https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-aopxml
+
 Spring 是模块化开发的框架，使用 aop 就引入 aop 的 jar
 
 - pom.xml
 
   ```xml
+  <!--spring aop 的 jar 包支持-->
+  <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-aop</artifactId>
+      <version>5.1.12.RELEASE</version>
+  </dependency>
   
+  <!--第三方的 aop 框架 aspectjweaver 的jar-->
+  <dependency>
+      <groupId>org.aspectj</groupId>
+      <artifactId>aspectjweaver</artifactId>
+      <version>1.8.13</version>
+  </dependency>
   ```
 
 - AOP 核心配置
 
   ```xml
+  <?xml version="1.0" encoding="UTF-8"?>
+  <beans xmlns="http://www.springframework.org/schema/beans"
+         xmlns:context="http://www.springframework.org/schema/context"
+         xmlns:aop="http://www.springframework.org/schema/aop"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+          http://www.springframework.org/schema/beans
+          https://www.springframework.org/schema/beans/spring-beans.xsd
+          http://www.springframework.org/schema/context
+          https://www.springframework.org/schema/context/spring-context.xsd
+          http://www.springframework.org/schema/aop
+          https://www.springframework.org/schema/aop/spring-aop.xsd
   
+  ">
+  
+      <!--.....-->
+      
+      <!--进行 aop 相关的 xml 配置, 配置aop的过程就是把相关术语落地-->
+      <!--横切逻辑 bean-->
+      <bean id="logUtils" class="com.turbo.edu.utils.LogUtils"></bean>
+      <!--使用 config 标签表明aop配置，在其内部配置切面-->
+      <aop:config>
+          <!--aspect 切面 = 切入点（锁定方法）+ 方位点（锁定方法中的特殊时机）+ 横切逻辑 -->
+          <aop:aspect id="logAspect" ref="logUtils">
+              <!--切入点锁定我们感兴趣的方法，使用aspectj语法表达式-->
+              <aop:pointcut id="pt1" expression="execution(public void com.turbo.edu.service.impl.TransferServiceImpl.transfer(java.lang.String, java.lang.String, int))"/>
+              
+              <!--方位信息 pointcut-ref 关联切入点-->
+              <aop:before method="beforeMethod" pointcut-ref="pt1" />
+          </aop:aspect>
+      </aop:config>
+  	
+  </beans>
   ```
 
 ### 4.1.1 关于切入点表达式
