@@ -544,21 +544,23 @@ public void testXmlAop() throws Exception {
 
 A 调用 B，我们站在B的角度来观察和定义事务的传播行为：
 
-| 事务传播行为              | 说明                                                         |
-| ------------------------- | ------------------------------------------------------------ |
-| PROPAGATION_REQUIRED      | 如果当前没有事务，就新建一个事务；<br>如果已经存在一个事务，就加入到这个事务中。**这是常见的选择** |
-| PROPAGATION_SUPPORTS      | 支持当前事务，如果当前没有事务，就以非事务方式执行           |
-| PROPAGATION_MANDATORY     | 使用当前的事务，如果当前没有事务，就抛出异常。               |
-| PROPAGATION_REQUIRES_NEW  | 新建事务，如果当前存在事务，就把当前事务挂起。               |
-| PROPAGATION_NOT_SUPPORTED | 以非事务方式执行，如果当前存在事务，就把当前事务挂起。       |
-| PROPAGATION_NEVER         | 以非事务方式执行，如果当前存在事务，则抛出异常。             |
-| PROPAGATION_NESTED        | 如果当前存在事务，则在嵌套事务内执行。<br>如果当前没有事务，则执行与 PROPAGATION_REQUIRED类似的操作。 |
+| 事务传播行为                 | 说明                                                         |
+| ---------------------------- | ------------------------------------------------------------ |
+| ==**PROPAGATION_REQUIRED**== | 如果当前没有事务，就新建一个事务；<br>如果已经存在一个事务，就加入到这个事务中。**这是常见的选择** |
+| ==**PROPAGATION_SUPPORTS**== | 支持当前事务，如果当前没有事务，就以非事务方式执行           |
+| PROPAGATION_MANDATORY        | 使用当前的事务，如果当前没有事务，就抛出异常。               |
+| PROPAGATION_REQUIRES_NEW     | 新建事务，如果当前存在事务，就把当前事务挂起。               |
+| PROPAGATION_NOT_SUPPORTED    | 以非事务方式执行，如果当前存在事务，就把当前事务挂起。       |
+| PROPAGATION_NEVER            | 以非事务方式执行，如果当前存在事务，则抛出异常。             |
+| PROPAGATION_NESTED           | 如果当前存在事务，则在嵌套事务内执行。<br>如果当前没有事务，则执行与 PROPAGATION_REQUIRED类似的操作。 |
 
 前三个（PROPAGATION_REQUIRED、PROPAGATION_SUPPORTS、PROPAGATION_MANDATORY）支持当前事务；<br>后三个 （PROPAGATION_REQUIRES_NEW、PROPAGATION_NOT_SUPPORTED、PROPAGATION_NOT_SUPPORTED）不支持当前事务；<br>最后一个特殊。
 
 ## 5.2 Spring 中事务的 API
 
+mybatis 中提交事务 ：sqlSession.commit();
 
+Hibernate 中提交事务使用：session.commit();
 
 ```java
 // org.springframework.transaction.PlatformTransactionManager
@@ -578,57 +580,241 @@ public interface PlatformTransactionManager {
 
 此接口是 Spring 的事务管理器核心接口。Spring 本身并不支持事务实现，只是负责提供标准，应用层支持什么样的事务，需要提供具体的实现类。此时也是策略模式的具体应用。在Spring框架中，也为我们内置了一些具体策略，例如：`DataSourceTransactionManager`，`HibernateTransactionManager` 等等 （org.springframework.jdbc.datasource.DataSourceTransactionManager，org.springframework.orm.hibernate5.HibernateTransactionManager）
 
-Spring 中 JdbcTemplate （数据库操作工具）、Mybatis（mybatis-spring.jar） ——> `DataSourceTransactionManager`
+Spring 中 JdbcTemplate （数据库操作工具）、Mybatis（mybatis-spring.jar） 这两个对应的事务操作实现类——> `DataSourceTransactionManager`。
 
-Hibernate 框架 ——> `HibernateTransactionManager` 
+Hibernate 框架 对应的事务操作实现类——> `HibernateTransactionManager` 。
 
 `DataSourceTransactionManager` 归根到底是横切逻辑代码，声明式事务要做的就是使用 AOP（动态代理）将事务控制逻辑织入到业务代码中。
 
 ## 5.3 Spring 声明式事务配置
+
+（复制 turbo-transfer-aopxml-anno 到 turbo-transfer-transaction）代码地址：https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-transaction
+
+代码准备：
+
+- applicationContext.xml修改，配置 jdbcTemplate 
+
+  ```xml
+  <bean id="jdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">
+      <constructor-arg name="dataSource" ref="dataSource"/>
+  </bean>
+  ```
+
+- 重写 JdbcAccountDaoImpl.java，把 jdbcTemplate 注入
+
+  ```java
+  /**
+   * @author turbo
+   */
+  @Repository("accountDao")
+  public class JdbcAccountDaoImpl implements AccountDao {
+  
+      // 按照类型注入
+      @Autowired
+      private JdbcTemplate jdbcTemplate;
+  
+      @Override
+      public Account queryAccountByCardNo(String cardNo) throws Exception {
+  
+          String sql = "select * from account where cardNo=?";
+  
+          return jdbcTemplate.queryForObject(sql, new RowMapper<Account>() {
+              @Override
+              public Account mapRow(ResultSet resultSet, int i) throws SQLException {
+                  Account account = new Account();
+                  account.setName(resultSet.getString("name"));
+                  account.setCardNo(resultSet.getString("cardNo"));
+                  account.setMoney(resultSet.getInt("money"));
+                  return account;
+              }
+          },cardNo);
+      }
+  
+      @Override
+      public int updateAccountByCardNo(Account account) throws Exception {
+          String sql = "update account set money=? where cardNo=?";
+          return jdbcTemplate.update(sql,account.getMoney(),account.getCardNo());
+      }
+  }
+  ```
+
+- 删除手写 IoC （CreateBeanFactory）和AOP（ProxyFactory）
+
+- 修改 TransferServlet.java
+
+  ```java
+  @Override
+  public void init() throws ServletException {
+      WebApplicationContext webApplicationContext = WebApplicationContextUtils
+          .getWebApplicationContext(this.getServletContext());
+      transferService = (TransferService) webApplicationContext.getBean("transferService");
+  }
+  ```
+
+- 启动 tomcat 插件，测试成功。
 
 ### 5.3.1 纯 xml 模式
 
 - 导入 依赖
 
   ```xml
+  <!--spring aop 的 jar 包支持-->
+  <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-aop</artifactId>
+      <version>5.1.12.RELEASE</version>
+  </dependency>
   
+  <!--第三方的 aop 框架 aspectjweaver 的jar-->
+  <dependency>
+      <groupId>org.aspectj</groupId>
+      <artifactId>aspectjweaver</artifactId>
+      <version>1.8.13</version>
+  </dependency>
+  
+  <!--引入 spring 声明式事务相关 jar-->
+  <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-jdbc</artifactId>
+      <version>5.1.12.RELEASE</version>
+  </dependency>
+  <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-tx</artifactId>
+      <version>5.1.12.RELEASE</version>
+  </dependency>
   ```
 
 - xml 配置
 
   ```xml
+  <?xml version="1.0" encoding="UTF-8"?>
+  <beans xmlns="http://www.springframework.org/schema/beans"
+         xmlns:context="http://www.springframework.org/schema/context"
+         xmlns:aop="http://www.springframework.org/schema/aop"
+         xmlns:tx="http://www.springframework.org/schema/tx"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+          http://www.springframework.org/schema/beans
+          https://www.springframework.org/schema/beans/spring-beans.xsd
+          http://www.springframework.org/schema/context
+          https://www.springframework.org/schema/context/spring-context.xsd
+          http://www.springframework.org/schema/aop
+          https://www.springframework.org/schema/aop/spring-aop.xsd
+          http://www.springframework.org/schema/tx
+          https://www.springframework.org/schema/tx/spring-tx.xsd
   
+  ">
+  
+      <!--...省略...-->
+  
+      <bean id="jdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">
+          <constructor-arg name="dataSource" ref="dataSource"/>
+      </bean>
+  
+      <!--开启spring对注解aop的支持
+      proxy-target-class="true" 强制使用cglib
+      -->
+      <aop:aspectj-autoproxy proxy-target-class="true"/>
+  
+      <!--Spring声明式事务配置，声明式事务无非就是配置一个 AOP,只不过有些标签不一样罢了-->
+      <!--横切逻辑-->
+      <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+          <constructor-arg name="dataSource" ref="dataSource"/>
+      </bean>
+  
+      <tx:advice id="txAdvice" transaction-manager="transactionManager">
+          <!--定制事务细节 传播行为、隔离级别-->
+          <tx:attributes>
+              <!--一般性配置-->
+              <tx:method name="*" read-only="false" propagation="REQUIRED" isolation="DEFAULT" timeout="-1"/>
+              <!--针对查询的覆盖性配置-->
+              <tx:method name="query*" read-only="true" propagation="SUPPORTS"/>
+          </tx:attributes>
+      </tx:advice>
+      <aop:config>
+          <!--advice-ref 指向增强 = 横切逻辑 + 方位-->
+          <aop:advisor advice-ref="txAdvice" pointcut="execution(* com.turbo.edu.service.impl.TransferServiceImpl.*(..))"/>
+      </aop:config>
+  
+  </beans>
   ```
 
   
 
 ### 5.3.2 基于 xml + 注解
 
+（复制 turbo-transfer-transaction 到 turbo-transfer-transaction-xml-anno）代码地址：https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-transaction-xml-anno
+
 - xml配置
 
   ```xml
+  <?xml version="1.0" encoding="UTF-8"?>
+  <beans xmlns="http://www.springframework.org/schema/beans"
+         xmlns:context="http://www.springframework.org/schema/context"
+         xmlns:aop="http://www.springframework.org/schema/aop"
+         xmlns:tx="http://www.springframework.org/schema/tx"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+          http://www.springframework.org/schema/beans
+          https://www.springframework.org/schema/beans/spring-beans.xsd
+          http://www.springframework.org/schema/context
+          https://www.springframework.org/schema/context/spring-context.xsd
+          http://www.springframework.org/schema/aop
+          https://www.springframework.org/schema/aop/spring-aop.xsd
+          http://www.springframework.org/schema/tx
+          https://www.springframework.org/schema/tx/spring-tx.xsd
   
+  ">
+  
+      <!--...省略部分...-->
+      <bean id="jdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">
+          <constructor-arg name="dataSource" ref="dataSource"/>
+      </bean>
+  
+  
+      <!--Spring声明式事务配置，声明式事务无非就是配置一个 AOP,只不过有些标签不一样罢了-->
+      <!--横切逻辑-->
+      <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+          <constructor-arg name="dataSource" ref="dataSource"/>
+      </bean>
+  
+      <!--<tx:advice id="txAdvice" transaction-manager="transactionManager">
+          &lt;!&ndash;定制事务细节 传播行为、隔离级别&ndash;&gt;
+          <tx:attributes>
+              &lt;!&ndash;一般性配置&ndash;&gt;
+              <tx:method name="*" read-only="false" propagation="REQUIRED" isolation="DEFAULT" timeout="-1"/>
+              &lt;!&ndash;针对查询的覆盖性配置&ndash;&gt;
+              <tx:method name="query*" read-only="true" propagation="SUPPORTS"/>
+          </tx:attributes>
+      </tx:advice>
+      <aop:config>
+          &lt;!&ndash;advice-ref 指向增强 = 横切逻辑 + 方位&ndash;&gt;
+          <aop:advisor advice-ref="txAdvice" pointcut="execution(* com.turbo.edu.service.impl.TransferServiceImpl.*(..))"/>
+      </aop:config>-->
+  
+      <!--声明式事务的注解驱动-->
+      <tx:annotation-driven transaction-manager="transactionManager"/>
+  
+  </beans>
   ```
 
 - 在接口、类或者方法上添加 @Transactional 注解
 
   ```java
-  
+  @Transactional(readOnly = false,propagation = Propagation.REQUIRED)
   ```
 
   
 
 ### 5.3.3 基于注解
 
+（复制  turbo-transfer-transaction-xml-anno 到 turbo-transfer-transaction-anno）代码地址：https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-transaction-anno
+
 Spring 基于注解驱动开发的事务控制配置，只需要把 xml 配置部分改为注解实现。只是需要一个注解替换掉 xml 配置文件中的 `<tx:annotation-driven transaction-manager="transactionManager"/>` 配置。
 
 在 Spring 的配置类上添加 `@EnableTransactionManagement` 注解即可。
 
 ```java
-
+@EnableTransactionManagement // 开启 spring 对注解事务的支持
 ```
-
-
-
-
-
