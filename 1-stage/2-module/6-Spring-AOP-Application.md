@@ -128,13 +128,111 @@ Spring 是模块化开发的框架，使用 aop 就引入 aop 的 jar
 
 ### 4.1.1 关于切入点表达式
 
+- 概念及作用
+
+  切入点表达式，也称之为 AspectJ 切入点表达式，**指的是遵循特定语法结构的字符串**，**其作用是用于对符合语法格式的连接点进行增强**。它是 AspectJ 表达式的一部分。
+
+- 关于 AspectJ
+
+  AspectJ 是一个基于 Java 语言的 AOP 框架，Spring 框架从 2.0 版本之后集成了 AspectJ 框架中切入点表达式的部分，开始支持 AspectJ 切入点表达式。
+
+- 切入点表达式使用示例
+
+  ```xml
+  全限定方法名：访问修饰符  返回值  包名.包名.包名.包名.类型.方法名(参数列表)
+  
+  全匹配方式：
+  public void com.turbo.edu.service.impl.TransferServiceImpl.transfer(java.lang.String, java.lang.String, int)
+  
+  访问修饰符可以省略：
+  void com.turbo.edu.service.impl.TransferServiceImpl.transfer(java.lang.String, java.lang.String, int)
+  
+  返回值可以使用 *，标识任意返回值：
+  * com.turbo.edu.service.impl.TransferServiceImpl.transfer(java.lang.String, java.lang.String, int)
+  
+  包名可以使用.表示任意包，但是有几级包，必须写几个
+  * .....TransferServiceImpl.transfer(java.lang.String, java.lang.String, int)
+  
+  包名可以使用..表示当前包及其子包
+  * ..TransferServiceImpl.transfer(java.lang.String, java.lang.String, int)
+  
+  类名和方法名，都可以使用.表示任意类，任意方法
+  * ...(java.lang.String, java.lang.String, int)
+  
+  参数列表，可以使用具体类型
+  基本类型直接写类型名称：int
+  引用类型必须写全限定类名：java.lang.String
+  参数列表可以使用*，表示任意参数类型，但是必须有参数 * *..*.*(*)
+  参数列表可以使用..，表示有无参数均可。有参数可以是任意类型 * *..*.*(..)
+  全统配方式 * *..*.*(..)
+  ```
+
+  
+
 ### 4.1.2 改变代理方式的配置
+
+Spring 在创建代理对象时，会根据被代理对象的实际情况来选择代理方式。被代理对象实现了接口，则采用基于接口的动态代理。当被代理对象没有实现任何接口的时候，Spring会自动切换到基于子类的动态代理方式。
+
+但是我们知道，无论被代理对象是否实现接口，只要不是final修饰的类都可以采用cglib提供的方式创建代理对象。所以 Spring 也考虑到这个情况，提供了配置的方式实现强制使用基于子类的动态代理（即cglib），配置的方式有两种：
+
+- 使用 aop:config 标签配置
+
+  ```xml
+  <aop:config proxy-target-class="true">
+  ```
+
+- 使用 aop:aspectj-autoproxy 标签配置
+
+  ```xml
+  <!--此标签注解是基于XML和注解组合配置 AOP 时的必备标签，表示Spring开启注解配置AOP的支持-->
+  <aop:aspectj-autoproxy proxy-target-class="true"></aop:aspectj-autoproxy>
+  ```
+
+  
 
 ### 4.1.3 五种通知类型
 
 #### 4.1.3.1 前置通知
 
+**配置方式**：aop:before 标签
+
+```xml
+<!--
+	作用：前置通知
+	出现位置：只能出现在 aop:aspect 标签内部
+	属性：
+		method：用于指定前置通知的方法名称
+		pointcut：用于指定切面表达式
+		pointcut-ref：用于指定切入点表达式的引用
+	
+-->
+<aop:before method="beforeMethod" pointcut-ref="pt1" />
+```
+
+**执行时机**：前置通知永远都会在切入点方法（业务核心方法）执行之前执行。
+
+**细节**：前置通知可以获取切入点方法的参数，并对其进行增强。
+
+```java
+public void beforeMethod(JoinPoint joinPoint){
+    // 获取切入点的参数
+    final Object[] args = joinPoint.getArgs();
+    // ...
+}
+```
+
+
+
 #### 4.1.3.2 后置通知
+
+**配置方式**：aop:after-returning
+
+```xml
+<!--后置通知-->
+<aop:after-returning method="successMethod" pointcut-ref="pt1"/>
+```
+
+
 
 #### 4.1.3.3 异常通知
 
