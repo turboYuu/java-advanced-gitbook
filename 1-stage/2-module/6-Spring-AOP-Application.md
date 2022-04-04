@@ -235,8 +235,9 @@ public void beforeMethod(JoinPoint joinPoint){
 		method：用于指定后置通知的方法名称
 		pointcut：用于指定切面表达式
 		pointcut-ref：用于指定切入点表达式的引用
+		returning: 中的 returnVal 对应 successMethod方法的形参，用来接收业务方法返回值
 -->
-<aop:after-returning method="successMethod" pointcut-ref="pt1"/>
+<aop:after-returning method="successMethod" returning="returnVal" pointcut-ref="pt1"/>
 ```
 
 
@@ -309,35 +310,213 @@ public void beforeMethod(JoinPoint joinPoint){
 
 ## 4.2 xml + 注解模式
 
+（复制 turbo-transfer-aopxml 到 turbo-transfer-aopxml-anno）代码地址：https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-aopxml-anno
+
 - XML 中开启 Spring 对注解 AOP 的支持
 
   ```xml
-  
+  <!--开启spring对注解aop的支持
+      proxy-target-class="true" 强制使用cglib
+      -->
+  <aop:aspectj-autoproxy proxy-target-class="true"/>
   ```
 
-- 示例
+- 修改LogUtils.java
 
   ```java
+  package com.turbo.edu.utils;
   
+  import org.aspectj.lang.JoinPoint;
+  import org.aspectj.lang.ProceedingJoinPoint;
+  import org.aspectj.lang.annotation.*;
+  import org.springframework.stereotype.Component;
+  
+  @Component
+  @Aspect
+  public class LogUtils {
+  
+      @Pointcut("execution(* com.turbo.edu.service.impl.TransferServiceImpl.*(..))")
+      public void pointcut() {
+      }
+  
+      /**
+       * 业务逻辑开始执行之前执行
+       *
+       */
+      @Before("pointcut()")
+      public void beforeMethod(JoinPoint joinPoint){
+          // 获取切入点的参数
+          final Object[] args = joinPoint.getArgs();
+          for (int i = 0; i < args.length; i++) {
+              final Object arg = args[i];
+              System.out.println(arg);
+          }
+          System.out.println("业务逻辑开始执行之前开始执行 ...... ");
+      }
+  
+  
+      /**
+       * 业务逻辑结束时执行（无论异常与否都执行）
+       * 最终通知
+       */
+      @After("pointcut()")
+      public void afterMethod(){
+          System.out.println("业务逻辑结束时执行 ...... ");
+      }
+  
+      /**
+       * 业务逻辑异常时执行
+       */
+      @AfterThrowing("pointcut()")
+      public void exceptionMethod(){
+          System.out.println("业务逻辑异常时执行 ...... ");
+      }
+  
+      /**
+       * 后置通知
+       */
+      @AfterReturning(value = "pointcut()",returning = "returnVal")
+      public void successMethod(Object returnVal){
+          System.out.println("业务逻正常时执行 .....");
+      }
+  
+      /**
+       * 环绕通知
+       */
+      /*@Around("pointcut()")*/
+      public Object aroundMethod(ProceedingJoinPoint proceedingJoinPoint) throws Throwable {
+          System.out.println("环绕通知中的 before.....");
+  
+          Object result = null;
+          try {
+              // 控制原有业务逻辑是否执行 类似于代理中的 method.invoke
+              result = proceedingJoinPoint.proceed(proceedingJoinPoint.getArgs());
+              System.out.println("环绕通知中的 after.....");
+          }catch (Exception e){
+              System.out.println("环绕通知中的 exception.....");
+          } finally {
+              System.out.println("环绕通知中的 最终通知.....");
+          }
+  //        System.out.println("环绕通知中的 after.....");
+  //        System.out.println("环绕通知 .....");
+          return result;
+      }
+  }
+  ```
+
+- 测试方法
+
+  ```java
+  /**
+  * 测试 xml-anno aop
+  */
+  @Test
+  public void testXmlAop() throws Exception {
+      // 启动容器
+      ClassPathXmlApplicationContext applicationContext = 
+          new ClassPathXmlApplicationContext("applicationContext.xml");
+      TransferService transferService = (TransferService) applicationContext.getBean("transferService");
+      transferService.transfer("6029621011000","6029621011001",1);
+  }
   ```
 
   
 
 ## 4.3 注解模式
 
+（复制 turbo-transfer-aopxml-anno 到 turbo-transfer-aop-anno）代码地址：https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-aop-anno
+
 在使用注解驱动开发 aop 时，我们要明确的就是，是注解替换掉配置文件中的下面这行配置：
 
 ```xml
-
+<!--开启spring对注解aop的支持
+    proxy-target-class="true" 强制使用cglib
+    -->
+<aop:aspectj-autoproxy proxy-target-class="true"/>
 ```
 
-在配置类中使用如下注解进行替换上述配置
+在配置类 SpringConfig.java 中使用如下注解进行替换上述配置
 
 ```java
+package com.turbo.edu;
 
+import com.alibaba.druid.pool.DruidDataSource;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.*;
+
+import javax.sql.DataSource;
+
+// @Configuration 表明当前是一个配置类
+@Configuration
+@ComponentScan(basePackages = {"com.turbo.edu"}) // 开启注解扫描，base-package 指定扫描的包路径
+@PropertySource({"classpath:jdbc.properties"}) // 引入外部资源文件
+@EnableAspectJAutoProxy // 开启 spring 对注解 aop 的支持 
+public class SpringConfig {
+    @Value("${jdbc.driver}")
+    private String driverClassName;
+    @Value("${jdbc.url}")
+    private String url;
+    @Value("${jdbc.username}")
+    private String username;
+    @Value("${jdbc.password}")
+    private String password;
+
+    @Bean("dataSource")
+    public DataSource createDataSource(){
+        DruidDataSource druidDataSource = new DruidDataSource();
+        druidDataSource.setDriverClassName(driverClassName);
+        druidDataSource.setUrl(url);
+        druidDataSource.setUsername(username);
+        druidDataSource.setPassword(password);
+        return druidDataSource;
+    }
+}
 ```
 
+然后删除 applicationContext.xml
 
+修改 web.xml 
+
+```xml
+<!DOCTYPE web-app PUBLIC
+ "-//Sun Microsystems, Inc.//DTD Web Application 2.3//EN"
+ "http://java.sun.com/dtd/web-app_2_3.dtd" >
+
+<web-app>
+  <display-name>Archetype Created Web Application</display-name>
+
+  <!--告诉 ContextLoaderListener 知道我们使用注解的方式启动 IoC 容器-->
+  <context-param>
+    <param-name>contextClass</param-name>
+    <param-value>org.springframework.web.context.support.AnnotationConfigWebApplicationContext</param-value>
+  </context-param>
+
+  <!--配置启动类的全限定类名-->
+  <context-param>
+    <param-name>contextConfigLocation</param-name>
+    <param-value>com.turbo.edu.SpringConfig</param-value>
+  </context-param>
+  <!--使用监听器启动spring 的IoC 容器-->
+  <listener>
+    <listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
+  </listener>
+</web-app>
+```
+
+测试方法：
+
+```java
+/**
+* 测试 anno aop
+*/
+@Test
+public void testXmlAop() throws Exception {
+    // 启动容器
+    ApplicationContext applicationContext = new AnnotationConfigApplicationContext(SpringConfig.class);
+    TransferService transferService = (TransferService) applicationContext.getBean("transferService");
+    transferService.transfer("6029621011000","6029621011001",1);
+}
+```
 
 # 5 Spring 声明式事务支持
 
