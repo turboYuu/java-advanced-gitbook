@@ -150,14 +150,14 @@ Spring 是模块化开发的框架，使用 aop 就引入 aop 的 jar
   返回值可以使用 *，标识任意返回值：
   * com.turbo.edu.service.impl.TransferServiceImpl.transfer(java.lang.String, java.lang.String, int)
   
-  包名可以使用.表示任意包，但是有几级包，必须写几个
-  * .....TransferServiceImpl.transfer(java.lang.String, java.lang.String, int)
+  包名可以使用*表示任意包，但是有几级包，必须写几个
+  * *.*.*.*.*.TransferServiceImpl.transfer(java.lang.String, java.lang.String, int)
   
   包名可以使用..表示当前包及其子包
-  * ..TransferServiceImpl.transfer(java.lang.String, java.lang.String, int)
+  * *..TransferServiceImpl.transfer(java.lang.String, java.lang.String, int)
   
-  类名和方法名，都可以使用.表示任意类，任意方法
-  * ...(java.lang.String, java.lang.String, int)
+  类名和方法名，都可以使用*表示任意类，任意方法
+  * *..*.*(java.lang.String, java.lang.String, int)
   
   参数列表，可以使用具体类型
   基本类型直接写类型名称：int
@@ -228,7 +228,14 @@ public void beforeMethod(JoinPoint joinPoint){
 **配置方式**：aop:after-returning
 
 ```xml
-<!--后置通知-->
+<!--
+	作用：后置通知
+	出现位置：只能出现在 aop:aspect 标签内部
+	属性：
+		method：用于指定后置通知的方法名称
+		pointcut：用于指定切面表达式
+		pointcut-ref：用于指定切入点表达式的引用
+-->
 <aop:after-returning method="successMethod" pointcut-ref="pt1"/>
 ```
 
@@ -236,13 +243,101 @@ public void beforeMethod(JoinPoint joinPoint){
 
 #### 4.1.3.3 异常通知
 
+**配置方式**：aop:after-throwing
+
+```xml
+<!--
+	作用：配置异常通知
+	出现位置：只能出现在 aop:aspect 标签内部
+	属性：
+		method：用于指定异常通知的方法名称
+		pointcut：用于指定切面表达式
+		pointcut-ref：用于指定切入点表达式的引用
+-->
+<aop:after-throwing method="exceptionMethod" pointcut-ref="pt1"/>
+```
+
+**执行时机**：异常通知的执行时机是在切入点方法（业务核心方法）执行产生异常之后，异常通知执行。如果切入点方法执行没有产生异常，则异常通知不会执行。
+
+**细节**：异常通知不仅可以获取切入点方法执行的参数，也可以获取切入点方法执行产生的异常信息。
+
 #### 4.1.3.4 最终通知
+
+**配置方式**：aop:after
+
+```xml
+<!--
+	作用：配置最终通知
+	出现位置：只能出现在 aop:aspect 标签内部
+	属性：
+		method：用于指定最终通知的方法名称
+		pointcut：用于指定切面表达式
+		pointcut-ref：用于指定切入点表达式的引用
+-->
+<aop:after method="afterMethod" pointcut-ref="pt1"/>
+```
+
+**执行时机**：最终通知的执行时机是在切入点方法（业务核心方法）执行完成之后，切入点方法返回之前执行。换句话说，无论切入点方法执行是否产生异常，它都会在返回之前执行。
+
+**细节**：最终通知执行时，可以获取到通知方法的参数。同时它可以做一些清理操作。
 
 #### 4.1.3.5 环绕通知
 
+**配置方式**：aop:around
+
+```xml
+<!--
+	作用：用于环绕通知，一般独立使用
+	出现位置：只能出现在 aop:aspect 标签内部
+	属性：
+		method：用于指定环绕通知的方法名称
+		pointcut：用于指定切面表达式
+		pointcut-ref：用于指定切入点表达式的引用
+-->
+<aop:around method="aroundMethod" pointcut-ref="pt1"/>
+```
+
+**特别说明**
+
+环绕通知，它是有别于前面四种通知类型外的特殊通知。前面四种通知（前置、后置、异常、最终）它们都是指定合适增强的通知类型。而环绕通知，它是 Spring 框架为我们提供的一种可以通过编码的方法，控制增强代码何时执行的通知类型。它里面借助的 `ProceedingJoinPoint` 接口及其实现类，实现手动触发切入点方法的调用。
+
+**ProceedingJoinPoint接口介绍**：
+
+类视图：
+
+
+
 ## 4.2 xml + 注解模式
 
+- XML 中开启 Spring 对注解 AOP 的支持
+
+  ```xml
+  
+  ```
+
+- 示例
+
+  ```java
+  
+  ```
+
+  
+
 ## 4.3 注解模式
+
+在使用注解驱动开发 aop 时，我们要明确的就是，是注解替换掉配置文件中的下面这行配置：
+
+```xml
+
+```
+
+在配置类中使用如下注解进行替换上述配置
+
+```java
+
+```
+
+
 
 # 5 Spring 声明式事务支持
 
