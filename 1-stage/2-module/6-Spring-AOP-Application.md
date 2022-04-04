@@ -520,6 +520,10 @@ public void testXmlAop() throws Exception {
 
 # 5 Spring 声明式事务支持
 
+编程式事务：在业务代码中添加事务控制代码，这样的事务控制就叫做编程式事务。
+
+声明式事务：通过 xml 或者注解配置的方式达到事务控制的目的，叫做声明式事务。
+
 ## 5.1 事务回顾
 
 ### 5.1.1 事务的概念
@@ -528,8 +532,103 @@ public void testXmlAop() throws Exception {
 
 ### 5.1.3 事务的隔离级别
 
+不考虑事务隔离级别，会出现以下情况：（以下情况全是错误的）
+
+- 脏读：一个线程中的事务读到了另外一个线程中**未提交**的数据。
+- 不可重复读：一个线程中的事务读到了另外一个线程中已经提交的**update** 的数据（前后不一样）
+- 幻读：一个线程中的事务读到了另外一个线程中已经提交的 **insert** 或者 **delete** 的数据（前后条数不一样）。
+
 ### 5.1.4 事务的传播级别
+
+事务往往在 service 层进行控制，如果出现 service 层方法A 调用了另外一个 service 层方法B，A和B方法本身都已经被添加了事务控制，那么A调用B的时候，就需要进行事务的一些协商，这就叫做事务的传播行为。
+
+A 调用 B，我们站在B的角度来观察和定义事务的传播行为：
+
+| 事务传播行为              | 说明                                                         |
+| ------------------------- | ------------------------------------------------------------ |
+| PROPAGATION_REQUIRED      | 如果当前没有事务，就新建一个事务；<br>如果已经存在一个事务，就加入到这个事务中。**这是常见的选择** |
+| PROPAGATION_SUPPORTS      | 支持当前事务，如果当前没有事务，就以非事务方式执行           |
+| PROPAGATION_MANDATORY     | 使用当前的事务，如果当前没有事务，就抛出异常。               |
+| PROPAGATION_REQUIRES_NEW  | 新建事务，如果当前存在事务，就把当前事务挂起。               |
+| PROPAGATION_NOT_SUPPORTED | 以非事务方式执行，如果当前存在事务，就把当前事务挂起。       |
+| PROPAGATION_NEVER         | 以非事务方式执行，如果当前存在事务，则抛出异常。             |
+| PROPAGATION_NESTED        | 如果当前存在事务，则在嵌套事务内执行。<br>如果当前没有事务，则执行与 PROPAGATION_REQUIRED类似的操作。 |
+
+前三个（PROPAGATION_REQUIRED、PROPAGATION_SUPPORTS、PROPAGATION_MANDATORY）支持当前事务；<br>后三个 （PROPAGATION_REQUIRES_NEW、PROPAGATION_NOT_SUPPORTED、PROPAGATION_NOT_SUPPORTED）不支持当前事务；<br>最后一个特殊。
 
 ## 5.2 Spring 中事务的 API
 
+
+
+```java
+// org.springframework.transaction.PlatformTransactionManager
+public interface PlatformTransactionManager {
+	// 获取事务状态信息
+	TransactionStatus getTransaction(@Nullable TransactionDefinition definition)
+			throws TransactionException;
+    // 提交事务
+	void commit(TransactionStatus status) throws TransactionException;
+	// 回滚事务
+	void rollback(TransactionStatus status) throws TransactionException;
+}
+
+```
+
+**作用**
+
+此接口是 Spring 的事务管理器核心接口。Spring 本身并不支持事务实现，只是负责提供标准，应用层支持什么样的事务，需要提供具体的实现类。此时也是策略模式的具体应用。在Spring框架中，也为我们内置了一些具体策略，例如：`DataSourceTransactionManager`，`HibernateTransactionManager` 等等 （org.springframework.jdbc.datasource.DataSourceTransactionManager，org.springframework.orm.hibernate5.HibernateTransactionManager）
+
+Spring 中 JdbcTemplate （数据库操作工具）、Mybatis（mybatis-spring.jar） ——> `DataSourceTransactionManager`
+
+Hibernate 框架 ——> `HibernateTransactionManager` 
+
+`DataSourceTransactionManager` 归根到底是横切逻辑代码，声明式事务要做的就是使用 AOP（动态代理）将事务控制逻辑织入到业务代码中。
+
 ## 5.3 Spring 声明式事务配置
+
+### 5.3.1 纯 xml 模式
+
+- 导入 依赖
+
+  ```xml
+  
+  ```
+
+- xml 配置
+
+  ```xml
+  
+  ```
+
+  
+
+### 5.3.2 基于 xml + 注解
+
+- xml配置
+
+  ```xml
+  
+  ```
+
+- 在接口、类或者方法上添加 @Transactional 注解
+
+  ```java
+  
+  ```
+
+  
+
+### 5.3.3 基于注解
+
+Spring 基于注解驱动开发的事务控制配置，只需要把 xml 配置部分改为注解实现。只是需要一个注解替换掉 xml 配置文件中的 `<tx:annotation-driven transaction-manager="transactionManager"/>` 配置。
+
+在 Spring 的配置类上添加 `@EnableTransactionManagement` 注解即可。
+
+```java
+
+```
+
+
+
+
+
