@@ -64,9 +64,7 @@ Spring 实现 AOP 思想使用的是动态代理技术
 
 ## 4.1 xml 模式
 
-（复制 turbo-transfer-iocxml-anno 到 turbo-transfer-aopxml）
-
-代码地址：https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-aopxml
+（复制 turbo-transfer-iocxml-anno 到 turbo-transfer-aopxml）[gitee代码地址](https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-aopxml)。
 
 Spring 是模块化开发的框架，使用 aop 就引入 aop 的 jar
 
@@ -306,11 +304,11 @@ public void beforeMethod(JoinPoint joinPoint){
 
 类视图：
 
-
+![image-20220405232810025](assest/image-20220405232810025.png)
 
 ## 4.2 xml + 注解模式
 
-（复制 turbo-transfer-aopxml 到 turbo-transfer-aopxml-anno）代码地址：https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-aopxml-anno
+（复制 turbo-transfer-aopxml 到 turbo-transfer-aopxml-anno）[gitee代码地址](https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-aopxml-anno)。
 
 - XML 中开启 Spring 对注解 AOP 的支持
 
@@ -424,7 +422,7 @@ public void beforeMethod(JoinPoint joinPoint){
 
 ## 4.3 注解模式
 
-（复制 turbo-transfer-aopxml-anno 到 turbo-transfer-aop-anno）代码地址：https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-aop-anno
+（复制 turbo-transfer-aopxml-anno 到 turbo-transfer-aop-anno）[gitee代码地址](https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-aop-anno)。
 
 在使用注解驱动开发 aop 时，我们要明确的就是，是注解替换掉配置文件中的下面这行配置：
 
@@ -588,7 +586,7 @@ Hibernate 框架 对应的事务操作实现类——> `HibernateTransactionMana
 
 ## 5.3 Spring 声明式事务配置
 
-（复制 turbo-transfer-aopxml-anno 到 turbo-transfer-transaction）代码地址：https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-transaction
+（复制 turbo-transfer-aopxml-anno 到 turbo-transfer-transaction）[turbo-transfer-transaction 代码地址](https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-transaction)。
 
 代码准备：
 
@@ -744,7 +742,7 @@ Hibernate 框架 对应的事务操作实现类——> `HibernateTransactionMana
 
 ### 5.3.2 基于 xml + 注解
 
-（复制 turbo-transfer-transaction 到 turbo-transfer-transaction-xml-anno）代码地址：https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-transaction-xml-anno
+（复制 turbo-transfer-transaction 到 turbo-transfer-transaction-xml-anno）[turbo-transfer-transaction-xml-anno 代码地址](https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-transaction-xml-anno)。
 
 - xml配置
 
@@ -809,7 +807,7 @@ Hibernate 框架 对应的事务操作实现类——> `HibernateTransactionMana
 
 ### 5.3.3 基于注解
 
-（复制  turbo-transfer-transaction-xml-anno 到 turbo-transfer-transaction-anno）代码地址：https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-transaction-anno
+（复制  turbo-transfer-transaction-xml-anno 到 turbo-transfer-transaction-anno）[turbo-transfer-transaction-anno 代码地址](https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-transaction-anno)。
 
 Spring 基于注解驱动开发的事务控制配置，只需要把 xml 配置部分改为注解实现。只是需要一个注解替换掉 xml 配置文件中的 `<tx:annotation-driven transaction-manager="transactionManager"/>` 配置。
 

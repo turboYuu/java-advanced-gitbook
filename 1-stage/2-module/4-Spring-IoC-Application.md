@@ -78,7 +78,7 @@ BeanFactory 是 Spring 框架中 IoC 容器的顶层接口，它只是用来定�
 
 ## 1.2 纯 xml 模式
 
-（复制 turbo-transfer 到 turbo-transfer-iocxml）代码地址：https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-iocxml
+（复制 turbo-transfer 到 turbo-transfer-iocxml）[gitee代码地址](https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-iocxml)。
 
 ```xml
 <!--引入 spring ioc 容器功能-->
@@ -192,7 +192,7 @@ public class IoCTest {
 
    ![image-20220329130049669](assest/image-20220329130049669.png)
 
-### 12.2 实例化 Bean 的 三种方式
+### 1.2.2 实例化 Bean 的 三种方式
 
 - 方式一：使用无参构造函数
 
@@ -452,7 +452,7 @@ public class IoCTest {
 >    - **第三方jar包中的bean 定义在 xml，比如 druid 数据库连接池**
 >    - **自己开发的 bean 定义使用注解**
 
-（复制 turbo-transfer-iocxml 到 turbo-transfer-iocxml-anno 项目）代码地址：https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-iocxml-anno
+（复制 turbo-transfer-iocxml 到 turbo-transfer-iocxml-anno 项目）[gitee代码地址](https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-iocxml-anno)。
 
 - xml 中标签与注解的对应 （IoC）
 
@@ -576,9 +576,7 @@ public class IoCTest {
 
 ## 1.4 纯注解模式
 
-（复制 turbo-transfer-iocxml-anno 到 turbo-transfer-ioc-anno 项目）代码地址：
-
-https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-ioc-anno
+（复制 turbo-transfer-iocxml-anno 到 turbo-transfer-ioc-anno 项目）[gitee代码地址](https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-ioc-anno)。
 
 改造 xml + 注解模式，将 xml 中遗留的内容全部以注解的形式迁移出去，**最终删除 xml**，**从 Java 配置类启动**。
 
@@ -788,7 +786,7 @@ public interface FactoryBean<T> {
 }
 ```
 
-测试：代码地址：https://gitee.com/turboYuu/spring-1-2/blob/master/lab/turbo-transfer-iocxml-anno/src/main/java/com/turbo/edu/factory/CompanyFactoryBean.java
+测试：[gitee代码地址](https://gitee.com/turboYuu/spring-1-2/blob/master/lab/turbo-transfer-iocxml-anno/src/main/java/com/turbo/edu/factory/CompanyFactoryBean.java)。
 
 Company 类
 
