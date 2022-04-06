@@ -77,28 +77,67 @@
 代理对象的产生就是利用 BeanPostProcessor ，在 [第五部分  Spring IOC 源码深度剖析 中的 Bean 创建流程]()，中 AbstractAutowireCapableBeanFactory#doCreateBean 方法中调用了 AbstractAutowireCapableBeanFactory#initializeBean 方法，进入 AbstractAutowireCapableBeanFactory#initializeBean：
 
 ```java
+protected Object initializeBean(String beanName, Object bean, @Nullable RootBeanDefinition mbd) {
+    // 执行所有的AwareMethods
+    if (System.getSecurityManager() != null) {
+        AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
+            invokeAwareMethods(beanName, bean);
+            return null;
+        }, getAccessControlContext());
+    }
+    else {
+        invokeAwareMethods(beanName, bean);
+    }
 
+    Object wrappedBean = bean;
+    if (mbd == null || !mbd.isSynthetic()) {
+        // 执行所有的 BeanPostProcessor#postProcessBeforeInitialization 初始化之前的处理器方法
+        wrappedBean = applyBeanPostProcessorsBeforeInitialization(wrappedBean, beanName);
+    }
+
+    try {
+        // 这里开始执行 afterPropertiesSet (实现 InitializingBean 接口) 方法和 initMethod
+        invokeInitMethods(beanName, wrappedBean, mbd);
+    }
+    catch (Throwable ex) {
+        throw new BeanCreationException(
+            (mbd != null ? mbd.getResourceDescription() : null),
+            beanName, "Invocation of init method failed", ex);
+    }
+    if (mbd == null || !mbd.isSynthetic()) {
+        // 这个 Bean 初始化完成，执行 后置处理器方法
+        wrappedBean = applyBeanPostProcessorsAfterInitialization(wrappedBean, beanName);
+    }
+
+    return wrappedBean;
+}
 ```
 
 进入 AbstractAutowireCapableBeanFactory#applyBeanPostProcessorsAfterInitialization：
 
-```java
+![image-20220406142949232](assest/image-20220406142949232.png)
 
-```
+
 
 创建代理对象的后置处理器 AbstractAutoProxyCreator#postProcessAfterInitialization：
 
-```java
-	
-```
-
-AbstractAutoProxyCreator#wrapIfNecessary：
+![image-20220406143610786](assest/image-20220406143610786.png)
 
 
 
-AbstractAutoProxyCreator#createProxy：
+进入 AbstractAutoProxyCreator#wrapIfNecessary：
+
+![image-20220406143950302](assest/image-20220406143950302.png)
 
 
+
+进入 AbstractAutoProxyCreator#createProxy：
+
+![image-20220406144259924](assest/image-20220406144259924.png)
+
+接着跟进到 ProxyFactory 中：
+
+![image-20220406144439204](assest/image-20220406144439204.png)
 
 流程就是用 `AopProxyFactory` 创建 AopProxy，再用 AopProxy 创建代理对象，这里的 AopProxyFactory 默认是 DefaultAopProxyFactory，看看它的 createAopProxy 方法：
 
@@ -441,7 +480,7 @@ ProxyTransactionManagementConfiguration 是一个容器配置类，注册了一�
    注册事务增强器（注入属性解析器，事务拦截器）
    属性解析器：AnnotationTransactionAttributeSource，内部持有一个解析器集合 
    Set<TransactionAnnotationParser> annotationParsers;
-   具体使用的是 SpringTransactionAnnotationParser 解析器，用来解析 @Transactional
+   具体使用的是 SpringTransactionAnnotationParser 解析器，用来解析 @Transactional 的事务属性
        
    事务拦截器 TransactionInterceptor 实现了 MethodInterceptor 接口，该通用拦截会在产生代理对象之前 和 aop 增强合并，最终一起影响到代理对象。
        
