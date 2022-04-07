@@ -117,11 +117,17 @@ Spring MVC 本质可以认为是对 servlet 的封装，简化了我们 servlet 
 
 9. FlashMapManager
 
+   FlashMap 用于重定向时的参数传递，比如在处理用户订单时，为了避免重复提交，可以处理完 post 请求之后重定向到一个 get 请求，这个 get 请求可以用来显示订单详情之类的信息。这样做虽然可以避免用户重新提交订单的问题，但是在这个要显示订单的信息，这些数据从哪里来获得？因为重定向时没有传递参数这一功能，如果不想把参数写进 URL（不推荐），那么就可以通过FlashMap 来传递。只需要在重定向之前将要传递的数据写入请求（可以通过ServletRequestAttributes.getRequest()方法获得）的属性OUTPUT_FLASH_MAP_ATTRIBUTE 中，这样在重定向之后的 Handler 中 Spring 就会自动将其设置到 Model 中，在显示订单信息的页面上就可以直接从 Model 中获取数据。FlashMapManager 就是用来管理 FlashMap 的。
+
 
 
 # 3 请求参数绑定（串讲）
 
-
+- 默认支持 Servlet API 作为方法参数
+- 绑定简单类型参数
+- 绑定 pojo 类型参数
+- 绑定 pojo 包装类型参数
+- 绑定日期类型参数（需要配置自定义类型转换器）
 
 # 4 对 Restful 风格请求支持
 
