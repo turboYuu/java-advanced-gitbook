@@ -28,6 +28,8 @@ Spring MVC 是 Spring 给我们提供的一个用于简化 Web 开发的框架�
 
 **MVC 设计模式**
 
+![image-20220407163821263](assest/image-20220407163821263.png)
+
 MVC 全名是 Model View Controller，是 模型（model）- 视图（view）- 控制器（controller）的缩写，是一种用于设计创建 web 应用程序表现层的模式。MVC 中每个部分各司其职：
 
 - Model（模型）：模型包含业务模型和数据模型，数据模型用于封装数据，业务模式用于处理业务。
