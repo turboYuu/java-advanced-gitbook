@@ -55,7 +55,11 @@ Spring MVC 本质可以认为是对 servlet 的封装，简化了我们 servlet 
 开发过程：
 
 1. 配置 DispatcherServlet 前端控制器
-2. 
+2. 开发处理具体业务逻辑的 Handler（@Controller、@RequestMapping）
+3. xml 配置文件配置 controller扫描，配置 SpringMVC 三大件
+4. 将 xml 文件路径告诉 springMVC (DispatcherServlet)
+
+
 
 ## 2.1 Spring MVC 请求处理流程
 
