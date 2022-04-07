@@ -101,9 +101,15 @@ Spring MVC 本质可以认为是对 servlet 的封装，简化了我们 servlet 
 
 5. RequestToViewNameTranslator
 
+   RequestToViewNameTranslator 组件的作用是从请求中获取 ViewName。因为 ViewResolver 根据 ViewName 查找 View，但有的 Handler处理完成之后，没有设置View，也没有设置 ViewName，便要通过这个组件从请求中查找 ViewName
+
 6. LocaleResolver
 
+   ViewResolver 组件的 resolveViewName 方法需要两个参数，一个是视图名，一个是 Locale。LocaleResolver 用于从请求中解析出 Locale，比如中国 Locale 是 zh-CN，用来表示一个区域。这个组件也是 i18n 的基础。
+
 7. ThemeResolver
+
+   
 
 8. MultipartResolver
 
