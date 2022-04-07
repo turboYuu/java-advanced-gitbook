@@ -109,9 +109,11 @@ Spring MVC 本质可以认为是对 servlet 的封装，简化了我们 servlet 
 
 7. ThemeResolver
 
-   
+   ThemeResolver 组件是用来解析主题的，主题是样式、图片及它们所形成的显示效果的集合。Spring MVC 中一套主题对应一个 properties 文件，里面存放着与当前主题相关的所有资源，如图片、css 样式等。创建主题非常简单，只需要准备好资源，然后新建一个 “主题名.properties” 并将资源设置进去，放在 classpath 下，之后便可以在页面中使用了。SpringMVC 中与主题相关的类有 ThemeResolver、ThemeSource 和 Theme。ThemeResolver 负责从请求中解析出主题名，ThemeSource 根据主题名找到具体的主题，其抽象也就是 Theme，可以通过 Theme 来获取主题和具体的资源。
 
 8. MultipartResolver
+
+   MultipartResolver 用于上传请求，通过将普通的请求包装成 MultipartHttpServletRequest 来实现。MultipartHttpServletRequest 可以通过 getFile() 方法直接获得文件。如果上传多个文件，还可以调用 getFileMap() 方法得到 Map<FileName, File> 这样的结构，MultipartResolver 的作用就是封装普通的请求，使其拥有文件上传的功能。
 
 9. FlashMapManager
 
