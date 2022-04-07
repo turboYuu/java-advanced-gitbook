@@ -56,12 +56,185 @@ Spring MVC 本质可以认为是对 servlet 的封装，简化了我们 servlet 
 
 需求：前端浏览器请求 url：[http://localhost:8080/demo/handle01](http://localhost:8080/demo/handle01)，前端页面显示后台服务器的时间。
 
+[gitee springmvc-demo 代码地址](https://gitee.com/turboYuu/spring-mvc-1-3/tree/master/lab-springmvc/springmvc-demo)。
+
+![image-20220407170745451](assest/image-20220407170745451.png)
+
+![image-20220407170812017](assest/image-20220407170812017.png)
+
+![image-20220407170909055](assest/image-20220407170909055.png)
+
+接下来注意 maven 配置 和 项目路径，就可以了。然后项目打开后，修改 jdk 级别为 11，删除 pom 中 build，增加 java 和 resources 目录（如果不存在的话，并且 正确标记目录）。
+
+接下来：
+
+1. pom
+
+   ```xml
+   <!--引入 spring-webmvc 的依赖-->
+   <dependency>
+       <groupId>org.springframework</groupId>
+       <artifactId>spring-webmvc</artifactId>
+       <version>5.1.12.RELEASE</version>
+   </dependency>
+   <!--配置 tomcat 插件-->
+   <build>
+       <plugins>
+           <plugin>
+               <groupId>org.apache.tomcat.maven</groupId>
+               <artifactId>tomcat-maven-plugin</artifactId>
+               <version>2.2</version>
+               <configuration>
+                   <port>8080</port>
+                   <path>/</path>
+               </configuration>
+           </plugin>
+       </plugins>
+   </build>
+   ```
+
+   引入 spring-webmvc 后，spring的基础jar就都引入了：
+
+   ![image-20220407172237994](assest/image-20220407172237994.png)
+
+2. 新建 DemoController.java
+
+   ```java
+   package com.turbo.controller;
+   
+   import org.springframework.stereotype.Controller;
+   import org.springframework.web.bind.annotation.RequestMapping;
+   import org.springframework.web.servlet.ModelAndView;
+   
+   import java.util.Date;
+   
+   @Controller
+   @RequestMapping("/demo")
+   public class DemoController {
+   
+       /**
+        * url：http://localhost:8080/demo/handle01
+        */
+       @RequestMapping("/handle01")
+       public ModelAndView handle01(){
+           // 服务器时间
+           Date date = new Date();
+           // 返回服务器时间到前端页面
+           // 封装了数据和页面信息的 modelAndView
+           ModelAndView modelAndView = new ModelAndView();
+           // addObject 其实是向请求域中 request.setAttribute("date",date);
+           modelAndView.addObject("date",date);
+           // 视图信息(封装跳转的页面信息) 逻辑视图名 success
+           modelAndView.setViewName("success");
+           return modelAndView;
+       }
+   }
+   ```
+
+3. 增加 springmvc.xml，其实是 spring 的配置文件，现在主要配置 springmvc 相关
+
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <beans xmlns="http://www.springframework.org/schema/beans"
+          xmlns:context="http://www.springframework.org/schema/context"
+          xmlns:mvc="http://www.springframework.org/schema/mvc"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="
+          http://www.springframework.org/schema/beans
+          http://www.springframework.org/schema/beans/spring-beans.xsd
+          http://www.springframework.org/schema/context
+          http://www.springframework.org/schema/context/spring-context.xsd
+          http://www.springframework.org/schema/mvc
+          http://www.springframework.org/schema/mvc/spring-mvc.xsd
+   
+   ">
+   
+       <!--开启controller扫描-->
+       <context:component-scan base-package="com.turbo.controller"></context:component-scan>
+   
+       <!--配置视图解析器 springmvc的组件-->
+       <bean class="org.springframework.web.servlet.view.InternalResourceViewResolver">
+           <property name="prefix" value="/WEB-INF/jsp/"></property>
+           <property name="suffix" value=".jsp"></property>
+       </bean>
+   
+       <!--
+           自动注册最合适的 处理器适配器，处理器映射器
+       -->
+       <mvc:annotation-driven/>
+   
+   
+   </beans>
+   ```
+
+4. 增加 /WEB-INF/jsp/success.jsp
+
+   ```jsp
+   <%--
+     Created by IntelliJ IDEA.
+     User: yutao
+     Date: 2022/4/7
+     Time: 17:58
+     To change this template use File | Settings | File Templates.
+   --%>
+   <%@ page contentType="text/html;charset=UTF-8" language="java" pageEncoding="UTF-8" isELIgnored="false" %>
+   <html>
+   <head>
+       <meta http-equiv="content-type" content="text/html;charset=utf-8">
+       <title>Title</title>
+   </head>
+   <body>
+   跳转成功，服务器时间：${date}
+   </body>
+   </html>
+   
+   ```
+
+5. 配置 web，配置 DispatcherServlet，引入 springmvc.xml
+
+   ```xml
+   <!DOCTYPE web-app PUBLIC
+    "-//Sun Microsystems, Inc.//DTD Web Application 2.3//EN"
+    "http://java.sun.com/dtd/web-app_2_3.dtd" >
+   
+   <web-app>
+     <display-name>Archetype Created Web Application</display-name>
+   
+     <servlet>
+       <servlet-name>springmvc</servlet-name>
+       <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
+       <init-param>
+         <!--指定配置文件的地址-->
+         <param-name>contextConfigLocation</param-name>
+         <param-value>classpath:springmvc.xml</param-value>
+       </init-param>
+     </servlet>
+     <servlet-mapping>
+       <servlet-name>springmvc</servlet-name>
+   
+       <!--
+           推荐使用前两种
+         方式一：带后缀，比如 *.action *.do  *.aaa
+         方式二： / 不会拦截 .jsp
+         方式三：/* 拦截所有,包括 .jsp
+       -->
+       <url-pattern>/</url-pattern>
+     </servlet-mapping>
+   </web-app>
+   ```
+
+6. 启动服务，访问 http://localhost:8080/demo/handle01
+
+   ![image-20220407183808889](assest/image-20220407183808889.png)
+
+   
+
 开发过程：
 
 1. 配置 DispatcherServlet 前端控制器
 2. 开发处理具体业务逻辑的 Handler（@Controller、@RequestMapping）
 3. xml 配置文件配置 controller扫描，配置 SpringMVC 三大件
-4. 将 xml 文件路径告诉 springMVC (DispatcherServlet)
+4. 将 xml 文件路      径告诉 springMVC (DispatcherServlet)
 
 
 
