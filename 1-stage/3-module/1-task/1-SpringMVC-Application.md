@@ -81,6 +81,14 @@ Spring MVC 本质可以认为是对 servlet 的封装，简化了我们 servlet 
 
 ## 2.2 Spring MVC 九大组件
 
+- HandlerMapping（处理器映射器）
+
+  HandlerMapping 是用来查找 Handler 的，也就是处理器，具体的表现形式可以是类，也可以是方法。比如，标注了@RequestMapping的每个方法都可以看成是一个 Hander。Handler 负责具体实际的请求处理，在请求到达后，HandlerMapping的作用便是找到请求相应的处理器 Handler 和 Interceptor。
+
+- HandlerAdapter（处理器适配器）
+
+  HandlerAdapter 
+
 # 3 请求参数绑定（串讲）
 
 
