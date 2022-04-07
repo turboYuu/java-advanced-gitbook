@@ -63,6 +63,22 @@ Spring MVC 本质可以认为是对 servlet 的封装，简化了我们 servlet 
 
 ## 2.1 Spring MVC 请求处理流程
 
+![image-20220407125553523](assest/image-20220407125553523.png)
+
+**流程说明**：
+
+1. 用户发送请求至前端控制器 DispatcherServlet。
+2. DispatcherServlet 收到请求调用 HandlerMapping 处理映射器。
+3. 处理器映射根据请求 Url 找到具体的 Handler（后端处理器），生成处理器对象及处理器拦截器（如果有则生成）一并返回DispatcherServlet。
+4. DispatcherServlet 调用 HandlerAdapter 处理器适配器去调用 Handler。
+5. 处理器适配器执行 Handler。
+6. Handler 执行完成给处理器适配器返回 ModelAndView。
+7. 处理适配器向前端控制器返回 ModelAndView，ModelAndView 是 SpringMVC 框架的一个底层对象，包括 Model 和 View。
+8. 前端控制器请求视图解析器去进行视图解析，根据逻辑视图名来解析真正的视图。
+9. 视图解析器向前端返回 view。
+10. 前端控制器进行视图渲染，就是将模型数据（在 ModelAndView 对象中）填充到 request 域。
+11. 前端控制器向用户响应结果。
+
 ## 2.2 Spring MVC 九大组件
 
 # 3 请求参数绑定（串讲）
