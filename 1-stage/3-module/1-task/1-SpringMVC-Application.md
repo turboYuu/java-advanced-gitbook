@@ -91,7 +91,13 @@ Spring MVC 本质可以认为是对 servlet 的封装，简化了我们 servlet 
 
 3. HandlerExceptionResolver
 
+   HandlerExceptionResolver 用于处理 Handler 产生的异常情况。它的作用是根据异常设置 ModelAndView，之后交给渲染方法进行渲染，渲染方法会将 ModelAndView 渲染成页面。
+
 4. ViewResolver
+
+   ViewReslover 即视图解析器，用于将 String 类型的视图和 Locale 解析为 View 类型的视图，只有一个 resolveViewName() 方法。从方法的定义可以看出，Controller层返回的 String 类型视图名 viewName 最终在这里被解析成 View。View 是用来渲染页面的，也就是说，它会将程序返回的参数和数据填入模板中，生成 html 文件。
+
+   ViewResolver 在这个过程主要完成两件事情：ViewResolver 找到渲染所用的模板（第一件事）和 所用的技术（第二件事，其实就是找到视图的类型，如 JSP）并填入参数。默认情况下，SPring MVC 会自动为我们配置一个 InternalResourceViewReslover，是针对 JSP 类型视图的。
 
 5. RequestToViewNameTranslator
 
