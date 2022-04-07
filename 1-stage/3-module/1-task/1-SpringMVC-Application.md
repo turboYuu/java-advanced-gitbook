@@ -50,7 +50,12 @@ Spring MVC 本质可以认为是对 servlet 的封装，简化了我们 servlet 
 
 # 2 Spring Web MVC 工作流程
 
+需求：前端浏览器请求 url：[http://localhost:8080/demo/handle01](http://localhost:8080/demo/handle01)，前端页面显示后台服务器的时间。
 
+开发过程：
+
+1. 配置 DispatcherServlet 前端控制器
+2. 
 
 ## 2.1 Spring MVC 请求处理流程
 
