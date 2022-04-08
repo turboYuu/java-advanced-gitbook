@@ -684,6 +684,29 @@ http://localhost:8080/demo/handle03?id=1
 // url中定义了动作（操作）参数具体锁定到操作的是谁
 ```
 
+有了 rest 风格之后，rest中，认为互联网中的所有东西都是资源，既然是资源就会有一个唯一的 uri 标识它，代表它 http://localhost:8080/user/3 代表的是 id 为 3 的那个用户记录（资源）
+
+锁定资源之后如何操作它？常规操作就是增删改查，根据请求方式不同，代表要做不同的操作：
+
+```xml
+get 查询，获取资源
+post 增加，新建资源
+put 更新
+delete 删除资源
+```
+
+rest 风格带来的只管体现：就是传递参数方式的变化，参数可以在 uri 中了。
+
+URL：资源定位符，通过 URL 地址去定位互联网中的资源（抽象的概念，比如 图片、视频、app 服务等）。
+
+**RESTful 风格 URL**：互联网所有的事物都是资源，要求 URL 中只有表示资源的名称，没有动词。
+
+**RESTful 风格资源操作**：使用 HTTP 请求中的 method 方法 put、delete、post、get 来操作资源。分别对应更新、删除、增加、查询。不过一般使用时还是 post 和 get，put 和 delete 几乎不使用。
+
+**RESTful 风格资源表述**：可以根据需求对 URL 定位的资源返回不同的表述（也就是返回数据类型，比如 XML，JSON 等数据格式）。
+
+Spring MVC 支持 RESTful 风格请求，具体讲的就是使用 **`@PathVariable`** 注解获取 RESTful 风格请求 URL 中的路径变量。
+
 
 
 # 7 Ajax Json 交互
