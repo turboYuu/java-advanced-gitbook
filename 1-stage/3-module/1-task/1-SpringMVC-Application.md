@@ -242,6 +242,8 @@ Spring MVC 本质可以认为是对 servlet 的封装，简化了我们 servlet 
 
 ![image-20220407125553523](assest/image-20220407125553523.png)
 
+处理器映射器、处理器适配器、视图解析器 是 SpringMVC的三个核心组件。
+
 **流程说明**：
 
 1. 用户发送请求至前端控制器 DispatcherServlet。
@@ -298,7 +300,131 @@ Spring MVC 本质可以认为是对 servlet 的封装，简化了我们 servlet 
 
 
 
-# 3 请求参数绑定（串讲）
+# 3 DispatcherServlet 中 url-pattern
+
+```xml
+<!--
+        推荐使用前两种
+      方式一：带后缀，比如 *.action *.do  *.aaa
+              该种方式比较精确，方便，在以前和现在企业中都有很大的使用比例
+      方式二：/ 不会拦截 .jsp；
+             但是会拦截 .html 等静态资源（静态资源：除了jsp和servlet之外的 js、css、png等）
+
+             为什么配置为 / 会拦截静态资源 ？
+                因为 tomcat 容器中有一个web.xml(父)，你的项目中也有一个 web.xml(子)，是一个继承关系
+                父 web.xml 中有一个 DefaultServlet, url-pattern 是一个 /
+                此时我们自己的 web.xml 中也配置了一个 /，覆写了父 web.xml 的配置
+             为什么不拦截 .jsp 呢？
+                因为父 web.xml 中有一个 JspServlet，这个 servlet 拦截 .jsp 文件，而 我们并没有覆写这个配置
+                所以 springmvc 此时不拦截 .jsp，jsp 的处理交给了 tomcat
+
+
+            如何解决拦截静态资源这件事？
+              在 springmvc.xml 中进行配置
+
+
+      方式三：/* 拦截所有,包括 .jsp
+    -->
+<!--拦截匹配规则的url请求，进入springmvc框架处理-->
+<url-pattern>/</url-pattern>
+```
+
+配置为 / 时，如何解决拦截静态资源这件事，配置 springmvc.xml ：
+
+```xml
+<!--静态资源配置，方案一-->
+    <!--
+        原理：添加该标签之后，会在 springmvc上下文中定义一个 DefaultServletHttpRequestHandler 对象，
+        这个对象如同一个检查人员，对进入 DispatcherServlet 的 url 请求进行过滤，如果发现是一个静态资源请求
+        那么会把请求转由 web 应用服务器（tomcat）默认的 DefaultServlet，如果不是静态资源请求 ，那么继续由
+        SpringMVC 框架处理。
+        局限：静态资源只能放在 webapp 的根目录下
+    -->
+    <mvc:default-servlet-handler/>
+
+    <!--静态资源配置，方案二：SpringMVC 框架自己处理静态资源
+        mapping:静态资源约定的url规则
+        location：指定的静态资源的存放位置
+    -->
+    <mvc:resources location="/,classpath:/" mapping="/resources/**" />
+```
+
+
+
+![image-20220408112047452](assest/image-20220408112047452.png)
+
+
+
+# 4 BindingAwareModelMap
+
+```java
+/**
+     *  SpringMVC 在 handler 方法上传入 Map、Model 和 ModelMap 参数，并向这些参数中保存数据（放入到请求域），都可以在页面获取到
+     *
+     *  它们之间是什么关系？
+     *  运行时的具体类型都是 BindingAwareModelMap，相当于给它 BindingAwareModelMap 保存的数据 都会放在请求域中
+     *
+     *  Map (jdk 中的接口)
+     *  Model (spring的接口)
+     *  ModelMap（class,Map接口的实现）
+     *
+     *  BindingAwareModelMap 继承了 ExtendedModelMap，ExtendedModelMap继承了 ModelMap，实现了 Model 接口
+     */
+
+    /**
+     * 直接声明形参ModelMap,封装数据
+     * url：http://localhost:8080/demo/handle11
+     *
+     * ==========ModelMap: class org.springframework.validation.support.BindingAwareModelMap
+     */
+@RequestMapping("/handle11")
+public String handle11(ModelMap modelMap){
+    // 服务器时间
+    Date date = new Date();
+    modelMap.addAttribute("date",date);
+    System.out.println("==========ModelMap: "+modelMap.getClass());
+    return "success";
+}
+
+
+/**
+     * 直接声明形参Model,封装数据
+     * url：http://localhost:8080/demo/handle12
+     *
+     * ==========Model: class org.springframework.validation.support.BindingAwareModelMap
+     */
+@RequestMapping("/handle12")
+public String handle12(Model model){
+    // 服务器时间
+    Date date = new Date();
+    model.addAttribute("date",date);
+    System.out.println("==========Model: "+model.getClass());
+    return "success";
+}
+
+/**
+     * 直接声明形参 Map,封装数据
+     * url：http://localhost:8080/demo/handle13
+     *
+     * ==========Map: class org.springframework.validation.support.BindingAwareModelMap
+     */
+@RequestMapping("/handle13")
+public String handle13(Map<String,Object> map){
+    // 服务器时间
+    Date date = new Date();
+    map.put("date",date);
+    System.out.println("==========Map: "+map.getClass());
+    return "success";
+}
+```
+
+使用 SpringMVC 在 handler 方法上传入 Map、Model 和 ModelMap 参数，并向这些参数中保存数据（放入到请求域），都可以在页面获取到。运行时的具体类型都是 BindingAwareModelMap，相当于给它 BindingAwareModelMap 保存的数据 都会放在请求域中。
+
+BindingAwareModelMap 的类图：
+
+![image-20220408124931932](assest/image-20220408124931932.png)
+
+# 5 请求参数绑定（串讲）
 
 - 默认支持 Servlet API 作为方法参数
 - 绑定简单类型参数
@@ -306,14 +432,14 @@ Spring MVC 本质可以认为是对 servlet 的封装，简化了我们 servlet 
 - 绑定 pojo 包装类型参数
 - 绑定日期类型参数（需要配置自定义类型转换器）
 
-# 4 对 Restful 风格请求支持
+# 6 对 Restful 风格请求支持
 
-## 4.1 什么是 Restful
+## 6.1 什么是 Restful
 
-# 5 Ajax Json 交互
+# 7 Ajax Json 交互
 
-## 5.1 什么是 Json
+## 7.1 什么是 Json
 
-## 5.2 @ResponseBody 注解
+## 7.2 @ResponseBody 注解
 
-## 5.2 分析 Spring MVC 使用 Json 交互
+## 7.2 分析 Spring MVC 使用 Json 交互
