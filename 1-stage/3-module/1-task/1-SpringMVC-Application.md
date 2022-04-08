@@ -426,15 +426,257 @@ BindingAwareModelMap 的类图：
 
 # 5 请求参数绑定（串讲）
 
+请求参数绑定：简单说就是 SpringMVC 如何接收请求参数。
+
+```java
+// 原生 servlet 接收一个整型参数
+// 浏览器向后端服务器发送请求使用 http协议（超文本传输协议）
+1. String ageStr = request.getParamter("age");
+2. Integer age = Integer.parseInt(ageStr)
+```
+
+```java
+// SpringMVC 框架是对 Servlet 的封装，简化了 servlet 的很多操作
+// SpingMVC 在接收整型参数的时候，直接在 Hander 方法中声明形参即可
+
+@RequestMapping
+public String handler(Integer age){
+    System.out.print(age)
+}
+// 参数绑定：取出参数值绑定到 handler 方法的形参上
+```
+
+[gitee 代码地址](https://gitee.com/turboYuu/spring-mvc-1-3/blob/master/lab-springmvc/springmvc-demo/src/main/webapp/index.jsp)
+
 - 默认支持 Servlet API 作为方法参数
+
+  当需要使用 HttpServletRequest \ HttpServletResponse \ HttpSession 等原生Servlet，直接在 Handler 方法形参中声明即可.
+
+  ```java
+  /**
+  * Spring MVC 对原生servlet api 的支持，url:/demo/handle02?id=1
+  *
+  * 如果要在 Spring MVC 中使用servlet原生对象，比如 HttpServletRequest \ HttpServletResponse \ HttpSession ，直接在 Handler 方法形参中声明即可
+  * @param request
+  * @param response
+  * @return
+  */
+  @RequestMapping("/handle02")
+  public ModelAndView handle02(HttpServletRequest request, HttpServletResponse response, HttpSession session){
+      String id = request.getParameter("id");
+  
+      Date date = new Date();
+      ModelAndView modelAndView = new ModelAndView();
+      modelAndView.addObject("date",date);
+      modelAndView.setViewName("success");
+      return modelAndView;
+  }
+  ```
+
+  
+
 - 绑定简单类型参数
+
+  简单数据类型：八种基本数据类型及其包装类型
+
+  参数类型推荐使用包装数据类型，因为基础数据类型不可以为 null
+
+  整型：Integer、int
+
+  字符串：String
+
+  单精度：Float、float
+
+  双精度：Double、double
+
+  布尔型：Boolean、boolean
+
+  说明：对于布尔类型的参数，**请求的参数值为 true 或 false。或者 1 或 0**
+
+  注意：绑定简单数据类型参数，只需要直接声明形参即可（形参参数名和传递的参数名要保持一致，建议 使用包装类型，当形参参数名和传递参数名不一致时可以使用 **`@RequestParam`** 注解进行手动映射）
+
+  ```java
+  /**
+  * Spring MVC 接收简单数据类型参数，url:/demo/handle03?id=1
+  *                                     /demo/handle03?ids=1&flag=1
+  *                                     /demo/handle03?ids=1&flag=false
+  *
+  * 注意：接收简单的数据类型参数，直接在 handler 方法的形参中声明即可。框架会取出参数值然后绑定到对应参数上
+  * 要求：传递的参数名 和声明的形参名称保持一致
+  * @param id
+  * @return
+  */
+  @RequestMapping("/handle03")
+  public ModelAndView handle03(@RequestParam("ids") Integer id,Boolean flag){
+  
+      Date date = new Date();
+      ModelAndView modelAndView = new ModelAndView();
+      modelAndView.addObject("date",date);
+      modelAndView.setViewName("success");
+      return modelAndView;
+  }
+  ```
+
+  
+
+  
+
 - 绑定 pojo 类型参数
+
+  ```java
+  /**
+  * SpringMVC接收pojo类型参数  url：/demo/handle04?id=1&username=zhangsan
+  *
+  * 接收 pojo 类型参数，直接形参声明即可，类型就是 pojo 的类型，形参名五所谓
+  * 但是要求传递的参数名必须和 pojo 的属性名保持一致
+  */
+  @RequestMapping("/handle04")
+  public ModelAndView handle04(User user){
+      Date date = new Date();
+      ModelAndView modelAndView = new ModelAndView();
+      modelAndView.addObject("date",date);
+      modelAndView.setViewName("success");
+      return modelAndView;
+  }
+  ```
+
+  
+
 - 绑定 pojo 包装类型参数
+
+  包装类型 [QueryVo]()
+
+  ```java
+  /**
+  * SpringMVC接收pojo包装类型参数  url：/demo/handle05?user.id=1&user.username=zhangsan
+  *
+  * 不管包装 pojo与否，它首先是一个 pojo，那么就可以按照上述 pojo 的要求来
+  * 1. 绑定时直接声明形参即可
+  * 2. 传参参数名和 pojo 属性保持一致，如果不能够定义数据项，那么通过属性名 + "." 的方式进一步锁定数据
+  */
+  @RequestMapping("/handle05")
+  public ModelAndView handle05(QueryVo queryVo){
+      Date date = new Date();
+      ModelAndView modelAndView = new ModelAndView();
+      modelAndView.addObject("date",date);
+      modelAndView.setViewName("success");
+      return modelAndView;
+  }
+  ```
+
+  
+
 - 绑定日期类型参数（需要配置自定义类型转换器）
 
-# 6 对 Restful 风格请求支持
+  - handler方法
 
-## 6.1 什么是 Restful
+    ```java
+    /**
+    * 绑定日期类型参数
+    * 定义一个SpringMVC的类型转换器  接口，扩展实现接口接口，注册你的实现
+    * @param birthday
+    * @return
+    */
+    @RequestMapping("/handle06")
+    public ModelAndView handle06(Date birthday) {
+        Date date = new Date();
+        ModelAndView modelAndView = new ModelAndView();
+        modelAndView.addObject("date",date);
+        modelAndView.setViewName("success");
+        return modelAndView;
+    }
+    ```
+
+  - 自定义类型转换器
+
+    ```java
+    package com.turbo.converter;
+    
+    import org.springframework.core.convert.converter.Converter;
+    
+    import java.text.ParseException;
+    import java.text.SimpleDateFormat;
+    import java.util.Date;
+    
+    /**
+     * S:source，源类型
+     * T:target，目标类型
+     */
+    public class DateConverter implements Converter<String, Date> {
+        @Override
+        public Date convert(String s) {
+            // 完成字符串向日期的转换
+            SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd");
+            try {
+                Date parse = simpleDateFormat.parse(s);
+                return parse;
+            } catch (ParseException e) {
+                e.printStackTrace();
+            }
+            return null;
+        }
+    }
+    ```
+
+  - 注册自定义类型转换器
+
+    springmvc.xml
+
+    ```xml
+    <!--
+      自动注册最合适的 处理器适配器，处理器映射器(调用 handler 方法)
+    -->
+    <mvc:annotation-driven conversion-service="conversionServiceBean"/>
+    
+    <!--注册自定义类型转换器-->
+    <bean id="conversionServiceBean" class="org.springframework.format.support.FormattingConversionServiceFactoryBean">
+        <property name="converters">
+            <set>
+                <bean class="com.turbo.converter.DateConverter"></bean>
+            </set>
+        </property>
+    </bean>
+    ```
+
+    
+
+# 6 对 RESTful 风格请求支持
+
+- rest 风格请求是什么样的？
+
+- springMVC 对 rest 风格请求到底提供了怎样的支持
+
+  是一个注解的使用 **`@PathVariable`**，可以帮助我们从 uri 中取出参数
+
+## 6.1 什么是 RESTful
+
+Restful 是一种 web 软件架构风格，它不是标准也不是协议，它倡导的是一个资源定位及资源操作的风格。
+
+**什么是 REST**：
+
+REST（英文：[Representational State Transfer](https://en.wikipedia.org/wiki/Representational_state_transfer)，简称 REST）描述了一个架构样式的网络系统，比如 web 应用程序。它首次出现在 2000 年 [Roy Fielding](https://en.wikipedia.org/wiki/Roy_Fielding) 的博士论文中，他是 HTTP 规范的主要编写者之一。在目前主流的三种 Web 服务交互方案中，REST 相比于 SOAP（Simple Object Access Protocol，简单对象访问协议）以及 XML-RPC 更加简单明了，无论是对 URL 的处理还是对 Payload 的编码，REST 都倾向于更加简单轻量的方法设计和实现。值得注意的是 REST 并没有一个明确的标准，而更像是一种设计的风格。
+
+它本身并没有什么实用性，其核心价值在于如何设计出符合 REST 风格的网络接口。
+
+## 6.2 RESTful 的优点
+
+它结构清晰，符合标准，易于理解，扩展方便。所以得到越来越多网站的采用。
+
+## 6.3 RESTful 的特性
+
+- 资源（Resources）：网络上的一个实体，或者说是网络上的一个具体信息。
+
+  它可以是一段文本、一账图片、一首歌曲，一种服务，总之就是一个具体的存在，可以用一个 URI（统一资源定位符）指向它，每种资源对应一个特定的 URI。要获取这个资源，访问它的 URI 就可以，因此 URI 即为每一个资源的独一无二的识别符。
+
+- 表现层（Representation）：把资源具体呈现出来的形式，叫做它的表现层（Representation）。比如，文本可以用 txt 格式表现，也可以用 HTML 格式、XML 格式、JSON 格式表现，甚至可以采用二进制格式。
+
+- 状态转化（State Transfer）：每发出一个请求，就代表客户端和服务器的一次交互过程。
+
+  HTTP 协议是一个无状态协议，即所有的状态都保存在服务器端。因此，如果客户端想要操作服务器，必须通过某种手段，让服务器发生 “状态变化”（State Transfer）。而这种转化是建立在表现层之上的，所以就是 “表现层状态转化”。具体说，就是 HTTP 协议里面，四个表示操作方式的动词：GET、POST、PUT、DELETE。它们分别对应四种基本操作：GET 用来获取资源，POST 用来新建资源，PUT 用来更新资源，DELETE 用来删除资源。
+
+## 6.4 RESTful 示例
+
+REST 是一个请求风格，
 
 # 7 Ajax Json 交互
 
