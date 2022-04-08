@@ -676,7 +676,15 @@ REST（英文：[Representational State Transfer](https://en.wikipedia.org/wiki/
 
 ## 6.4 RESTful 示例
 
-REST 是一个请求风格，
+REST 是一个请求风格，基于这种请求风格设计 url
+
+```java
+// 没有rest的话，原有的url设计
+http://localhost:8080/demo/handle03?id=1
+// url中定义了动作（操作）参数具体锁定到操作的是谁
+```
+
+
 
 # 7 Ajax Json 交互
 
