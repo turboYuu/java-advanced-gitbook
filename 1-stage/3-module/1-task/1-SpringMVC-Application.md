@@ -825,23 +825,83 @@ Spring MVC 支持 RESTful 风格请求，具体讲的就是使用 **`@PathVariab
 - 需要的依赖
 
   ```xml
-  
+  <!--json 数据交互所需 jar，start-->
+  <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-core</artifactId>
+      <version>2.9.0</version>
+  </dependency>
+  <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.9.0</version>
+  </dependency>
+  <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-annotations</artifactId>
+      <version>2.9.0</version>
+  </dependency>
+  <!--json 数据交互所需 jar，end-->
   ```
 
 - 前端 jsp 页面 及 js 代码
 
   ```jsp
-  
+  <div>
+      <h2>Ajax 交互</h2>
+      <fieldset>
+          <input type="button" id="ajaxBtn" value="提交" />
+      </fieldset>
+  </div>
   ```
 
   ```js
-  
+  <%--因为 web.xml 中的 servlet 的 url-pattern 配置为 /，会拦截静态资源，
+          那么就需要在 springmvc.xml 中增加静态资源映射配置 --%>
+  <script type="text/javascript" src="/js/jquery-2.1.4.min.js"></script>
+  <script>
+      $(function () {
+      $("#ajaxBtn").bind("click",function () {
+          $.ajax({
+              url: '/demo/handle07',
+              type: 'POST',//请求参数封装到请求体中
+              data: '{"id":"1","name":"李四"}',
+              contentType: 'application/json;charset=utf-8',
+              dataType: 'json',//返回数据为json格式
+              success: function (data) {
+                  alert(data.name);
+              }
+          })
+      })
+  })
+  </script>
+  ```
+
+  springmvc.xml
+
+  ```xml
+  <!--静态资源配置，方案二：SpringMVC 框架自己处理静态资源
+          mapping:静态资源约定的url规则
+          location：指定的静态资源的存放位置
+  -->
+  <mvc:resources location="/WEB-INF/js/" mapping="/js/**" />
   ```
 
 - 后台 Handler 方法
 
   ```java
-  
+  /**
+   * 添加@ResponseBody之后，在使⽤此注解之 后不会再⾛视图处理器，
+   * ⽽是直接将数据写⼊到输⼊流中，他的效果等同于通过response对象输出指定 格式的数据。
+  * */
+  @PostMapping("/handle07")
+  // @ResponseBody
+  public @ResponseBody User handle07(@RequestBody User user) {
+      //业务逻辑处理
+      user.setName("漳卅");
+      return user;
+  }
   ```
 
-  
+
+
