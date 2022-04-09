@@ -221,4 +221,57 @@ public ModelAndView upload(MultipartFile uploadFile,HttpSession session) throws 
 
 # 3 在控制器中处理异常
 
+[SpringMVC 的异常处理机制（异常处理器）](https://gitee.com/turboYuu/spring-mvc-1-3/blob/master/lab-springmvc/springmvc-demo/src/main/java/com/turbo/controller/DemoController.java)
+
+```java
+@Controller
+@RequestMapping("/demo")
+public class DemoController {
+
+
+    /**
+     * SpringMVC 的异常处理机制（异常处理器）
+     * 注意：写在这里只会对当前 controller 类生效
+     */
+    @ExceptionHandler(ArithmeticException.class)
+    public void handleException(ArithmeticException exception,HttpServletResponse response){
+        // 异常处理逻辑
+        try {
+            response.getWriter().write(exception.getMessage());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+[优雅的捕获所有 Controller 对象handler方法抛出的异常](https://gitee.com/turboYuu/spring-mvc-1-3/blob/master/lab-springmvc/springmvc-demo/src/main/java/com/turbo/controller/GlobalExceptionResolver.java)
+
+```java
+package com.turbo.controller;
+
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.servlet.ModelAndView;
+
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+
+/**
+ * 可以优雅的捕获所有 Controller 对象handler方法抛出的异常
+ */
+@ControllerAdvice
+public class GlobalExceptionResolver {
+    @ExceptionHandler(ArithmeticException.class)
+    public ModelAndView handleException(ArithmeticException exception, HttpServletResponse response){       
+        ModelAndView modelAndView = new ModelAndView();
+        modelAndView.addObject("msg",exception.getMessage());
+        modelAndView.setViewName("error");
+        return modelAndView;
+    }
+}
+```
+
+
+
 # 4 基于 Flash 属性的跨重定向请求数据传递
