@@ -680,11 +680,11 @@ REST 是一个请求风格，基于这种请求风格设计 url
 
 ```java
 // 没有rest的话，原有的url设计
-http://localhost:8080/demo/handle03?id=1
+http://localhost:8080/user/queryUserById?id=1
 // url中定义了动作（操作）参数具体锁定到操作的是谁
 ```
 
-有了 rest 风格之后，rest中，认为互联网中的所有东西都是资源，既然是资源就会有一个唯一的 uri 标识它，代表它 http://localhost:8080/user/3 代表的是 id 为 3 的那个用户记录（资源）
+有了 rest 风格之后，rest中，认为互联网中的所有东西都是资源，既然是资源就会有一个唯一的 uri 标识它，代表它 http://localhost:8080/user/3 代表的是 id 为 3 的那个用户记录（资源）。
 
 锁定资源之后如何操作它？常规操作就是增删改查，根据请求方式不同，代表要做不同的操作：
 
