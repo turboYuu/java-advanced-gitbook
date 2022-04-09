@@ -709,7 +709,103 @@ Spring MVC 支持 RESTful 风格请求，具体讲的就是使用 **`@PathVariab
 
 
 
+**示例代码**：
+
+- [前端 jsp 页面](https://gitee.com/turboYuu/spring-mvc-1-3/blob/master/lab-springmvc/springmvc-demo/src/main/webapp/index.jsp)
+
+- 后端Handler 方法
+
+  ```java
+  /*
+  * restful  get   /demo/handle/15
+  */
+  @RequestMapping(value = "/handle/{id}",method = {RequestMethod.GET})
+  public ModelAndView handleGet(@PathVariable("id") Integer id) {
+  
+      Date date = new Date();
+      ModelAndView modelAndView = new ModelAndView();
+      modelAndView.addObject("date",date);
+      modelAndView.setViewName("success");
+      return modelAndView;
+  }
+  
+  /*
+  * restful  post  /demo/handle
+  */
+  @RequestMapping(value = "/handle",method = {RequestMethod.POST})
+  public ModelAndView handlePost(String username) {
+  
+      Date date = new Date();
+      ModelAndView modelAndView = new ModelAndView();
+      modelAndView.addObject("date",date);
+      modelAndView.setViewName("success");
+      return modelAndView;
+  }
+  
+  
+  /*
+  * restful  put  /demo/handle/15/lisi
+  */
+  @RequestMapping(value = "/handle/{id}/{name}",method = {RequestMethod.PUT})
+  public ModelAndView handlePut(@PathVariable("id") Integer id,@PathVariable("name") String username) {
+  
+      Date date = new Date();
+      ModelAndView modelAndView = new ModelAndView();
+      modelAndView.addObject("date",date);
+      modelAndView.setViewName("success");
+      return modelAndView;
+  }
+  
+  
+  /*
+  * restful  delete  /demo/handle/15
+  */
+  @RequestMapping(value = "/handle/{id}",method = {RequestMethod.DELETE})
+  public ModelAndView handleDelete(@PathVariable("id") Integer id) {
+  
+      Date date = new Date();
+      ModelAndView modelAndView = new ModelAndView();
+      modelAndView.addObject("date",date);
+      modelAndView.setViewName("success");
+      return modelAndView;
+  }
+  ```
+
+- web.xml中配置 请求方式过滤器（将特定的post请求转换为 put 和 delete 请求）
+
+  ```xml
+  <!--springmvc 提供的针对 post 请求的编码过滤器-->
+  <filter>
+      <filter-name>encoding</filter-name>
+      <filter-class>org.springframework.web.filter.CharacterEncodingFilter</filter-class>
+      <init-param>
+          <param-name>encoding</param-name>
+          <param-value>utf-8</param-value>
+      </init-param>
+  </filter>
+  
+  <!--springmvc 请求方式转换过滤器,会检查请求参数中是否有 _method,如果有就按照指定的请求方式进行转换-->
+  <filter>
+      <filter-name>hiddenHttpMethodFilter</filter-name>
+      <filter-class>org.springframework.web.filter.HiddenHttpMethodFilter</filter-class>
+  </filter>
+  
+  <filter-mapping>
+      <filter-name>encoding</filter-name>
+      <url-pattern>/*</url-pattern>
+  </filter-mapping>
+  
+  <filter-mapping>
+      <filter-name>hiddenHttpMethodFilter</filter-name>
+      <url-pattern>/*</url-pattern>
+  </filter-mapping>
+  ```
+
+  
+
 # 7 Ajax Json 交互
+
+
 
 ## 7.1 什么是 Json
 
