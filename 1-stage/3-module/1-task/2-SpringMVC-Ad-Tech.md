@@ -275,3 +275,34 @@ public class GlobalExceptionResolver {
 
 
 # 4 基于 Flash 属性的跨重定向请求数据传递
+
+重定向时请求参数会丢失，我们往往需要重新写到请求参数，我们可以进行手动参数拼接如下：
+
+```java
+return "redirect:handle01?name="+name;
+```
+
+但是上述拼接参数的方法属于 get 请求，携带参数长度有限制，参数安全性也不高。此时，我们可以使用SpringMVC 提供的 flash 属性机制，向上下文中添加 flash 属性，框架会在 session 中记录该属性值，当跳转到页面之后框架会自动删除 flash 属性，不需要我们手动删除，通过这种方法进行重定向参数传递，参数长度和安全性都得到了保障，如下：
+
+[代码地址](https://gitee.com/turboYuu/spring-mvc-1-3/blob/master/lab-springmvc/springmvc-demo/src/main/java/com/turbo/controller/DemoController.java)
+
+```java
+/**
+ * SpringMVC 重定向时参数传递的问题
+ * 转发：A 向 B 借钱 400，B 没有钱但是悄悄地找到 C 借了 400，给A
+ *      url 不会变，参数也不会丢失，一个请求
+ * 重定向：A 找 B 借钱 400,B 说我没有钱，你找别人借去，那么 A 又带着400块地借钱需求找到C
+ *        url 会变，参数会丢失需要重新携带参数，两个请求
+ *
+ *        localhost:8080/demo/handleRedirect?name=yuuu
+*/
+@RequestMapping("/handleRedirect")
+public String handleRedirect(String name, RedirectAttributes redirectAttributes){
+
+    // return "redirect:handle01?name="+name; // 拼接参数安全性，长度都有局限
+
+    // addFlashAttribute 方法 设置了一个 flash 类型属性，该属性会被暂存到 session 中，在跳转到页面之后该属性销毁
+    redirectAttributes.addFlashAttribute("name",name);
+    return "redirect:handle01";
+}
+```
