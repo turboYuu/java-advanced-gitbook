@@ -132,6 +132,93 @@ public class MyInterceptor01 implements HandlerInterceptor {
 
 # 2 处理 multipart 形式的数据
 
+文件上传
+
+原生 servlet 可以处理上传文件数据的，SpringMVC 又是对 Servlet 的封装
+
+所需 jar 包
+
+```xml
+<!--文件上传所需 jar 坐标-->
+<dependency>
+    <groupId>commons-fileupload</groupId>
+    <artifactId>commons-fileupload</artifactId>
+    <version>1.3.1</version>
+</dependency>
+```
+
+前端 Form
+
+```jsp
+<div>
+    <h2>multipart 文件上传</h2>
+    <fieldset>
+        <%--
+            1. method="post"
+            2. enctype="multipart/form-data"
+            3. type="file"
+    	--%>
+        <form method="post" enctype="multipart/form-data" action="/demo/upload">
+            <input type="file" name="uploadFile"/>
+            <input type="submit" value="上传"/>
+        </form>
+    </fieldset>
+</div>
+```
+
+[后台接收 Handler](https://gitee.com/turboYuu/spring-mvc-1-3/blob/master/lab-springmvc/springmvc-demo/src/main/java/com/turbo/controller/DemoController.java)
+
+```java
+/**
+     * 处理文件上传
+     */
+@RequestMapping(value = "/upload")
+public ModelAndView upload(MultipartFile uploadFile,HttpSession session) throws IOException {
+
+    // 处理上传文件
+    // 重命名,先获取后缀名
+    String originalFilename = uploadFile.getOriginalFilename(); // 原始名称
+    // 扩展名
+    String ex = originalFilename.substring(originalFilename.lastIndexOf(".") + 1, originalFilename.length());
+    String newName = UUID.randomUUID().toString() + "." + ex; // 新名称
+    // 存储,要存储到指定的文件夹 ,/uploads/yyyy-MM-dd, 考虑文件过多的情况，按照日期生成一个子文件夹
+    String realPath = session.getServletContext().getRealPath("/uploads");
+    //
+    String datePath = new SimpleDateFormat("yyyy-MM-dd").format(new Date());
+    //
+    File folder = new File(realPath + "/" + datePath);
+    if (!folder.exists()){
+        folder.mkdirs();
+    }
+
+    // 存储文件到目录
+    uploadFile.transferTo(new File(folder,newName));
+
+    // TODO 存储磁盘路径 更新到数据库字段
+
+
+    Date date = new Date();
+    ModelAndView modelAndView = new ModelAndView();
+    modelAndView.addObject("date",date);
+    modelAndView.setViewName("success");
+    return modelAndView;
+}
+```
+
+配置文件上传解析器
+
+```xml
+<!--多元素解析器
+    id 固定为 multipartResolver
+-->
+<bean id="multipartResolver" class="org.springframework.web.multipart.commons.CommonsMultipartResolver">
+    <!--设置上传文件大小上限，单位是字节，-1 代表没有限制，也是默认的-->
+    <property name="maxUploadSize" value="500000"/>
+</bean>
+```
+
+
+
 # 3 在控制器中处理异常
 
 # 4 基于 Flash 属性的跨重定向请求数据传递
