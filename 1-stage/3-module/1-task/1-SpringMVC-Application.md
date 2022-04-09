@@ -805,10 +805,43 @@ Spring MVC 支持 RESTful 风格请求，具体讲的就是使用 **`@PathVariab
 
 # 7 Ajax Json 交互
 
+交互：两个方向
 
+1. 前端到后端：前端 ajax 发送 json 格式字符串，后台直接接收为 pojo 参数，使用 **`@RequestBody`**
+2. 后台到前端：后台直接返回 pojo ，前端直接接收为 json 对象或者字符串，使用注解 **`@ResponseBody`**
 
 ## 7.1 什么是 Json
 
+[Json](https://www.json.org/json-zh.html) 是一种与语言无关的数据交互格式，就是一种字符串，只是用特殊符号 {} 内表示对象，[] 内表示数组，"" 内表示属性或值，: 表示后者是前者的值。
+
 ## 7.2 @ResponseBody 注解
 
+@ResponseBody 注解的作用是将 controller 的方法返回的对象通过适当的转换器转换为指定的格式之后，写入到 response 对象的 body 区，通常用来返回 JSON 数据或者是 XML 数据。
+
+注意：**在使用此注解之后，不会再走视图处理器**，而是直接将数据写入到输入流中，它的效果等同于通过 response 对象输出指定格式的数据。
+
 ## 7.2 分析 Spring MVC 使用 Json 交互
+
+- 需要的依赖
+
+  ```xml
+  
+  ```
+
+- 前端 jsp 页面 及 js 代码
+
+  ```jsp
+  
+  ```
+
+  ```js
+  
+  ```
+
+- 后台 Handler 方法
+
+  ```java
+  
+  ```
+
+  
