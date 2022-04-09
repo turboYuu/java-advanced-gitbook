@@ -12,7 +12,7 @@
 
   **作用一**：做一些初始化工作，web 应用中 Spring 容器启动时的 监听器 `org.springframework.web.context.ContextLoaderListener`
 
-  **作用二**：监听 web 中的特定事件，比如 HttpSession，ServletRequest 的创建和销毁；变量的创建、销毁和修改等。可以在某些动作前后增加处理，实现监控；比如统计在线人数，利用 HttpSessionListener 等。
+  **作用二**：监听 web 中的特定事件，比如 HttpSession，ServletRequest 的创建和销毁；变量的创建、销毁和修改等。可以在某些动作前后增加处理，实现监控；比如统计在线人数，利用 **HttpSessionListener** 等。
 
 - 拦截器（Interceptor）：是 SpringMVC、Struts 等表现层框架自己的，不会拦截 jsp/html/css/image 等的访问，只会拦截访问的控制器方法（Handler）.
 
@@ -47,13 +47,85 @@
 **示例代码**：
 
 ```java
+package com.turbo.interceptor;
+
+import org.springframework.web.servlet.AsyncHandlerInterceptor;
+import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.servlet.ModelAndView;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+/**
+ * 自定义 springMVC 拦截器
+ */
+public class MyInterceptor01 implements HandlerInterceptor {
+
+    /**
+     * 该方法会在 handler 方法业务逻辑执行之前执行
+     * 往往在这里完成权限校验
+     * @param request
+     * @param response
+     * @param handler
+     * @return 返回值 boolean 代表是否放行，true 代表放行，false代表终止
+     * @throws Exception
+     */
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        System.out.println("MyInterceptor01 preHandle ...");
+        return true;
+    }
+
+
+    /**
+     * 会在 handler 方法业务逻辑执行之后，尚未跳转页面时执行
+     * @param request
+     * @param response
+     * @param handler
+     * @param modelAndView 封装的视图和数据，此时尚未跳转页面，可以在这里针对返回的数据和视图信息进行修改
+     * @throws Exception
+     */
+    @Override
+    public void postHandle(HttpServletRequest request, HttpServletResponse response, Object handler, ModelAndView modelAndView) throws Exception {
+        System.out.println("MyInterceptor01 postHandle ...");
+    }
+
+
+    /**
+     * 页面已经跳转渲染完毕之后执行
+     * @param request
+     * @param response
+     * @param handler
+     * @param ex 可以在这里捕获异常
+     * @throws Exception
+     */
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
+        System.out.println("MyInterceptor01 afterCompletion ...");
+    }
+}
 
 ```
 
 注册 SpringMVC 拦截器：
 
 ```xml
+<mvc:interceptors>
+    <!--拦截所有 handler-->
+    <!--<bean class="com.turbo.interceptor.MyInterceptor01"/>-->
+    <mvc:interceptor>
+        <!--配置当前拦截器的url拦截规则，** 代表当前目录下及其子目录下所有的url-->
+        <mvc:mapping path="/**"/>
+        <!--exclude-mapping 可以在 mapping 的基础上排除一些 url 拦截-->
+        <!--<mvc:exclude-mapping path="/demo/**"/>-->
+        <bean class="com.turbo.interceptor.MyInterceptor01"/>
+    </mvc:interceptor>
 
+    <mvc:interceptor>
+        <mvc:mapping path="/**"/>
+        <bean class="com.turbo.interceptor.MyInterceptor02"/>
+    </mvc:interceptor>
+</mvc:interceptors>
 ```
 
 
