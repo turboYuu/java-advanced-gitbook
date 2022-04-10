@@ -18,6 +18,8 @@
             * [第二部分 Spring MVC 高级技术](1-stage/3-module/1-task/2-SpringMVC-Ad-Tech.md)
             * [第三部分 手写 MVC 框架](1-stage/3-module/1-task/3-Write-MVC-Framework.md)
             * [第四部分 SpringMVC源码深度剖析](1-stage/3-module/1-task/4-SpringMVC-SourceCode-Ana.md)
+            * [第五部分 SSM 整合](1-stage/3-module/1-task/5-SSM-Integrate.md)
+            * [第六部分 附录](1-stage/3-module/1-task/6-SpringMVC-appendix.md)
         * [任务二 SpringData高级应用](1-stage/3-module/2-task/READE.md)
     * [模块四 约定优于配置及Spring Boot源码剖析](1-stage/4-module/README.md)
         * [第一部分 SpringBoot应用回顾](1-stage/4-module/1-SpringBoot-review.md)
