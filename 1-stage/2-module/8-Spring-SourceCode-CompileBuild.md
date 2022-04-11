@@ -1,4 +1,4 @@
-第八部分 Spring 源码编译和环境搭建
+	第八部分 Spring 源码编译和环境搭建
 
 # 1 工具
 
@@ -57,7 +57,7 @@ https://services.gradle.org/distributions/
 
 **注意：gradle开始进行源码项目构建的时候，会自动下载默认gradle版本进行项目构建，此时，强制结束下载进程**
 
-修改 build.gradle ，将仓库源改为阿里源，这样下载构建速度更快
+修改 build.gradle ，将仓库源改为阿里源，这样下载构建速度更快（非必要）
 
 ![image-20220401010438047](assest/image-20220401010438047.png)
 
@@ -152,6 +152,10 @@ aop	    ⼯程  —>tasks  —>other  —>compileTestJava
 
 在当前项目中添加 spring-context 依赖
 
+```xml
+compile(project(":spring-context"))
+```
+
 ![image-20220401012846196](assest/image-20220401012846196.png)
 
 
@@ -161,6 +165,8 @@ aop	    ⼯程  —>tasks  —>other  —>compileTestJava
 ![image-20220401014026201](assest/image-20220401014026201.png)
 
 编写配置文件
+
+![image-20220411181634899](assest/image-20220411181634899.png)
 
 ![image-20220401014100771](assest/image-20220401014100771.png)
 
