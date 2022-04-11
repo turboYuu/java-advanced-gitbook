@@ -202,9 +202,116 @@ doDispatch 方法中的 1041 行 ha.handle 代码完成 handler 方法调用。
 
 ## 2.2 页面渲染时机
 
+![image-20220411111510520](assest/image-20220411111510520.png)
 
 
-SpringMVC 处理请求的流程即为 org.springframework.web.servlet.DispatcherServlet#doDispatch 方法的执行过程，
+
+## 2.3 总结
+
+SpringMVC 处理请求的流程即为 org.springframework.web.servlet.DispatcherServlet#doDispatch 方法的执行过程，其中步骤 2，3，4，5 是核心步骤
+
+1. 调用 getHandler() 获取到能够处理当前请求的执行链 HandlerExecutionChain （Handler + 拦截器），但如何去 getHandler的？后面分析。
+2. 调用 getHandlerAdapter() ，获取能够执行 1 中的 Handler 的适配器。但是如何去 getHandlerAdapter 的？后面分析。
+
+```java
+// org.springframework.web.servlet.DispatcherServlet#doDispatch
+protected void doDispatch(HttpServletRequest request, HttpServletResponse response) throws Exception {
+    HttpServletRequest processedRequest = request;
+    HandlerExecutionChain mappedHandler = null;
+    boolean multipartRequestParsed = false;
+
+    WebAsyncManager asyncManager = WebAsyncUtils.getAsyncManager(request);
+
+    try {
+        ModelAndView mv = null;
+        Exception dispatchException = null;
+
+        try {
+            // 1 检查是否是文件上传的请求
+            processedRequest = checkMultipart(request);
+            multipartRequestParsed = (processedRequest != request);
+
+            // Determine handler for the current request.
+            /**
+				 * 2 取得处理当前请求的 Controller,这里也称为 Handler，即 处理器
+				 * 这里并不是直接返回 Controller，而是返回 HandlerExecutionChain ，请求处理链对象
+				 * 该对象 封装了 Handler 和 Interceptor
+				 */
+            mappedHandler = getHandler(processedRequest);
+            if (mappedHandler == null) {
+                // 如果 handler 为空，则返回 404
+                noHandlerFound(processedRequest, response);
+                return;
+            }
+
+            // Determine handler adapter for the current request.
+            // 3 获取处理请求的处理器适配器 HandlerAdapter
+            HandlerAdapter ha = getHandlerAdapter(mappedHandler.getHandler());
+
+            // Process last-modified header, if supported by the handler.
+            // 处理 last-modified 请求头
+            String method = request.getMethod();
+            boolean isGet = "GET".equals(method);
+            if (isGet || "HEAD".equals(method)) {
+                long lastModified = ha.getLastModified(request, mappedHandler.getHandler());
+                if (new ServletWebRequest(request, response).checkNotModified(lastModified) && isGet) {
+                    return;
+                }
+            }
+
+            if (!mappedHandler.applyPreHandle(processedRequest, response)) {
+                return;
+            }
+
+            // Actually invoke the handler.
+            // 4 实际处理器处理请求，返回结果视图对象
+            mv = ha.handle(processedRequest, response, mappedHandler.getHandler());
+
+            if (asyncManager.isConcurrentHandlingStarted()) {
+                return;
+            }
+            // 结果视图对象的处理
+            applyDefaultViewName(processedRequest, mv);
+            mappedHandler.applyPostHandle(processedRequest, response, mv);
+        }
+        catch (Exception ex) {
+            dispatchException = ex;
+        }
+        catch (Throwable err) {
+            // As of 4.3, we're processing Errors thrown from handler methods as well,
+            // making them available for @ExceptionHandler methods and other scenarios.
+            dispatchException = new NestedServletException("Handler dispatch failed", err);
+        }
+        // 5 跳转页面，渲染视图
+        processDispatchResult(processedRequest, response, mappedHandler, mv, dispatchException);
+    }
+    catch (Exception ex) {
+        // 最终会调用 HandlerInterceptor 的 afterCompletion 方法
+        triggerAfterCompletion(processedRequest, response, mappedHandler, ex);
+    }
+    catch (Throwable err) {
+        // 最终会调用 HandlerInterceptor 的 afterCompletion 方法
+        triggerAfterCompletion(processedRequest, response, mappedHandler,
+                               new NestedServletException("Handler processing failed", err));
+    }
+    finally {
+        if (asyncManager.isConcurrentHandlingStarted()) {
+            // Instead of postHandle and afterCompletion
+            if (mappedHandler != null) {
+                mappedHandler.applyAfterConcurrentHandlingStarted(processedRequest, response);
+            }
+        }
+        else {
+            // Clean up any resources used by a multipart request.
+            if (multipartRequestParsed) {
+                cleanupMultipart(processedRequest);
+            }
+        }
+    }
+}
+```
+
+
 
 # 3 核心步骤 getHandler 方法剖析
 
