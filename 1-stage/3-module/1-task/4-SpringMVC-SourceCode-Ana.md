@@ -1,6 +1,6 @@
 > 第四部分 SpringMVC源码深度剖析
 
-代码准备：在 spring-framework-5.1.x 的源码中新建一个 web 的 module
+**代码准备**：在 [spring-framework-5.1.x](https://gitee.com/turboYuu/spring-1-2/tree/master/source_code/spring-framework-5.1.x) 的源码中新建一个 web 的 module：
 
 ![image-20220410173430400](assest/image-20220410173430400.png)
 
