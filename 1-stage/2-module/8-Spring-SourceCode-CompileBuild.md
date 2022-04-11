@@ -162,13 +162,31 @@ compile(project(":spring-context"))
 
 创建测试类
 
+```java
+
+```
+
+
+
 ![image-20220401014026201](assest/image-20220401014026201.png)
 
 编写配置文件
 
-![image-20220411181634899](assest/image-20220411181634899.png)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	   xsi:schemaLocation="
+	    http://www.springframework.org/schema/beans
+        https://www.springframework.org/schema/beans/spring-beans.xsd
+">
 
-![image-20220401014100771](assest/image-20220401014100771.png)
+	<bean id="turboBean" class="com.turbo.TurboBean"></bean>
+	
+</beans>
+```
+
+![image-20220411181634899](assest/image-20220411181634899.png)
 
 编写测试类
 
