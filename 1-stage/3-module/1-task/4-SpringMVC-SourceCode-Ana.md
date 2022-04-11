@@ -10,7 +10,7 @@
 
 然后 编辑 build.gradle：
 
-```json
+```properties
 plugins {
     id 'java'
     id 'war'
