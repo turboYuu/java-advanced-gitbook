@@ -319,12 +319,118 @@ protected void doDispatch(HttpServletRequest request, HttpServletResponse respon
 
 遍历两个 HandlerMapping，视图获取能够处理当前请求的执行链：
 
+![image-20220411134058625](assest/image-20220411134058625.png)
+
 
 
 # 4 核心步骤 getHandlerAdapter 方法剖析
 
+遍历各个 HandlerAdapter，看那个 Adapter 支持处理当前 Handler。
+
+![image-20220411134358616](assest/image-20220411134358616.png)
+
 # 5 核心步骤 ha.handle 方法剖析
 
+入口
+
+![image-20220411134937378](assest/image-20220411134937378.png)
+
+从入口进入
+
+![image-20220411135427567](assest/image-20220411135427567.png)
+
+![image-20220411140914987](assest/image-20220411140914987.png)
+
+进入该方法：RequestMappingHandlerAdapter#invokeHandlerMethod
+
+![image-20220411141154343](assest/image-20220411141154343.png)
+
+进入：
+
+![image-20220411141441825](assest/image-20220411141441825.png)
+
+进入：
+
+![image-20220411141539801](assest/image-20220411141539801.png)
+
 # 6 核心步骤 processDispatchResult 方法剖析
+
+**render 方法完成渲染**
+
+`org.springframework.web.servlet.DispatcherServlet#processDispatchResult`
+
+![image-20220411144342666](assest/image-20220411144342666.png)
+
+进入 org.springframework.web.servlet.DispatcherServlet#render
+
+![image-20220411144553229](assest/image-20220411144553229.png)
+
+**视图解析器解析出 View 视图对象**：
+
+org.springframework.web.servlet.DispatcherServlet#resolveViewName
+
+![image-20220411144855754](assest/image-20220411144855754.png)
+
+org.springframework.web.servlet.view.AbstractCachingViewResolver#resolveViewName
+
+![image-20220411151035139](assest/image-20220411151035139.png)
+
+
+
+
+
+**在解析出 View 视图对象的过程中会判断是否重定向，是否转发等，不同的情况封装的是不同的View 实现**。
+
+org.springframework.web.servlet.view.UrlBasedViewResolver#createView
+
+![image-20220411151227352](assest/image-20220411151227352.png)
+
+org.springframework.web.servlet.view.AbstractCachingViewResolver#createView
+
+![image-20220411151319580](assest/image-20220411151319580.png)
+
+org.springframework.web.servlet.view.UrlBasedViewResolver#loadView
+
+![image-20220411151403151](assest/image-20220411151403151.png)
+
+org.springframework.web.servlet.view.InternalResourceViewResolver#buildView
+
+![image-20220411151505663](assest/image-20220411151505663.png)
+
+
+
+
+
+**解析出 View 视图对象的过程中，要将逻辑视图名解析为物理视图名**
+
+org.springframework.web.servlet.view.UrlBasedViewResolver#buildView
+
+![image-20220411151743823](assest/image-20220411151743823.png)
+
+
+
+**封装 View 视图对象之后，调用了 view 对象的 render 方法**
+
+返回到  org.springframework.web.servlet.DispatcherServlet#render 方法中，调用  view 对象的 render 方法
+
+![image-20220411151928824](assest/image-20220411151928824.png)
+
+**渲染数据**
+
+org.springframework.web.servlet.view.AbstractView#render
+
+![image-20220411152106951](assest/image-20220411152106951.png)
+
+**把 modelMap 中的数据暴露到 request 域中，这也是为什么后台 model.add 之后在 jsp 中可以从请求域取出来的根本原因**：
+
+org.springframework.web.servlet.view.InternalResourceView#renderMergedOutputModel
+
+![image-20220411152242580](assest/image-20220411152242580.png)
+
+**将数据设置到请求域中**：
+
+org.springframework.web.servlet.view.AbstractView#exposeModelAsRequestAttributes
+
+![image-20220411152415865](assest/image-20220411152415865.png)
 
 # 7 SpringMVC 九大组件初始化
