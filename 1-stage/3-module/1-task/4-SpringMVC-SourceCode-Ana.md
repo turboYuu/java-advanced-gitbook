@@ -196,7 +196,7 @@ index.jsp
 
 ![image-20220410181733618](assest/image-20220410181733618.png)
 
-![image-20220410182013169](assest/image-20220410182013169.png)
+![image-20220411133134355](assest/image-20220411133134355.png)
 
 doDispatch 方法中的 1041 行 ha.handle 代码完成 handler 方法调用。
 
@@ -212,6 +212,8 @@ SpringMVC 处理请求的流程即为 org.springframework.web.servlet.Dispatcher
 
 1. 调用 getHandler() 获取到能够处理当前请求的执行链 HandlerExecutionChain （Handler + 拦截器），但如何去 getHandler的？后面分析。
 2. 调用 getHandlerAdapter() ，获取能够执行 1 中的 Handler 的适配器。但是如何去 getHandlerAdapter 的？后面分析。
+3. 适配器调用 Handler 执行 ha.handle（总会返回一个 ModelAndView对象）
+4. 调用 processDispatchResult() 方法完成视图渲染跳转
 
 ```java
 // org.springframework.web.servlet.DispatcherServlet#doDispatch
@@ -314,6 +316,10 @@ protected void doDispatch(HttpServletRequest request, HttpServletResponse respon
 
 
 # 3 核心步骤 getHandler 方法剖析
+
+遍历两个 HandlerMapping，视图获取能够处理当前请求的执行链：
+
+
 
 # 4 核心步骤 getHandlerAdapter 方法剖析
 
