@@ -434,3 +434,51 @@ org.springframework.web.servlet.view.AbstractView#exposeModelAsRequestAttributes
 ![image-20220411152415865](assest/image-20220411152415865.png)
 
 # 7 SpringMVC 九大组件初始化
+
+```java
+/** MultipartResolver used by this servlet. */
+// 多部件解析器
+@Nullable
+private MultipartResolver multipartResolver;
+
+/** LocaleResolver used by this servlet. */
+// 区域化 国际化解析器
+@Nullable
+private LocaleResolver localeResolver;
+
+/** ThemeResolver used by this servlet. */
+// 主题解析器
+@Nullable
+private ThemeResolver themeResolver;
+
+/** List of HandlerMappings used by this servlet. */
+// 处理器映射器组件
+@Nullable
+private List<HandlerMapping> handlerMappings;
+
+/** List of HandlerAdapters used by this servlet. */
+// 处理器适配器组件
+@Nullable
+private List<HandlerAdapter> handlerAdapters;
+
+/** List of HandlerExceptionResolvers used by this servlet. */
+// 异常解析器组件
+@Nullable
+private List<HandlerExceptionResolver> handlerExceptionResolvers;
+
+/** RequestToViewNameTranslator used by this servlet. */
+// 默认视图名转换器组件
+@Nullable
+private RequestToViewNameTranslator viewNameTranslator;
+
+/** FlashMapManager used by this servlet. */
+// flash 属性管理组件
+@Nullable
+private FlashMapManager flashMapManager;
+
+/** List of ViewResolvers used by this servlet. */
+// 视图解析器
+@Nullable
+private List<ViewResolver> viewResolvers;
+```
+
