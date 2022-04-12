@@ -1,4 +1,4 @@
-Linux VM
+# Linux VM
 
 
 
@@ -17,3 +17,11 @@ Linux VM
 ![image-20211122162941842](assest/image-20211122162941842.png)
 
 ![image-20211122163019071](assest/image-20211122163019071.png)
+
+
+
+# idea
+
+![image-20220412125444637](assest/image-20220412125444637.png)
+
+![image-20220412125633871](assest/image-20220412125633871.png)
