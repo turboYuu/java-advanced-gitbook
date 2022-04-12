@@ -55,7 +55,7 @@ https://services.gradle.org/distributions/
 
 
 
-**注意：gradle开始进行源码项目构建的时候，会自动下载默认gradle版本进行项目构建，此时，强制结束下载进程**
+**注意（非必要）：gradle开始进行源码项目构建的时候，会自动下载默认gradle版本进行项目构建，此时，强制结束下载进程**
 
 修改 build.gradle ，将仓库源改为阿里源，这样下载构建速度更快（非必要）
 
@@ -161,12 +161,6 @@ compile(project(":spring-context"))
 
 
 创建测试类
-
-```java
-
-```
-
-
 
 ![image-20220401014026201](assest/image-20220401014026201.png)
 
