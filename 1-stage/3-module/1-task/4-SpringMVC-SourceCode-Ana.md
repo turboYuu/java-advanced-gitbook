@@ -2,6 +2,8 @@
 
 **代码准备**：在 [spring-framework-5.1.x](https://gitee.com/turboYuu/spring-1-2/tree/master/source_code/spring-framework-5.1.x) 的源码中新建一个 web 的 module：
 
+在创建 spring-turbo-mvc 前 可以先把 spring-context 的 spring-context.gradle 恢复为出厂。
+
 ![image-20220410173430400](assest/image-20220410173430400.png)
 
 ![image-20220410173447664](assest/image-20220410173447664.png)
@@ -435,6 +437,8 @@ org.springframework.web.servlet.view.AbstractView#exposeModelAsRequestAttributes
 
 # 7 SpringMVC 九大组件初始化
 
+## 7.1 在DispatcherServlet 中定义了九个属性，每一个属性都对应一种组件
+
 ```java
 /** MultipartResolver used by this servlet. */
 // 多部件解析器
@@ -482,3 +486,30 @@ private FlashMapManager flashMapManager;
 private List<ViewResolver> viewResolvers;
 ```
 
+九大组件都是定义了接口，接口其实就是定义了组件的规范，比如 ViewResolver，HandlerAdapter等都是接口。
+
+## 7.2 九大组件的初始化时机
+
+DispatcherServlet 中的 onRefresh()，该方法中初始化了九大组件
+
+![image-20220412124246761](assest/image-20220412124246761.png)
+
+initStrategies(context) 方法
+
+![image-20220412124613233](assest/image-20220412124613233.png)
+
+观察其中的一个组件 initHandlerMappings(context)
+
+![image-20220412125909066](assest/image-20220412125909066.png)
+
+如果按照类型和按照固定 id 从 ioc 容器中找不到对应组件，则会按照默认策略进行注册初始化，默认策略在 DispatcherServlet.properties 文件中配置。
+
+![image-20220412142154124](assest/image-20220412142154124.png)
+
+DispatcherServlet.properties
+
+![image-20220412142408672](assest/image-20220412142408672.png)
+
+注意：多部件解析器的初始化必须按照 id 注册对象（MultipartResolver）
+
+![image-20220412142816104](assest/image-20220412142816104.png)
