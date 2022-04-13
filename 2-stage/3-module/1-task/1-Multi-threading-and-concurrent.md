@@ -121,7 +121,7 @@ Thread类其他常用方法：
 
 
 
-join示例程序：
+[join示例程序](https://gitee.com/turboYuu/concurrent-programming-2-3/tree/master/lab/turbo-concurrent-programming/demo-02-join/src/com/turbo/concurrent/demo)：
 
 ```java
 package com.turbo.concurrent.demo;
@@ -158,7 +158,7 @@ Callable接口是一个与Runnable接口非常相似的接口。Callable接口�
 
 - 接口，有简单类型参数，与call()方法的返回类型相对应。
 - 声明了call()方法，执行器运行任务时，该方法会被执行器执行。它必须返回声明中指定类型的对象。
-- call()方法可以抛出一种检验异常。可以实现自己的执行器并重载afterExecute()方法来处理这些异常。
+- call()方法可以抛出一种检验异常。可以实现自己的执行器并重载 afterExecute() 方法来处理这些异常。
 
 ```java
 package com.turbo.concurrent.demo;
@@ -346,7 +346,7 @@ public class MyClass1 {
 
 然后开两个线程，线程A调用method1，线程B调用method2。很明显，两个线程之间要通信，对于一个对象来说，一个线程调用该对象的wait()，另一个线程调用该对象的notify()，该对象本身就需要同步。所以，在调用wait()、notify()之前，要先通过synchronized关键字同步给对象，也就是给该对象加锁。
 
-synchronized关键字可以加在任何对象的实例方法上，任何对象都可能成为锁。因此，wait() 和 notify() 只能放在 Object 里面了。
+synchronized 关键字可以加在任何对象的实例方法上，任何对象都可能成为锁。因此，wait() 和 notify() 只能放在 Object 里面了。
 
 ### 1.3.3 为什么wait()的时候必须释放锁
 
@@ -392,15 +392,56 @@ public void dequeue() {
 }
 ```
 
-生产者在通知消费者的同时，也通知了其他的生产者；消费者在通知生产者的同时，也通知了其他的消费者。原因在于wait()和notify()所作用的对象和synchronized所作用的对象是同一个，只能有一个对象，无法区分队列空和队列满两个条件。这正是Condition要解决的问题。
+生产者在通知消费者的同时，也通知了其他的生产者；消费者在通知生产者的同时，也通知了其他的消费者。原因在于 wait() 和 notify() 所作用的对象和 synchronized 所作用的对象是同一个，只能有一个对象，无法区分队列空和队列满两个条件。这正是 Condition 要解决的问题。
 
 ## 1.4 InterruptedException与interrupt方法
 
 ### 1.4.1 Interrupted异常
 
-什么情况下抛出Interrupted异常
+**什么情况下抛出Interrupted异常**
 
-只有声明了会抛出InterruptedException的函数才会抛出异常
+假设 while 循环中没有调用任何的阻塞函数，就是通常的算数运算，或者打印一行日志，如下：
+
+```java
+package com.turbo.concurrent.demo;
+
+public class MyThread extends Thread {
+
+    @Override
+    public void run() {
+        while (true){
+            final boolean interrupted = isInterrupted();
+            System.out.println("中断状态："+interrupted);
+        }
+    }
+}
+```
+
+这个时候，在主线程中调用一句 thread.interrupt()，
+
+```java
+package com.turbo.concurrent.demo;
+
+public class Main {
+    public static void main(String[] args) throws InterruptedException {
+        MyThread myThread = new MyThread();
+        myThread.start();
+        Thread.sleep(10);
+        // 中断线程
+        myThread.interrupt();
+        Thread.sleep(100);
+
+        System.exit(0);
+    }
+}
+
+```
+
+该线程并不会抛出异常。
+
+
+
+只有声明了会抛出InterruptedException的函数才会抛出异常，也就是下面
 
 ```java
 public static native void sleep(long millis) throws InterruptedException {...}
@@ -412,7 +453,9 @@ public final void join() throws InterruptedException {...}
 
 能够被中断的阻塞成为轻量级阻塞，对应的线程状态是WAITING或者TIMED_WAITING；而像synchronized这种不能被中断的阻塞成为重量级阻塞，对应的状态是BLOCKED。如图所示：调用不同的方法后，一个线程的状态迁移过程。
 
-![image-20210924175048549](assest/image-20210924175048549.png)
+![image-20220413160602425](assest/image-20220413160602425.png)
+
+
 
 初始线程处于NEW状态，调用start()开始执行后，进入RUNNING或者READY状态。如果没有调用任何阻塞函数，线程只会在RUNING和RAEADY之间切换，也就是系统的时间片调度。这两种状态的切换是操作系统完成的，除非手动调用yield()函数，放弃对CPU的占用。
 
