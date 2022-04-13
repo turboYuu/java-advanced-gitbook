@@ -274,7 +274,7 @@ public class MyClass {
 
 生产者-消费者模型是一个常见的多线程模型。
 
-![image-20210918153042795](assest/image-20210918153042795.png)
+![image-20220413134758224](assest/image-20220413134758224.png)
 
 一个内存队列，对各生产者线程往内存队列中放数据；多个消费者从内存队列中取数据，要实现这样一个编程模型，需要做下面几件事情：
 
@@ -303,9 +303,9 @@ https://gitee.com/turboYuu/concurrent-programming-2-3/blob/master/lab/turbo-conc
 
 ### 1.3.2 为什么必须和synchronized一起使用
 
-在Java里面，wait()和notify()是Object的成员函数，是基础中的基础。为什么Java要把wait()和notify()放在如此基础的类里面，而不是作为Thread一类的成员函数，或者其他类的成员函数？
+在Java里面，wait() 和 notify() 是 Object 的成员函数，是基础中的基础。为什么Java要把 wait() 和 notify() 放在如此基础的类里面，而不是作为Thread一类的成员函数，或者其他类的成员函数？
 
-先看为什么wait()和notify()必须和synchronized一起使用？代码：
+先看为什么 wait() 和 notify() 必须和 synchronized 一起使用？代码：
 
 ```java
 class MyClass1 {
@@ -346,11 +346,11 @@ public class MyClass1 {
 
 然后开两个线程，线程A调用method1，线程B调用method2。很明显，两个线程之间要通信，对于一个对象来说，一个线程调用该对象的wait()，另一个线程调用该对象的notify()，该对象本身就需要同步。所以，在调用wait()、notify()之前，要先通过synchronized关键字同步给对象，也就是给该对象加锁。
 
-synchronized关键字可以加在任何对象的实例方法上，任何对象都可能成为锁。因此，wait()和notify()只能放在Object里面了。
+synchronized关键字可以加在任何对象的实例方法上，任何对象都可能成为锁。因此，wait() 和 notify() 只能放在 Object 里面了。
 
 ### 1.3.3 为什么wait()的时候必须释放锁
 
-当线程A进入synchronized(obj1)中之后，也就是对obj1上了锁。此时，调用wait()进入阻塞状态，一直不能退出synchronized代码块；那么，线程B永远无法进入synchronized(obj1)同步块中，永远没机会调用notify()，发生死锁。
+当线程A进入 synchronized(obj1) 中之后，也就是对obj1上了锁。此时，调用wait()进入阻塞状态，一直不能退出synchronized代码块；那么，线程B永远无法进入 synchronized(obj1) 同步块中，永远没机会调用 notify()，发生死锁。
 
 这就涉及到一个关键的问题：在wait()的内部，会先释放锁obj1，然后进入阻塞状态，之后，它被另外一个线程调用notify()唤醒，重新获取锁。其次，wait()调用完成后，执行后面的业务逻辑代码，然后退出synchronized，再次释放锁。
 
