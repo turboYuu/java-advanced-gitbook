@@ -1939,7 +1939,7 @@ Pattern：消费的消息：deliver.<queuename>
 
 TTL，Time to Live的简称，即过期时间。
 
-RabbitMQ可以对消息和队列两个维度来设置TTL。
+RabbitMQ可以对**消息**和**队列**两个维度来设置TTL。
 
 任何消息中间件的容量和堆积能力是有限的，如果有一些消息总是不被消费掉，那么需要有一种过期的机制来做兜底。
 
