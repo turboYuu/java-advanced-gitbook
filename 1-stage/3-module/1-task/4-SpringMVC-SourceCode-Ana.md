@@ -237,10 +237,10 @@ protected void doDispatch(HttpServletRequest request, HttpServletResponse respon
 
             // Determine handler for the current request.
             /**
-				 * 2 取得处理当前请求的 Controller,这里也称为 Handler，即 处理器
-				 * 这里并不是直接返回 Controller，而是返回 HandlerExecutionChain ，请求处理链对象
-				 * 该对象 封装了 Handler 和 Interceptor
-				 */
+			* 2 取得处理当前请求的 Controller,这里也称为 Handler，即 处理器
+			* 这里并不是直接返回 Controller，而是返回 HandlerExecutionChain ，请求处理链对象
+			* 该对象 封装了 Handler 和 Interceptor
+			*/
             mappedHandler = getHandler(processedRequest);
             if (mappedHandler == null) {
                 // 如果 handler 为空，则返回 404
@@ -490,7 +490,7 @@ private List<ViewResolver> viewResolvers;
 
 ## 7.2 九大组件的初始化时机
 
-DispatcherServlet 中的 onRefresh()，该方法中初始化了九大组件
+DispatcherServlet 中的 onRefresh()，该方法中初始化了九大组件。这个 onRefresh() 方法 就是 [SpringIoC 容器初始化主流程](https://github.com/turboYuu/java-advanced-gitbook/blob/master/1-stage/2-module/5-Spring-IoC-SourceCode-Ana.md#13-spring-ioc-%E5%AE%B9%E5%99%A8%E5%88%9D%E5%A7%8B%E5%8C%96%E4%B8%BB%E6%B5%81%E7%A8%8B) 中的第九步方法的实现。
 
 ![image-20220412124246761](assest/image-20220412124246761.png)
 
