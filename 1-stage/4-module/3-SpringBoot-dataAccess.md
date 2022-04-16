@@ -1184,7 +1184,7 @@ Spring 内置了一个 AbstractRoutingDataSource ，它可以把多个数据源�
 
 ![image-20220324144732311](assest/image-20220324144732311.png)
 
-查看 **AbstractRoutingDataSource**类：
+查看 **AbstractRoutingDataSource** 类：
 
 ```java
 // org.springframework.jdbc.datasource.lookup.AbstractRoutingDataSource
@@ -1303,6 +1303,8 @@ public abstract class AbstractRoutingDataSource extends AbstractDataSource imple
 > 5. 创建 RoutingDataSourceContext 类，在该类中 通过 ThreadLocal 来存储 dataSource的key。
 
 ## 5.2 环境准备
+
+[gitee 代码地址](https://gitee.com/turboYuu/spring-boot-1-4/blob/master/source_code/spring-boot-2.2.9.RELEASE/spring-boot-03-dataaccess/src/main/java/com/turbo/config/RoutingDataSource.java)
 
 1. 实体类
 
