@@ -302,7 +302,7 @@ applicationContext.xml
 </beans>
 ```
 
-
+可以将配置文件 拆分成 application-dao.xml 和 application-service.xml 分别对应各自的层级。
 
 ## 2.8 测试工作
 
