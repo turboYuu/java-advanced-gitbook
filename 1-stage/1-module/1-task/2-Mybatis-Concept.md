@@ -14,7 +14,7 @@ ORM 框架实现的效果：把对持久化对象的保存、修改、删除等�
 
 [Mybatis官网](https://mybatis.org/mybatis-3/zh/index.html)
 
-Mybatis 是一款优秀的基于 <font color='red'>**ORM**</font> 的**半自动**<font color='red'>**轻量级**</font>**持久层**框架，它支持定制化 SQL，存储过程以及高级映射。Mybatis避免了几乎所有的JDBC代码和手动设置参数 以及 获取结果集。Mybatis 可以使用简单的 XML 或 注解 来配置和映射原生类型、接口 和 Java 的 POJO（Plain Old Java Objects，普通老式 Java 对象）为数据库中的记录。
+Mybatis 是一款优秀的基于 <font color='red'>**ORM**</font> 的 **半自动** <font color='red'>**轻量级**</font> **持久层** 框架，它支持定制化 SQL，存储过程以及高级映射。Mybatis避免了几乎所有的JDBC代码和手动设置参数 以及 获取结果集。Mybatis 可以使用简单的 XML 或 注解 来配置和映射原生类型、接口 和 Java 的 POJO（Plain Old Java Objects，普通老式 Java 对象）为数据库中的记录。
 
 # 3 Mybatis历史
 
