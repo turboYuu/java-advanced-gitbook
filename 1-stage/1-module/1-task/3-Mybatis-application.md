@@ -196,9 +196,54 @@
    }
    ```
 
-   
+
+
+
+## 1.3 Mybatis 的插入操作
+
+1. 编写UserMapper映射文件
+
+   ```xml
+   <insert id="add" parameterType="com.turbo.pojo.User">
+       insert into user values (#{id},#{username},#{password})
+   </insert>
+   ```
 
    
+
+2. 编写插入实体 User 的代码
+
+   ```java
+   @Test
+   public void addTest() throws IOException {
+       InputStream resourceAsStream = Resources.getResourceAsStream("SqlMapConfig.xml");
+       SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(resourceAsStream);
+       SqlSession sqlSession = sqlSessionFactory.openSession();
+       User user = new User();
+       user.setUsername("gaowuren");
+       user.setPassword("123456");
+       int insert = sqlSession.insert("user.add", user);
+       System.out.println(insert);
+       sqlSession.commit();
+       sqlSession.close();
+   }
+   ```
+
+   
+
+3. 插入操作注意问题
+
+   - 插入语句使用insert标签
+   - 在映射文件中使用 parameterType属性指定要插入的数据类型
+   - sql语句中使用 #{实体属性名} 方式引用实体中的属性值
+   - 插入操作使用的是 API 是 sqlSession.insert("命名空间.id", "实体对象")
+   - 插入操作涉及数据库数据变化，所以要使用 sqlSession 对象显示的提交事务，即 sqlSession.commit()
+
+
+
+## 1.4 Mybatis 的修改数据操作
+
+1. 编写
 
 # 2 Mybatis 的 Dao 层实现
 
