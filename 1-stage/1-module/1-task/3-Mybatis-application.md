@@ -243,7 +243,92 @@
 
 ## 1.4 Mybatis 的修改数据操作
 
-1. 编写
+1. 编写UserMapper映射文件
+
+   ```xml
+   <update id="update" parameterType="com.turbo.pojo.User">
+       update user set username=#{username},password=#{password} where id=#{id}
+   </update>
+   ```
+
+2. 编写修改实体User的代码
+
+   ```java
+   @Test
+   public void updateTest() throws IOException {
+       InputStream resourceAsStream = Resources.getResourceAsStream("SqlMapConfig.xml");
+       SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(resourceAsStream);
+       SqlSession sqlSession = sqlSessionFactory.openSession();
+       User user = new User();
+       user.setId(3);
+       user.setUsername("erwo");
+       user.setPassword("123456");
+       int update = sqlSession.update("user.update", user);
+       System.out.println(update);
+       sqlSession.commit();
+       sqlSession.close();
+   }
+   ```
+
+3. 修改操作注意问题
+
+   - 修改语句使用 update 标签
+   - 修改操作使用的API是 sqlSession.update("命名空间.id", "实体对象");
+
+
+
+## 1.5 Mybatis的删除操作
+
+1. 编写 UserMapper 映射文件
+
+   ```xml
+   <delete id="delete" parameterType="java.lang.Integer">
+       delete from user where id = #{id}
+   </delete>
+   ```
+
+2. 编写删除数据的代码
+
+   ```java
+   @Test
+   public void deleteTest() throws IOException {
+       InputStream resourceAsStream = Resources.getResourceAsStream("SqlMapConfig.xml");
+       SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(resourceAsStream);
+       SqlSession sqlSession = sqlSessionFactory.openSession();
+       int delete = sqlSession.delete("user.delete", 3);
+       System.out.println(delete);
+       sqlSession.commit();
+       sqlSession.close();
+   }
+   ```
+
+3. 删除操作注意问题
+
+   - 删除语句使用 delete 标签
+   - sql 语句中使用 #{任意字符串} 方式引用传递的单个参数
+   - 删除操作使用的 API 是 sqlSession.delete(命名空间.id", Object);
+
+## 1.6 Mybatis 的映射文件概述
+
+
+
+## 1.7 入门核心配置文件分析
+
+[Mybatis 核心配置文件层级关系](https://mybatis.org/mybatis-3/zh/configuration.html)：
+
+![image-20220418192322010](assest/image-20220418192322010.png)
+
+**Mybatis常用配置解析**
+
+### 1.7.1 environments 标签
+
+数据库环境的配置，支持多环境配置
+
+![image-20220418193008262](assest/image-20220418193008262.png)
+
+其中，事务管理器（transactionManager）类型有两种：
+
+- JDBC：
 
 # 2 Mybatis 的 Dao 层实现
 
