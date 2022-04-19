@@ -326,9 +326,54 @@
 
 ![image-20220418193008262](assest/image-20220418193008262.png)
 
-其中，事务管理器（transactionManager）类型有两种：
+其中，**事务管理器（transactionManager）**类型有两种：
 
-- JDBC：
+- JDBC：这个配置就是直接使用了 JDBC 的提交和回滚设置，它依赖于从数据源得到的连接来管理事务作用域。
+- MANAGED：这个配置几乎没做什么。它从不提交或回滚一个连接，而是让容器来管理事务的整个生命周期（比如 JEE 应用服务器的上下文）。默认情况下它会关闭连接，然而一些容器并不希望连接被关闭，因此需要将closeConnection 属性设置为 false 来阻止默认的关闭行为。
+
+**数据源（dataSource）类型有三种**：
+
+- UNPOOLED：这个数据源的实现只是每次被请求时打开和关闭连接。
+- POOLED：这种数据源的实现利用 "池" 的概念将 JDBC 连接对象组织起来。
+- JNDI：这个数据源的实现就是为了能在如 EJB 或应用服务器这类容器中使用，容器可以集中或在外部配置数据源，然后放置一个JNDI上下文的引用。
+
+### 1.7.2 mappers 映射器
+
+[加载映射文件](https://mybatis.org/mybatis-3/zh/configuration.html#mappers)的方式：
+
+```xml
+<!-- 使用相对于类路径的资源引用 -->
+<mappers>
+  <mapper resource="org/mybatis/builder/AuthorMapper.xml"/>
+  <mapper resource="org/mybatis/builder/BlogMapper.xml"/>
+  <mapper resource="org/mybatis/builder/PostMapper.xml"/>
+</mappers>
+
+<!-- 使用完全限定资源定位符（URL） -->
+<mappers>
+  <mapper url="file:///var/mappers/AuthorMapper.xml"/>
+  <mapper url="file:///var/mappers/BlogMapper.xml"/>
+  <mapper url="file:///var/mappers/PostMapper.xml"/>
+</mappers>
+
+<!-- 使用映射器接口实现类的完全限定类名 -->
+<mappers>
+  <mapper class="org.mybatis.builder.AuthorMapper"/>
+  <mapper class="org.mybatis.builder.BlogMapper"/>
+  <mapper class="org.mybatis.builder.PostMapper"/>
+</mappers>
+
+<!-- 将包内的映射器接口实现全部注册为映射器 -->
+<mappers>
+  <package name="org.mybatis.builder"/>
+</mappers>
+```
+
+
+
+## 1.8 Mybatis 相应 API 介绍
+
+
 
 # 2 Mybatis 的 Dao 层实现
 
