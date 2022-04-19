@@ -213,9 +213,19 @@ replconf ack <replication_offset>
 
 1. 检测主从的连接状态
 
-   
+   检测主从服务器的网络连接状态
+
+   通过向主服务器发送 INFO replication 命令，可以列出从服务器列表，可以看出最后一次向主发送命令距离现在过了多少秒。lag 的值应该在 0 或 1 之间跳动，如果超过 1 则说明主从之间的连接有故障。
 
 2. 辅助实现 min-slaves
+
+   Redis 可以通过配置防止主服务器在不安全的情况下执行写命令
+
+   min-slaves-to-write 3 （min-replicas-to-write 3）
+
+   min-slaves-max-lag 10 （min-replicas-max-lag 10）
+
+   上面的配置表示：从服务器的数量少于 3 个，或者 三个
 
 3. 检测命令丢失
 
