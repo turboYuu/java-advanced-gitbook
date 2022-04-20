@@ -310,7 +310,7 @@
 
 ## 1.6 Mybatis 的映射文件概述
 
-
+![image-20220420102527027](assest/image-20220420102527027.png)
 
 ## 1.7 入门核心配置文件分析
 
@@ -373,23 +373,127 @@
 
 ## 1.8 Mybatis 相应 API 介绍
 
+### 1.8.1 SqlSession 工厂构建器 SqlSessionFactoryBuilder
 
+常用 API：SqlSessionFactory build(InputStream inputStream)
+
+通过加载 mybatis 的核心文件的输入流的形式构建一个 SqlSessionFactory 对象
+
+```java
+InputStream resourceAsStream = Resources.getResourceAsStream("SqlMapConfig.xml");
+SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder()
+    .build(resourceAsStream);
+```
+
+其中，Resources工具类，这个类在 org.apache.ibatis.io 包中。Resources 类帮助从类路径下、文件系统 或 一个 web URL 中加载资源文件。
+
+### 1.8.2 SqlSession 工厂对象 SqlSessionFactory
+
+SqlSessionFactory 有多个方法创建 SqlSession 实例。常用的有如下两个：
+
+| 方法                             | 解释                                                         |
+| -------------------------------- | ------------------------------------------------------------ |
+| openSession();                   | 会默认开启一个事务，但事务不会自动提交，也就意味着需要手动提交该事务，更新操作数据才会持久化到数据库中 |
+| openSession(boolean autoCommit); | 参数为是否自动提交，如果设置为true，那么不需要手动提交事务   |
+
+### 1.8.3 SqlSession 会话对象
+
+SqlSession 实例在 Mybatis 中是非常强大的一个类。在这里你会看到所有执行语句，提交或回滚事务 和 获取映射器实例的方法。
+
+执行语句的方法主要有：
+
+```java
+<T> T selectOne(String statement, Object parameter);
+<E> List<E> selectList(String statement, Object parameter);
+int insert(String statement, Object parameter);
+int update(String statement, Object parameter);
+int delete(String statement, Object parameter);
+```
+
+操作事务的方法主要有：
+
+```java
+void commit();
+void rollback();
+```
 
 # 2 Mybatis 的 Dao 层实现
 
 ## 2.1 传统开发方式
 
+编写 UserDao 接口
+
+```java
+public interface UserDao {
+    public List<User> findAll() throws IOException;
+}
+```
+
+编写 UserDaoImpl 实现
+
+```java
+public class UserDaoImpl implements UserDao {
+    @Override
+    public List<User> findAll() throws IOException {
+        InputStream resourceAsStream = Resources
+            .getResourceAsStream("SqlMapConfig.xml");
+        SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder()
+            .build(resourceAsStream);
+        SqlSession sqlSession = sqlSessionFactory.openSession();
+        List<User> list = sqlSession.selectList("user.findAll");
+        sqlSession.close();
+        return list;
+    }
+}
+```
+
+测试传统方式
+
+```java
+@Test
+public void testTraditionDao() throws IOException {
+    UserDaoImpl userDao = new UserDaoImpl();
+    List<User> all = userDao.findAll();
+    System.out.println(all);
+}
+```
+
+
+
 ## 2.2 代理开发方式
 
+代理开发方式介绍
+
+采用 Mybatis 的代理开发方式实现 DAO 层的开发。
+
+Mapper 接口开发方法只需要程序员编写 Mapper 接口（相当于 Dao 接口），由 Mybatis 框架根据接口定义创建动态代理对象，代理对象的方法体同上边 Dao 接口实现类方法。
+
+Mapper 接口开发需要遵循以下规范：
+
+1. Mapper.xml 文件中的 namespace 与 mapper 接口的全限定名相同
+2. Mapper 接口方法名 和 Mapper.xml 中定义的每个 statement 的 id 相同
+3. Mapper 接口方法的输入参数类型 和 Mapper.xml 中定义的每个 sql 的 parameterType 的类型相同
+4. Mapper 接口方法的输出参数类型 和 mapper.xml 中定义的每个 sql 的 resultType 的类型相同
 
 
 
+编写 UserMapper 接口
 
+![image-20220420130327836](assest/image-20220420130327836.png)
 
+测试代理方式
 
-
-
-
-
-
-
+```java
+@Test
+public void testProxyDao() throws IOException {
+    InputStream resourceAsStream = Resources
+        .getResourceAsStream("SqlMapConfig.xml");
+    SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder()
+        .build(resourceAsStream);
+    SqlSession sqlSession = sqlSessionFactory.openSession();
+    UserMapper userMapper = sqlSession.getMapper(UserMapper.class);
+    User user = userMapper.findById(1);
+    System.out.println(user);
+    sqlSession.close();
+}
+```
