@@ -172,7 +172,30 @@ foreach 标签的属性含义如下：<br>标签用于遍历集合，它的属�
 
 ## 2.3 SQL片段抽取之 include 
 
+sql 中可将重复的 sql 提取出来，使用时用 include 引用即可，最终达到 sql 重用的目的
 
-
-
-
+```xml
+<sql id="selectUser">select * from user</sql>
+<select id="findById" parameterType="int" resultType="user">
+    <include refid="selectUser"></include> where id = #{id}
+</select>
+<select id="findByCondition" resultType="user" parameterType="user">
+    <include refid="selectUser"></include>
+    <where>
+        <if test="id!=0">
+            and id=#{id}
+        </if>
+        <if test="username!=null">
+            and username = #{username}
+        </if>
+    </where>
+</select>
+<select id="findByIds" resultType="user" parameterType="list">
+    <include refid="selectUser"></include>
+    <where>
+        <foreach collection="list" open="id in (" close=")" item="id" separator=",">
+            #{id}
+        </foreach>
+    </where>
+</select>
+```
