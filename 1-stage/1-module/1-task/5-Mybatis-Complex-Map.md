@@ -195,3 +195,64 @@ for (User user : userList) {
 
 对应的 sql 语句：
 
+```sql
+SELECT
+	u.*, r.*, r.id rid
+FROM
+	USER u
+LEFT JOIN user_role ur ON u.id = ur.user_id
+INNER JOIN role r ON ur.role_id = r.id
+```
+
+查询结果如下
+
+![image-20220420162804939](assest/image-20220420162804939.png)
+
+## 3.3 创建 Role 实体，修改 User 实体
+
+```java
+public class User {
+    private Integer id;
+    private String username;
+    private String password;
+    // 代表当前用户具备哪些订单
+    private List<Order> orders;
+    // 代表当前用户具有哪些角色
+    private List<Role> roles;
+}
+
+public class Role {
+    private int id;
+    private String rolename;
+}
+```
+
+## 3.4 添加 UserMapper 接口方法
+
+```java
+List<User> findAllUserAndRole();
+```
+
+## 3.5 测试结果
+
+```java
+// 获得 Mybatis 框架生成的 UserMapper 接口的实现类
+UserMapper userMapper = sqlSession.getMapper(UserMapper.class);
+List<User> allUserAndRole = userMapper.findAllUserAndRole();
+for (User user : allUserAndRole) {
+    System.out.println(user.getUsername());
+    List<Role> roles = user.getRoles();
+    for (Role role : roles) {
+        System.out.println(role);
+    }
+    System.out.println("-----------------------------------------");
+}
+```
+
+![image-20220420163849995](assest/image-20220420163849995.png)
+
+# 4 知识小结
+
+Mybatis 多表配置方式：
+
+****
