@@ -100,5 +100,98 @@ for (Order order : orderList) {
 
 # 2 一对多查询
 
-# 3 对对多查询
+## 2.1 一对多查询的模型
+
+用户和订单表单关系为：一个用户有多个订单，一个订单只从属于一个用户
+
+一对多查询的需求：查询一个用户，与此同时查询出该用户具有的订单
+
+## 2.2 一对多查询的语句
+
+对应的sql语句：SELECT *,o.id oid FROM user u LEFT JOIN orders o ON u.id = o.uid
+
+查询结果如下：
+
+![image-20220420160129528](assest/image-20220420160129528.png)
+
+## 2.3 修改 User 实体
+
+```java
+public class Order {
+    private int id;
+    private Date ordertime;
+    private double total;
+
+    // 代表当前订单从属于哪一个客户
+    private User user;
+}
+
+public class User {
+
+    private Integer id;
+    private String username;
+    private String password;
+    // 代表当前用户具备哪些订单
+    private List<Order> orders;
+}
+```
+
+## 2.4 创建 UserMapper 接口
+
+```java
+public interface UserMapper {
+    List<User> findAll();
+}
+```
+
+## 2.5 配置 UserMapper.xml
+
+```xml
+<resultMap id="user" type="com.turbo.pojo.User">
+    <result column="id" property="id"></result>
+    <result column="username" property="username"></result>
+    <result column="password" property="password"></result>
+    <collection property="orders" ofType="com.turbo.pojo.Order">
+        <result column="oid" property="id"></result>
+        <result column="ordertime" property="ordertime"></result>
+        <result column="total" property="total"></result>
+    </collection>
+</resultMap>
+
+<select id="findAll" resultMap="user">
+    SELECT *,o.id oid FROM user u LEFT JOIN orders o ON u.id = o.uid
+</select>
+```
+
+## 2.6 测试结果
+
+```java
+// 获得 Mybatis 框架生成的 UserMapper 接口的实现类
+UserMapper userMapper = sqlSession.getMapper(UserMapper.class);
+List<User> userList = userMapper.findAll();
+for (User user : userList) {
+    System.out.println(user.getUsername());
+    List<Order> orders = user.getOrders();
+    for (Order order : orders) {
+        System.out.println(order);
+    }
+    System.out.println("-------------------------------------");
+}
+```
+
+![image-20220420161721107](assest/image-20220420161721107.png)
+
+
+
+# 3 多对多查询
+
+## 3.1 多对多查修你的模型
+
+用户表个角色表的关系为：一个用户有多个角色，一个角色被多个用户使用
+
+多对多查询的需求：查询用户同时查询出该用户的所有角色
+
+## 3.2 多对多查询的语句
+
+对应的 sql 语句：
 
