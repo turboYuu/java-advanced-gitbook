@@ -233,7 +233,32 @@ public class Role {
 List<User> findAllUserAndRole();
 ```
 
-## 3.5 测试结果
+## 3.5 配置 UserMapper.xml
+
+```xml
+<resultMap id="userRoleMap" type="com.turbo.pojo.User">
+    <result column="id" property="id"></result>
+    <result column="username" property="username"></result>
+    <result column="password" property="password"></result>
+    <collection property="roles" ofType="com.turbo.pojo.Role">
+        <result column="rid" property="id"></result>
+        <result column="rolename" property="rolename"></result>
+    </collection>
+</resultMap>
+
+<select id="findAllUserAndRole" resultMap="userRoleMap">
+    SELECT
+    u.*, r.*, r.id rid
+    FROM
+    USER u
+    LEFT JOIN user_role ur ON u.id = ur.user_id
+    INNER JOIN role r ON ur.role_id = r.id
+</select>
+```
+
+
+
+## 3.6 测试结果
 
 ```java
 // 获得 Mybatis 框架生成的 UserMapper 接口的实现类
