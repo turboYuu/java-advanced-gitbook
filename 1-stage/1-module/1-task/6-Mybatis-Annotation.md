@@ -1,6 +1,6 @@
 > 第六部分 Mybatis注解开发
 
-将 mybatis-multitable 复制整理 mybatis-multitable-anno
+将 mybatis-multitable 复制整理 [mybatis-multitable-anno](https://gitee.com/turboYuu/mybatis-1-1/tree/master/lab-mybatis/mybatis-multitable-anno)
 
 # 1 Mybatis 的常用注解
 
