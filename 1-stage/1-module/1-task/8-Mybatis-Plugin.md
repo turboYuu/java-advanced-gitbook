@@ -47,9 +47,11 @@ Mybatis 插件接口 - Interceptor
 - plugin 方法，生成 target 的代理对象
 - setProperties 方法，传递插件所需参数
 
+**代码执行顺序：setProperties -> plugin -> intercept**
+
 ## 4.2 自定义插件
 
-设计实现一个自定义插件
+设计实现一个自定义插件，[gitee 代码地址](https://gitee.com/turboYuu/mybatis-1-1/blob/master/lab-mybatis/mybatis-multitable/src/main/java/com/turbo/plugin/MyPlugin.java)
 
 1. MyPlugin
 
@@ -144,6 +146,10 @@ Mybatis 插件接口 - Interceptor
    ![image-20220421175052745](assest/image-20220421175052745.png)
 
 # 5 源码分析
+
+执行插件逻辑
+
+
 
 # 6 pageHelper 分页插件
 
