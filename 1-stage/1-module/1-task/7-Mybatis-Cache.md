@@ -166,5 +166,142 @@ public CacheKey createCacheKey(MappedStatement ms,
 
 # 2 二级缓存
 
-# 3 三级缓存整合 redis
+二级缓存的原理和一级缓存原理一样，第一次查询，会将数据放入缓存中，然后第二次查询则会直接去缓存中取。但是一级缓存是基于sqlSession的，而**二级缓存是基于 mapper 文件 namespace 的**，也就是说多个 sqlSession 可以共享一个 mapper 中的二级缓存区域，并且如果两个 mapper 的 namespace 相同，即使是两个 mapper，那么这两个 mapper 中执行 sql 查询到的数据也将存在相同的二级缓存区域中。
+
+![image-20220421102507166](assest/image-20220421102507166.png)
+
+如何使用二级缓存？
+
+## 2.1 开启二级缓存
+
+和一级缓存默认开启不一样，二级缓存需要手动开启
+
+首先在全局配置文件 SqlMapConfig.xml 文件中加入如下代码：
+
+```xml
+<!--全局性地开启或关闭所有映射器配置文件中已配置的任何缓存。-->
+<settings>
+    <setting name="cacheEnabled" value="true"/>
+</settings>
+```
+
+其次在 UserMapper.xml 文件中开启缓存：
+
+```xml
+<!--开启二级缓存-->
+<cache/>
+```
+
+我们可以看到 mapper.xml 文件中就这么一个空标签，其实这里可以配置 ，**PerpetualCache**  这个类是 mybatis 默认实现缓存功能的类。我们不写 type 就使用 mybatis 默认的缓存，也可以去实现 Cache 接口来自定义缓存。
+
+![image-20220421111002934](assest/image-20220421111002934.png)
+
+![image-20220421111122786](assest/image-20220421111122786.png)
+
+可以看到 二级缓存底层还是 HashMap 结构。
+
+```java
+public class User implements Serializable {
+
+    private Integer id;
+    private String username;
+    private String password;
+}
+```
+
+开启二级缓存后，还需要将缓存的 pojo 实现 Serializable 接口，为了将缓存数据取出执行反序列化操作。因为二级缓存数据存储介质多种多样，不一定只存在内存中，有可能存在硬盘中，如果我们要再取这个缓存的话，就需要反序列化。所以 mybatis 中的 pojo 都去实现 Serializable 接口。
+
+## 2.2 测试
+
+### 2.2.1 测试二级缓存和 sqlSession 无关
+
+```java
+@Test
+public void testThCache() throws IOException {
+    InputStream resourceAsStream = Resources.getResourceAsStream("SqlMapConfig.xml");
+    SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(resourceAsStream);
+    SqlSession sqlSession1 = sqlSessionFactory.openSession();
+    SqlSession sqlSession2 = sqlSessionFactory.openSession();
+
+    UserMapper userMapper1 = sqlSession1.getMapper(UserMapper.class);
+    UserMapper userMapper2 = sqlSession2.getMapper(UserMapper.class);
+    // 第一次查询，发出 sql 语句，并将查询的结果放入缓存中
+    User user = userMapper1.selectUserById(1);
+    System.out.println(user);
+    sqlSession1.close(); // 第一次查询完关闭 sqlSession
+
+    // 第二次查询，即使 sqlSession1 已经关闭，这次查询依然不发出 sql 语句
+    User user1 = userMapper2.selectUserById(1);
+    System.out.println(user1);
+    sqlSession2.close();
+}
+```
+
+![image-20220421112541257](assest/image-20220421112541257.png)
+
+### 2.2.2 测试执行 commit() 操作，二级缓存数据清空
+
+```java
+@Test
+public void testThCache() throws IOException {
+    InputStream resourceAsStream = Resources.getResourceAsStream("SqlMapConfig.xml");
+    SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(resourceAsStream);
+    SqlSession sqlSession1 = sqlSessionFactory.openSession();
+    SqlSession sqlSession2 = sqlSessionFactory.openSession();
+    SqlSession sqlSession3 = sqlSessionFactory.openSession();
+
+    UserMapper userMapper1 = sqlSession1.getMapper(UserMapper.class);
+    UserMapper userMapper2 = sqlSession2.getMapper(UserMapper.class);
+    UserMapper userMapper3 = sqlSession3.getMapper(UserMapper.class);
+
+    // 第一次查询，发出 sql 语句，并将查询的结果放入缓存中
+    User user = userMapper1.selectUserById(1);
+    System.out.println(user);
+    sqlSession1.close(); // 第一次查询完关闭 sqlSession
+
+    // 执行更新操作，commit()
+    user.setPassword("123456");
+    userMapper3.updateUserById(user);
+    sqlSession3.commit();;
+
+    // 第二次查询，由于上次更新操作，缓存数据已经清空（防止数据脏读），这里必须再次发出 sql 语句
+    User user1 = userMapper2.selectUserById(1);
+    System.out.println(user1);
+    sqlSession2.close();
+}
+```
+
+
+
+![image-20220421113402263](assest/image-20220421113402263.png)
+
+## 2.3 useCache 和 flushCache
+
+mybatis 中 Select 元素的属性 还可以设置 useCache 和 flush 等配置项，useCache 是用来设置设否禁用二级缓存的，在 statement 中设置 useCache=false 可以禁用当前 select 语句的二级缓存，即每次查询都会发出 sql 去查询，默认情况是 true，即该 sql 使用二级缓存。
+
+![image-20220421123748303](assest/image-20220421123748303.png)
+
+```xml
+<select id="selectUserById" parameterType="int" resultType="user" useCache="false">
+    select * from user where id=#{id}
+</select>
+```
+
+这种情况是针对每次查询都需要最新的数据 sql，要设置成 useCache=false，禁用二级缓存，直接从数据库中获取。
+
+在 mapper 的同一个 namespace 中，如果由其他 inset、update、delete 操作数据后需要刷新缓存，如过不执行刷新缓存会出现脏读。
+
+设置 statement 配置中的 flushCache="true" 属性，默认情况下为 true，即刷新缓存，如果改成 false，则不会刷新。使用缓存时如果手动修改数据库表中的查询数据会出现脏读。
+
+```xml
+<!--flushCache	将其设置为 true 后，只要语句被调用，都会导致本地缓存和二级缓存被清空，默认值：false。
+        useCache	将其设置为 true 后，将会导致本条语句的结果被二级缓存缓存起来，默认值：对 select 元素为 true。-->
+<select id="selectUserById" parameterType="int" resultType="user" flushCache="true" useCache="false">
+    select * from user where id=#{id}
+</select>
+```
+
+一般执行完 commit 操作都需要刷新缓存，flushCache==true 标识刷新缓存，这样可以避免数据库脏读。所以我们不用设置，默认即可。
+
+# 3 二级缓存整合 redis
 
