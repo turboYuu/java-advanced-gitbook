@@ -39,6 +39,110 @@
 
 # 4 自定义插件
 
+## 4.1 插件接口
+
+Mybatis 插件接口 - Interceptor
+
+- intercept 方法，插件的核心方法
+- plugin 方法，生成 target 的代理对象
+- setProperties 方法，传递插件所需参数
+
+## 4.2 自定义插件
+
+设计实现一个自定义插件
+
+1. MyPlugin
+
+   ```java
+   package com.turbo.plugin;
+   
+   import org.apache.ibatis.executor.statement.StatementHandler;
+   import org.apache.ibatis.plugin.*;
+   
+   import java.sql.Connection;
+   import java.util.Properties;
+   
+   @Intercepts({ // 注意看这个大花括号，也就是说这里可以定义多个 @Signature 对多个地方拦截，都用这个拦截器
+           @Signature(type = StatementHandler.class, // 这里指拦截哪个接口
+                   method = "prepare", // 这个接口内的哪个方法名，不要拼写错误
+                   args = {Connection.class,Integer.class}) // 这是拦截方法的入参，按顺序写到这里，不要多不要少。如果方法重载，可以通过方法名的入参来确定唯一
+   })
+   public class MyPlugin implements Interceptor {
+       @Override
+       public Object intercept(Invocation invocation) throws Throwable {
+           // 增强逻辑
+           System.out.println("增强逻辑");
+           return invocation.proceed(); //执行原方法
+       }
+   
+       /**
+        * 主要是为例把这个拦截器生成一个代理对象 放到拦截器链中
+        * @param target 拦截的对象
+        * @return 代理对象
+        */
+       @Override
+       public Object plugin(Object target) {
+           System.out.println("将要包装的目标对象："+ target);
+           return Plugin.wrap(target,this);
+       }
+   
+       /**
+        * 获取配置文件的属性
+        * 插件初始化的时候调用，也只调用一次，插件配置的属性从这里设置进来
+        * @param properties
+        */
+       @Override
+       public void setProperties(Properties properties) {
+           System.out.println("插件配置的初始化参数："+properties);
+       }
+   }
+   
+   ```
+
+2. SqlMapConfig.xml
+
+   ```xml
+   <plugins>
+       <plugin interceptor="com.turbo.plugin.MyPlugin">
+           <property name="name" value="bob"/>
+       </plugin>
+   </plugins>
+   ```
+
+3. Mapper 接口
+
+   ```java
+   public interface UserMapper {
+       User selectUserById(int id);
+   }
+   ```
+
+4. UserMapper.xml
+
+   ```xml
+   <select id="selectUserById" parameterType="int" resultType="user" useCache="false" flushCache="true">
+       select * from user where id=#{id}
+   </select>
+   ```
+
+5. 测试类
+
+   ```java
+   @Test
+   public void test() throws IOException {
+       InputStream resourceAsStream = Resources.getResourceAsStream("SqlMapConfig.xml");
+       SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(resourceAsStream);
+       SqlSession sqlSession = sqlSessionFactory.openSession();
+   
+       UserMapper userMapper = sqlSession.getMapper(UserMapper.class);
+       User user = userMapper.selectUserById(1);
+       System.out.println(user);
+       sqlSession.close();
+   }
+   ```
+
+   ![image-20220421175052745](assest/image-20220421175052745.png)
+
 # 5 源码分析
 
 # 6 pageHelper 分页插件
