@@ -12,9 +12,30 @@
 
 ![image-20220421155322887](assest/image-20220421155322887.png)
 
+**Mybatis所允许拦截的方法如下**：
 
+- 执行器 Executor（update、query、commit、rollback 等方法）；
+- SQL 语法构建器 StatementHandler （prepare、parameterize、batch、update、query 等方法）；
+- 参数处理器 ParameterHandler （getParameterObject、setParameters 方法）；
+- 结果集处理器 ResultSetHandler（handleResultSets、handleOutputParameters 等方法）；
 
 # 3 Mybatis 插件原理
+
+在四大对象创建的时候：
+
+1. 每个创建出来的对象不是直接返回的，而是 InterceptorChain.pluginAll(ParameterHandler);
+2. 获取到所有的 Interceptor （拦截器）（插件需要实现的接口）；调用 interceptor.plugin(target); 返回 target 包装后的对象
+3. 插件机制，我们可以使用插件为目标对象创建一个代理对象；AOP（面向切面）我们的插件可以为四大对象创建出代理对象，代理对象就可以拦截到四大对象的每一个执行；
+
+**拦截**
+
+插件具体是如何拦截并附加额外的功能的呢？以 ParameterHandler 来说
+
+```java
+
+```
+
+
 
 # 4 自定义插件
 
