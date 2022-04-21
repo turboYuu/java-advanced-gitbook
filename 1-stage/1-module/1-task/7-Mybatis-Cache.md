@@ -305,3 +305,106 @@ mybatis 中 Select 元素的属性 还可以设置 useCache 和 flush 等配置�
 
 # 3 二级缓存整合 redis
 
+在几个不同的服务器之间，使用第三方缓存框架，将缓存都放在这个第三方框架中，然后不管多少台服务器，都能从缓存中获取数据。
+
+这里介绍 **Mybatis** 与 **Redis** 的整合。
+
+刚刚提到，mybatis 提供了一个 Cache 接口，如果要实现自己的缓存逻辑，实现 cache 接口开发即可。Mybatis 本身默认实现了一个，但是这个缓存的实现无法实现分布式缓存，所以我们要自己来实现。
+
+redis 分布式缓存就可以，mybatis 提供了一个针对 Cache 接口的 Redis 实现类，该类存在 mybatis-redis 包中。
+
+1. pom 文件
+
+   ```xml
+   <!--mybatis-redis-->
+   <dependency>
+       <groupId>org.mybatis.caches</groupId>
+       <artifactId>mybatis-redis</artifactId>
+       <version>1.0.0-beta2</version>
+   </dependency>
+   ```
+
+2. 配置文件 UserMapper.xml
+
+   ```xml
+   <!--开启二级缓存-->
+   <cache type="org.mybatis.caches.redis.RedisCache"/>
+   <select id="selectUserById" parameterType="int" resultType="user" useCache="true">
+       select * from user where id=#{id}
+   </select>
+   ```
+
+3. redis.properties
+
+   ```properties
+   host=152.136.177.192
+   port=6379
+   connectionTimeout=5000
+   password=
+   database=0
+   ```
+
+4. 测试
+
+   ```java
+   @Test
+   public void testThCacheRedis() throws IOException {
+       InputStream resourceAsStream = Resources.getResourceAsStream("SqlMapConfig.xml");
+       SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(resourceAsStream);
+       SqlSession sqlSession1 = sqlSessionFactory.openSession();
+       SqlSession sqlSession2 = sqlSessionFactory.openSession();
+       SqlSession sqlSession3 = sqlSessionFactory.openSession();
+   
+       UserMapper userMapper1 = sqlSession1.getMapper(UserMapper.class);
+       UserMapper userMapper2 = sqlSession2.getMapper(UserMapper.class);
+       UserMapper userMapper3 = sqlSession3.getMapper(UserMapper.class);
+   
+       // 第一次查询，发出 sql 语句，并将查询的结果放入缓存中
+       User user = userMapper1.selectUserById(1);
+       System.out.println(user);
+       sqlSession1.close(); // 第一次查询完关闭 sqlSession
+   
+       // 执行更新操作，commit()
+       user.setPassword("123456");
+       userMapper3.updateUserById(user);
+       sqlSession3.commit();
+   
+       // 第二次查询，由于上次更新操作，缓存数据已经清空（防止数据脏读），这里必须再次发出 sql 语句
+       User user1 = userMapper2.selectUserById(1);
+       System.out.println(user1);
+       System.out.println(user1 == user); // false
+       sqlSession2.close();
+   }
+   ```
+
+   ![image-20220421142902068](assest/image-20220421142902068.png)
+
+## 3.1 源码分析
+
+RedisCache 和 大家普遍实现 Mybatis 的缓存方法大同小异，无非是实现 Cache 接口，并使用 jedis 操作缓存；不过该项目在设计细节上有一些区别：
+
+![image-20220421143331648](assest/image-20220421143331648.png)
+
+RedisCache 在 mybatis 启动的时候，由 Mybatis 的 CacheBuilder 创建，创建的方式很简单，就是调用 RedisCache 的带有 String 参数的构造方法，即 RedisCache(final String id)，而在 RedisCache 的构造方法中调用了 RedisConfigurationBuilder 来创建 RedisConfig 对象，并使用 RedisConfig  来创建 JedisPool。
+
+RedisConfig  类继承了 JedisPoolConfig ，并提供了 host，port 等属性的包装，简单看一下 RedisConfig 的属性：
+
+![image-20220421144107437](assest/image-20220421144107437.png)
+
+RedisConfig 对象是由 RedisConfigurationBuilder 创建的，简单看下这个类的主要方法：
+
+![image-20220421144354956](assest/image-20220421144354956.png)
+
+核心方法就是 parseConfiguration 方法，该方法从 classpath 中读取一个 redis.proerties文件，并将该配置文件中的内容设置到 RedisConfig 对象中，并返回；接下来，就是 RedisCache 使用 RedisConfig类 创建完成 JedisPool；在 RedisCache 中实现了一个简单的模板方法，用来操作 Redis：
+
+![image-20220421150320946](assest/image-20220421150320946.png)
+
+模板接口为 RedisCallback ，这个接口中就只需要实现一个 doWithRedis 方法而已：
+
+![image-20220421150431091](assest/image-20220421150431091.png)
+
+接下来看看 Cache 中最重要的两个方法：putObject 和 getObject，通过这两个方法来查看 mybatis-redis 存储数据的格式：
+
+![image-20220421150841583](assest/image-20220421150841583.png)
+
+可以很清楚的看到，mybatis-redis 在存储数据的时候，是使用的 hash 结构，把 cache 的 id 作为 这个 hash 的 key （cache 的 id 在 mybatis 中就是 mapper 的 namespace）；这个 mapper 中的查询缓存数据作为 hash 的 field，需要缓存的内容直接使用 SerializeUtil（ 和其他的序列化类差不多），负责对象的序列化和反序列化。
