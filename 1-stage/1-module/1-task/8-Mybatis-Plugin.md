@@ -149,6 +149,30 @@ Mybatis 插件接口 - Interceptor
 
 执行插件逻辑
 
+Plugin 实现了 InvocationHandler 接口，因此它的 invoke 方法会拦截所有的方法调用。invoke 方法会对所有拦截的方法进行检测，以决定是否执行插件逻辑。该方法的逻辑如下：
+
+```java
+@Override
+public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+    try {
+        // 获取被拦截方法列表，比如 signatureMap.get(Executor.class)，可能返回 [query,update,commit]
+        Set<Method> methods = signatureMap.get(method.getDeclaringClass());
+        // 检测方法列表是否包含被拦截的方法
+        if (methods != null && methods.contains(method)) {
+            // 执行插件逻辑
+            return interceptor.intercept(new Invocation(target, method, args));
+        }
+        return method.invoke(target, args);
+    } catch (Exception e) {
+        throw ExceptionUtil.unwrapThrowable(e);
+    }
+}
+```
+
+invoke 方法的代码比较少，逻辑不难理解。首先 ，invoke 方法会检测被拦截方式是否配置在插件的 @Signature 注解中，若是，则执行插件逻辑。插件逻辑封装在 intercept 中，该方法的参数类型为 Invocation ，Invocation 主要用于存储目标类，方法以及方法参数列表。下面简单看一下该类的定义：
+
+![image-20220421185226424](assest/image-20220421185226424.png)
+
 
 
 # 6 pageHelper 分页插件
