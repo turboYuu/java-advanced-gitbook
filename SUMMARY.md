@@ -14,6 +14,7 @@
             * [第八部分 Mybatis插件](1-stage/1-module/1-task/8-Mybatis-Plugin.md)
             * [第九部分 Mybatis架构原理](1-stage/1-module/1-task/9-Mybatis-Architecture-Theory.md)
             * [第十部分 Mybatis源码剖析](1-stage/1-module/1-task/10-Mybatis-SourceCode-Ana.md)
+            * [第十一部分 设计模式](1-stage/1-module/1-task/11-Code-Design-Mode.md)
         * [任务二 Mybatis-Plus](1-stage/1-module/2-task/README.md)
     * [模块二 IoC容器设计实现及Spring源码分析](1-stage/2-module/README.md)
         * [第一部分 Spring 概述](1-stage/2-module/1-Spring-Overview.md)
