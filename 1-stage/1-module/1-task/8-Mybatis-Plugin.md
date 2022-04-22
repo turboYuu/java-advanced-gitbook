@@ -177,5 +177,66 @@ invoke 方法的代码比较少，逻辑不难理解。首先 ，invoke 方法�
 
 # 6 pageHelper 分页插件
 
+Mybatis 可以使用第三方的插件来对功能进行扩展，分页助手 PageHelper 是将分页的复杂操作进行封装，使用简单的方式即可获得分页的相关数据。
+
+开发步骤：
+
+1. 导入通用 PageHelper 坐标
+
+   ```xml
+   <dependency>
+       <groupId>com.github.pagehelper</groupId>
+       <artifactId>pagehelper</artifactId>
+       <version>3.7.5</version>
+   </dependency>
+   <dependency>
+       <groupId>com.github.jsqlparser</groupId>
+       <artifactId>jsqlparser</artifactId>
+       <version>0.9.1</version>
+   </dependency>
+   ```
+
+2. 在 mybatis 核心配置文件中配置 PageHelper 插件
+
+   ```xml
+   <plugins>
+       <plugin interceptor="com.github.pagehelper.PageHelper">
+           <property name="dialect" value="mysql"/>
+       </plugin>
+   </plugins>
+   ```
+
+3. 测试分页代码实现
+
+   ```java
+   @Test
+   public void testPageHelper() throws IOException {
+       InputStream resourceAsStream = Resources.getResourceAsStream("SqlMapConfig.xml");
+       SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(resourceAsStream);
+       SqlSession sqlSession = sqlSessionFactory.openSession();
+       // 获得 Mybatis 框架生成的 UserMapper 接口的实现类
+       UserMapper userMapper = sqlSession.getMapper(UserMapper.class);
+       PageHelper.startPage(1,2);
+       List<User> allUser = userMapper.findAllUser();
+   
+       // 其他分页的数据
+       PageInfo<User> userPageInfo = new PageInfo<>(allUser);
+       System.out.println("总条数："+userPageInfo.getTotal());
+       System.out.println("总页数："+userPageInfo.getPages());
+   
+       System.out.println("当前页："+userPageInfo.getPageNum());
+       System.out.println("每页显示条数："+userPageInfo.getPageSize());
+       System.out.println("是否第一页："+userPageInfo.isIsFirstPage());
+       System.out.println("是否第二页："+userPageInfo.isIsLastPage());
+   
+   
+       for (User user : allUser) {
+           System.out.println(user);
+       }
+   }
+   ```
+
+   
+
 # 7 通过 mapper
 
