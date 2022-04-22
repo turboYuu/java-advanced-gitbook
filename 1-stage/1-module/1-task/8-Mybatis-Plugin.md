@@ -238,5 +238,100 @@ Mybatis 可以使用第三方的插件来对功能进行扩展，分页助手 Pa
 
    
 
-# 7 通过 mapper
+# 7 通用 mapper
 
+**什么是通用 Mapper**
+
+通用 Mapper 就是为了解决单表增删改查，基于 Mybatis 的插件机制。开发人员不需要编写 sql，不需要在 Dao 中增加方法，只要写好实体类，就能支持相应的增删改查方法
+
+**如何使用**
+
+1. 首先在 pom 中引入依赖
+
+   ```xml
+   <dependency>
+       <groupId>tk.mybatis</groupId>
+       <artifactId>mapper</artifactId>
+       <version>3.1.2</version>
+   </dependency>
+   ```
+
+2. Mybatis 配置文件中完成配置
+
+   ```xml
+   <plugins>
+       <!--分页插件，如果分页插件，要排在通用 mapper 之前-->
+       <plugin interceptor="com.github.pagehelper.PageHelper">
+           <property name="dialect" value="mysql"/>
+       </plugin>
+       <plugin interceptor="tk.mybatis.mapper.mapperhelper.MapperInterceptor">
+           <!--通用Mapper接口，多个通用接口用逗号隔开-->
+           <property name="mappers" value="tk.mybatis.mapper.common.Mapper"/>
+       </plugin>
+   </plugins>
+   ```
+
+3. 实体类设置主键
+
+   ```java
+   @Table(name = "user")
+   public class User {
+       @Id
+       @GeneratedValue(strategy = GenerationType.IDENTITY)
+       private Integer id;
+       private String username;
+       private String password;
+   }
+   ```
+
+4. 定义通用 Mapper
+
+   ```java
+   package com.turbo.mapper;
+   
+   import com.turbo.pojo.User;
+   import tk.mybatis.mapper.common.Mapper;
+   
+   public interface UserMapper extends Mapper<User> {
+   
+   }
+   ```
+
+5. 测试
+
+   ```java
+   @Test
+   public void test1() throws IOException {
+       InputStream resourceAsStream = Resources.getResourceAsStream("SqlMapConfig.xml");
+       SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(resourceAsStream);
+       SqlSession sqlSession = sqlSessionFactory.openSession();
+       UserMapper userMapper = sqlSession.getMapper(UserMapper.class);
+   
+       User user = new User();
+       user.setId(4);
+       // 1.mapper 基础接口
+       // select 接口
+       User user1 = userMapper.selectOne(user); // 根据实体中的属性进行查询，只能有一个返回值
+       System.out.println(user1);
+   
+       List<User> users = userMapper.select(null);
+       System.out.println(users);
+   
+       User user2 = userMapper.selectByPrimaryKey(1);
+       System.out.println(user2);
+   
+       int count = userMapper.selectCount(null);
+       System.out.println(count);
+   
+       Example example = new Example(User.class);
+       //example.createCriteria().andEqualTo("id",1);
+       example.createCriteria().andLike("password","1234%");
+       PageHelper.startPage(1,2);
+       List<User> userList = userMapper.selectByExample(example);
+       System.out.println(userList);
+   
+       sqlSession.close();
+   }
+   ```
+
+   
