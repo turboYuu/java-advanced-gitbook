@@ -2,6 +2,8 @@
 
 # 1 架构设计
 
+![image-20220426111724390](assest/image-20220426111724390.png)
+
 我们把Mybatis的功能架构分为三层：
 
 1. API 接口层：提供给外部使用的接口 API，开发人员通过这些本地 API 来操纵数据库。接口层一接收到，调用请求就会调用数据处理层来完成具体的数据处理。
@@ -21,14 +23,14 @@
 | ---------------- | ------------------------------------------------------------ |
 | SqlSession       | 作为Mybatis工作的主要顶层 API，表示和数据库交互的会话，完成必要数据库增删改查功能 |
 | Executor         | Mybatis执行器，是 Mybatis调度的核心，负责 SQL 语句的生成和查询缓存的维护 |
-| StatementHandler | 封装了 JDBC Statement 操作，负责对 JDBC statement 的操作，如设置参数，将 Statement 结果转换成 List 集合 |
-| ParameterHandler |                                                              |
-| ResultSetHandler |                                                              |
-| TypeHandler      |                                                              |
-| MappedStatement  |                                                              |
-| SqlSource        |                                                              |
-| BoundSql         |                                                              |
+| StatementHandler | 封装了 JDBC Statement 操作，负责对 JDBC statement 的操作，如设置参数，将 Statement 结果转换成 List 集合。 |
+| ParameterHandler | 负责对用户传递的参数转换成 JDBC Statement 所需要的参数       |
+| ResultSetHandler | 负责将 JDBC 返回的 ResultSet 结果集对象转换成 List 类型的集合 |
+| TypeHandler      | 负责 java 数据类型 和 jdbc 数据类型之间的映射和转换          |
+| MappedStatement  | MappedStatement 维护了一条 <select \| update \| insert>节点的封装 |
+| SqlSource        | 负责根据用户传递的 parameterObject，动态地生成 SQL 语句，将信息封装到 BoundSql 对象中，并返回 |
+| BoundSql         | 表示动态生成的 SQL 语句以及相应的参数信息                    |
 
-
+![image-20220426130653547](assest/image-20220426130653547.png)
 
 # 3 总体流程
