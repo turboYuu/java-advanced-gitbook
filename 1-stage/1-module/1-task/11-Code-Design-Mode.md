@@ -33,8 +33,16 @@ Builder 模式的定义是 **将一个复杂对象的构建与它的表示分离
 
 实现：
 
+![image-20220427113031669](assest/image-20220427113031669.png)
 
+在 Mybatis 环境的初始化过程中，SqlSessionFactoryBuilder 会调用 XMLConfigBuilder 读取所有的 MybatisMapConfig.xml 和所有的 *Mapper.xml 文件，构建 Mybatis 运行的核心对象 Configuration 对象，然后
 
 # 2 工厂模式
+
+在 Mybatis 中比如 SqlSessionFactory 使用的是工厂模式，该工厂没有那么复杂的逻辑，是一个简单工厂模式。
+
+简单工厂模式（Simple Factory Pattern）：又称为静态工厂方法（Static Factory Method）模式，它属于创建型模式。
+
+在简单工厂模式中，可以根据参数的不同返回不同类的实例。简单工厂模式专门定义一个类来负责创建其他类的实例，被创建的实例通常都具有共同的父类。
 
 # 3 代理模式
