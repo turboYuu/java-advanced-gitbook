@@ -347,6 +347,39 @@ public <E> List<E> doQuery(MappedStatement ms, Object parameter,
         closeStatement(stmt);
     }
 }
+
+// 创建 Statement 的方法
+private Statement prepareStatement(StatementHandler handler, Log statementLog) throws SQLException {
+    Statement stmt;
+    // 代码中的 getConnection 方法经过重重调用最后会调用 openConnection 方法，从连接池中获得连接
+    Connection connection = getConnection(statementLog);
+    stmt = handler.prepare(connection, transaction.getTimeout());
+    handler.parameterize(stmt);
+    return stmt;
+}
+
+// 从连接池过的连接的方法
+protected void openConnection() throws SQLException {
+    if (log.isDebugEnabled()) {
+        log.debug("Opening JDBC Connection");
+    }
+    // 从连接池获得连接
+    connection = dataSource.getConnection();
+    if (level != null) {
+        connection.setTransactionIsolation(level.getLevel());
+    }
+    setDesiredAutoCommit(autoCommmit);
+}
+```
+
+上述的 Executor.query() 方法几经转折，最后会创建一个 StatementHandler 对象，然后将必要的参数传递给 StatementHandler ，使用 StatementHandler 来完成对数据库的查询，最终返回 List 结果集。
+
+从上面的代码中我们可以看出，Executor 的功能和作用是：
+
+```xml
+1. 根据传递的参数，完成 SQL 语句的动态解析，生成 BoundSql 对象，供 StatementHandler 使用。
+2. 为查询创建缓存，以提高性能。
+3. 创建 JDBC 的 Statement 连接对象，传递给 StatementHandler 对象，返回 List 查询结果。
 ```
 
 
