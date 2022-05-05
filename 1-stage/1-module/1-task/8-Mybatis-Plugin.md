@@ -32,7 +32,23 @@
 插件具体是如何拦截并附加额外的功能的呢？以 ParameterHandler 来说
 
 ```java
-
+// org.apache.ibatis.session.Configuration#newParameterHandler
+public ParameterHandler newParameterHandler(MappedStatement mappedStatement, 
+                                            Object parameterObject, 
+                                            BoundSql boundSql) {
+    ParameterHandler parameterHandler = mappedStatement
+        .getLang()
+        .createParameterHandler(mappedStatement, parameterObject, boundSql);
+    parameterHandler = (ParameterHandler) interceptorChain.pluginAll(parameterHandler);
+    return parameterHandler;
+}
+// org.apache.ibatis.plugin.InterceptorChain#pluginAll
+public Object pluginAll(Object target) {
+    for (Interceptor interceptor : interceptors) {
+        target = interceptor.plugin(target);
+    }
+    return target;
+}
 ```
 
 interceptorChain 保存了所有的拦截器（interceptors），是 mybatis 初始化的时候创建的。调用拦截器链中的拦截器一次的目标进行拦截或增强。Interceptor.plugin(target) 中的 target 就可以理解为 mybatis 中的四大对象。返回的 target 是被重重代理后的对象。
