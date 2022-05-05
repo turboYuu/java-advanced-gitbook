@@ -77,23 +77,51 @@ private void parseConfiguration(XNode root) {
         //issue #117 read properties first
         // 解析 <properties/> 标签
         propertiesElement(root.evalNode("properties"));
+        // 解析 <settings/> 标签
         Properties settings = settingsAsProperties(root.evalNode("settings"));
+        // 加载自定义的 VFS 实现类
         loadCustomVfs(settings);
+        // 解析 <typeAliases/> 标签
         typeAliasesElement(root.evalNode("typeAliases"));
+        // 解析 <plugins/> 标签
         pluginElement(root.evalNode("plugins"));
+        // 解析 <objectFactory/> 标签
         objectFactoryElement(root.evalNode("objectFactory"));
+        // 解析 <objectWrapperFactory/> 标签
         objectWrapperFactoryElement(root.evalNode("objectWrapperFactory"));
+        // 解析 <reflectorFactory/> 标签
         reflectorFactoryElement(root.evalNode("reflectorFactory"));
+        // 赋值 <settings/> 至 Configuration 属性
         settingsElement(settings);
         // read it after objectFactory and objectWrapperFactory issue #631
+        // 解析 <environments/> 标签
         environmentsElement(root.evalNode("environments"));
+        // 解析 <databaseIdProvider/> 标签
         databaseIdProviderElement(root.evalNode("databaseIdProvider"));
+        // 解析 <typeHandlers/> 标签
         typeHandlerElement(root.evalNode("typeHandlers"));
+        // 解析 <mappers/> 标签
         mapperElement(root.evalNode("mappers"));
     } catch (Exception e) {
         throw new BuilderException("Error parsing SQL Mapper Configuration. Cause: " + e, e);
     }
 }
+```
+
+
+
+介绍一下 MappedStatement：
+
+作用：MappedStatement 与 Mapper 配置文件中的一个 select/update/insert/delete 节点相对应。
+
+mapper 中配置的标签都被封装到了此对象中，主要用途是描述一条 SQL 语句。
+
+**初始化过程**：回顾刚开始的加载配置文件的过程，会对 mybatis-config.xml 中的各个标签都进行解析，其中有 mappers 标签用来引入 mapper.xml 文件或者配置 mapper 接口的目录。
+
+```xml
+<select id="selectUserById" parameterType="int" resultType="user">
+    select * from user where id=#{id}
+</select>
 ```
 
 
