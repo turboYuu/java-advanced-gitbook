@@ -238,8 +238,11 @@ public <E> List<E> selectList(String statement, Object parameter) {
 
 public <E> List<E> selectList(String statement, Object parameter, RowBounds rowBounds) {
     try {
-        // 
+        // 根据传入的全限定名 + 方法名 从映射的 Map 中取出 MappedStatement 对象
         MappedStatement ms = configuration.getMappedStatement(statement);
+        // 调用 executor 中的方法处理
+        // RowBounds 是用来逻辑分页
+        // wrapCollection(parameter) 是用来装饰集合或者数组参数
         return executor.query(ms, wrapCollection(parameter), rowBounds, Executor.NO_RESULT_HANDLER);
     } catch (Exception e) {
         throw ExceptionFactory.wrapException("Error querying database.  Cause: " + e, e);
@@ -252,6 +255,99 @@ public <E> List<E> selectList(String statement, Object parameter, RowBounds rowB
 
 
 ## 1.3 源码剖析-executor
+
+继续源码中的步骤，进入 executor.query()
+
+```java
+// 此方法在 SimpleExecutor 的父类 BaseExecutor 中实现
+public <E> List<E> query(MappedStatement ms, 
+                         Object parameter, 
+                         RowBounds rowBounds, 
+                         ResultHandler resultHandler) throws SQLException {
+    // 根据传入的参数动态获得 SQL 语句，最后返回用 BoundSql 对象表示
+    BoundSql boundSql = ms.getBoundSql(parameter);
+    // 为本次查询创建缓存的 key
+    CacheKey key = createCacheKey(ms, parameter, rowBounds, boundSql);
+    return query(ms, parameter, rowBounds, resultHandler, key, boundSql);
+}
+
+// 进入 query 的重载方法中
+public <E> List<E> query(MappedStatement ms, Object parameter, RowBounds rowBounds, 
+                         ResultHandler resultHandler, CacheKey key, 
+                         BoundSql boundSql) throws SQLException {
+    ErrorContext.instance().resource(ms.getResource()).activity("executing a query").object(ms.getId());
+    if (closed) {
+        throw new ExecutorException("Executor was closed.");
+    }
+    if (queryStack == 0 && ms.isFlushCacheRequired()) {
+        clearLocalCache();
+    }
+    List<E> list;
+    try {
+        queryStack++;
+        list = resultHandler == null ? (List<E>) localCache.getObject(key) : null;
+        if (list != null) {
+            handleLocallyCachedOutputParameters(ms, key, parameter, boundSql);
+        } else {
+            // 如果缓存中没有本次查找的值，那么从数据库中查询
+            list = queryFromDatabase(ms, parameter, rowBounds, resultHandler, key, boundSql);
+        }
+    } finally {
+        queryStack--;
+    }
+    if (queryStack == 0) {
+        for (DeferredLoad deferredLoad : deferredLoads) {
+            deferredLoad.load();
+        }
+        // issue #601
+        deferredLoads.clear();
+        if (configuration.getLocalCacheScope() == LocalCacheScope.STATEMENT) {
+            // issue #482
+            clearLocalCache();
+        }
+    }
+    return list;
+}
+
+
+// 从数据库查询
+private <E> List<E> queryFromDatabase(MappedStatement ms, Object parameter, 
+                                      RowBounds rowBounds, ResultHandler resultHandler, 
+                                      CacheKey key, BoundSql boundSql) throws SQLException {
+    List<E> list;
+    localCache.putObject(key, EXECUTION_PLACEHOLDER);
+    try {
+        // 查询的方法
+        list = doQuery(ms, parameter, rowBounds, resultHandler, boundSql);
+    } finally {
+        localCache.removeObject(key);
+    }
+    // 将查询结果放入缓存
+    localCache.putObject(key, list);
+    if (ms.getStatementType() == StatementType.CALLABLE) {
+        localOutputParameterCache.putObject(key, parameter);
+    }
+    return list;
+}
+
+// SimpleExecutor 中实现父类的 doQuery 抽象方法
+public <E> List<E> doQuery(MappedStatement ms, Object parameter, 
+                           RowBounds rowBounds, ResultHandler resultHandler, 
+                           BoundSql boundSql) throws SQLException {
+    Statement stmt = null;
+    try {
+        Configuration configuration = ms.getConfiguration();
+        // 传入参数创建 StatementHandler 对象来执行查询
+        StatementHandler handler = configuration.newStatementHandler(wrapper, ms, parameter, rowBounds, resultHandler, boundSql);
+        // 创建 jdbc 中的 statement 对象
+        stmt = prepareStatement(handler, ms.getStatementLog());
+        // StatementHandler 进行处理
+        return handler.<E>query(stmt, resultHandler);
+    } finally {
+        closeStatement(stmt);
+    }
+}
+```
 
 
 
