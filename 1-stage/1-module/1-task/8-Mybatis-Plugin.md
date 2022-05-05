@@ -35,7 +35,34 @@
 
 ```
 
+interceptorChain 保存了所有的拦截器（interceptors），是 mybatis 初始化的时候创建的。调用拦截器链中的拦截器一次的目标进行拦截或增强。Interceptor.plugin(target) 中的 target 就可以理解为 mybatis 中的四大对象。返回的 target 是被重重代理后的对象。
 
+如果我们想要拦截 Executor 的 query 方法，那么可以这样定义插件：
+
+```java
+@Intercepts({ 
+	@Signature(type = Executor.class, 
+		method = "query", 
+		args = {MappedStatement.class,Object.class, RowBounds.class, ResultHandler.class}) 
+})
+public class MyPlugin implements Interceptor {
+    // 省略逻辑
+}
+```
+
+除此之外，我们还需要将插件配置到 sqlMapConfig.xml 中。
+
+```xml
+<plugins>
+    <plugin interceptor="com.turbo.plugin.MyPlugin">
+        <property name="name" value="bob"/>
+    </plugin>
+</plugins>
+```
+
+这样 Mybatis在启动时可以加载插件，并保存插件实例到相关对象（InterceptorChain，拦截器链）中。待准备工作做完后，Mybatis处于就绪状态。我们在执行 SQL 时，需要先通过 DefaultSqlSessionFactory 创建 SqlSession。Executor 实例会在创建 SqlSession 的过程中被创建，Executor 实例创建完毕后，Mybatis 会通过 JDK 动态代理为实例生成代理类。这样，插件逻辑即可在 Executor 相关方法被调用前执行。
+
+以上就是Mybatis 插件机制的基本原理。
 
 # 4 自定义插件
 
