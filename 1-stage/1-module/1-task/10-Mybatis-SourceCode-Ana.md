@@ -512,7 +512,93 @@ public List<Object> handleResultSets(Statement stmt) throws SQLException {
 
 # 2 Mapper代理方式
 
-## 2.1 源码剖析-getmapper
+回顾下写法：
+
+```java
+@Test
+public void test02() throws IOException {
+    // 1. 读取配置文件，读成字节输入流，注意：现在还没有解析
+    InputStream resourceAsStream = Resources.getResourceAsStream("SqlMapConfig.xml");
+    // 2. 这一行代码时初始化工作的开始
+    SqlSessionFactory factory = new SqlSessionFactoryBuilder().build(resourceAsStream);
+    SqlSession sqlSession = factory.openSession();
+    UserMapper userMapper = sqlSession.getMapper(UserMapper.class);
+    List<User> all = userMapper.findAllUser();
+    for (User user : all) {
+        System.out.println(user);
+    }
+    sqlSession.close();
+}
+```
+
+思考一个问题，通过的 Mapper 接口我们都没有实现的方法却可以使用，是为什么？答案很简单：动态代理
+
+开始之前介绍一下 Mybatis 初始化时对接口的处理：MapperRegistry 是 Configuration 中的一个属性，它内部维护一个 HashMap 用于存放 mapper 接口的工厂类，每个接口对应一个工厂类。mappers 中可以配置接口的包路径，或者某个具体的接口类。
+
+```xml
+<mappers>
+    <mapper resource="UserMapper.xml"></mapper>
+    <mapper class="com.turbo.mapper.UserMapper"/>
+    <package name="com.turbo.mapper"/>
+</mappers>
+```
+
+当解析 mappers 标签时，它会判断解析到的是 <br>mapper 配置文件时，会再将对应配置文件中的增删改查 标签封装成 MappedStatement 对象，存入 mappedStatements 中；<br>判断解析到接口时，会建立接口对应的 MapperProxyFactory对象，存入 HashMap 中，key = 接口的字节码对象，value = 此接口对应的 MapperProxyFactory 对象。
+
+
+
+## 2.1 源码剖析-getMapper
+
+进入 sqlSession.getMapper(UserMapper.class)中
+
+```java
+public <T> T getMapper(Class<T> type) {
+    return configuration.<T>getMapper(type, this);
+}
+
+public <T> T getMapper(Class<T> type, SqlSession sqlSession) {
+    return mapperRegistry.getMapper(type, sqlSession);
+}
+
+public <T> T getMapper(Class<T> type, SqlSession sqlSession) {
+    final MapperProxyFactory<T> mapperProxyFactory = (MapperProxyFactory<T>) knownMappers.get(type);
+    if (mapperProxyFactory == null) {
+        throw new BindingException("Type " + type + " is not known to the MapperRegistry.");
+    }
+    try {
+        return mapperProxyFactory.newInstance(sqlSession);
+    } catch (Exception e) {
+        throw new BindingException("Error getting mapper instance. Cause: " + e, e);
+    }
+}
+
+public T newInstance(SqlSession sqlSession) {
+    final MapperProxy<T> mapperProxy = new MapperProxy<T>(sqlSession, mapperInterface, methodCache);
+    return newInstance(mapperProxy);
+}
+
+// 
+public class MapperProxy<T> implements InvocationHandler, Serializable {
+
+  // ...
+  private final SqlSession sqlSession;
+  private final Class<T> mapperInterface;
+  private final Map<Method, MapperMethod> methodCache;
+
+  public MapperProxy(SqlSession sqlSession, Class<T> mapperInterface, 
+                     Map<Method, MapperMethod> methodCache) {
+    this.sqlSession = sqlSession;
+    this.mapperInterface = mapperInterface;
+    this.methodCache = methodCache;
+  }
+  // 省略部分源码
+}
+
+```
+
+
+
+
 
 ## 2.2 源码剖析-invoke()
 
