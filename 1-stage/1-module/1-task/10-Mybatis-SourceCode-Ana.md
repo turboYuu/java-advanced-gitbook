@@ -386,7 +386,135 @@ protected void openConnection() throws SQLException {
 
 ## 1.4 源码剖析-StatementHandler
 
+StatementHandler 对象主要完成两个工作：
+
+-  对于 JDBC 的 PreparedStatement 类型的对象，创建的过程中，我们使用的是 SQL 语句字符串会包含若干个 ? 占位符，我们齐后再对占位符进行设值。StatementHandler 通过 parameterize(statement) 方法对 Statement 进行设值
+- StatementHandler 通过 List query(Statement statement, ResultHandler resultHandler) 方法来完成 Statement，和将 Statement 对象返回的 resultSet 封装成 List；
+
+进入 StatementHandler 的 parameterize(statement) 方法的实现：
+
+```java
+public void parameterize(Statement statement) throws SQLException {
+	// 使用 parameterHandler 对象来完成对 statement 的设值
+    parameterHandler.setParameters((PreparedStatement) statement);
+}
+```
+
+```java
+// ParameterHandler 类的 setParameters(PreparedStatement ps) 实现
+// 对某一个 Statement 进行设置参数
+public void setParameters(PreparedStatement ps) {
+    ErrorContext.instance()
+        .activity("setting parameters")
+        .object(mappedStatement.getParameterMap().getId());
+    List<ParameterMapping> parameterMappings = boundSql.getParameterMappings();
+    if (parameterMappings != null) {
+        for (int i = 0; i < parameterMappings.size(); i++) {
+            ParameterMapping parameterMapping = parameterMappings.get(i);
+            if (parameterMapping.getMode() != ParameterMode.OUT) {
+                Object value;
+                String propertyName = parameterMapping.getProperty();
+                if (boundSql.hasAdditionalParameter(propertyName)) { // issue #448 ask first for additional params
+                    value = boundSql.getAdditionalParameter(propertyName);
+                } else if (parameterObject == null) {
+                    value = null;
+                } else if (typeHandlerRegistry.hasTypeHandler(parameterObject.getClass())) {
+                    value = parameterObject;
+                } else {
+                    MetaObject metaObject = configuration.newMetaObject(parameterObject);
+                    value = metaObject.getValue(propertyName);
+                }
+                // 每一个Mapping都有一个 TypeHandler，根据 TypeHandler 来对 prepearedStatemnt 进行设置参数
+                TypeHandler typeHandler = parameterMapping.getTypeHandler();
+                JdbcType jdbcType = parameterMapping.getJdbcType();
+                if (value == null && jdbcType == null) {
+                    jdbcType = configuration.getJdbcTypeForNull();
+                }
+                try {
+                    // 设置参数
+                    typeHandler.setParameter(ps, i + 1, value, jdbcType);
+                } catch (TypeException e) {
+                    throw new TypeException("Could not set parameters for mapping: " + parameterMapping + ". Cause: " + e, e);
+                } catch (SQLException e) {
+                    throw new TypeException("Could not set parameters for mapping: " + parameterMapping + ". Cause: " + e, e);
+                }
+            }
+        }
+    }
+}
+```
+
+从上述代码可以看到，StatementHandler 的 parameterize(Statement) 方法调用了 parameterHandler.setParameters((PreparedStatement) statement) 方法，parameterHandler.setParameters((PreparedStatement) statement) 方法负责根据我们输入的参数，对 statement 对象的 ? 占位符处进行赋值。
+
+进入到 StatementHandler  的 List query(Statement statement, ResultHandler resultHandler) 方法的实现：
+
+```java
+public <E> List<E> query(Statement statement, ResultHandler resultHandler) throws SQLException {
+    // 1. 调用 PreparedStatement.execute() 方法，然后将 resultSet 交给 resultSetHandler 处理
+    PreparedStatement ps = (PreparedStatement) statement;
+    ps.execute();
+    // 2. 使用 resultSetHandler 来处理 ResultSet
+    return resultSetHandler.<E> handleResultSets(ps);
+}
+```
+
+从上述代码我们可以看出，StatementHandler  的 List query(Statement statement, ResultHandler resultHandler) 方法的实现，是调用了 ResultSetHandler 的 handleResultSets(Statement) 方法。
+
+ResultSetHandler 的 handleResultSets(Statement) 方法 会将 Statement 语句执行后生成的 resultSet 结果集转换成 List 结果集。
+
+```java
+public List<Object> handleResultSets(Statement stmt) throws SQLException {
+    ErrorContext.instance().activity("handling results").object(mappedStatement.getId());
+	// 多 ResultSet 的结果集合，每个 ResultSet 对应一个 Object 对象。而实际上，每个 Object 是 List<Object> 对象
+    // 在不考虑存储过程的多ResultSet的情况，普通的查询，实际就是一个ResultSet,也就是说，multipleResults最多就一个元素
+    final List<Object> multipleResults = new ArrayList<Object>();
+
+    int resultSetCount = 0;
+    // 获得首个 ResultSet 对象，并封装成ResultSetWrapper对象 
+    ResultSetWrapper rsw = getFirstResultSet(stmt);
+	// 获得 ResultMap数组
+    // 在不考虑存储过程的多ResultSet的情况，普通的查询，实际就是一个ResultSet,也就是说，resultMaps最多就一个元素
+    List<ResultMap> resultMaps = mappedStatement.getResultMaps();
+    int resultMapCount = resultMaps.size();
+    validateResultMapsCount(rsw, resultMapCount);
+    while (rsw != null && resultMapCount > resultSetCount) {
+        // 获得 ResultMap对象
+        ResultMap resultMap = resultMaps.get(resultSetCount);
+        // 处理ResultSet，将结果添加到multipleResults中
+        handleResultSet(rsw, resultMap, multipleResults, null);
+        // 获得下一个ResultSet对象，并封装成ResultSetWrapper对象 
+        rsw = getNextResultSet(stmt);
+        // 清理
+        cleanUpAfterHandlingResultSet();
+        resultSetCount++;
+    }
+	// 因为 mappedStatement.resultSets 只在存储过程中使用，本系列暂时不考虑，忽略即可
+    String[] resultSets = mappedStatement.getResultSets();
+    if (resultSets != null) {
+        while (rsw != null && resultSetCount < resultSets.length) {
+            ResultMapping parentMapping = nextResultMaps.get(resultSets[resultSetCount]);
+            if (parentMapping != null) {
+                String nestedResultMapId = parentMapping.getNestedResultMapId();
+                ResultMap resultMap = configuration.getResultMap(nestedResultMapId);
+                handleResultSet(rsw, resultMap, null, parentMapping);
+            }
+            rsw = getNextResultSet(stmt);
+            cleanUpAfterHandlingResultSet();
+            resultSetCount++;
+        }
+    }
+	// 如果是 multipleResults 单元素，则取首元素返回
+    return collapseSingleResultList(multipleResults);
+}
+```
+
+
+
 # 2 Mapper代理方式
+
+## 2.1 源码剖析-getmapper
+
+## 2.2 源码剖析-invoke()
 
 # 3 二级缓存源码剖析
 
