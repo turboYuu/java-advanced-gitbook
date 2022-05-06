@@ -701,4 +701,18 @@ public Object execute(SqlSession sqlSession, Object[] args) {
 
 # 3 二级缓存源码剖析
 
+## 3.1 启用二级缓存
+
+## 3.2 标签< cache/> 的解析
+
+## 3.3 查询源码分析
+
+## 3.4 为何只有SqlSession提交或关闭之后
+
+## 3.5 二级缓存的刷新
+
+## 3.6 二级缓存的刷新
+
+## 3.7 总结
+
 # 4 延迟加载源码剖析
