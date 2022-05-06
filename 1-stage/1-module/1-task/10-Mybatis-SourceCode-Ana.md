@@ -901,9 +901,217 @@ public Cache useNewCache(Class<? extends Cache> typeClass,
 }
 ```
 
+我们看到一个 Mapper.xml 只会解析一次标签，也就死只创建一次 Cache 对象，放进 configuration 中，并将 cache赋值给 MapperBuilderAssistant.currentCache
 
+**buildStatementFromContext(context.evalNodes("select|insert|update|delete")); 将Cache包装到 MappedStatement**
+
+```java
+// XMLMapperBuilder#buildStatementFromContext(java.util.List<org.apache.ibatis.parsing.XNode>)
+private void buildStatementFromContext(List<XNode> list) {
+    if (configuration.getDatabaseId() != null) {
+        buildStatementFromContext(list, configuration.getDatabaseId());
+    }
+    buildStatementFromContext(list, null);
+}
+
+// XMLMapperBuilder#buildStatementFromContext
+private void buildStatementFromContext(List<XNode> list, String requiredDatabaseId) {
+    for (XNode context : list) {
+        final XMLStatementBuilder statementParser = 
+            new XMLStatementBuilder(configuration, builderAssistant, context, requiredDatabaseId);
+        try {
+            // 每一条执行语句转换成一个 MappedStatement
+            statementParser.parseStatementNode();
+        } catch (IncompleteElementException e) {
+            configuration.addIncompleteStatement(statementParser);
+        }
+    }
+}
+
+// XMLStatementBuilder#parseStatementNode
+public void parseStatementNode() {
+    String id = context.getStringAttribute("id");
+    String databaseId = context.getStringAttribute("databaseId");
+
+    if (!databaseIdMatchesCurrent(id, databaseId, this.requiredDatabaseId)) {
+        return;
+    }
+
+    Integer fetchSize = context.getIntAttribute("fetchSize");
+    Integer timeout = context.getIntAttribute("timeout");
+    String parameterMap = context.getStringAttribute("parameterMap");
+    String parameterType = context.getStringAttribute("parameterType");
+    Class<?> parameterTypeClass = resolveClass(parameterType);
+    String resultMap = context.getStringAttribute("resultMap");
+    String resultType = context.getStringAttribute("resultType");
+    String lang = context.getStringAttribute("lang");
+    LanguageDriver langDriver = getLanguageDriver(lang);
+
+    Class<?> resultTypeClass = resolveClass(resultType);
+    String resultSetType = context.getStringAttribute("resultSetType");
+    StatementType statementType = StatementType.valueOf(context.getStringAttribute("statementType", StatementType.PREPARED.toString()));
+    ResultSetType resultSetTypeEnum = resolveResultSetType(resultSetType);
+
+    String nodeName = context.getNode().getNodeName();
+    SqlCommandType sqlCommandType = SqlCommandType.valueOf(nodeName.toUpperCase(Locale.ENGLISH));
+    boolean isSelect = sqlCommandType == SqlCommandType.SELECT;
+    boolean flushCache = context.getBooleanAttribute("flushCache", !isSelect);
+    boolean useCache = context.getBooleanAttribute("useCache", isSelect);
+    boolean resultOrdered = context.getBooleanAttribute("resultOrdered", false);
+
+    // Include Fragments before parsing
+    XMLIncludeTransformer includeParser = new XMLIncludeTransformer(configuration, builderAssistant);
+    includeParser.applyIncludes(context.getNode());
+
+    // Parse selectKey after includes and remove them.
+    processSelectKeyNodes(id, parameterTypeClass, langDriver);
+
+    // Parse the SQL (pre: <selectKey> and <include> were parsed and removed)
+    SqlSource sqlSource = langDriver.createSqlSource(configuration, context, parameterTypeClass);
+    String resultSets = context.getStringAttribute("resultSets");
+    String keyProperty = context.getStringAttribute("keyProperty");
+    String keyColumn = context.getStringAttribute("keyColumn");
+    KeyGenerator keyGenerator;
+    String keyStatementId = id + SelectKeyGenerator.SELECT_KEY_SUFFIX;
+    keyStatementId = builderAssistant.applyCurrentNamespace(keyStatementId, true);
+    if (configuration.hasKeyGenerator(keyStatementId)) {
+        keyGenerator = configuration.getKeyGenerator(keyStatementId);
+    } else {
+        keyGenerator = context.getBooleanAttribute("useGeneratedKeys",
+                                                   configuration.isUseGeneratedKeys() && SqlCommandType.INSERT.equals(sqlCommandType))
+            ? Jdbc3KeyGenerator.INSTANCE : NoKeyGenerator.INSTANCE;
+    }
+	// 创建 MappedStatement 对象
+    builderAssistant.addMappedStatement(id, sqlSource, statementType, sqlCommandType,
+                                        fetchSize, timeout, parameterMap, parameterTypeClass, 
+                                        resultMap, resultTypeClass,
+                                        resultSetTypeEnum, flushCache, useCache, resultOrdered, 
+                                        keyGenerator, keyProperty, keyColumn, databaseId, 
+                                        langDriver, resultSets);
+}
+
+// MapperBuilderAssistant#addMappedStatement
+public MappedStatement addMappedStatement(
+      String id,
+      SqlSource sqlSource,
+      StatementType statementType,
+      SqlCommandType sqlCommandType,
+      Integer fetchSize,
+      Integer timeout,
+      String parameterMap,
+      Class<?> parameterType,
+      String resultMap,
+      Class<?> resultType,
+      ResultSetType resultSetType,
+      boolean flushCache,
+      boolean useCache,
+      boolean resultOrdered,
+      KeyGenerator keyGenerator,
+      String keyProperty,
+      String keyColumn,
+      String databaseId,
+      LanguageDriver lang,
+      String resultSets) {
+
+    if (unresolvedCacheRef) {
+        throw new IncompleteElementException("Cache-ref not yet resolved");
+    }
+
+    id = applyCurrentNamespace(id, false);
+    boolean isSelect = sqlCommandType == SqlCommandType.SELECT;
+
+    // 创建MappedStatement对象
+    MappedStatement.Builder statementBuilder = 
+        new MappedStatement.Builder(configuration, id, sqlSource, sqlCommandType)
+        .resource(resource)
+        .fetchSize(fetchSize)
+        .timeout(timeout)
+        .statementType(statementType)
+        .keyGenerator(keyGenerator)
+        .keyProperty(keyProperty)
+        .keyColumn(keyColumn)
+        .databaseId(databaseId)
+        .lang(lang)
+        .resultOrdered(resultOrdered)
+        .resultSets(resultSets)
+        .resultMaps(getStatementResultMaps(resultMap, resultType, id))
+        .resultSetType(resultSetType)
+        .flushCacheRequired(valueOrDefault(flushCache, !isSelect))
+        .useCache(valueOrDefault(useCache, isSelect))
+        .cache(currentCache); // 在这里将之前生成的Cache封装到MappedStatement
+
+    ParameterMap statementParameterMap = getStatementParameterMap(parameterMap, parameterType, id);
+    if (statementParameterMap != null) {
+        statementBuilder.parameterMap(statementParameterMap);
+    }
+
+    MappedStatement statement = statementBuilder.build();
+    configuration.addMappedStatement(statement);
+    return statement;
+}
+```
+
+我们看到将 Mapper中创建的Cache对象，加入到每个MappedStatement对象中。
 
 ## 3.3 查询源码分析
+
+### 3.3.1 CachingExecutor
+
+```java
+// CachingExecutor#query
+public <E> List<E> query(MappedStatement ms, Object parameterObject, 
+                         RowBounds rowBounds, ResultHandler resultHandler) throws SQLException {
+    BoundSql boundSql = ms.getBoundSql(parameterObject);
+    // 创建 CacheKey
+    CacheKey key = createCacheKey(ms, parameterObject, rowBounds, boundSql);
+    return query(ms, parameterObject, rowBounds, resultHandler, key, boundSql);
+}
+
+// CachingExecutor#query
+public <E> List<E> query(MappedStatement ms, Object parameterObject, 
+                         RowBounds rowBounds, ResultHandler resultHandler, 
+                         CacheKey key, BoundSql boundSql) throws SQLException {
+    // 从MappedStatement中获取Cache，注意这里的Cache是从MappedStatement中获取的
+    // 也就是我们上面解析Mapper中<cache/>标签中创建的，它保存在configuration中
+    // 我们在上面解析 mapper.xml时分析过每一个mappedStatement都有一个Cache对象，就是这里
+    Cache cache = ms.getCache();
+    // 如果配置文件中没有配置<cache/>，则cache为空
+    if (cache != null) {
+        // 如果需要刷新缓存的话就刷新：flushCache="true"
+        flushCacheIfRequired(ms);
+        if (ms.isUseCache() && resultHandler == null) {
+            ensureNoOutParams(ms, parameterObject, boundSql);
+            @SuppressWarnings("unchecked")
+            // 访问二级缓存
+            List<E> list = (List<E>) tcm.getObject(cache, key);
+            // 缓存未命中
+            if (list == null) {
+                // 如果没有值，则执行查询，这个查询实际也就是先走一级缓存查询，一级缓存也没有的话，进行DB查询
+                list = delegate.<E> query(ms, parameterObject, rowBounds, resultHandler, key, boundSql);
+                // 缓存查询结果
+                tcm.putObject(cache, key, list); // issue #578 and #116
+            }
+            return list;
+        }
+    }
+    return delegate.<E> query(ms, parameterObject, rowBounds, resultHandler, key, boundSql);
+}
+```
+
+如果设置了 **flushCache="true"，则每次查询都会刷新缓存**
+
+```xml
+<!--flushCache	将其设置为true后，只要语句被调用，都会导致本地缓存和二级缓存被清空，默认值：false。-->
+<select id="selectUserById" parameterType="int" resultType="user" useCache="true" flushCache="true">
+    select * from user where id=#{id}
+</select>
+```
+
+如上，注意二级缓存是从MappedStatement中获取的。由于 MappedStatement 存在于全局配置中，可以多个 CachingExecutor 获取到，这样就会出现线程安全问题。除此之外，若不加以控制，多个事务共用一个缓存实例，会导致脏读问题。至于脏读问题，需要借助其他类来处理，也就是上面代码中 tcm 变量对应的类型。下面分析一下：
+
+### 3.3.2 TransactionalCacheManager
+
+### 3.3.3 TransactionalCache
 
 ## 3.4 为何只有SqlSession提交或关闭之后
 
