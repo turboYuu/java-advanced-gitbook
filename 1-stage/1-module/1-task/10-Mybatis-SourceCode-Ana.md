@@ -611,6 +611,26 @@ public class MapperProxy<T> implements InvocationHandler, Serializable {
 
 ## 2.2 源码剖析-invoke()
 
+在动态代理返回示例后，我们就可以直接调用 mapper 类中的方法了，但代理对象调用方法，执行的是在 MapperProxy中的invoke方法：
+
+```java
+public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+    try {
+        if (Object.class.equals(method.getDeclaringClass())) {
+            return method.invoke(this, args);
+        } else if (isDefaultMethod(method)) {
+            return invokeDefaultMethod(proxy, method, args);
+        }
+    } catch (Throwable t) {
+        throw ExceptionUtil.unwrapThrowable(t);
+    }
+    final MapperMethod mapperMethod = cachedMapperMethod(method);
+    return mapperMethod.execute(sqlSession, args);
+}
+```
+
+
+
 # 3 二级缓存源码剖析
 
 # 4 延迟加载源码剖析
