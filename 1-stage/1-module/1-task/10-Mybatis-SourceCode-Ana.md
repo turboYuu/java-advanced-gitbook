@@ -616,6 +616,7 @@ public class MapperProxy<T> implements InvocationHandler, Serializable {
 ```java
 public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
     try {
+        // 如果是Object定义的方法，直接调用
         if (Object.class.equals(method.getDeclaringClass())) {
             return method.invoke(this, args);
         } else if (isDefaultMethod(method)) {
@@ -624,8 +625,75 @@ public Object invoke(Object proxy, Method method, Object[] args) throws Throwabl
     } catch (Throwable t) {
         throw ExceptionUtil.unwrapThrowable(t);
     }
+    // 获得 MapperMethod 对象
     final MapperMethod mapperMethod = cachedMapperMethod(method);
+    // 重点在这：MapperMethod最终调用了执行的方法
     return mapperMethod.execute(sqlSession, args);
+}
+```
+
+进入 execute 方法：
+
+```java
+public Object execute(SqlSession sqlSession, Object[] args) {
+    Object result;
+    // 判断mapper中的方法类型，最终调用的还是 sqlSession 的方法
+    switch (command.getType()) {
+        case INSERT: {
+            // 转换参数
+            Object param = method.convertArgsToSqlCommandParam(args);
+            // 执行 insert操作
+            // 转换rowCount
+            result = rowCountResult(sqlSession.insert(command.getName(), param));
+            break;
+        }
+        case UPDATE: {
+            // 转换参数
+            Object param = method.convertArgsToSqlCommandParam(args);
+            // 转换 rowCount
+            result = rowCountResult(sqlSession.update(command.getName(), param));
+            break;
+        }
+        case DELETE: {
+            // 转换参数
+            Object param = method.convertArgsToSqlCommandParam(args);
+            // 转换 rowCount
+            result = rowCountResult(sqlSession.delete(command.getName(), param));
+            break;
+        }
+        case SELECT:
+            // 无返回，并且有ResultHandler方法参数，则将查询的结果，提交给ResultHandler
+            if (method.returnsVoid() && method.hasResultHandler()) {
+                executeWithResultHandler(sqlSession, args);
+                result = null;
+            } else if (method.returnsMany()) { // 执行查询，返回列表
+                result = executeForMany(sqlSession, args);
+            } else if (method.returnsMap()) { // 执行查询，返回map
+                result = executeForMap(sqlSession, args);
+            } else if (method.returnsCursor()) { // 执行查询，返回Cursor
+                result = executeForCursor(sqlSession, args);
+            } else {
+                // 执行拆线呢，返回单个对象
+                // 转换参数
+                Object param = method.convertArgsToSqlCommandParam(args);
+                // 查询单条
+                result = sqlSession.selectOne(command.getName(), param);
+            }
+            break;
+        case FLUSH:
+            result = sqlSession.flushStatements();
+            break;
+        default:
+            throw new BindingException("Unknown execution method for: " + command.getName());
+    }
+    // 返回结果为 null，并且返回类型为基本类型，则抛出BindingException异常
+    if (result == null && method.getReturnType().isPrimitive() && !method.returnsVoid()) {
+        throw new BindingException("Mapper method '" + command.getName() 
+                       + " attempted to return null from a method with a primitive return type (" 
+                                   + method.getReturnType() + ").");
+    }
+    // 返回结果
+    return result;
 }
 ```
 
