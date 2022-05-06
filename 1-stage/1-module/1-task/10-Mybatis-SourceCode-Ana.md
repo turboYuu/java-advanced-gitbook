@@ -871,6 +871,36 @@ private void cacheElement(XNode context) throws Exception {
 }
 ```
 
+先来看看是如何构建 Cache 对象的
+
+```java
+// org.apache.ibatis.builder.MapperBuilderAssistant#useNewCache
+public Cache useNewCache(Class<? extends Cache> typeClass,
+      Class<? extends Cache> evictionClass,
+      Long flushInterval,
+      Integer size,
+      boolean readWrite,
+      boolean blocking,
+      Properties props) {
+    // 1. 生成Cache对象
+    Cache cache = new CacheBuilder(currentNamespace)
+        // 这里如果我们定义了<cache/>中的type，就使用自定义的 Cache，否则使用和一级缓存相同的PerpetualCache
+        .implementation(valueOrDefault(typeClass, PerpetualCache.class))
+        .addDecorator(valueOrDefault(evictionClass, LruCache.class))
+        .clearInterval(flushInterval)
+        .size(size)
+        .readWrite(readWrite)
+        .blocking(blocking)
+        .properties(props)
+        .build();
+    // 2. 添加到 Configuration中
+    configuration.addCache(cache);
+    // 3. 并将cache赋值给MapperBuilderAssistant.currentCache
+    currentCache = cache;
+    return cache;
+}
+```
+
 
 
 ## 3.3 查询源码分析
