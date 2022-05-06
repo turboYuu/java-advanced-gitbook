@@ -742,6 +742,137 @@ public Object execute(SqlSession sqlSession, Object[] args) {
 
 ## 3.2 标签< cache/> 的解析
 
+根据之前的mybatis源码剖析，xml的解析工作主要交给 XMLConfigBuilder.parse() 方法来实现
+
+```java
+// XMLConfigBuilder#parse
+public Configuration parse() {
+    if (parsed) {
+        throw new BuilderException("Each XMLConfigBuilder can only be used once.");
+    }
+    parsed = true;
+    parseConfiguration(parser.evalNode("/configuration")); // 这里解析
+    return configuration;
+}
+// XMLConfigBuilder#parseConfiguration
+// 既然是在 xml 中添加的，那么我们就直接看关于mappers标签的解析
+private void parseConfiguration(XNode root) {
+    try {
+        //issue #117 read properties first
+        propertiesElement(root.evalNode("properties"));
+        Properties settings = settingsAsProperties(root.evalNode("settings"));
+        loadCustomVfs(settings);
+        typeAliasesElement(root.evalNode("typeAliases"));
+        pluginElement(root.evalNode("plugins"));
+        objectFactoryElement(root.evalNode("objectFactory"));
+        objectWrapperFactoryElement(root.evalNode("objectWrapperFactory"));
+        reflectorFactoryElement(root.evalNode("reflectorFactory"));
+        settingsElement(settings);
+        // read it after objectFactory and objectWrapperFactory issue #631
+        environmentsElement(root.evalNode("environments"));
+        databaseIdProviderElement(root.evalNode("databaseIdProvider"));
+        typeHandlerElement(root.evalNode("typeHandlers"));
+        // 就是这里
+        mapperElement(root.evalNode("mappers"));
+    } catch (Exception e) {
+        throw new BuilderException("Error parsing SQL Mapper Configuration. Cause: " + e, e);
+    }
+}
+
+// XMLConfigBuilder#mapperElement
+private void mapperElement(XNode parent) throws Exception {
+    if (parent != null) {
+        for (XNode child : parent.getChildren()) {
+            if ("package".equals(child.getName())) {
+                String mapperPackage = child.getStringAttribute("name");
+                configuration.addMappers(mapperPackage);
+            } else {
+                String resource = child.getStringAttribute("resource");
+                String url = child.getStringAttribute("url");
+                String mapperClass = child.getStringAttribute("class");
+                // 按照我们本例的配置，则直接走该if判断
+                if (resource != null && url == null && mapperClass == null) {
+                    ErrorContext.instance().resource(resource);
+                    InputStream inputStream = Resources.getResourceAsStream(resource);
+                    XMLMapperBuilder mapperParser = new XMLMapperBuilder(inputStream, configuration, resource, configuration.getSqlFragments());
+                    // 生成 XMLMapperBuilder，并执行其 parse 方法
+                    mapperParser.parse();
+                } else if (resource == null && url != null && mapperClass == null) {
+                    ErrorContext.instance().resource(url);
+                    InputStream inputStream = Resources.getUrlAsStream(url);
+                    XMLMapperBuilder mapperParser = new XMLMapperBuilder(inputStream, configuration, url, configuration.getSqlFragments());
+                    mapperParser.parse();
+                } else if (resource == null && url == null && mapperClass != null) {
+                    Class<?> mapperInterface = Resources.classForName(mapperClass);
+                    configuration.addMapper(mapperInterface);
+                } else {
+                    throw new BuilderException("A mapper element may only specify a url, resource or class, but not more than one.");
+                }
+            }
+        }
+    }
+}
+```
+
+看看解析 Mapper.xml
+
+```java
+// XMLMapperBuilder#parse
+public void parse() {
+    if (!configuration.isResourceLoaded(resource)) {
+        // 解析 mapper 属性
+        configurationElement(parser.evalNode("/mapper"));
+        configuration.addLoadedResource(resource);
+        bindMapperForNamespace();
+    }
+
+    parsePendingResultMaps();
+    parsePendingCacheRefs();
+    parsePendingStatements();
+}
+
+// XMLMapperBuilder#configurationElement
+private void configurationElement(XNode context) {
+    try {
+        String namespace = context.getStringAttribute("namespace");
+        if (namespace == null || namespace.equals("")) {
+            throw new BuilderException("Mapper's namespace cannot be empty");
+        }
+        builderAssistant.setCurrentNamespace(namespace);
+        cacheRefElement(context.evalNode("cache-ref"));
+        // 最终在这里看到了关于 cache 属性的处理
+        cacheElement(context.evalNode("cache"));
+        parameterMapElement(context.evalNodes("/mapper/parameterMap"));
+        resultMapElements(context.evalNodes("/mapper/resultMap"));
+        sqlElement(context.evalNodes("/mapper/sql"));
+        // 这里会将生成的 Cache包装到对应的 MappedStatement
+        buildStatementFromContext(context.evalNodes("select|insert|update|delete"));
+    } catch (Exception e) {
+        throw new BuilderException("Error parsing Mapper XML. Cause: " + e, e);
+    }
+}
+
+// XMLMapperBuilder#cacheElement
+private void cacheElement(XNode context) throws Exception {
+    if (context != null) {
+        // 解析 <cache/>标签的type属性，这里我们可以自定义cache的实现类，比如redisCache,如果没有自定义，这里使用和一级缓存相同的 PERPETUAL
+        String type = context.getStringAttribute("type", "PERPETUAL");
+        Class<? extends Cache> typeClass = typeAliasRegistry.resolveAlias(type);
+        String eviction = context.getStringAttribute("eviction", "LRU");
+        Class<? extends Cache> evictionClass = typeAliasRegistry.resolveAlias(eviction);
+        Long flushInterval = context.getLongAttribute("flushInterval");
+        Integer size = context.getIntAttribute("size");
+        boolean readWrite = !context.getBooleanAttribute("readOnly", false);
+        boolean blocking = context.getBooleanAttribute("blocking", false);
+        Properties props = context.getChildrenAsProperties();
+        // 构建 Cache对象
+        builderAssistant.useNewCache(typeClass, evictionClass, flushInterval, size, readWrite, blocking, props);
+    }
+}
+```
+
+
+
 ## 3.3 查询源码分析
 
 ## 3.4 为何只有SqlSession提交或关闭之后
