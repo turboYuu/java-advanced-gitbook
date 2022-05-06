@@ -552,32 +552,40 @@ public void test02() throws IOException {
 进入 sqlSession.getMapper(UserMapper.class)中
 
 ```java
+// org.apache.ibatis.session.defaults.DefaultSqlSession#getMapper
 public <T> T getMapper(Class<T> type) {
     return configuration.<T>getMapper(type, this);
 }
 
+// org.apache.ibatis.session.Configuration#getMapper
 public <T> T getMapper(Class<T> type, SqlSession sqlSession) {
     return mapperRegistry.getMapper(type, sqlSession);
 }
 
+// org.apache.ibatis.binding.MapperRegistry#getMapper
 public <T> T getMapper(Class<T> type, SqlSession sqlSession) {
+    // 从 MapperRegistry 中的HashMap中拿 MapperProxyFactory
     final MapperProxyFactory<T> mapperProxyFactory = (MapperProxyFactory<T>) knownMappers.get(type);
     if (mapperProxyFactory == null) {
         throw new BindingException("Type " + type + " is not known to the MapperRegistry.");
     }
     try {
+        // 通过动态代理工厂生成示例
         return mapperProxyFactory.newInstance(sqlSession);
     } catch (Exception e) {
         throw new BindingException("Error getting mapper instance. Cause: " + e, e);
     }
 }
 
+// MapperProxyFactory#newInstance(org.apache.ibatis.session.SqlSession)
 public T newInstance(SqlSession sqlSession) {
+    // 创建了 jdk动态代理的Handler类
     final MapperProxy<T> mapperProxy = new MapperProxy<T>(sqlSession, mapperInterface, methodCache);
+    // 调用了重载方法
     return newInstance(mapperProxy);
 }
 
-// 
+// MapperProxy类，实现了InvocationHandler接口
 public class MapperProxy<T> implements InvocationHandler, Serializable {
 
   // ...
@@ -585,6 +593,7 @@ public class MapperProxy<T> implements InvocationHandler, Serializable {
   private final Class<T> mapperInterface;
   private final Map<Method, MapperMethod> methodCache;
 
+  // 构造，传入SqlSession，说明每个session中的代理对象的不同
   public MapperProxy(SqlSession sqlSession, Class<T> mapperInterface, 
                      Map<Method, MapperMethod> methodCache) {
     this.sqlSession = sqlSession;
