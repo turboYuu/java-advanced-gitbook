@@ -1111,6 +1111,58 @@ public <E> List<E> query(MappedStatement ms, Object parameterObject,
 
 ### 3.3.2 TransactionalCacheManager
 
+```java
+// 事务缓存管理器
+public class TransactionalCacheManager {
+
+    // Cache 与 TransactionalCache 的映射关系表
+  private final Map<Cache, TransactionalCache> transactionalCaches = 
+      new HashMap<Cache, TransactionalCache>();
+
+  public void clear(Cache cache) {
+      // 获取 TransactionalCache对象，并调用该对象的 clear方法，下同
+    getTransactionalCache(cache).clear();
+  }
+
+  public Object getObject(Cache cache, CacheKey key) {
+      // 直接从 TransactionalCache中获取缓存
+    return getTransactionalCache(cache).getObject(key);
+  }
+  
+  public void putObject(Cache cache, CacheKey key, Object value) {
+      // 直接存入TransactionalCache的缓存中
+    getTransactionalCache(cache).putObject(key, value);
+  }
+
+  public void commit() {
+    for (TransactionalCache txCache : transactionalCaches.values()) {
+      txCache.commit();
+    }
+  }
+
+  public void rollback() {
+    for (TransactionalCache txCache : transactionalCaches.values()) {
+      txCache.rollback();
+    }
+  }
+
+  private TransactionalCache getTransactionalCache(Cache cache) {
+      // 从映射表中获取TransactionalCache
+    TransactionalCache txCache = transactionalCaches.get(cache);
+    if (txCache == null) {
+        // TransactionalCache也是一种装饰类，为Cache增加事务功能
+        // 创建一个新的TransactionalCache，并将真正的Cache对象存进去
+      txCache = new TransactionalCache(cache);
+      transactionalCaches.put(cache, txCache);
+    }
+    return txCache;
+  }
+
+}
+```
+
+
+
 ### 3.3.3 TransactionalCache
 
 ## 3.4 为何只有SqlSession提交或关闭之后
