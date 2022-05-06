@@ -711,7 +711,34 @@ public Object execute(SqlSession sqlSession, Object[] args) {
 
 ## 3.1 启用二级缓存
 
+分为三步走：
 
+1. 开启全局二级缓存配置
+
+   ```xml
+   <!--全局性地开启或关闭所有映射器配置文件中已配置的任何缓存。-->
+   <settings>
+       <setting name="cacheEnabled" value="true"/>
+   </settings>
+   ```
+
+2. 在需要使用二级缓存的Mapper配置文件中配置标签
+
+   ```xml
+   <cache></cache>
+   ```
+
+3. 在具体CURD标签上配置 **useCache=true**
+
+   ```xml
+   <!--flushCache	将其设置为 true 后，只要语句被调用，都会导致本地缓存和二级缓存被清空，默认值：false。
+       useCache	将其设置为 true 后，将会导致本条语句的结果被二级缓存缓存起来，默认值：对 select 元素为 true。-->
+   <select id="selectUserById" parameterType="int" resultType="user" useCache="true" flushCache="fasle">
+       select * from user where id=#{id}
+   </select>
+   ```
+
+   
 
 ## 3.2 标签< cache/> 的解析
 
