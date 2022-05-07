@@ -1382,10 +1382,8 @@ private void flushCacheIfRequired(MappedStatement ms) {
 
 ```
 
+Mybatis二级缓存只适用于不常进行 增、删、改 的数据。一旦数据变更，Mybatis会清空缓存，因此二级缓存不适合用于经常进行更新的数据。
 
-
-## 3.6 二级缓存的刷新
-
-## 3.7 总结
+## 3.6 总结
 
 # 4 延迟加载源码剖析
