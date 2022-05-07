@@ -1394,3 +1394,105 @@ Mybatis二级缓存只适用于不常进行 增、删、改 的数据。一旦�
 - 二级缓存工作由一个缓存装饰执行器 CachingExecutor 和 一个事务型预缓存 TransactionalCache 完成。
 
 # 4 延迟加载源码剖析
+
+## 4.1 什么是延迟加载
+
+就是在需要用到数据时才进行加载，不需要用到数据时就不加载数据。延迟加载也称懒加载。
+
+```properties
+*	优点：
+	先从单表查询，需要时再从关联表去关联查询，大大提高数据库性能，因为查询单表要比关联查询多张表速度要快
+    
+*	缺点：
+	因为只有当需要用到数据时，才会进行数据库查询，这样在大批量数据查询时，因为查询工作也要消耗时间，所以可能造成用户等待时间变长，造成用户体验下降。
+	
+*	在多表中：
+	一对多，多对多：通常情况下采用延迟加载
+	一对一（多对一）：通常情况下采用立即加载
+	
+*	注意：
+	延迟加载是基于嵌套查询来实现的
+```
+
+
+
+
+
+## 4.2 实现
+
+### 4.2.1 局部延迟加载
+
+在 association 和 collection 标签中都有一个 fetchType 属性，通过修改它的值，可以修改局部的加载策略。
+
+
+
+UserMapper.xml
+
+```xml
+<!-- 一对多 延迟加载 start-->
+<resultMap id="userLazy" type="com.turbo.pojo.User">
+    <result column="id" property="id"></result>
+    <result column="username" property="username"></result>
+    <result column="password" property="password"></result>
+    <!--fetchType="lazy" 懒加载策略
+            fetchType="eager" 立即加载策略-->
+    <collection property="orders" ofType="com.turbo.pojo.Order" column="id"
+                select="com.turbo.mapper.OrderMapper.findByUid" fetchType="lazy"/>
+</resultMap>
+<select id="findAllUserOrderLazy" resultMap="userLazy">
+    select * from user
+</select>
+```
+
+OrderMapper.xml
+
+```xml
+<select id="findByUid" resultType="com.turbo.pojo.Order">
+    SELECT * from orders where uid = #{id}
+</select>
+```
+
+UserMapper.java
+
+```java
+public interface UserMapper {
+    List<User> findAllUserOrderLazy();
+}
+```
+
+OrderMapper.java
+
+```java
+public interface OrderMapper {
+    public List<Order> findByUid(Integer id);
+}
+```
+
+测试：
+
+```java
+@Test
+public void test() throws IOException {
+    InputStream resourceAsStream = Resources.getResourceAsStream("SqlMapConfig.xml");
+    SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(resourceAsStream);
+    SqlSession sqlSession = sqlSessionFactory.openSession();
+    // 获得 Mybatis 框架生成的 UserMapper 接口的实现类
+    UserMapper userMapper = sqlSession.getMapper(UserMapper.class);
+    List<User> allUserOrderLazy = userMapper.findAllUserOrderLazy();
+    for (User user : allUserOrderLazy) {
+        System.out.println(user.getUsername());
+        List<Order> orders = user.getOrders();
+        for (Order order : orders) {
+            System.out.println(order);
+        }
+    }
+}
+```
+
+![image-20220507175652059](assest/image-20220507175652059.png)
+
+### 4.2.2 全局延迟加载
+
+## 4.3 延迟加载原理实现
+
+## 4.4 延迟加载原理（源码剖析）
