@@ -1171,9 +1171,10 @@ TransactionalCacheManager 内部维护了 Cache 实例与 TransactionalCache 实
 public class TransactionalCache implements Cache {
 
     private static final Log log = LogFactory.getLog(TransactionalCache.class);
-	// 真正的缓存对象，和上面的 Map<Cache,>
+	// 真正的缓存对象，和上面的 Map<Cache,TransactionalCache>中的Cache是同一个
     private final Cache delegate;
     private boolean clearOnCommit;
+    // 在事务被提交前，所有从数据库中查询的结果将缓存在此集合中
     private final Map<Object, Object> entriesToAddOnCommit;
   	private final Set<Object> entriesMissedInCache;
 
