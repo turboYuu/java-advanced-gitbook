@@ -1346,6 +1346,44 @@ private void flushPendingEntries() {
 
 ## 3.5 二级缓存的刷新
 
+看一些 SqlSession 的更新操作：
+
+```java
+// DefaultSqlSession#update(java.lang.String, java.lang.Object)
+@Override
+public int update(String statement, Object parameter) {
+    try {
+        dirty = true;
+        MappedStatement ms = configuration.getMappedStatement(statement);
+        return executor.update(ms, wrapCollection(parameter));
+    } catch (Exception e) {
+        throw ExceptionFactory.wrapException("Error updating database.  Cause: " + e, e);
+    } finally {
+        ErrorContext.instance().reset();
+    }
+}
+
+// org.apache.ibatis.executor.CachingExecutor#update
+@Override
+public int update(MappedStatement ms, Object parameterObject) throws SQLException {
+    flushCacheIfRequired(ms);
+    return delegate.update(ms, parameterObject);
+}
+
+// org.apache.ibatis.executor.CachingExecutor#flushCacheIfRequired
+private void flushCacheIfRequired(MappedStatement ms) {
+    // 获取MappedStatement对应的Cache，进行清空
+    Cache cache = ms.getCache();
+    // SQL需要设置flushCache="true" 才会执行清空
+    if (cache != null && ms.isFlushCacheRequired()) {      
+        tcm.clear(cache);
+    }
+}
+
+```
+
+
+
 ## 3.6 二级缓存的刷新
 
 ## 3.7 总结
