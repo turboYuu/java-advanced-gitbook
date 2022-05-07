@@ -1532,3 +1532,34 @@ Mybatis 延迟加载主要使用 Javassist，cglib 实现，类图展示：
 
 ![image-20220507182057828](assest/image-20220507182057828.png)
 
+### 4.4.1 Setting 配置加载
+
+```java
+public class Configuration {
+	// aggressiveLazyLoading:当开启时，任何方法的调用都会加载该对象的所有属性。否则，每个属性会按需加载（参考lazyLoadTriggerMethods） 默认为 true
+    protected boolean aggressiveLazyLoading;
+    
+    // 延迟加载触发方法
+    protected Set<String> lazyLoadTriggerMethods = new HashSet<String>(Arrays.asList(new String[] { "equals", "clone", "hashCode", "toString" }));
+    
+    // 是否开启延迟加载
+    protected boolean lazyLoadingEnabled = false;
+    
+    // 默认使用 Javassist 代理工厂
+    public void setProxyFactory(ProxyFactory proxyFactory) {
+        if (proxyFactory == null) {
+            proxyFactory = new JavassistProxyFactory();
+        }
+        this.proxyFactory = proxyFactory;
+    }
+    // 省略 ...
+}
+```
+
+
+
+### 4.4.2 延迟加载代理对象创建
+
+
+
+### 4.4.3 注意事项
