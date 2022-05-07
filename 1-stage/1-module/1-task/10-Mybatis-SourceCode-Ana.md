@@ -1560,6 +1560,136 @@ public class Configuration {
 
 ### 4.4.2 延迟加载代理对象创建
 
+Mybatis 的查询结果是由 ResultSetHandler 接口的 handleResultSets() 方法处理的。ResultSetHandler 接口只有一个实现，DefaultResultSetHandler，接下来看下延迟加载相关的一个核心方法
+
+```java
+// 创建结果对象
+private Object createResultObject(ResultSetWrapper rsw, ResultMap resultMap, 
+                                  ResultLoaderMap lazyLoader, 
+                                  String columnPrefix) throws SQLException {
+    this.useConstructorMappings = false; // reset previous mapping result
+    final List<Class<?>> constructorArgTypes = new ArrayList<Class<?>>();
+    final List<Object> constructorArgs = new ArrayList<Object>();
+    // 创建返回的结果映射的真实对象
+    Object resultObject = createResultObject(rsw, resultMap, constructorArgTypes, 
+                                             constructorArgs, columnPrefix);
+    if (resultObject != null && !hasTypeHandlerForResultObject(rsw, resultMap.getType())) {
+        final List<ResultMapping> propertyMappings = resultMap.getPropertyResultMappings();
+        for (ResultMapping propertyMapping : propertyMappings) {
+            // issue gcode #109 && issue #149
+            // 判断属性有没有配置嵌套查询，如果有就创建代理对象
+            if (propertyMapping.getNestedQueryId() != null && propertyMapping.isLazy()) {
+                // 创建延迟加载代理对象
+                resultObject = configuration.getProxyFactory()
+                    .createProxy(resultObject, lazyLoader, configuration, 
+                                 objectFactory, constructorArgTypes, constructorArgs);
+                break;
+            }
+        }
+    }
+    this.useConstructorMappings = (resultObject != null && !constructorArgTypes.isEmpty()); // set current mapping result
+    return resultObject;
+}
+```
+
+默认采用 javassistProxy 进行代理对象的创建
+
+![image-20220507184349561](assest/image-20220507184349561.png)
+
+JavassistProxyFactory 实现
+
+```java
+public class JavassistProxyFactory implements org.apache.ibatis.executor.loader.ProxyFactory {
+    
+    /**
+    * 接口实现
+    * @param target 目标结果对象
+    * @param lazyLoader 延迟加载对象
+    * @param configuration 配置
+    * @param objectFactory 对象工厂
+    * @param constructorArgTypes 构造参数类型
+    * @param constructorArgs 构造参数值
+    * @return
+    */
+    @Override
+    public Object createProxy(Object target, ResultLoaderMap lazyLoader, 
+                              Configuration configuration, ObjectFactory objectFactory, 
+                              List<Class<?>> constructorArgTypes, List<Object> constructorArgs) {
+        return EnhancedResultObjectProxyImpl.createProxy(target, lazyLoader, 
+                                                         configuration, objectFactory, 
+                                                         constructorArgTypes, constructorArgs);
+    }
+    // 省略 ...
+    
+    /**
+    * 代理对象实现，核心逻辑执行
+    */
+    private static class EnhancedResultObjectProxyImpl implements MethodHandler {
+        public static Object createProxy(Object target, ResultLoaderMap lazyLoader, 
+                                         Configuration configuration, 
+                                         ObjectFactory objectFactory, 
+                                         List<Class<?>> constructorArgTypes, 
+                                         List<Object> constructorArgs) {
+            final Class<?> type = target.getClass();
+            EnhancedResultObjectProxyImpl callback = 
+                new EnhancedResultObjectProxyImpl(type, lazyLoader, 
+                                                  configuration, objectFactory, 
+                                                  constructorArgTypes, constructorArgs);
+            Object enhanced = crateProxy(type, callback, constructorArgTypes, constructorArgs);
+            PropertyCopier.copyBeanProperties(type, target, enhanced);
+            return enhanced;
+        }
+    }
+    
+    @Override
+    public Object invoke(Object enhanced, Method method, 
+                         Method methodProxy, Object[] args) throws Throwable {
+        final String methodName = method.getName();
+        try {
+            synchronized (lazyLoader) {
+                if (WRITE_REPLACE_METHOD.equals(methodName)) {
+                    Object original;
+                    if (constructorArgTypes.isEmpty()) {
+                        original = objectFactory.create(type);
+                    } else {
+                        original = objectFactory.create(type, constructorArgTypes, constructorArgs);
+                    }
+                    PropertyCopier.copyBeanProperties(type, enhanced, original);
+                    if (lazyLoader.size() > 0) {
+                        return new JavassistSerialStateHolder(original, 
+                                                              lazyLoader.getProperties(), 
+                                                              objectFactory, 
+                                                              constructorArgTypes, 
+                                                              constructorArgs);
+                    } else {
+                        return original;
+                    }
+                } else {
+                    if (lazyLoader.size() > 0 && !FINALIZE_METHOD.equals(methodName)) {
+                        if (aggressive || lazyLoadTriggerMethods.contains(methodName)) {
+                            lazyLoader.loadAll();
+                        } else if (PropertyNamer.isSetter(methodName)) {
+                            final String property = PropertyNamer.methodToProperty(methodName);
+                            lazyLoader.remove(property);
+                        } else if (PropertyNamer.isGetter(methodName)) {
+                            final String property = PropertyNamer.methodToProperty(methodName);
+                            if (lazyLoader.hasLoader(property)) {
+                                lazyLoader.load(property);
+                            }
+                        }
+                    }
+                }
+            }
+            return methodProxy.invoke(enhanced, args);
+        } catch (Throwable t) {
+            throw ExceptionUtil.unwrapThrowable(t);
+        }
+    }
+}
+```
+
 
 
 ### 4.4.3 注意事项
+
+IDEA 调试问题，当配置 aggressiveLazyLoading = true，在使用 IDEA 进行调试的时候，如果断点打到代理执行逻辑当中，你会发现延迟加载的代理永远不能进入，总是会被提前执行。主要产生的原因在 aggressiveLazyLoading ，因为在调试的时候，IDEA 的 Debuger 窗体中已经触发了延迟加载对象的方法。
