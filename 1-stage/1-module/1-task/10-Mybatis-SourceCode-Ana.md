@@ -1386,4 +1386,11 @@ Mybatis二级缓存只适用于不常进行 增、删、改 的数据。一旦�
 
 ## 3.6 总结
 
+在二级缓存的设计上，Mybatis大量地运用了装饰者模式，如CachingExecutor，以及各种Cache接口的装饰器。
+
+- 二级缓存实现了 SqlSession 之间的缓存数据共享，属于 namespace 级别。
+- 二级缓存具有丰富的缓存策略。
+- 二级缓存可由多个装饰器，与基础缓存组合而成。
+- 二级缓存工作由一个缓存装饰执行器 CachingExecutor 和 一个事务型预缓存 TransactionalCache 完成。
+
 # 4 延迟加载源码剖析
