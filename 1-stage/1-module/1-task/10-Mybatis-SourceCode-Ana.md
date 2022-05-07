@@ -1493,6 +1493,42 @@ public void test() throws IOException {
 
 ### 4.2.2 全局延迟加载
 
+在 Mybatis 的核心配置文件中可以使用 setting 标签修改全局的加载策略。
+
+```xml
+<settings>
+    <!--开启全局延迟加载功能-->
+    <setting name="lazyLoadingEnabled" value="true"/>
+</settings>
+```
+
+**注意关闭一对一延迟加载**
+
+```xml
+<!--一对一 关闭延迟加载 start-->
+<resultMap id="orderMapLazy" type="com.turbo.pojo.Order">
+    <result column="id" property="id"></result>
+    <result column="ordertime" property="ordertime"></result>
+    <result column="total" property="total"></result>
+    <association property="user" javaType="com.turbo.pojo.User" column="uid"
+                 select="com.turbo.mapper.UserMapper.selectUserById" fetchType="eager"/>
+</resultMap>
+<select id="findAllLazy" resultMap="orderMapLazy">
+    SELECT * FROM orders
+</select>
+```
+
+
+
 ## 4.3 延迟加载原理实现
 
+它的原理是，使用 cglib 或 javassist（默认）创建目标对象的代理对象。当调用代理对象的延迟加载属性的 getting 方法时，**进入拦截器方法**。比如调用 `a.getB().getName()` 方法，进入拦截器的 `invoke(...)` 方法，发现 `a.getB()` 需要延迟加载时，那么就会单独发送事先保存好的查询关联 B 对象的 SQL，把 B 查询出来，然后调用 `a.setB(b)`，于是 `a` 对象 `b` 属性就有值了，接着完成 `a.getB().getName()` 方法的调用。这就是延迟加载的基本原理。
+
+**总结**：延迟加载主要是通过动态代理的形式实现，通过代理拦截到指定方法，执行数据加载。
+
 ## 4.4 延迟加载原理（源码剖析）
+
+Mybatis 延迟加载主要使用 Javassist，cglib 实现，类图展示：
+
+![image-20220507182057828](assest/image-20220507182057828.png)
+
