@@ -1161,9 +1161,119 @@ public class TransactionalCacheManager {
 }
 ```
 
+TransactionalCacheManager 内部维护了 Cache 实例与 TransactionalCache 实例间的映射关系，该类也仅负责维护两者的映射关系，真正做事的还是 TransactionalCache。TransactionalCache 是一种缓存装饰器，可以为 Cache 实例增加事务功能。之前提到的脏读问题正是由该类进行处理的。下面分析一下该类的逻辑。
+
 
 
 ### 3.3.3 TransactionalCache
+
+```java
+public class TransactionalCache implements Cache {
+
+    private static final Log log = LogFactory.getLog(TransactionalCache.class);
+	// 真正的缓存对象，和上面的 Map<Cache,>
+    private final Cache delegate;
+    private boolean clearOnCommit;
+    private final Map<Object, Object> entriesToAddOnCommit;
+  	private final Set<Object> entriesMissedInCache;
+
+    public TransactionalCache(Cache delegate) {
+        this.delegate = delegate;
+        this.clearOnCommit = false;
+        this.entriesToAddOnCommit = new HashMap<Object, Object>();
+        this.entriesMissedInCache = new HashSet<Object>();
+    }
+
+    @Override
+    public String getId() {
+        return delegate.getId();
+    }
+
+    @Override
+    public int getSize() {
+        return delegate.getSize();
+    }
+
+    @Override
+    public Object getObject(Object key) {
+        // issue #116
+        Object object = delegate.getObject(key);
+        if (object == null) {
+            entriesMissedInCache.add(key);
+        }
+        // issue #146
+        if (clearOnCommit) {
+            return null;
+        } else {
+            return object;
+        }
+    }
+
+    @Override
+    public ReadWriteLock getReadWriteLock() {
+        return null;
+    }
+
+    @Override
+    public void putObject(Object key, Object object) {
+        entriesToAddOnCommit.put(key, object);
+    }
+
+    @Override
+    public Object removeObject(Object key) {
+        return null;
+    }
+
+    @Override
+    public void clear() {
+        clearOnCommit = true;
+        entriesToAddOnCommit.clear();
+    }
+
+    public void commit() {
+        if (clearOnCommit) {
+            delegate.clear();
+        }
+        flushPendingEntries();
+        reset();
+    }
+
+    public void rollback() {
+        unlockMissedEntries();
+        reset();
+    }
+
+    private void reset() {
+        clearOnCommit = false;
+        entriesToAddOnCommit.clear();
+        entriesMissedInCache.clear();
+    }
+
+    private void flushPendingEntries() {
+        for (Map.Entry<Object, Object> entry : entriesToAddOnCommit.entrySet()) {
+            delegate.putObject(entry.getKey(), entry.getValue());
+        }
+        for (Object entry : entriesMissedInCache) {
+            if (!entriesToAddOnCommit.containsKey(entry)) {
+                delegate.putObject(entry, null);
+            }
+        }
+    }
+
+    private void unlockMissedEntries() {
+        for (Object entry : entriesMissedInCache) {
+            try {
+                delegate.removeObject(entry);
+            } catch (Exception e) {
+                log.warn("Unexpected exception while notifiying a rollback to the cache adapter."
+                         + "Consider upgrading your cache adapter to the latest version.  Cause: " + e);
+            }
+        }
+    }
+}
+```
+
+
 
 ## 3.4 为何只有SqlSession提交或关闭之后
 
