@@ -1198,8 +1198,10 @@ public class TransactionalCache implements Cache {
     @Override
     public Object getObject(Object key) {
         // issue #116
+        // 查询的时候是直接从 delegate 中去查询的，也就是从真正的缓存对象中查询
         Object object = delegate.getObject(key);
         if (object == null) {
+            // 缓存未命中，则将 key 存入到 entriesMissedInCache 中
             entriesMissedInCache.add(key);
         }
         // issue #146
@@ -1217,6 +1219,7 @@ public class TransactionalCache implements Cache {
 
     @Override
     public void putObject(Object key, Object object) {
+        // 将键值对存入到entriesToAddOnCommit这个Map中，而非真实的缓存对象delegate中 
         entriesToAddOnCommit.put(key, object);
     }
 
@@ -1228,14 +1231,18 @@ public class TransactionalCache implements Cache {
     @Override
     public void clear() {
         clearOnCommit = true;
+        // 清空entriesToAddOnCommit，但不清空delegate缓存
         entriesToAddOnCommit.clear();
     }
 
     public void commit() {
+        // 根据clearOnCommit的值决定是否清空delegate
         if (clearOnCommit) {
             delegate.clear();
         }
+        // 刷新未缓存的结果到delegate缓存中
         flushPendingEntries();
+        // 重置entriesToAddOnCommit和entriesMissedInCache
         reset();
     }
 
@@ -1246,16 +1253,19 @@ public class TransactionalCache implements Cache {
 
     private void reset() {
         clearOnCommit = false;
+        // 清空集合
         entriesToAddOnCommit.clear();
         entriesMissedInCache.clear();
     }
 
     private void flushPendingEntries() {
         for (Map.Entry<Object, Object> entry : entriesToAddOnCommit.entrySet()) {
+            // 将entriesToAddOnCommit中的内容转存到delegate中
             delegate.putObject(entry.getKey(), entry.getValue());
         }
         for (Object entry : entriesMissedInCache) {
             if (!entriesToAddOnCommit.containsKey(entry)) {
+                // 存入空值
                 delegate.putObject(entry, null);
             }
         }
@@ -1264,6 +1274,7 @@ public class TransactionalCache implements Cache {
     private void unlockMissedEntries() {
         for (Object entry : entriesMissedInCache) {
             try {
+                // 调用removeObject进行解锁
                 delegate.removeObject(entry);
             } catch (Exception e) {
                 log.warn("Unexpected exception while notifiying a rollback to the cache adapter."
@@ -1274,9 +1285,64 @@ public class TransactionalCache implements Cache {
 }
 ```
 
-
+存储二级缓存对象的时候是存放到 TransactionalCache.entriesToAddOnCommit 这个 map 中，但是每次查询的时候是直接从 TransactionalCache.delegate 中去查询的，所以这个二级缓存查询数据库之后，设置缓存值是没有立刻生效的，主要是因为直接存到 delegate 会导致脏数据问题
 
 ## 3.4 为何只有SqlSession提交或关闭之后
+
+那看下 SqlSession.commit() 方法做了什么
+
+```java
+// DefaultSqlSession#commit(boolean)
+public void commit(boolean force) {
+    try {
+        // 主要是这句
+        executor.commit(isCommitOrRollbackRequired(force));
+        dirty = false;
+    } catch (Exception e) {
+        throw ExceptionFactory.wrapException("Error committing transaction.  Cause: " + e, e);
+    } finally {
+        ErrorContext.instance().reset();
+    }
+}
+
+// org.apache.ibatis.executor.CachingExecutor#commit
+@Override
+public void commit(boolean required) throws SQLException {
+    delegate.commit(required);
+    tcm.commit(); // 进入这里
+}
+
+// org.apache.ibatis.cache.TransactionalCacheManager#commit
+public void commit() {
+    for (TransactionalCache txCache : transactionalCaches.values()) {
+        txCache.commit(); // 进入这里
+    }
+}
+
+// org.apache.ibatis.cache.decorators.TransactionalCache#commit
+public void commit() {
+    if (clearOnCommit) {
+        delegate.clear();
+    }
+    flushPendingEntries(); // 这一句
+    reset();
+}
+
+// org.apache.ibatis.cache.decorators.TransactionalCache#flushPendingEntries
+private void flushPendingEntries() {
+    for (Map.Entry<Object, Object> entry : entriesToAddOnCommit.entrySet()) {
+        // 在这里真正的将entriesToAddOnCommit的对象逐个添加到delegate中，只有这时，二级缓存才真正的生效
+        delegate.putObject(entry.getKey(), entry.getValue());
+    }
+    for (Object entry : entriesMissedInCache) {
+        if (!entriesToAddOnCommit.containsKey(entry)) {
+            delegate.putObject(entry, null);
+        }
+    }
+}
+```
+
+
 
 ## 3.5 二级缓存的刷新
 
