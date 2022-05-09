@@ -201,7 +201,7 @@ public interface UserMapper {
 
 
 
-我们可以看到 mapper.xml 文件中就这么一个空标签，其实这里可以配置 ，**PerpetualCache**  这个类是 mybatis 默认实现缓存功能的类。我们不写 type 就使用 mybatis 默认的缓存，也可以去实现 Cache 接口来自定义缓存。
+我们可以看到 mapper.xml 文件中就这么一个空标签 `<cache/>`，其实这里可以配置 <br>`<cache type="org.apache.ibatis.cache.impl.PerpetualCache"/>`  ，**PerpetualCache**  这个类是 mybatis 默认实现缓存功能的类。我们不写 type 就使用 mybatis 默认的缓存，也可以去实现 Cache 接口来自定义缓存。
 
 ![image-20220421111002934](assest/image-20220421111002934.png)
 
