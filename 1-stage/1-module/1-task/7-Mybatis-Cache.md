@@ -218,7 +218,7 @@ public class User implements Serializable {
 }
 ```
 
-开启二级缓存后，还需要将缓存的 pojo 实现 Serializable 接口，为了将缓存数据取出执行反序列化操作。因为二级缓存数据存储介质多种多样，不一定只存在内存中，有可能存在硬盘中，如果我们要再取这个缓存的话，就需要反序列化。所以 mybatis 中的 pojo 都去实现 Serializable 接口。
+开启二级缓存后，还需要将缓存的 pojo 实现 Serializable 接口，为了将缓存数据取出执行反序列化操作。因为二级缓存数据存储介质多种多样，不一定只存在内存中，有可能存在硬盘中，如果我们要再取这个缓存的话，就需要反序列化。所以 **mybatis 中的 pojo 都去实现 Serializable 接口**。
 
 ## 2.2 测试
 
@@ -296,6 +296,16 @@ mybatis 中 Select 元素的属性 还可以设置 useCache 和 flush 等配置�
 </select>
 ```
 
+注解的方式：
+
+```java
+@Options(useCache = false,flushCache = Options.FlushCachePolicy.TRUE)
+@Select(value = "select * from user where id=#{id}")
+public User findById(Integer id);
+```
+
+
+
 这种情况是针对每次查询都需要最新的数据 sql，要设置成 useCache=false，禁用二级缓存，直接从数据库中获取。
 
 在 mapper 的同一个 namespace 中，如果由其他 inset、update、delete 操作数据后需要刷新缓存，如过不执行刷新缓存会出现脏读。
@@ -304,7 +314,7 @@ mybatis 中 Select 元素的属性 还可以设置 useCache 和 flush 等配置�
 
 ```xml
 <!--flushCache	将其设置为 true 后，只要语句被调用，都会导致本地缓存和二级缓存被清空，默认值：false。
-        useCache	将其设置为 true 后，将会导致本条语句的结果被二级缓存缓存起来，默认值：对 select 元素为 true。-->
+    useCache	将其设置为 true 后，将会导致本条语句的结果被二级缓存缓存起来，默认值：对 select 元素为 true。-->
 <select id="selectUserById" parameterType="int" resultType="user" flushCache="true" useCache="false">
     select * from user where id=#{id}
 </select>
