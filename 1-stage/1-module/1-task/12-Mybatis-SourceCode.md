@@ -72,7 +72,7 @@ https://github.com/mybatis/mybatis-3/releases/tag/mybatis-3.5.3
 
 # 4 测试
 
-在 mybatis 的 test 中增加如下代码：
+在 mybatis 的 test 中增加如下代码 [代码地址](https://gitee.com/turboYuu/mybatis-1-1/tree/master/source-code/mybatis-3-mybatis-3.5.3/src/test)：
 
 ![image-20220511143349039](assest/image-20220511143349039.png)
 
