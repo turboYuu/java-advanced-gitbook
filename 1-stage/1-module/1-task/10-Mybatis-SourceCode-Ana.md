@@ -48,7 +48,7 @@ Mybatis 在初始化的时候，会将 Mybatis 的配置信息全部加载到内
 
 首先对 Configuration 对象进行介绍：
 
-```xml
+```bash
 Configuration 对象的结构和xml配置文件的对象几乎相同。
 
 回顾一下 xml 中的配置标签有哪些：
