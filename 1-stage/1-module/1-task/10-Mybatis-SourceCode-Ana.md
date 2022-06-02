@@ -20,13 +20,11 @@ public SqlSessionFactory build(InputStream inputStream) {
 }
 
 // 2. 调用的重载方法
-public SqlSessionFactory build(InputStream inputStream, 
-                               String environment, 
+public SqlSessionFactory build(InputStream inputStream, String environment, 
                                Properties properties) {
     try {
         // XMLConfigBuilder 是专门解析 mybatis 的配置文件的类
-        XMLConfigBuilder parser = 
-            new XMLConfigBuilder(inputStream, environment, properties);
+        XMLConfigBuilder parser = new XMLConfigBuilder(inputStream, environment, properties);
         // 这里又调用了一个重载方法。parser.parse() 的返回值是 Configuration 对象
         return build(parser.parse());
     } catch (Exception e) {
