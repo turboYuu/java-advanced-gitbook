@@ -108,6 +108,8 @@ private void parseConfiguration(XNode root) {
 }
 ```
 
+
+
 介绍一下 MappedStatement：
 
 作用：MappedStatement 与 Mapper 配置文件中的一个 select/update/insert/delete 节点相对应。
