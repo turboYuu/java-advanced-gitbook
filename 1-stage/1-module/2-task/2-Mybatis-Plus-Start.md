@@ -430,7 +430,193 @@ log4j.appender.stdout.layout.ConversionPattern=%d{ABSOLUTE} %5p %c{1}:%L - %m%n
 
 # 6 SpringBoot + Mybatis + MP
 
+使用 SpringBoot将进一步的简化MP的整合，需要注意的是，由于使用 SpringBoot需要继承 parent，所以需要重新创建工程，并不是创建子Module。
 
+## 6.1 创建工程
+
+![image-20220614012457447](assest/image-20220614012457447.png)
+
+## 6.2 导入依赖
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.7.0</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+    <groupId>com.turbo</groupId>
+    <artifactId>turbo-mp-springboot</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>turbo-mp-springboot</name>
+    <packaging>jar</packaging>
+    <description>Demo project for Spring Boot</description>
+    <properties>
+        <java.version>11</java.version>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+            <exclusions>
+                <exclusion>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                    <groupId>org.springframework.boot</groupId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--简化代码的工具包-->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.18.20</version>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-boot-starter</artifactId>
+            <version>3.3.2</version>
+        </dependency>
+
+        <!--mysql驱动-->
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>5.1.47</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-log4j12</artifactId>
+            <version>1.7.21</version>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
+```
+
+
+
+## 6.3 编写 application.properties
+
+```properties
+spring.datasource.driver-class-name=com.mysql.jdbc.Driver
+spring.datasource.url=jdbc:mysql://152.136.177.192:3306/mp?useUnicode=true&characterEncoding=utf8&autoReconnect=true&allowMultiQueries=true&useSSL=false
+spring.datasource.username=root
+spring.datasource.password=123456
+```
+
+
+
+## 6.4 编写pojo
+
+```java
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class User {
+
+    private Long id;
+    private String name;
+    private Integer age;
+    private String email;
+}
+```
+
+
+
+## 6.5 编写mapper
+
+```java
+package com.turbo.mapper;
+
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.turbo.pojo.User;
+
+public interface UserMapper extends BaseMapper<User> {
+}
+```
+
+
+
+## 6.6 编写启动类
+
+```java
+package com.turbo;
+
+import org.mybatis.spring.annotation.MapperScan;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@MapperScan("com.turbo.mapper") // 设置mapper接口的扫描包
+@SpringBootApplication
+public class TurboMpSpringbootApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(TurboMpSpringbootApplication.class, args);
+    }
+}
+```
+
+
+
+## 6.7 编写测试用例
+
+```java
+package com.turbo;
+
+import com.turbo.mapper.UserMapper;
+import com.turbo.pojo.User;
+import org.junit.jupiter.api.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.junit4.SpringRunner;
+
+import java.util.List;
+
+@RunWith(SpringRunner.class)
+@SpringBootTest
+class TurboMpSpringbootApplicationTests {
+
+    @Autowired
+    private UserMapper userMapper;
+
+    @Test
+    public void test(){
+        List<User> users = userMapper.selectList(null);
+        for (User user : users) {
+            System.out.println(user);
+        }
+    }
+}
+```
+
+![image-20220614015630322](assest/image-20220614015630322.png)
 
 
 
