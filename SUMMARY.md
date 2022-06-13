@@ -17,6 +17,8 @@
             * [第十一部分 设计模式](1-stage/1-module/1-task/11-Code-Design-Mode.md)
             * [第十二部分 Mybatis源码环境构建](1-stage/1-module/1-task/12-Mybatis-SourceCode.md)
         * [任务二 Mybatis-Plus](1-stage/1-module/2-task/README.md)
+            * [1 Mybatis-Plus 概念](1-stage/1-module/2-task/1-Mybatis-Plus-Concept.md)
+            * [2 Mybatis-Plus 快速入门](1-stage/1-module/2-task/2-Mybatis-Plus-Start.md)
     * [模块二 IoC容器设计实现及Spring源码分析](1-stage/2-module/README.md)
         * [第一部分 Spring 概述](1-stage/2-module/1-Spring-Overview.md)
         * [第二部分 Spring 核心思想](1-stage/2-module/2-Spring-Core-Idea.md)
