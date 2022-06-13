@@ -315,7 +315,13 @@ log4j.appender.stdout.layout.ConversionPattern=%d{ABSOLUTE} %5p %c{1}:%L - %m%n
 
    ![image-20220613235209405](assest/image-20220613235209405.png)
 
+注：如果实体类名和表明不一致，可以在实体类上添加注解 @TableName("指定数据库表明")
 
+简单说明：
+
+- 由于使用了 MybatisSqlSessionFactoryBuilder进行了构建，继承的BaseMapper中的方法就载入到了 SqlSession中，所以就可以直接使用相关的方法；
+
+![image-20220614002036783](assest/image-20220614002036783.png)
 
 # 5 Spring + Mybatis + MP
 
