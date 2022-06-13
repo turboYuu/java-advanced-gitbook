@@ -325,4 +325,130 @@ log4j.appender.stdout.layout.ConversionPattern=%d{ABSOLUTE} %5p %c{1}:%L - %m%n
 
 # 5 Spring + Mybatis + MP
 
+引入了Spring框架，数据源、构建等工作就交给了Spring管理。
+
+## 5.1 创建子Module
+
+1. 编写jdbc.properties
+
+   ```properties
+   jdbc.driver=com.mysql.jdbc.Driver
+   jdbc.url=jdbc:mysql://152.136.177.192:3306/mp
+   jdbc.username=root
+   jdbc.password=123456
+   ```
+
+2. 编写applicationContext.xml
+
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <beans xmlns="http://www.springframework.org/schema/beans"
+          xmlns:context="http://www.springframework.org/schema/context"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="
+           http://www.springframework.org/schema/beans
+           https://www.springframework.org/schema/beans/spring-beans.xsd
+           http://www.springframework.org/schema/context
+           https://www.springframework.org/schema/context/spring-context.xsd
+   ">
+       <!--引入 properties-->
+       <context:property-placeholder location="classpath:jdbc.properties" />
+   
+       <bean id="dataSource" class="com.alibaba.druid.pool.DruidDataSource">
+           <property name="driverClassName" value="${jdbc.driver}" />
+           <property name="url" value="${jdbc.url}"/>
+           <property name="username" value="${jdbc.username}" />
+           <property name="password" value="${jdbc.password}"/>
+       </bean>
+   
+       <!--这里使用MP提供的sqlSessionFactory,完成Spring与mp的整合-->
+       <bean id="sqlSessionFactory" class="com.baomidou.mybatisplus.extension.spring.MybatisSqlSessionFactoryBean">
+           <property name="dataSource" ref="dataSource"/>
+       </bean>
+   
+       <!--扫描mapper接口，使用的依然是mybatis原生的扫描器-->
+       <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+           <property name="basePackage" value="com.turbo.mapper"/>
+       </bean>
+   </beans>
+   ```
+
+3. 编写User对象以及UserMapper接口
+
+   ```java
+   package com.turbo.pojo;
+   
+   import lombok.AllArgsConstructor;
+   import lombok.Data;
+   import lombok.NoArgsConstructor;
+   
+   @Data
+   @NoArgsConstructor
+   @AllArgsConstructor
+   public class User {
+   
+       private Long id;
+       private String name;
+       private Integer age;
+       private String email;
+   }
+   ```
+
+   ```java
+   package com.turbo.mapper;
+   
+   import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+   import com.turbo.pojo.User;
+   
+   public interface UserMapper extends BaseMapper<User> {
+   }
+   ```
+
+4. 编写测试用例
+
+   ```java
+   @RunWith(SpringJUnit4ClassRunner.class)
+   @ContextConfiguration(locations = "classpath:applicationContext.xml")
+   public class TestSpringMP {
+   
+       @Autowired
+       private UserMapper userMapper;
+   
+       @Test
+       public void test1(){
+           List<User> userList = userMapper.selectList(null);
+           for (User user : userList) {
+               System.out.println(user);
+           }
+       }
+   }
+   ```
+
+   测试结果：
+
+   ![image-20220614010805833](assest/image-20220614010805833.png)
+
 # 6 SpringBoot + Mybatis + MP
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
