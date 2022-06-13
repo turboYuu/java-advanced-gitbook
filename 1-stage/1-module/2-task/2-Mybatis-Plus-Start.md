@@ -617,24 +617,3 @@ class TurboMpSpringbootApplicationTests {
 ```
 
 ![image-20220614015630322](assest/image-20220614015630322.png)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
