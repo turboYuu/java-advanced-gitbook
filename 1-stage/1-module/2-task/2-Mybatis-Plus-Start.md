@@ -277,6 +277,46 @@ log4j.appender.stdout.layout.ConversionPattern=%d{ABSOLUTE} %5p %c{1}:%L - %m%n
 
    ![image-20220613191843167](assest/image-20220613191843167.png)
 
+## 4.3 Mybatis + MP 实现查询 User
+
+1. 将UserMapper继承 BaseMapper，将拥有了 BaseMapper中的所有方法：
+
+   ```java
+   package com.turbo.mapper;
+   
+   import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+   import com.turbo.pojo.User;
+   
+   public interface UserMapper extends BaseMapper<User> {
+   
+   }
+   ```
+
+2. 使用MP中的MybatisSqlSessionFactoryBuilder进程构建：
+
+   ```java
+   @Test
+   public void test2() throws IOException {
+       InputStream resourceAsStream = Resources.getResourceAsStream("SqlMapConfig.xml");
+       // 这里使用的使用MP中的MybatisSqlSessionFactoryBuilder
+       SqlSessionFactory sqlSessionFactory = new MybatisSqlSessionFactoryBuilder().build(resourceAsStream);
+       SqlSession sqlSession = sqlSessionFactory.openSession();
+       UserMapper userMapper = sqlSession.getMapper(UserMapper.class);
+   
+       // 可以调用BaseMapper中定义的方法
+       List<User> userList = userMapper.selectList(null);
+       for (User user : userList) {
+           System.out.println(user);
+       }
+   }
+   ```
+
+   测试结果：
+
+   ![image-20220613235209405](assest/image-20220613235209405.png)
+
+
+
 # 5 Spring + Mybatis + MP
 
 # 6 SpringBoot + Mybatis + MP
