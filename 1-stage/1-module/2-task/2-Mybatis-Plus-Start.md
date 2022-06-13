@@ -168,7 +168,114 @@ log4j.appender.stdout.layout=org.apache.log4j.PatternLayout
 log4j.appender.stdout.layout.ConversionPattern=%d{ABSOLUTE} %5p %c{1}:%L - %m%n
 ```
 
+## 4.2 Mybatis 实现查询 User
 
+1. 编写 SqlMapConfig.xml 和 jdbc.properties
+
+   ```xml
+   <?xml version="1.0" encoding="UTF-8" ?>
+   <!DOCTYPE configuration
+           PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+           "http://mybatis.org/dtd/mybatis-3-config.dtd">
+   <configuration>
+       <!--加载外部 properties-->
+       <properties resource="jdbc.properties"></properties>
+   
+       <!--environments：运行环境-->
+       <environments default="development">
+           <environment id="development">
+               <!--表示当前事务交由JDBC进行管理-->
+               <transactionManager type="JDBC"></transactionManager>
+               <!--当前使用mybatis提供的连接池-->
+               <dataSource type="POOLED">
+                   <property name="driver" value="${jdbc.driver}"/>
+                   <property name="url" value="${jdbc.url}"/>
+                   <property name="username" value="${jdbc.username}"/>
+                   <property name="password" value="${jdbc.password}"/>
+               </dataSource>
+           </environment>
+       </environments>
+   
+       <!--引入映射配置文件-->
+       <mappers>
+           <mapper resource="UserMapper.xml"></mapper>
+       </mappers>
+   </configuration>
+   ```
+
+   ```properties
+   jdbc.driver=com.mysql.jdbc.Driver
+   jdbc.url=jdbc:mysql://152.136.177.192:3306/mp
+   jdbc.username=root
+   jdbc.password=123456
+   ```
+
+2. 编写User实体对象：（这里使用lombok进行了优化 bean 操作）
+
+   ```java
+   @Data
+   @NoArgsConstructor
+   @AllArgsConstructor
+   public class User {
+       
+       private Long id;
+       private String name;
+       private Integer age;
+       private String email;
+   }
+   ```
+
+3. 编写UserMapper接口
+
+   ```java
+   public interface UserMapper {
+   
+       List<User> findAll();
+   }
+   ```
+
+4. 编写 UserMapper.xml
+
+   ```xml
+   <?xml version="1.0" encoding="UTF-8" ?>
+   <!DOCTYPE mapper
+           PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+           "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+   
+   <mapper namespace="com.turbo.mapper.UserMapper">
+       <!--namespace:名称空间 与 id 组成sql的唯一标识-->
+   
+       <!--resultType:表明返回值类型-->
+       <select id="findAll" resultType="com.turbo.pojo.User">
+           select * from user
+       </select>
+   
+   </mapper>
+   ```
+
+5. 编写测试用例
+
+   ```java
+   public class MPTest {
+   
+       @Test
+       public void test1() throws IOException {
+           InputStream resourceAsStream = Resources.getResourceAsStream("SqlMapConfig.xml");
+           SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(resourceAsStream);
+           SqlSession sqlSession = sqlSessionFactory.openSession();
+           UserMapper userMapper = sqlSession.getMapper(UserMapper.class);
+           List<User> userList = userMapper.findAll();
+           for (User user : userList) {
+               System.out.println(user);
+           }
+           sqlSession.close();
+       }
+   }
+   ```
+
+   测试结果：
+
+   ![image-20220613191843167](assest/image-20220613191843167.png)
 
 # 5 Spring + Mybatis + MP
 
