@@ -545,6 +545,33 @@ User(id=5, name=Billie, age=24, mail=test5@baomidou.com)
 
 ## 4.6 selectPage
 
+配置分页插件
+
+```java
+package com.turbo.config;
+
+import com.baomidou.mybatisplus.extension.plugins.PaginationInterceptor;
+import org.mybatis.spring.annotation.MapperScan;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+@MapperScan("com.turbo.mapper") //设置Mapper接口的扫描包
+public class MybatisPlusConfig {
+
+    /**
+     * 分页插件
+     * @return
+     */
+    @Bean
+    public PaginationInterceptor paginationInterceptor(){
+        return new PaginationInterceptor();
+    }
+}
+```
+
+
+
 测试用例：
 
 ```java
