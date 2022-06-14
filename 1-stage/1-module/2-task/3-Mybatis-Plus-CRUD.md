@@ -581,3 +581,80 @@ User(id=3, name=Tom, age=28, mail=test3@baomidou.com)
 
 
 # 5 SQL注入原理
+
+MP在启动后会将BaseMapper中的一系列的方法注册到mappedStatements中，那么究竟是如何注入的？流程优势怎么样的？下面将一起来分析。
+
+在MP中，ISqlInjector负责SQL的注入工作，它是一个接口，AbstractSqlInjector是它的实现类，实现关系如下：
+
+![image-20220614132246005](assest/image-20220614132246005.png)
+
+在 AbstractSqlInjector 中，主要是由 inspectInject() 方法进行注入的，如下：
+
+```java
+@Override
+public void inspectInject(MapperBuilderAssistant builderAssistant, Class<?> mapperClass) {
+    Class<?> modelClass = extractModelClass(mapperClass);
+    if (modelClass != null) {
+        String className = mapperClass.toString();
+        Set<String> mapperRegistryCache = GlobalConfigUtils.getMapperRegistryCache(builderAssistant.getConfiguration());
+        if (!mapperRegistryCache.contains(className)) {
+            List<AbstractMethod> methodList = this.getMethodList(mapperClass);
+            if (CollectionUtils.isNotEmpty(methodList)) {
+                TableInfo tableInfo = TableInfoHelper.initTableInfo(builderAssistant, modelClass);
+                // 循环注入自定义方法
+                methodList.forEach(m -> m.inject(builderAssistant, mapperClass, modelClass, tableInfo));
+            } else {
+                logger.debug(mapperClass.toString() + ", No effective injection method was found.");
+            }
+            mapperRegistryCache.add(className);
+        }
+    }
+}
+```
+
+在实现方法中，`methodList.forEach(m -> m.inject(builderAssistant, mapperClass, modelClass, tableInfo));`是关键，循环遍历方法，进行注入。
+
+最终调用抽象方法 injectMappedStatement 进行真正的注入：
+
+```java
+/**
+     * 注入自定义 MappedStatement
+     *
+     * @param mapperClass mapper 接口
+     * @param modelClass  mapper 泛型
+     * @param tableInfo   数据库表反射信息
+     * @return MappedStatement
+     */
+public abstract MappedStatement injectMappedStatement(Class<?> mapperClass, Class<?> modelClass, TableInfo tableInfo);
+```
+
+查看该方法的实现：
+
+![image-20220614132936850](assest/image-20220614132936850.png)
+
+以 SelectById为例查看：
+
+```java
+/**
+ * 根据ID 查询一条数据
+ *
+ * @author hubin
+ * @since 2018-04-06
+ */
+public class SelectById extends AbstractMethod {
+
+    @Override
+    public MappedStatement injectMappedStatement(Class<?> mapperClass, Class<?> modelClass, TableInfo tableInfo) {
+        SqlMethod sqlMethod = SqlMethod.SELECT_BY_ID;
+        SqlSource sqlSource = new RawSqlSource(configuration, String.format(sqlMethod.getSql(),
+            sqlSelectColumns(tableInfo, false),
+            tableInfo.getTableName(), tableInfo.getKeyColumn(), tableInfo.getKeyProperty(),
+            tableInfo.getLogicDeleteSql(true, true)), Object.class);
+        return this.addSelectMappedStatementForTable(mapperClass, getMethod(sqlMethod), sqlSource, tableInfo);
+    }
+}
+```
+
+可以看到，生成了 SqlSource对象，再将 SQL 通过 addSelectMappedStatementForTable 方法添加到 mappedStatements 中。
+
+![image-20220614133837275](assest/image-20220614133837275.png)
