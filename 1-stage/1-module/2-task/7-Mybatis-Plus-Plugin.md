@@ -109,7 +109,129 @@ public class MybatisPlusConfig {
 
 # 2 执行分析插件
 
+在 MP 中提供了对 SQL 执行分析的插件，可用作阻断全表更新、删除的操作，注意：该插件仅适用于开发环境，不适用于生产环境。
+
+SpringBoot 配置：
+
+```java
+@Configuration
+public class MybatisPlusConfig {
+
+    @Bean
+    public SqlExplainInterceptor sqlExplainInterceptor(){
+        SqlExplainInterceptor sqlExplainInterceptor = new SqlExplainInterceptor();
+        List<ISqlParser> sqlParserList = new ArrayList<>();
+		// 攻击 sql 阻断解析器，加入解析连
+        sqlParserList.add(new BlockAttackSqlParser());
+        sqlExplainInterceptor.setSqlParserList(sqlParserList);
+        return sqlExplainInterceptor;
+    }
+}
+```
+
+测试：
+
+```java
+@Test
+public void testUpdate2(){
+    User user = new User();
+    user.setAge(20);
+    int result = this.userMapper.update(user, null);
+    System.out.println("result = " + result);
+}
+```
+
+结果：
+
+```xml
+Caused by: com.baomidou.mybatisplus.core.exceptions.MybatisPlusException: Prohibition of table update operation
+	at com.baomidou.mybatisplus.core.toolkit.ExceptionUtils.mpe(ExceptionUtils.java:49)
+	at com.baomidou.mybatisplus.core.toolkit.Assert.isTrue(Assert.java:38)
+	at com.baomidou.mybatisplus.core.toolkit.Assert.notNull(Assert.java:72)
+	at com.baomidou.mybatisplus.extension.parsers.BlockAttackSqlParser.processUpdate(BlockAttackSqlParser.java:45)
+	at com.baomidou.mybatisplus.core.parser.AbstractJsqlParser.processParser(AbstractJsqlParser.java:94)
+	at com.baomidou.mybatisplus.core.parser.AbstractJsqlParser.parser(AbstractJsqlParser.java:69)
+	at com.baomidou.mybatisplus.extension.handlers.AbstractSqlParserHandler.sqlParser(AbstractSqlParserHandler.java:76)
+	at com.baomidou.mybatisplus.extension.plugins.SqlExplainInterceptor.intercept(SqlExplainInterceptor.java:65)
+	at org.apache.ibatis.plugin.Plugin.invoke(Plugin.java:61)
+	at com.sun.proxy.$Proxy93.update(Unknown Source)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.apache.ibatis.plugin.Invocation.proceed(Invocation.java:49)
+	at com.turbo.plugin.MyInterceptor.intercept(MyInterceptor.java:25)
+	at org.apache.ibatis.plugin.Plugin.invoke(Plugin.java:61)
+	at com.sun.proxy.$Proxy93.update(Unknown Source)
+	at org.apache.ibatis.session.defaults.DefaultSqlSession.update(DefaultSqlSession.java:197)
+	... 78 more
+```
+
+可以看到，当执行全表更新时，会抛出异常，这样有效防止了一些误操作。
+
 # 3 性能分析插件
+
+性能分析拦截器，用于输出每条 SQL 语句及其执行时间，可以设置最大执行时间，超过时间会抛出异常。
+
+> 该插件只用于开发环境，不建议生产环境使用
+
+配置：
+
+SpringBoot：
+
+```java
+/**
+     * 性能分析插件
+     * <groupId>com.baomidou</groupId>
+     * <artifactId>mybatis-plus-boot-starter</artifactId>
+     * <version>3.1.1</version>
+     * @return
+     */
+@Bean
+public PerformanceInterceptor performanceInterceptor(){
+    PerformanceInterceptor performanceInterceptor = new PerformanceInterceptor();
+    performanceInterceptor.setMaxTime(100);
+    performanceInterceptor.setFormat(true);
+    return performanceInterceptor;
+}
+```
+
+XML方式：
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration
+        PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+    <!--加载外部 properties-->
+    <properties resource="jdbc.properties"></properties>
+    
+    <plugins>
+        <!--SQL执行性能分析，开发环境使用，线上不推荐。maxTime指的是sql最大执行时长-->
+        <plugin interceptor="com.baomidou.mybatisplus.extension.plugins.PerformanceInterceptor">
+            <property name="maxTime" value="100"/>
+            <!--sql是否格式化 默认false-->
+            <property name="format" value="true"/>
+        </plugin>
+    </plugins>
+</configuration>    
+```
+
+执行结果：
+
+![image-20220615155947294](assest/image-20220615155947294.png)
+
+可以看到，执行时间为 31 ms。如果将maxTime设置为1，那么该操作会抛出异常。
+
+```properties
+org.mybatis.spring.MyBatisSystemException: nested exception is org.apache.ibatis.exceptions.PersistenceException: 
+### Error querying database.  Cause: com.baomidou.mybatisplus.core.exceptions.MybatisPlusException:  The SQL execution time is too large, please optimize ! 
+### The error may exist in com/turbo/mapper/UserMapper.java (best guess)
+### The error may involve com.turbo.mapper.UserMapper.selectList
+```
+
+
 
 # 4 乐观锁插件
 
