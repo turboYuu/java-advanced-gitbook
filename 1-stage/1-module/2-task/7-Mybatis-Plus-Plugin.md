@@ -235,12 +235,143 @@ org.mybatis.spring.MyBatisSystemException: nested exception is org.apache.ibatis
 
 # 4 乐观锁插件
 
+意图：
+
+当要更新一条记录的时候，希望这条记录没有被人更新。
+
+乐观锁实现方式：
+
+- 取出记录，获取当前 version
+- 更新时，带上这个 version
+- 执行更新时，set version=newVersion where version oldVersion
+- 如果 version 不对，就更新失败
+
 ## 4.1 主要使用场景
 
 ## 4.2 插件配置
 
+Spring XML
+
+```xml
+<bean class="com.baomidou.mybatisplus.extension.plugins.inner.OptimisticLockerInnerInterceptor" id="optimisticLockerInnerInterceptor"/>
+
+<bean id="mybatisPlusInterceptor" class="com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor">
+    <property name="interceptors">
+        <list>
+            <ref bean="optimisticLockerInnerInterceptor"/>
+        </list>
+    </property>
+</bean>
+```
+
+SpringBoot：
+
+```java
+@Bean
+public MybatisPlusInterceptor mybatisPlusInterceptor() {
+    MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
+    interceptor.addInnerInterceptor(new OptimisticLockerInnerInterceptor());
+    return interceptor;
+}
+
+@Bean
+public OptimisticLockerInterceptor optimisticLockerInterceptor() { 
+    return new OptimisticLockerInterceptor();
+}
+```
+
+
+
 ## 4.3 注解实体字段
+
+需要为实体字段添加 @Version 注解。
+
+1. 为表添加 version 字段，并且设置为1
+
+   ```sql
+   ALTER TABLE `td_user` ADD COLUMN `version` INT (10) NULL AFTER `email`;
+   
+   UPDATE `td_user` SET `version` = '1';
+   ```
+
+2. 为 User 实体对象添加 version 字段，并且添加 @Version 注解：
+
+   ```java
+   @Version
+   private Integer version;
+   ```
+
+   
 
 ## 4.4 测试
 
+测试用例：
+
+```java
+@Test
+public void testUpdateById(){
+    User user = new User();
+    user.setId(8L);
+    user.setAge(21);
+    user.setVersion(1); // 获取到 version 为 1
+    // 根据id更新不为null的字段
+    userMapper.updateById(user);
+}
+```
+
+
+
+```java
+16:20:55,593 DEBUG updateById:143 - ==>  Preparing: UPDATE td_user SET age=?, version=? WHERE id=? AND version=? 
+16:20:55,635 DEBUG updateById:143 - ==> Parameters: 21(Integer), 2(Integer), 8(Long), 1(Integer)
+16:20:55,656 DEBUG updateById:143 - <==    Updates: 1
+```
+
+可以看到，更新条件中有 version，并且更新的version为2.
+
+如果再次更新，更新则不成功。这样避免了多人同时更新时导致数据的不一致。
+
 ## 4.5 特别说明
+
+- 支持的数据类型只有：int, Integer, long, Long, Date, TimeStamp, LocalDateTime
+
+- 整数类型下：`newVersion = oldVersion+1`
+
+- `newVersion` 会回写到 `entity` 中
+
+- 仅支持 `updateById(entity)` 与 `update(entity,wrapper);` 方法
+
+- 在update(entity,wrapper) 方法下，wrapper 不能复用！！！！
+
+  ```java
+  @Test
+      public void testUpdate(){
+          User user = new User();
+          user.setAge(23); // 更新的字段
+          user.setVersion(1);
+  
+          // 更新的条件以及字段
+          UpdateWrapper<User> updateWrapper = new UpdateWrapper<>();
+          updateWrapper.eq("id",6);
+  
+          // 执行更新操作
+          int update = userMapper.update(user,updateWrapper);
+          System.out.println("result="+update);
+      }
+  ```
+
+  ```sql
+  Time：63 ms - ID：com.turbo.mapper.UserMapper.update
+  Execute SQL：
+      UPDATE
+          td_user 
+      SET
+          age=23,
+          version=2 
+      WHERE
+          id = 6 
+          AND version = 1
+  ```
+
+
+
