@@ -77,9 +77,11 @@ Spring 是一个分层非常清晰并且依赖关系，职责定位非常明确�
 
 
 
-Spring Framework 不同版本对 jdk 的要求
+Spring Framework 不同版本对 jdk 的要求 
 
+https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-Versions#jdk-version-range
 
+![image-20220616014257670](assest/image-20220616014257670.png)
 
 我使用的 
 
@@ -88,4 +90,3 @@ Spring Framework 5.1.12 RELEASE
 idea 2019.1
 
 Maven 3.5.2
-
