@@ -291,5 +291,84 @@ public class Test {
 
 ## 2.2 模板方法模式
 
+模板方法模式是指定义一个算法的骨架，并允许子类为一个挥着多个步骤提供实现。模板方法模式使得子类在不改变算法结构的情况下，重新定义算法的某些步骤，属于行为型设计模式。
+
+采用模板方法模式的核心思路是处理某个流程的代码已经具备，但其中某些节点的代码暂时不能确定。此时可以使用模板方法。
+
+### 2.2.1 示例
+
+```java
+package com.turbo.template;
+
+/**
+ * 面试流程
+ */
+public abstract class Interview {
+
+    private final void register(){
+        System.out.println("面试登记");
+    }
+
+    protected abstract void communicate();
+
+    private final void notifyResult(){
+        System.out.println("HR通知面试结果");
+    }
+
+    protected final void process(){
+        this.register();
+        this.communicate();
+        this.notifyResult();
+    }
+}
+```
+
+Java面试
+
+```java
+package com.turbo.template;
+
+public class Interviewee1 extends Interview {
+    @Override
+    protected void communicate() {
+        System.out.println("我是面试人员1，来面试Java工程师，我们聊的是Java相关内容");
+    }
+}
+```
+
+前端面试：
+
+```java
+package com.turbo.template;
+
+public class Interviewee2 extends Interview {
+    @Override
+    protected void communicate() {
+        System.out.println("我是面试人员2，来面试前端工程师，我们聊的是前端相关内容");
+    }
+}
+```
+
+测试：
+
+```java
+package com.turbo.template;
+
+public class InterviewTest {
+
+    public static void main(String[] args) {
+        // 面试 java
+        Interviewee1 interviewee1 = new Interviewee1();
+        interviewee1.process();
+
+        // 面试前端
+        Interviewee2 interviewee2 = new Interviewee2();
+        interviewee2.process();
+    }
+}
+```
+
+
+
 ## 2.3 适配器模式
 
