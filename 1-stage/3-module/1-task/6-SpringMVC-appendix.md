@@ -372,3 +372,92 @@ public class InterviewTest {
 
 ## 2.3 适配器模式
 
+**使得原本由于接口不兼容而不能一起工作、不能统一管理的那些类可以一起工作，可以进行统一管理**
+
+### 2.3.1 解决接口不兼容而不能一起工作的问题
+
+在中国，民用电都是 220V交流电，但是手机电池用的都是 5V 直流电。因此，给手机充电时就需要使用电源适配器来进行转换。使用代码还原这个生活场景。
+
+创建 AC220 类，表示 220V 交流电。
+
+```java
+package com.turbo.adaptor;
+
+public class AC220 {
+
+    public int outputAC220V(){
+        int output = 220;
+        System.out.println("输出交流电" + output  + "V");
+        return output;
+    }
+}
+```
+
+创建 DC5 接口，表示 5V 直流电：
+
+```java
+package com.turbo.adaptor;
+
+public interface DC5 {
+
+    int outputDC5V();
+}
+```
+
+创建电源适配器类 PowerAdapter
+
+```java
+package com.turbo.adaptor;
+
+public class PowerAdapter implements DC5 {
+
+    private AC220 ac220;
+
+    public PowerAdapter(AC220 ac220) {
+        this.ac220 = ac220;
+    }
+
+    @Override
+    public int outputDC5V() {
+        int adapterInput = ac220.outputAC220V();
+        // 变压器
+        int adapterOutput = adapterInput/44;
+        System.out.println("使用 PowerAdapter 输入AC:" + adapterInput + "V 输出DC:" + adapterOutput + "V");
+        return adapterOutput;
+    }
+}
+```
+
+客户端代码测试：
+
+```java
+package com.turbo.adaptor;
+
+public class AdapterTest {
+
+    public static void main(String[] args) {
+        DC5 dc5 = new PowerAdapter(new AC220());
+        dc5.outputDC5V();
+    }
+}
+```
+
+在上面的案例中，通过增加电源适配器类 PowerAdapter 实现了二者的兼容。
+
+### 2.3.2 解决不能统一管理的问题
+
+SpringMVC 中处理器适配器（HandlerAdapter）机制就是解决类统一管理问题非常经典的场景。
+
+其中 HandlerAdapter 接口是处理器适配器的顶级接口，它有多个子类，包括 AbstractHandlerMethodAdapter、SimpleServletHandlerAdapter、SimpleControllerHandlerAdapter、HttpRequestHandlerAdapter、RequestMappingHandlerAdapter。
+
+![image-20220616184058555](assest/image-20220616184058555.png)
+
+其是配置调用的关键代码也在 org.springframework.web.servlet.DispatcherServlet#doDispatch 方法中：
+
+![image-20220616184355517](assest/image-20220616184355517.png)
+
+在 doDispatch() 方法中调用了 getHandlerAdapter() 方法
+
+![image-20220616185319311](assest/image-20220616185319311.png)
+
+在 getHandlerAdapter() 方法中循环调用了 supports() 方法判断是否兼容，循环迭代集合中的 handlerAdapters 在初始化时已经赋值。
