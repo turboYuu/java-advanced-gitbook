@@ -640,6 +640,10 @@ public class ResumeDaoTest {
 
 
 
+# 3 官方参考
+
+![Reference Documentation](assest/image-20220617175702866.png)
+
 [使用 JPA 的步骤](https://docs.spring.io/spring-data/jpa/docs/current/reference/html/#repositories.query-methods)
 
 [JPA Query 的策略](https://docs.spring.io/spring-data/jpa/docs/current/reference/html/#jpa.query-methods)
