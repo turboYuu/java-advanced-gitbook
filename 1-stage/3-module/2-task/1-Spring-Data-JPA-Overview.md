@@ -2,7 +2,7 @@
 
 Spring Data JPA 是应用于 Dao 层的一个框架，简化数据库开发，作用和 Mybatis 框架一样，但是在使用方式和底层机制有所不同。最明显的一个特点，Spring Data JPA 开发 Dao 的时候，很多场景连 sql 语句都不需要开发。由 Spring 出品。
 
-**什么是 Spring Data JPA**
+# 1 什么是 Spring Data JPA
 
 ![image-20220412162446797](assest/image-20220412162446797.png)
 
@@ -12,7 +12,7 @@ Spring Data JPA 是 Spring  基于 JPA 规范的基础上封装的一套 JPA 应
 
 如何简化呢？使用了 Spring Data JPA，我们 Dao 层中只需要写接口，不需要写实现类，就自动具有了增删改查、分页查询等方法。
 
-**Spring Data 家族**
+# 2 Spring Data 家族
 
 ![image-20220412163143514](assest/image-20220412163143514.png)
 
