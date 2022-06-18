@@ -39,11 +39,13 @@ Spring Data JPA 的源码很少有人去分析，原因如下：
 
 ![image-20220618235841010](assest/image-20220618235841010.png)
 
+问题来了，什么时候put到map中去的？定位到了一个方法在做这件事：
 
+![image-20220619000652565](assest/image-20220619000652565.png)
 
+发现，传入该方法的时候，BeanDefinition 中的class就已经被指定为FactoryBean了，那么观察该方法的调用栈：
 
-
-
+![image-20220619015523551](assest/image-20220619015523551.png)
 
 
 
