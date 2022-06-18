@@ -29,7 +29,15 @@ Spring Data JPA 的源码很少有人去分析，原因如下：
 
 首先解决问题2 ：
 
+![image-20220618205037486](assest/image-20220618205037486.png)
 
+
+
+![image-20220618205207029](assest/image-20220618205207029.png)
+
+传入一个 resumeDao 就返回一个已经指定class为 JpaRepositoryFactoryBean  的 BeanDefinition 对象了，那么应该在上图中的 get 的时候就有了，所以断点进入
+
+![image-20220618235841010](assest/image-20220618235841010.png)
 
 
 
