@@ -882,7 +882,7 @@ xml配置
 </bean>
 ```
 
-测试，获取 FactoryBean 产生的对象；获取 FactoryBean，需要在 id 之间添加 ”&“
+测试，获取 FactoryBean 产生的对象；获取 FactoryBean，需要在 id 之前添加 ”&“
 
 ```java
 @Test
@@ -1020,6 +1020,42 @@ public class Result implements BeanNameAware, BeanFactoryAware, ApplicationConte
     }
 }
 ```
+
+```java
+package com.turbo.edu.pojo;
+
+import org.springframework.beans.BeansException;
+
+import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.stereotype.Component;
+
+/**
+ * 拦截实例化之后的对象（实例化，并且属性注入了）
+ */
+@Component
+public class MyBeanPostProcessor implements BeanPostProcessor {
+
+
+    @Override
+    public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
+        if ("lazyResult".equalsIgnoreCase(beanName)){
+            System.out.println("MyBeanPostProcessor before 方法 拦截处理 lazyResult");
+        }
+        return bean;
+    }
+
+
+    @Override
+    public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
+        if ("lazyResult".equalsIgnoreCase(beanName)){
+            System.out.println("MyBeanPostProcessor after 方法 拦截处理 lazyResult");
+        }
+        return bean;
+    }
+}
+```
+
+
 
 ![image-20220331145528864](assest/image-20220331145528864.png)
 
