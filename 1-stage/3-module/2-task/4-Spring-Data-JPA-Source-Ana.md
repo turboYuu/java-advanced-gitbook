@@ -39,21 +39,81 @@ Spring Data JPA 的源码很少有人去分析，原因如下：
 
 ![image-20220618235841010](assest/image-20220618235841010.png)
 
-问题来了，什么时候put到map中去的？定位到了一个方法在做这件事：
+问题来了，什么时候put到 `mergedBeanDefinitions` 这个map中去的？定位到了一个方法在做这件事：
 
-![image-20220619000652565](assest/image-20220619000652565.png)
+*在断点中设置条件*
+
+![image-20220620173803782](assest/image-20220620173803782.png)
+
+![image-20220620174309869](assest/image-20220620174309869.png)
 
 发现，传入该方法的时候，BeanDefinition 中的class就已经被指定为FactoryBean了，那么观察该方法的调用栈：
 
-![image-20220619015523551](assest/image-20220619015523551.png)
+![image-20220620174916803](assest/image-20220620174916803.png)
+
+ 断点进入：
+
+![image-20220620104626072](assest/image-20220620104626072.png)
+
+在该类中 搜索 `beanDefinitionMap.put`：
+
+![beanDefinitionMap.put/Ctrl+F](assest/image-20220620111128397.png)
+
+观察调用栈：
+
+![image-20220620180619314](assest/image-20220620180619314.png)
+
+断点进入：
+
+![image-20220620181041698](assest/image-20220620181041698.png)
+
+断点跟踪：
+
+![image-20220620181948130](assest/image-20220620181948130.png)
+
+![image-20220620182401142](assest/image-20220620182401142.png)
+
+通过上述追踪发现，<jpa:repositories base-package ，扫描到的接口，在进行BeanDefinition注册时候，class会被固定的指定为 JpaRepositoryFactoryBean。
+
+至此问题2追踪完毕。
+
+**那么接下来，再来追踪问题1 ，JpaRepositoryFactoryBean 是一个什么样的类？**
+
+它是一个 FactoryBean，重点关注FactoryBean的getObject方法
+
+![image-20220620183408902](assest/image-20220620183408902.png)
+
+搜一下 `this.repository` 什么时候被赋值？在 afterPropertiesSet() 方法中。
 
 
 
+其父类实现了 `InitializingBean` 接口，Spring 将调用 afterPropertiesSet() 方法。 
+
+![image-20220620183849600](assest/image-20220620183849600.png)
+
+![image-20220620184405078](assest/image-20220620184405078.png)
 
 
 
+![image-20220620190322908](assest/image-20220620190322908.png)
 
+![image-20220620191245657](assest/image-20220620191245657.png)
 
+![image-20220620191429692](assest/image-20220620191429692.png)
+
+![image-20220620191640585](assest/image-20220620191640585.png)
+
+![image-20220620192318948](assest/image-20220620192318948.png)
+
+![image-20220620192651205](assest/image-20220620192651205.png)
+
+![image-20220620193807926](assest/image-20220620193807926.png)
+
+由此可见，JdkDynamicAopProxy 会生成一个代理对象类型为 SimpleJpaRespository，而该对象的增强逻辑就在 JdkDynamicAopProxy 类的 invoke 方法中。
+
+至此问题1 追踪完成。
+
+# 2 疑问：这个代理对象 SimpleJpaRepository 有什么特别的？
 
 
 
