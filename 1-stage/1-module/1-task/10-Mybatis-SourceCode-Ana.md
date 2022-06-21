@@ -701,7 +701,7 @@ public Object execute(SqlSession sqlSession, Object[] args) {
 
 二级缓存构建在一级缓存之上，在收到查询请求时，Mybatis首先会查询二级缓存，若二级缓存未命中，再去查询一级缓存，一级缓存没有，再查询数据库。
 
-**二级缓存 -->  一级缓存 --> 数据库**
+查询顺序：**二级缓存 -->  一级缓存 --> 数据库**
 
 与一级缓存不同，二级缓存和具体的命名空间绑定，一个Mapper中有一个Cache，相同Mapper中的MappedStatement共用一个Cache，一级缓存则是和SqlSession绑定。
 
