@@ -115,9 +115,11 @@ Spring Data JPA 的源码很少有人去分析，原因如下：
 
 # 2 疑问：这个代理对象 SimpleJpaRepository 有什么特别的？
 
+![image-20220621105026091](assest/image-20220621105026091.png)
 
+![image-20220621105107748](assest/image-20220621105107748.png)
 
+原来 SimpleJpaRepository 类实现了 JpaRepository 接口 和 JpaSpecificationExecutor 接口
 
-
-
+![image-20220621105429728](assest/image-20220621105429728.png)
 
