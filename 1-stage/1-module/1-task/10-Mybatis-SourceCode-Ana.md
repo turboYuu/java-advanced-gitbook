@@ -180,7 +180,7 @@ Executor 也是一个接口，它有三个常用的实现类：
 
 - BaseExecutor （重用语句并执行批量更新）
 - ReuseExecutor（重用预处理语句 prepared statements）
-- SimpleExecutor（普通的执行器，默认）
+- SimpleExecutor（普通的执行器，**默认**）
 
 继续分析，初始化完毕后，我们就需要执行 SQL 了
 
@@ -258,6 +258,7 @@ public <E> List<E> selectList(String statement, Object parameter, RowBounds rowB
 
 ```java
 // 此方法在 SimpleExecutor 的父类 BaseExecutor 中实现
+// org.apache.ibatis.executor.BaseExecutor#query(org.apache.ibatis.mapping.MappedStatement, java.lang.Object, org.apache.ibatis.session.RowBounds, org.apache.ibatis.session.ResultHandler)
 public <E> List<E> query(MappedStatement ms, 
                          Object parameter, 
                          RowBounds rowBounds, 
@@ -605,13 +606,12 @@ public class MapperProxy<T> implements InvocationHandler, Serializable {
 
 
 
-
-
 ## 2.2 源码剖析-invoke()
 
 在动态代理返回示例后，我们就可以直接调用 mapper 类中的方法了，但代理对象调用方法，执行的是在 MapperProxy中的invoke方法：
 
 ```java
+// org.apache.ibatis.binding.MapperProxy#invoke
 public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
     try {
         // 如果是Object定义的方法，直接调用
