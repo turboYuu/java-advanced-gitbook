@@ -1285,7 +1285,7 @@ public class TransactionalCache implements Cache {
 
 存储二级缓存对象的时候是存放到 TransactionalCache.entriesToAddOnCommit 这个 map 中，但是每次查询的时候是直接从 TransactionalCache.delegate 中去查询的，所以这个二级缓存查询数据库之后，设置缓存值是没有立刻生效的，主要是因为直接存到 delegate 会导致脏数据问题
 
-## 3.4 为何只有SqlSession提交或关闭之后
+## 3.4 为何只有SqlSession提交或关闭之后 二级缓存中才有数据
 
 那看下 SqlSession.commit() 方法做了什么
 
@@ -1372,7 +1372,7 @@ public int update(MappedStatement ms, Object parameterObject) throws SQLExceptio
 private void flushCacheIfRequired(MappedStatement ms) {
     // 获取MappedStatement对应的Cache，进行清空
     Cache cache = ms.getCache();
-    // SQL需要设置flushCache="true" 才会执行清空
+    //  mapper.xml 中的SQL需要设置flushCache="true" 才会执行清空
     if (cache != null && ms.isFlushCacheRequired()) {      
         tcm.clear(cache);
     }
@@ -1389,7 +1389,7 @@ Mybatis二级缓存只适用于不常进行 增、删、改 的数据。一旦�
 - 二级缓存实现了 SqlSession 之间的缓存数据共享，属于 namespace 级别。
 - 二级缓存具有丰富的缓存策略。
 - 二级缓存可由多个装饰器，与基础缓存组合而成。
-- 二级缓存工作由一个缓存装饰执行器 CachingExecutor 和 一个事务型预缓存 TransactionalCache 完成。
+- 二级缓存工作由一个缓存装饰执行器 `CachingExecutor` 和 一个事务型预缓存 `TransactionalCache` 完成。
 
 # 4 延迟加载源码剖析
 
