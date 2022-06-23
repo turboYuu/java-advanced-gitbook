@@ -179,6 +179,132 @@ SqlSessionFactoryBuilder 类根据不同的输入参数来构建 SqlSessionFacto
 
 在简单工厂模式中，可以根据参数的不同返回不同类的实例。简单工厂模式专门定义一个类来负责创建其他类的实例，被创建的实例通常都具有共同的父类。
 
+例子：
+
+1. 创建抽象产品类
+
+   ```java
+   package simpleFactory;
+   
+   public abstract class Computer {
+   
+       /**
+        * 产品的抽象方法，有具体的产品类去实现
+        */
+       public abstract void start();
+   }
+   ```
+
+2. 创建具体产品类
+
+   ```java
+   package simpleFactory;
+   
+   public class LenvovComputer extends Computer {
+   
+       /**
+        * 产品的抽象方法，有具体的产品类去实现
+        */
+       @Override
+       public void start() {
+           System.out.println("Lenovo Start ...");
+       }
+   }
+   ```
+
+   ```java
+   package simpleFactory;
+   
+   public class HpComputer extends Computer {
+       /**
+        * 产品的抽象方法，有具体的产品类去实现
+        */
+       @Override
+       public void start() {
+           System.out.println("HP Start ...");
+       }
+   }
+   ```
+
+3. 创建工厂类
+
+   ```java
+   package simpleFactory;
+   
+   public class ComputerFactory {
+   
+       public static Computer createComputer(String type){
+           Computer computer = null;
+           switch (type){
+               case "lenovo":
+                   computer = new LenvovComputer();
+                   break;
+               case "hp":
+                   computer = new HpComputer();
+                   break;
+               default:
+                   computer = new LenvovComputer();
+                   break;
+           }
+           return computer;
+       }
+   }
+   ```
+
+4. 调用
+
+   ```java
+   package simpleFactory;
+   
+   public class CreateComputer {
+   
+       public static void main(String[] args) {
+           Computer lenovo = ComputerFactory.createComputer("lenovo");
+           lenovo.start();
+       }
+   }
+   ```
+
+
+
+**Mybatis 体现**：
+
+Mybatis 中执行 SQL 语句，获取 Mappers、管理事务的核心接口 SqlSession 的创建过程使用到了工厂模式。
+
+由一个 sqlSessionFactory 来负责 SqlSession 的创建
+
+![image-20220623180218286](assest/image-20220623180218286.png)
+
+sqlSessionFactory  可以看到 ，该 Factory 的 openSession() 方法重载了很多个分支，分别支持 autoCommit、execType、TransactionIsolationLevel 等参数的输入，有一个方法可以看出怎么产出一个产品：
+
+```java
+// 7. 进入 openSessionFormDataSource
+// ExecutorType 为 Executor的类型，TransactionIsolationLevel 为事务隔离级别，autoCommit 是否开启事务
+// openSession 的多个重载方法可以指定获得的 SeqSession 的 Executor 类型和事务的处理
+private SqlSession openSessionFromDataSource(ExecutorType execType, TransactionIsolationLevel level, boolean autoCommit) {
+    Transaction tx = null;
+    try {
+        // 获得 Environment 对象
+        final Environment environment = configuration.getEnvironment();
+        // 创建 TransactionFactory 对象
+        final TransactionFactory transactionFactory = getTransactionFactoryFromEnvironment(environment);
+        tx = transactionFactory.newTransaction(environment.getDataSource(), level, autoCommit);
+        // 创建 Executor 对象
+        final Executor executor = configuration.newExecutor(tx, execType);
+        // 创建 new DefaultSqlSession 对象
+        return new DefaultSqlSession(configuration, executor, autoCommit);
+    } catch (Exception e) {
+        // 如果发生异常，则关闭Transaction对象。
+        closeTransaction(tx); // may have fetched a connection so lets call close()
+        throw ExceptionFactory.wrapException("Error opening session.  Cause: " + e, e);
+    } finally {
+        ErrorContext.instance().reset();
+    }
+}
+```
+
+这是一个 openSession 调用的底层方法，该方法先从 configuration 读取对应的环境配置，然后初始化 TransactionFactory 获得一个 Transaction 对象，然后通过 Transaction 获取一个 Executor 对象，最后通过 configuration、executor、autoCommit 三个参数构建了 SqlSession。
+
 # 3 代理模式
 
 代理模式（Proxy Pattern）：给某一个对象提供一个代理，并由代理对象控制对原对象的引用。代理模式的英文叫做 Proxy，它是一种对象结构型模式，代理模式分为静态代理和动态代理，我们来介绍动态代理：
