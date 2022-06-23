@@ -22,7 +22,7 @@ Mybatis至少用到了以下的设计模式：
 
 Builder 模式的定义是 **将一个复杂对象的构建与它的表示分离，使得同样的构建过程可以创建不同的表示**。它属于创建类模式，一般来说，如果一个对象的构建比较复杂，超出了构造函数所能包含的范围，就可以使用工厂模式和Builder模式，相对于工厂模式会产生一个完整的产品，Builder应用于更加复杂的对象的构建，甚至只会构建产品的一个部分，直白来说，就是使用多个简单的对象一步一步构建成一个复杂的对象
 
-例子：使用构建者实际模式来生产 computer
+例子：使用构建者实际模式来生产 Hero
 
 主要步骤：
 
@@ -33,9 +33,143 @@ Builder 模式的定义是 **将一个复杂对象的构建与它的表示分离
 
 实现：
 
+```java
+package builder;
+
+/**
+ * Builder设计模式
+ */
+public class Hero {
+    private String name;
+    private String skill;
+    private String armor;
+    private String weapon;
+
+    private Hero(Builder builder) {
+        this.name = builder.name;
+        this.skill = builder.skill;
+        this.armor = builder.armor;
+        this.weapon = builder.weapon;
+    }
+    public static Builder builder(){
+        return new Builder();
+    }
+
+    @Override
+    public String toString() {
+        return "Hero{" +
+                "name='" + name + '\'' +
+                ", skill='" + skill + '\'' +
+                ", armor='" + armor + '\'' +
+                ", weapon='" + weapon + '\'' +
+                '}';
+    }
+
+    public static class Builder{
+        private String name;
+        private String skill;
+        private String armor;
+        private String weapon;
+
+        public Builder() {
+        }
+        public Builder withName(String name){
+            this.name = name;
+            return this;
+        }
+        public Builder withSkill(String skill){
+            this.skill = skill;
+            return this;
+        }
+        public Builder withArmor(String armor){
+            this.armor = armor;
+            return this;
+        }
+        public Builder withWeapon(String weapon){
+            this.weapon = weapon;
+            return this;
+        }
+        public Hero build(){
+            return new Hero(this);
+        }
+
+    }
+}
+```
+
+调用
+
+```java
+public static void main(String[] args) {
+    Hero hero = Hero.builder()
+        .withName("taylor")
+        .withSkill("style")
+        .withArmor("armor1")
+        .withWeapon("weapon1").build();
+    System.out.println(hero);
+}
+```
+
+**Mybatis中的体现**
+
+SqlSessionFactory 的构建过程：
+
+Mybatis的初始化工作非常复杂，不是只用哟个构造函数就能搞定的。所以是用来建造者模式，使用了大量的Builder，进行分层构造，核心对象 Configuration使用了 XMLConfigBuilder 来进行构造。
+
 ![image-20220427113031669](assest/image-20220427113031669.png)
 
-在 Mybatis 环境的初始化过程中，SqlSessionFactoryBuilder 会调用 XMLConfigBuilder 读取所有的 MybatisMapConfig.xml 和所有的 *Mapper.xml 文件，构建 Mybatis 运行的核心对象 Configuration 对象，然后
+在 Mybatis 环境的初始化过程中，SqlSessionFactoryBuilder 会调用 XMLConfigBuilder 读取所有的 MybatisMapConfig.xml 和所有的 **Mapper.xml 文件，构建 Mybatis 运行的核心对象 Configuration 对象，然后将该Configuration对象作为参数构建一个SqlSessionFactory对象。
+
+```java
+private void parseConfiguration(XNode root) {
+    try {
+        //issue #117 read properties first
+        // 解析 <properties/> 标签
+        propertiesElement(root.evalNode("properties"));
+        // 解析 <settings/> 标签
+        Properties settings = settingsAsProperties(root.evalNode("settings"));
+        // 加载自定义的 VFS 实现类
+        loadCustomVfs(settings);
+        loadCustomLogImpl(settings);
+        // 解析 <typeAliases/> 标签
+        typeAliasesElement(root.evalNode("typeAliases"));
+        // 解析 <plugins/> 标签
+        pluginElement(root.evalNode("plugins"));
+        // 解析 <objectFactory/> 标签
+        objectFactoryElement(root.evalNode("objectFactory"));
+        // 解析 <objectWrapperFactory/> 标签
+        objectWrapperFactoryElement(root.evalNode("objectWrapperFactory"));
+        // 解析 <reflectorFactory/> 标签
+        reflectorFactoryElement(root.evalNode("reflectorFactory"));
+        // 赋值 <settings/> 至 Configuration 属性
+        settingsElement(settings);
+        // read it after objectFactory and objectWrapperFactory issue #631
+        // 解析 <environments/> 标签
+        environmentsElement(root.evalNode("environments"));
+        // 解析 <databaseIdProvider/> 标签
+        databaseIdProviderElement(root.evalNode("databaseIdProvider"));
+        // 解析 <typeHandlers/> 标签
+        typeHandlerElement(root.evalNode("typeHandlers"));
+        // 解析 <mappers/> 标签
+        mapperElement(root.evalNode("mappers"));
+    } catch (Exception e) {
+        throw new BuilderException("Error parsing SQL Mapper Configuration. Cause: " + e, e);
+    }
+}
+```
+
+其中 XMLConfigBuilder  在构建 Configuration 对象时，也会调用 XMLMapperBuilder 用于读取 **Mapper 文件，而 XMLMapperBuilder 会使用 XMLStatementBuilder 来读取和 build 所有的 SQL 语句。
+
+```java
+// 解析 <mappers/> 标签
+mapperElement(root.evalNode("mappers"));
+```
+
+在这个过程中，有一个相似的特点，就是这些 Builder会读取文件或者配置，然后做大量的 XpathParser 解析、配置或语法的解析、反射生成对象，存入结果缓存等步骤，这么多的工作都不是一个构造函数所能包括的，因此大量采用了 Builder 模式来接解决
+
+![image-20220623171519251](assest/image-20220623171519251.png)
+
+SqlSessionFactoryBuilder 类根据不同的输入参数来构建 SqlSessionFactory 这个工厂对象。
 
 # 2 工厂模式
 
