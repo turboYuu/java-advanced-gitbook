@@ -1590,7 +1590,7 @@ private Object createResultObject(ResultSetWrapper rsw, ResultMap resultMap,
 
 默认采用 javassistProxy 进行代理对象的创建
 
-![image-20220507184349561](assest/image-20220507184349561.png)
+![image-20220623150417238](assest/image-20220623150417238.png)
 
 JavassistProxyFactory 实现
 
