@@ -79,6 +79,43 @@ Spring Cache 只负责维护抽象层，具体的实现由自己的技术选型�
 1. 创建 SpringBoot应用，选中 Mysql、Mybatis、Web 模块
 2. 创建数据库
 
+![image-20220624184817641](assest/image-20220624184817641.png)
+
+![image-20220624184914689](assest/image-20220624184914689.png)
+
+![image-20220624185100262](assest/image-20220624185100262.png)
+
+![image-20220624185135007](assest/image-20220624185135007.png)
+
+
+
+```sql
+DROP TABLE IF EXISTS `department`;
+
+CREATE TABLE `department` (
+	`id` INT (11) NOT NULL AUTO_INCREMENT,
+	`departmentName` VARCHAR (255) DEFAULT NULL,
+	PRIMARY KEY (`id`)
+) ENGINE = INNODB DEFAULT CHARSET = utf8;
+
+DROP TABLE IF EXISTS `employee`;
+
+CREATE TABLE `employee` (
+	`id` INT (11) NOT NULL AUTO_INCREMENT,
+	`lastName` VARCHAR (255) DEFAULT NULL,
+	`email` VARCHAR (255) DEFAULT NULL,
+	`gender` INT (2) DEFAULT NULL,
+	`d_id` INT (11) DEFAULT NULL,
+	PRIMARY KEY (`id`)
+) ENGINE = INNODB DEFAULT CHARSET = utf8;
+
+
+INSERT INTO `department` (`departmentName`) VALUES ('开发部');
+INSERT INTO `employee` (`lastName`, `email`, `gender`, `d_id`) VALUES (威廉', 'oath@gmail.com', '1', '1');
+
+
+```
+
 
 
 
