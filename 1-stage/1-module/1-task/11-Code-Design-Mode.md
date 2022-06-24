@@ -311,3 +311,179 @@ private SqlSession openSessionFromDataSource(ExecutorType execType, TransactionI
 
 举例：创建一个抽象类，Person接口，使用拥有一个没有返回值的 doSomething 方法
 
+```java
+package dynamicProxy;
+
+public interface Person {
+    void doSomething();
+}
+```
+
+创建一个名为 Bob 的 Person 接口的实现类，使其实现 doSomething 方法
+
+```java
+package dynamicProxy;
+
+public class Bob implements Person {
+    @Override
+    public void doSomething() {
+        System.out.println("Bob doing something!");
+    }
+}
+```
+
+创建 JDK 动态代理类，使其实现 InvocationHandler 接口。拥有一个名为 target 的变量，并创建 getInstance 获取代理对象方法。
+
+```java
+package dynamicProxy;
+
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+
+/**
+ * JDK 动态代理
+ * 需实现 InvocationHandler 接口
+ */
+public class JDKDynamicProxy implements InvocationHandler {
+
+    //被代理的对象
+    Person target;
+
+    // 构造函数
+    public JDKDynamicProxy(Person target) {
+        this.target = target;
+    }
+
+    // 获取代理对象
+    public Person getInstance(){
+       return (Person) Proxy.newProxyInstance(target.getClass().getClassLoader(),target.getClass().getInterfaces(),this);
+    }
+
+    // 动态代理 invoke 方法
+    @Override
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        // 被代理方法前执行
+        System.out.println("JDKDynamicProxy do something before!");
+        // 执行被代理的方法
+        Object invoke = method.invoke(target, args);
+        // 被代理方法后执行
+        System.out.println("JDKDynamicProxy do something after!");
+        return invoke;
+    }
+}
+```
+
+创建JDK动态代理测试类 JDKDynamicTest
+
+```java
+package dynamicProxy;
+
+/**
+ * JDK 动态代理测试
+ */
+public class JDKDynamicTest {
+
+    public static void main(String[] args) {
+        
+        Person bob = new Bob();
+        bob.doSomething();
+
+        Person instance = new JDKDynamicProxy(new Bob()).getInstance();
+        instance.doSomething();
+    }
+}
+```
+
+
+
+**Mybatis中实现**：
+
+代理模式可以认为是 Mybatis 的核心使用的模式，正是由于这个模式，我们只需要编写 Mapper.java 接口，不需要实现，由Mybatis 后台帮助我们完成具体的SQL执行。
+
+当我们使用 Configuration 的 getMapper 方法时，会调用 mapperRegister.getMapper方法，该方法又会调用 mapperProxyFactory.newInstance(sqlSession); 来生成一个具体的代理：
+
+```java
+/**
+ *    Copyright 2009-2022 the original author or authors.
+ *
+ *    Licensed under the Apache License, Version 2.0 (the "License");
+ *    you may not use this file except in compliance with the License.
+ *    You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *    Unless required by applicable law or agreed to in writing, software
+ *    distributed under the License is distributed on an "AS IS" BASIS,
+ *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *    See the License for the specific language governing permissions and
+ *    limitations under the License.
+ */
+package org.apache.ibatis.binding;
+
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.apache.ibatis.session.SqlSession;
+
+/**
+ * @author Lasse Voss
+ */
+public class MapperProxyFactory<T> {
+
+	private final Class<T> mapperInterface;
+    private final Map<Method, MapperMethod> methodCache = new ConcurrentHashMap<>();
+
+    public MapperProxyFactory(Class<T> mapperInterface) {
+        this.mapperInterface = mapperInterface;
+    }
+
+    public Class<T> getMapperInterface() {
+        return mapperInterface;
+    }
+
+    public Map<Method, MapperMethod> getMethodCache() {
+        return methodCache;
+    }
+
+    @SuppressWarnings("unchecked")
+    protected T newInstance(MapperProxy<T> mapperProxy) {
+        return (T) Proxy.newProxyInstance(mapperInterface.getClassLoader(), new Class[] { mapperInterface }, mapperProxy);
+    }
+
+    public T newInstance(SqlSession sqlSession) {
+        final MapperProxy<T> mapperProxy = new MapperProxy<>(sqlSession, mapperInterface, methodCache);
+        return newInstance(mapperProxy);
+    }
+}
+```
+
+在这里，先通过 `T newInstance(SqlSession sqlSession)` 方法会得到一个 MapperProxy 对象，然后调用<br>  `T newInstance(MapperProxy<T> mapperProxy)` 生成代理对象然后返回。而查看 MapperProxy 的代理，可以看到如下内容：
+
+```java
+public class MapperProxy<T> implements InvocationHandler, Serializable {
+    @Override
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        try {
+            if (Object.class.equals(method.getDeclaringClass())) {
+                return method.invoke(this, args);
+            } else if (method.isDefault()) {
+                if (privateLookupInMethod == null) {
+                    return invokeDefaultMethodJava8(proxy, method, args);
+                } else {
+                    return invokeDefaultMethodJava9(proxy, method, args);
+                }
+            }
+        } catch (Throwable t) {
+            throw ExceptionUtil.unwrapThrowable(t);
+        }
+        final MapperMethod mapperMethod = cachedMapperMethod(method);
+        return mapperMethod.execute(sqlSession, args);
+    }
+}
+```
+
+非常典型的，该 MapperProxy 类实现了 InvocationHandler 接口，并且实现了该接口的 invoke 方法。通过这种方式，我们只需要编写 Mapper.java 接口类，当真正执行一个 Mapper 接口的之后，就会转发给 MapperProxy.invoke 方法，该方法则会调用 sqlSession.crud --> Executor.execute -->prepareStatement 等一系列方法，完成 SQL 的执行和返回。
+

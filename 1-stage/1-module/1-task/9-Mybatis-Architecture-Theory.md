@@ -31,6 +31,8 @@
 | SqlSource        | 负责根据用户传递的 parameterObject，动态地生成 SQL 语句，将信息封装到 BoundSql 对象中，并返回 |
 | BoundSql         | 表示动态生成的 SQL 语句以及相应的参数信息                    |
 
+**重点理解下图**：Mybatis的层次结构 和 执行流程。
+
 ![image-20220426130653547](assest/image-20220426130653547.png)
 
 # 3 总体流程
