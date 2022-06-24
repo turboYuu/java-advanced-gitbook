@@ -14,7 +14,15 @@ Java Caching（JSR-107）定义了5个核心接口，分别是 CahcingProvider �
 - Entry（缓存键值对）是一个存储在 Cache 中的 key-value对。
 - Expiry（缓存时效）：每一个存储在 Cache 中的条目都有一个定义的有效期。一旦超过这个时间，条目就自动过期，过期后，条目将不可访问、更新和删除操作。缓存有效期可以通过ExpiryPolicy设置。
 
+
+
 ## 1.2 JSR 107 图示
+
+![image-20220624164448656](assest/image-20220624164448656.png)
+
+一个应用里面可以由多个缓存提供者（CachingProvider），一个缓存缓存提供者可以获取到多个缓存管理器（CacheManager），一个缓存管理器管理着不同的缓存（Cache），缓存中是一个个的缓存键值对（Entry），每个entry都有一个有效期（Expiry）。缓存管理器和缓存之间的关系有点类似于数据库中的连接池和连接的关系。
+
+
 
 # 2 Spring 的缓存抽象
 
