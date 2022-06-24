@@ -2,6 +2,8 @@
 
 # 1 数据源自动配置源码剖析
 
+[gitee 代码地址](https://gitee.com/turboYuu/spring-boot-1-4/tree/master/source_code/spring-boot-2.2.9.RELEASE/spring-boot-03-dataaccess)
+
 ## 1.1 数据源配置方式
 
 ### 1.1.1 选择数据库驱动的库文件
