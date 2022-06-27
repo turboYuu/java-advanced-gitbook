@@ -544,4 +544,43 @@ public void put(Object key, @Nullable Object value) {
 
 # 7 基于Redis的缓存实现
 
+SpringBoot 默认开启的缓存管理器是 **ConcurrentMapCacheManager** ，创建缓存组件是 ConcurrentMapCache，将缓存数据保存在一个个 ConcurrentMap<Object, Object> 中。
+
+开发时我们可以使用缓存中间件：redis、memcache、ehcache 等，这些缓存中间件的启用很简单 —— 只要向容器中加入相关的 bean 就会启用，可以启用多个缓存中间件。
+
+## 7.1 安装启动Redis
+
+## 7.2 整合Redis
+
+1. 引入Redis的starter
+
+   ```java
+   <dependency>
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-starter-data-redis</artifactId>
+       </dependency>
+   ```
+
+   引入Redis的starter之后，会在容器中加入redis相关的一些 bean，其中有两个和操作 redis 相关：
+
+   RedisTemplate 和 StringRedisTemplate（用来操作字符串：key 和 value 都是字符串），template 中封装了操作各种数据类型的操作（stringRedisTemple.opsForValue()、stringRedisTemple.opsForList() 等 ）。
+
+   ![image-20220627170505439](assest/image-20220627170505439.png)
+
+2. 配置 redis：只要配置redis的主机地址（端口号默认为 6379，因此可以不指定）
+
+   ```properties
+   spring.redis.host=152.136.177.192
+   ```
+
+3. 测试：
+
+   访问：http://localhost:8080/emp/1
+
+   使用 redis 存储对象时，该对象必须可序列化（实现 Serializable 接口），否则报错。由于序列化的原因：键值对变成了另外一种形式。
+
+   ![image-20220627171855892](assest/image-20220627171855892.png)
+
+   SpringBoot默认采用的是 JDK 的对象序列化方式，可以切换为使用 JSON 格式进行对象的序列化操作，这时需要自定义序列化规则（当然也可以使用 Json 工具先将对象转化为 Json 格式之后再保存至 redis，这样就无需自定义序列化）。
+
 # 8 自定义 RedisCacheManager
