@@ -584,3 +584,106 @@ SpringBoot 默认开启的缓存管理器是 **ConcurrentMapCacheManager** ，�
    SpringBoot默认采用的是 JDK 的对象序列化方式，可以切换为使用 JSON 格式进行对象的序列化操作，这时需要自定义序列化规则（当然也可以使用 Json 工具先将对象转化为 Json 格式之后再保存至 redis，这样就无需自定义序列化）。
 
 # 8 自定义 RedisCacheManager
+
+## 8.1 Redis注解默认序列化机制
+
+打开 SpringBoot 整合 Redis 组件提供的缓存自动配置类：RedisCacheConfiguration （org.springframework.boot.autoconfigure.cache 包下），查看该类的源码信息，其核心代码如下：
+
+```java
+@Configuration(proxyBeanMethods = false)
+@ConditionalOnClass(RedisConnectionFactory.class) // classpath下要存在对应的class文件才会进行配置
+@AutoConfigureAfter(RedisAutoConfiguration.class)
+@ConditionalOnBean(RedisConnectionFactory.class)
+@ConditionalOnMissingBean(CacheManager.class)
+@Conditional(CacheCondition.class)
+class RedisCacheConfiguration {
+
+	@Bean
+	RedisCacheManager cacheManager(CacheProperties cacheProperties, CacheManagerCustomizers cacheManagerCustomizers,
+			ObjectProvider<org.springframework.data.redis.cache.RedisCacheConfiguration> redisCacheConfiguration,
+			ObjectProvider<RedisCacheManagerBuilderCustomizer> redisCacheManagerBuilderCustomizers,
+			RedisConnectionFactory redisConnectionFactory, ResourceLoader resourceLoader) {
+		RedisCacheManagerBuilder builder = RedisCacheManager.builder(redisConnectionFactory).cacheDefaults(
+				determineConfiguration(cacheProperties, redisCacheConfiguration, resourceLoader.getClassLoader()));
+		List<String> cacheNames = cacheProperties.getCacheNames();
+		if (!cacheNames.isEmpty()) {
+			builder.initialCacheNames(new LinkedHashSet<>(cacheNames));
+		}
+		redisCacheManagerBuilderCustomizers.orderedStream().forEach((customizer) -> customizer.customize(builder));
+		return cacheManagerCustomizers.customize(builder.build());
+	}
+
+	private org.springframework.data.redis.cache.RedisCacheConfiguration determineConfiguration(
+			CacheProperties cacheProperties,
+			ObjectProvider<org.springframework.data.redis.cache.RedisCacheConfiguration> redisCacheConfiguration,
+			ClassLoader classLoader) {
+		return redisCacheConfiguration.getIfAvailable(() -> createConfiguration(cacheProperties, classLoader));
+	}
+
+	private org.springframework.data.redis.cache.RedisCacheConfiguration createConfiguration(
+			CacheProperties cacheProperties, ClassLoader classLoader) {
+		Redis redisProperties = cacheProperties.getRedis();
+		org.springframework.data.redis.cache.RedisCacheConfiguration config = org.springframework.data.redis.cache.RedisCacheConfiguration
+				.defaultCacheConfig();
+		config = config.serializeValuesWith(
+				SerializationPair.fromSerializer(new JdkSerializationRedisSerializer(classLoader)));
+		if (redisProperties.getTimeToLive() != null) {
+			config = config.entryTtl(redisProperties.getTimeToLive());
+		}
+		if (redisProperties.getKeyPrefix() != null) {
+			config = config.prefixKeysWith(redisProperties.getKeyPrefix());
+		}
+		if (!redisProperties.isCacheNullValues()) {
+			config = config.disableCachingNullValues();
+		}
+		if (!redisProperties.isUseKeyPrefix()) {
+			config = config.disableKeyPrefix();
+		}
+		return config;
+	}
+}
+```
+
+从上述核心源码中可以看出，RedisCacheConfiguration 内部同样通过 Redis 连接工厂 RedisConnectionFactory 定义了一个缓存管理器 RedisCacheManager；同时定制 RedisCacheManager 时，也默认使用了 JdkSerializationRedisSerializer 序列化方式。
+
+如果想要使用自定义序列化方式的 RedisCacheManager 进行数据缓存操作，可以参考上述核心代码，创建一个名为 cacheManager 的 Bean 组件，并在该组件中设置对应的序列化方式即可。
+
+## 8.2 自定义RedisCacheManager
+
+在项目的Redis配置类 RedisConfig 中，按照上一步分析的自定义 定制名为 cacheManager 的 Bean 组件。
+
+```java
+@Configuration
+public class RedisConfig {
+
+	@Bean
+	public RedisCacheManager cacheManager(RedisConnectionFactory redisConnectionFactory){
+		// 分别创建String和JSON格式序列化对象，对缓存数据key和value进行转换
+		StringRedisSerializer stringRedisSerializer = new StringRedisSerializer();
+		Jackson2JsonRedisSerializer jsonRedisSerializer = new Jackson2JsonRedisSerializer(Object.class);
+		// 解决查询缓存转换异常的问题
+		ObjectMapper om = new ObjectMapper();
+		om.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
+		om.enableDefaultTyping(ObjectMapper.DefaultTyping.NON_FINAL);
+		jsonRedisSerializer.setObjectMapper(om);
+		// 定制缓存数据序列化方式及时效
+		RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
+				.entryTtl(Duration.ofDays(1)) //缓存数据的有效期为1天
+				.serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(stringRedisSerializer)) //key的序列化方式为String
+				.serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(jsonRedisSerializer)) // value的序列化方式为json
+				.disableCachingNullValues();
+		RedisCacheManager cacheManager = RedisCacheManager.builder(redisConnectionFactory).cacheDefaults(config).build();
+		return cacheManager;
+
+
+	}
+}
+```
+
+
+
+上述代码中，在RedisConfig配置类中使用 @Bean 注解注入了一个默认名称为方法的 cacheManager 组件。在定义的 Bean 组件中，通过 RedisCacheConfiguration 对缓存数据的key和value分别进行了序列化方式的定制，其中缓存数据的key定制为 StringRedisSerializer （即 String 格式），而 value 定制为 Jackson2JsonRedisSerializer（即JSON格式），同时还使用 entryTtl(Duration.ofDays(1))  方法将缓存数据有效期设置为 1 天。
+
+完成基于注解的Redis缓存管理器 RedisCacheManager 定制后，可以对缓存管理器的效果进行测试（使用自定义序列化机制的 RedisCacheManager测试时，实体类可以不用实现序列化接口）。
+
+![image-20220627174525254](assest/image-20220627174525254.png)
