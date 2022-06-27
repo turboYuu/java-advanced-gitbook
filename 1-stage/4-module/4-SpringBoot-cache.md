@@ -297,7 +297,7 @@ Spring Cache 只负责维护抽象层，具体的实现由自己的技术选型�
 
    
 
-@Cacheable 注解的属性：
+## 3.4 @Cacheable 注解的属性：
 
 | 属性名           | 描述                                                         |
 | ---------------- | ------------------------------------------------------------ |
@@ -447,9 +447,100 @@ public void put(Object key, @Nullable Object value) {
 
 ## 6.1 @CachePut
 
+1. 说明：既调用方法，又更新缓存数据，一般用于更新操作；在更新缓存时一定要和想要更新的缓存有相同的缓存名称和相同的key（可类比同一张表的同一条数据）
+
+2. 运行时机：
+
+   - 先调用目标方法
+   - 将目标方法的结果缓存起来
+
+3. 示例
+
+   ```java
+   @CachePut(value = "emp",key = "#employee.id")
+   public Employee updateEmp(Employee employee){
+       employeeMapper.updateEmp(employee);
+       return employee;
+   }
+   ```
+
+**总结**：@CachePut 标注的方法总会被调用，且调用之后才会将结果放入缓存，因此可以使用 #result 获取到方法的返回值。
+
 ## 6.2 @CacheEvict
 
+1. 说明：缓存清除，清除缓存时要知名缓存的名字和key，相当于告诉数据库要删除哪个表中的哪条数据，key 默认为参数的值。
+
+2. 属性：
+
+   - value/cacheNames： 缓存的名字
+   - key：缓存的键
+   - allEntries：是否清除指定缓存中的所有键值对，默认为 false，设置为 true 时，会清除缓存中的所有键值对，与 key 属性二选一使用。
+   - beforeInvocation：在@CacheEvict 注解的方法调用之前清除指定缓存，默认为 false（即在方法调用之后清除缓存），设置为true时则会在方法调用之前清除缓存（在方法调用之前还是之后清除缓存的区别在于方法调用时是否会出现异常，若不出现异常，这两种设置没有区别；若出现异常，设置为在方法调用之后清除缓存将不起作用，因为方法调用失败了）。
+
+3. 示例：
+
+   ```java
+   @CacheEvict(value = "emp",key = "#id",beforeInvocation = true)
+   public void delEmp(Integer id){
+       employeeMapper.deleteEmp(id);
+   }
+   ```
+
+   
+
 ## 6.3 @CacheConfig
+
+1. 作用：标注在类上，抽取缓存相关注解的公共配置，可抽取的公共配置有缓存名字、主键生成器等（如注解中的属性所示）
+
+   ```java
+   @Target(ElementType.TYPE)
+   @Retention(RetentionPolicy.RUNTIME)
+   @Documented
+   public @interface CacheConfig {
+   
+   	String[] cacheNames() default {};
+   
+   	String keyGenerator() default "";
+   
+   	String cacheManager() default "";
+   
+   	String cacheResolver() default "";
+   }
+   ```
+
+2. 示例：
+
+   通过 @CacheConfig 的 cacheNames 属性指定缓存的名字之后，该类中的其他缓存注解就不必再写 value 或者 cacheNames 了，会使用该名字作为 value 或 cacheNames 的值，当然也遵循就近原则。
+
+   ```java
+   @CacheConfig(cacheNames = {"emp"})
+   @Service
+   public class EmployeeService {
+   
+   	@Autowired
+   	private EmployeeMapper employeeMapper;
+   
+   
+   	@Cacheable()
+   	public Employee getEmpId(Integer id){
+   		Employee employee = employeeMapper.getEmpById(id);
+   		return employee;
+   	}
+   
+   	@CachePut(key = "#employee.id",unless = "#result==null")
+   	public Employee updateEmp(Employee employee){
+   		employeeMapper.updateEmp(employee);
+   		return employee;
+   	}
+   
+   	@CacheEvict(key = "#id",beforeInvocation = true)
+   	public void delEmp(Integer id){
+   		employeeMapper.deleteEmp(id);
+   	}
+   }
+   ```
+
+   
 
 # 7 基于Redis的缓存实现
 
