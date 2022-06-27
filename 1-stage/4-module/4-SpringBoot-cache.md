@@ -400,7 +400,56 @@ public void put(Object key, @Nullable Object value) {
 
 # 5 @Cacheable 源码分析
 
+我们在上述的两个方法上打上断点；debug运行SpringBoot；访问 getEmp 接口；
+
+![image-20220627154108473](assest/image-20220627154108473.png)
+
+发现它来到 `lookup` 方法这里，说明注解的执行在被注解的方法前，然后这里我们会返回 null；
+
+放行到下一个注解会发现，调用了 put 方法：
+
+![image-20220627154347365](assest/image-20220627154347365.png)
+
+添加了Cache；然后我们第二次对 getEmp 接口发起请求，会发现这一次缓存内容不再为 null：
+
+![image-20220627154534210](assest/image-20220627154534210.png)
+
+
+
+@Cacheable  运行流程：
+
+1. 方法运行之前，先去查询 Cache（缓存组件），按照cacheNames 指定的名字获取（CacheManager 先获取相应的缓存，第一次获取缓存如果没有 Cache 组件会自动创建）
+
+2. 去Cache中查找缓存的内容，使用的 key 默认就是方法的参数：
+
+   key 默认是使用 keyGenerator 生成的，默认使用的是 SimpleKeyGenerator
+
+   SimpleKeyGenerator 生成 key 的默认策略是：
+
+   - 如果没有参数：key = new SimpleKey();
+   - 如果有一个参数：key = 参数的值
+   - 如果有多个参数：key = new SimpleKey(params);
+
+3. 没有查到缓存就调用目标方法
+
+4. 将目标方法返回的结果放进缓存中
+
+**总结**：@Cacheable 标注的方法在执行之前会先检查缓存中有没有这个数据，默认按照参数的值为 key 查询缓存，如果没有就运行方法并将结果放入缓存，以后再来调用时直接使用缓存中的数据。
+
+
+
+**核心**：
+
+1. 使用 CacheManager(ConcurrentMapCacheManager) 按照名字得到 Cache(ConcurrentMapCache)组件；
+2. key使用 keyGenerator 生成，默认使用 SimpleKeyGenerator
+
 # 6 @CahcePut、@CacheEvict、@CacheConfig
+
+## 6.1 @CachePut
+
+## 6.2 @CacheEvict
+
+## 6.3 @CacheConfig
 
 # 7 基于Redis的缓存实现
 
