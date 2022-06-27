@@ -329,6 +329,75 @@ Spring Cache 只负责维护抽象层，具体的实现由自己的技术选型�
 
 # 4 缓存自动配置原理源码剖析
 
+在 SpringBoot 中所有的自动配置类都是 `...AutoConfiguration` 所以我们去搜 `CacheAutoConfiguration` 在这个类中有一个静态内部类 `CacheConfigurationImportSelector` 它有一个 `selectImports` 方法是用来给容器中添加一些缓存要用的组件；
+
+![image-20220627150053598](assest/image-20220627150053598.png)
+
+![image-20220627150143470](assest/image-20220627150143470.png)
+
+![image-20220627150328087](assest/image-20220627150328087.png)
+
+在这里打上断点，debug调试一下看看 `imports` 中有哪些缓存组件：
+
+![image-20220627150518518](assest/image-20220627150518518.png)
+
+可以看到这里总共有十个缓存组件；随便去看一个会发现在它的注解上表明了什么时候使用这个组件：
+
+![image-20220627150838539](assest/image-20220627150838539.png)
+
+是个缓存组件，最终发现只有 `SimpleCacheConfiguration` 是被使用的，所以也就说明默认情况下使用 `SimpleCacheConfiguration` ；
+
+然后进入到 `SimpleCacheConfiguration`  中：
+
+![image-20220627151513741](assest/image-20220627151513741.png)
+
+发现它给SpringBoot容器添加了一个 bean，是一个 `CacheManager`;
+
+`ConcurrentMapCacheManager` 实现了 `CacheManager`接口，再来看 `ConcurrentMapCacheManager` 的 getCache 方法：
+
+![image-20220627151853134](assest/image-20220627151853134.png)
+
+`getCache` 方法使用了 **双重锁校验**（这样验证机制一般是用在单例模式中）
+
+可以看到如果没有 `Cache` 会调用 `cache = createConcurrentMapCache(name);`
+
+![image-20220627152441362](assest/image-20220627152441362.png)
+
+这个方法会创建一个 `ConcurrentMapCache` 这个就是我们说的 `Cache`；
+
+
+
+![image-20220627152655735](assest/image-20220627152655735.png)
+
+在这个类里面有这样三个属性；
+
+`private final ConcurrentMap<Object, Object> store;` 这个就是前文中的 `Entry` 用来存放键值对；
+
+在 `ConcurrentMapCache` 中我们会看到一些操作 `Cache` 的方法，选几个重要的：
+
+```java
+@Override
+@Nullable
+protected Object lookup(Object key) {
+    return this.store.get(key);
+}
+```
+
+`lookup`方法是根据 key 来找 value 的；
+
+
+
+```java
+@Override
+public void put(Object key, @Nullable Object value) {
+    this.store.put(key, toStoreValue(value));
+}
+```
+
+`put`方法顾名思义是用来添加键值对的；
+
+到这里基本上就结束了，接下来我们详细分析一下 `@Cacheable`注解。
+
 # 5 @Cacheable 源码分析
 
 # 6 @CahcePut、@CacheEvict、@CacheConfig
