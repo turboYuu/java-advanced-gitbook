@@ -76,9 +76,6 @@ Spring Cache 只负责维护抽象层，具体的实现由自己的技术选型�
 
 ## 3.2 环境搭建
 
-1. 创建 SpringBoot应用，选中 Mysql、Mybatis、Web 模块
-2. 创建数据库
-
 ![image-20220624184817641](assest/image-20220624184817641.png)
 
 ![image-20220624184914689](assest/image-20220624184914689.png)
@@ -87,36 +84,246 @@ Spring Cache 只负责维护抽象层，具体的实现由自己的技术选型�
 
 ![image-20220624185135007](assest/image-20220624185135007.png)
 
+1. 创建 SpringBoot应用，选中 Mysql、Mybatis、Web 模块
 
+2. 创建数据库
 
-```sql
-DROP TABLE IF EXISTS `department`;
+   ```sql
+   DROP TABLE IF EXISTS `department`;
+   
+   CREATE TABLE `department` (
+   	`id` INT (11) NOT NULL AUTO_INCREMENT,
+   	`departmentName` VARCHAR (255) DEFAULT NULL,
+   	PRIMARY KEY (`id`)
+   ) ENGINE = INNODB DEFAULT CHARSET = utf8;
+   
+   DROP TABLE IF EXISTS `employee`;
+   
+   CREATE TABLE `employee` (
+   	`id` INT (11) NOT NULL AUTO_INCREMENT,
+   	`lastName` VARCHAR (255) DEFAULT NULL,
+   	`email` VARCHAR (255) DEFAULT NULL,
+   	`gender` INT (2) DEFAULT NULL,
+   	`d_id` INT (11) DEFAULT NULL,
+   	PRIMARY KEY (`id`)
+   ) ENGINE = INNODB DEFAULT CHARSET = utf8;
+   
+   
+   INSERT INTO `department` (`departmentName`) VALUES ('开发部');
+   INSERT INTO `employee` (`lastName`, `email`, `gender`, `d_id`) VALUES (威廉', 'oath@gmail.com', '1', '1');
+   ```
 
-CREATE TABLE `department` (
-	`id` INT (11) NOT NULL AUTO_INCREMENT,
-	`departmentName` VARCHAR (255) DEFAULT NULL,
-	PRIMARY KEY (`id`)
-) ENGINE = INNODB DEFAULT CHARSET = utf8;
+3. 创建表对应的实体Bean
 
-DROP TABLE IF EXISTS `employee`;
+   ```java
+   package com.turbo.pojo;
+   
+   import lombok.Data;
+   
+   @Data
+   public class Employee {
+   	private Integer id;
+   	private String lastName;
+   	private String email;
+   	//性别  1男  0女
+   	private Integer gender;
+   	private Integer dId;
+   
+   }
+   ```
 
-CREATE TABLE `employee` (
-	`id` INT (11) NOT NULL AUTO_INCREMENT,
-	`lastName` VARCHAR (255) DEFAULT NULL,
-	`email` VARCHAR (255) DEFAULT NULL,
-	`gender` INT (2) DEFAULT NULL,
-	`d_id` INT (11) DEFAULT NULL,
-	PRIMARY KEY (`id`)
-) ENGINE = INNODB DEFAULT CHARSET = utf8;
+   ```java
+   package com.turbo.pojo;
+   
+   import lombok.Data;
+   
+   @Data
+   public class Department {
+   	private Integer id;
+   	private String departmentName;
+   }
+   ```
 
+4. 整合Mybatis操作数据库
 
-INSERT INTO `department` (`departmentName`) VALUES ('开发部');
-INSERT INTO `employee` (`lastName`, `email`, `gender`, `d_id`) VALUES (威廉', 'oath@gmail.com', '1', '1');
+   数据源配置：驱动可以不写，SpringBoot会根据连接自动判断
 
+   ```properties
+   spring.datasource.url=jdbc:mysql://152.136.177.192:3306/turbine
+   spring.datasource.username=root
+   spring.datasource.password=123456
+   #spring.datasource.driver-class-name=com.mysql.jdbc.Driver
+   
+   # 开启驼峰
+   mybatis.configuration.map-underscore-to-camel-case=true
+   ```
 
-```
+   使用注解版 Mybatis：使用@MapperScan指定mapper接口所在的包
 
+   ```java
+   package com.turbo;
+   
+   import org.mybatis.spring.annotation.MapperScan;
+   import org.springframework.boot.SpringApplication;
+   import org.springframework.boot.autoconfigure.SpringBootApplication;
+   
+   @SpringBootApplication
+   @MapperScan("com.turbo.mappers")
+   public class SpringBoot04CacheApplication {
+   
+   	public static void main(String[] args) {
+   		SpringApplication.run(SpringBoot04CacheApplication.class, args);
+   	}
+   }
+   ```
 
+   创建对应的 mapper 接口
+
+   ```java
+   package com.turbo.mappers;
+   
+   import com.turbo.pojo.Employee;
+   import org.apache.ibatis.annotations.Delete;
+   import org.apache.ibatis.annotations.Insert;
+   import org.apache.ibatis.annotations.Select;
+   import org.apache.ibatis.annotations.Update;
+   
+   public interface EmployeeMapper {
+   
+   	@Select("select * from employee where id = #{id}")
+   	public Employee getEmpById(Integer id);
+   
+   	@Insert("insert into employee (lastName,email,gender,d_id) VALUES (#{lastName},#{email},#{gender},#{d_id})")
+   	public void insertEmp(Employee employee);
+   
+   	@Update({"update empolyee SET lastName = #{lastName},email = #{email},gender = #{gender},d_id=#{d_is}"})
+   	public void updateEmp(Employee employee);
+   
+   	@Delete("delete from employee where id=#{id}")
+   	public void deleteEmp(Integer id);
+   }
+   ```
+
+   编写service：
+
+   ```java
+   package com.turbo.service;
+   
+   import com.turbo.mappers.EmployeeMapper;
+   import com.turbo.pojo.Employee;
+   import org.springframework.beans.factory.annotation.Autowired;
+   import org.springframework.stereotype.Service;
+   
+   @Service
+   public class EmployeeService {
+   
+   	@Autowired
+   	private EmployeeMapper employeeMapper;
+   
+   
+   	public Employee getEmpId(Integer id){
+   		Employee employee = employeeMapper.getEmpById(id);
+   		return employee;
+   	}
+   }
+   ```
+
+   编写Controller：
+
+   ```java
+   package com.turbo.controller;
+   
+   import com.turbo.pojo.Employee;
+   import com.turbo.service.EmployeeService;
+   import org.springframework.beans.factory.annotation.Autowired;
+   import org.springframework.web.bind.annotation.GetMapping;
+   import org.springframework.web.bind.annotation.PathVariable;
+   import org.springframework.web.bind.annotation.RestController;
+   
+   @RestController
+   public class EmployeeController {
+   
+   	@Autowired
+   	EmployeeService employeeService;
+   
+   	@GetMapping("/emp/{id}")
+   	public Employee getEmp(@PathVariable("id") Integer id){
+   		return employeeService.getEmpId(id);
+   	}
+   }
+   ```
+
+5. 测试
+
+   测试之前可以先配置一下 Logger日志，让控制台将SQL打印出来：
+
+   ```properties
+   logging.level.com.turbo.mappers=debug
+   ```
+
+   ![image-20220627135958504](assest/image-20220627135958504.png)
+
+   结论：当前还没有看到缓存效果，因为还没有进行缓存的相关配置。
+
+## 3.3 @Cacheable初体验
+
+1. 开启基于注解的缓存功能：主启动类标注 @EnableCaching
+
+   ```java
+   @SpringBootApplication
+   @MapperScan("com.turbo.mappers")
+   @EnableCaching
+   public class SpringBoot04CacheApplication {
+   
+   	public static void main(String[] args) {
+   		SpringApplication.run(SpringBoot04CacheApplication.class, args);
+   	}
+   }
+   ```
+
+2. 标注缓存相关注解：@Cacheable、@CacheEvict、@CachePut
+
+   @Cacheable：将方法运行的结果进行缓存，以后获取相同的数据时，直接从缓存中换取，不再调用方法。
+
+   ```java
+   @Cacheable(cacheNames = {"emp"})
+   public Employee getEmpId(Integer id){
+       Employee employee = employeeMapper.getEmpById(id);
+       return employee;
+   }
+   ```
+
+   
+
+   
+
+@Cacheable 注解的属性：
+
+| 属性名           | 描述                                                         |
+| ---------------- | ------------------------------------------------------------ |
+| cacheNames/vlaue | 指定缓存的名字，缓存使用CacheManager管理多个缓存组件Cache，<br>这些Cache组件就是根据这个名字进行区分的。<br>对缓存的真正CRUD操作在Cache中定义，<br>每个缓存组件Cache都有自己唯一的名字，通过cacheNames或者value属性指定，<br>相当于是将缓存的键值对进行分组，缓存的名字是一个数组，<br>也就是说可以将一个缓存键值对分到多个组里面。 |
+| key              | 缓存数据时的key值，默认是使用方法参数的值，可以使用 SpEL表达式计算key的值 |
+| keyGenerator     | 缓存的生成策略，和key二选一，都是生成键的，keyGenerator可自定义。 |
+| cacheManager     | 指定缓存管理器（如 ConcurrentHashMap、Redis等）              |
+| cacheResolver    | 和cacheManager功能一样，和cacheManager二选一                 |
+| condition        | 指定缓存的条件（**满足什么条件时才缓存**），可用SpEL表达式（如#id>0，表示当入参id大于0时才缓存） |
+| unless           | 否定缓存，**即满足unless指定的条件时，方法的结果不进行缓存**，使用unless时可以在调用的方法获取到结果之后再进行判断（如#result==null，表示如果结果为null时不缓存） |
+| sync             | 是否使用异步模式进行缓存                                     |
+
+**注意**：**既满足condition又满足unless条件的也不进行缓存**，**使用异步模式进行缓存时 (sync=true):unless条件将不被支持**
+
+可用的[SpEL表达式](https://docs.spring.io/spring-framework/docs/current/reference/html/integration.html#cache-spel-context)见下表：
+
+| 名字          | 位置               | 描述                                                         | 示例                 |
+| ------------- | ------------------ | ------------------------------------------------------------ | -------------------- |
+| methodName    | root object        | 当前被调用的方法名                                           | #root.methodName     |
+| method        | root object        | 当前被调用的方法                                             | #root.method.name    |
+| target        | root object        | 当前被调用的目标对象                                         | #root.target         |
+| targetClass   | root object        | 当前被调用的目标对象类                                       | #root.targetClass    |
+| args          | root object        | 当前被调用的方法的参数列表                                   | #root.args[0]        |
+| caches        | root object        | 当前方法调用使用的缓存列表，<br>(如 @Cacheable=(value={"cache1","cache2"}))，<br>则有两个cache | #root.caches[0].name |
+| argument name | Evaluation context | 方法参数的名字，可以直接 `#参数名`，<br>也可以使用 `#p0` 或 `#a0` 的形式，0代表参数的索引 | #iban、#a0、#p0      |
+| result        | Evaluation context | 方法执行后的返回值（仅当方法执行之后的判断有效，<br>如 "unless","cache put" 的表达式，<br>"cache evict" 的表达式 beforeInvocation=false） | #result              |
 
 
 
