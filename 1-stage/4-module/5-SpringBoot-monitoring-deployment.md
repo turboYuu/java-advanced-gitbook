@@ -350,3 +350,151 @@ com.location=SHANGHAI
 ### 1.4.3 Spring Profile 和 Maven Profile 融合
 
 # 2 SpringBoot 监控
+
+微服务的特点决定了功能模块的部署是分布式的，大部分功能模块都是运行在不同的机器上，彼此通过服务调用进行交互，前后台的业务流会经过很多个微服务的处理和传递，出现了异常如何快速定位是哪个环境出现了问题？
+
+在这种情况下，微服务的监控显得尤为重要。SpringBoot 作为微服务框架，除了它强大的快速开发功能外，还有就是它提供了actuator模块，引入该模块能够自动为SpringBoot应用提供一系列用于监控的端点。
+
+## 2.1 Actuator
+
+[Actuator 官网说明](https://docs.spring.io/spring-boot/docs/current/reference/html/actuator.html#actuator)
+
+### 2.1.1 什么是 Actuator
+
+Actuator 是 SpringBoot 的一个附加功能，可帮助你在应用程序生产环境监视和管理应用程序。可以使用 HTTP 的各种请求来监控，审计，收集应用的运行情况。Spring Boot Actuator 提供了对单个 Spring Boot 的监控，信息包括：应用状态、内存、线程、堆栈等等。比较全面的监控了 SpringBoot 应用的整个生命周期。特别对于微服务管理十分有意义。
+
+### 2.1.2 Actuator 的 REST 接口
+
+Actuator 监控分为两类：原生端点 和 用户自定义端点；自定义端点主要是指扩展性，用户可以根据自己的实际应用，定义一些比较关心的指标，在运行期间进行监控。
+
+原生端点是在应用程序里提供众多 Web 接口，通过它们了解应用程序运行时的内部状况。原生端点又可以分成三类：
+
+- 应用配置类：可以查看应用在运行期间的静态信息：例如自动配置信息，加载的 SpringBean 信息，yml文件配置信息，环境信息，请求映射信息；
+- 度量指标类：主要时运行期间的动态信息，如堆栈，请求链，一些健康指标，metrics 信息等；
+- 操作控制类：主要是指 shutdown，用户可以发送一个请求将应用的监控功能关闭。
+
+Actuator 提供了 13 个接口，具体如下所示：
+
+| HTTP方法 | 路径         | 描述                                           |
+| -------- | ------------ | ---------------------------------------------- |
+| GET      | /auditevents | 显示应用暴露的审计事件（如认证失败、订单失败） |
+|          |              |                                                |
+|          |              |                                                |
+|          |              |                                                |
+|          |              |                                                |
+|          |              |                                                |
+|          |              |                                                |
+|          |              |                                                |
+|          |              |                                                |
+|          |              |                                                |
+|          |              |                                                |
+|          |              |                                                |
+|          |              |                                                |
+
+
+
+### 2.1.3 体验 Actuator
+
+使用 Actuator 功能与 SpringBoot 其他功能一样简单，只需要在 pom.xml中添加如下依赖：
+
+```xml
+<dependencies>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+</dependencies>
+```
+
+为了保证 Actuator 暴露的监控接口的安全性，需要添加安全控制的依赖 `spring-boot-starter-security` 依赖，访问应用监控端点时，都需要输入验证信息。Security 依赖，可以选择不加，不进行安全管理。
+
+配置文件
+
+```properties
+info.app.name=spring-boot-actuator
+info.app.version=1.0.0
+info.app.test=test
+
+management.endpoints.web.exposure.include=*
+
+#展示细节，除了always之外还有when-authorized、never，默认值是never
+management.endpoint.health.show-details=always
+
+#management.endpoints.web.base-path=/monitor
+management.endpoint.shutdown.enabled=true
+```
+
+- `management.endpoints.web.base-path=/monitor` 代表启动单独的 url 地址来监控 SpringBoot 应用，为例安全一般都启用独立的端口来访问后端的监控信息。
+- `management.endpoint.shutdown.enabled=true` 启用接口关闭 SpringBoot
+
+配置完成后，启动项目就可以继续验证各个监控功能了。
+
+### 2.1.4 属性详解
+
+在 SpringBoot 2.x 中为了安全，Actuator 只开放了两个端点 `/actuator/health` 和 `/actuator/info` 。可以在配置文件中设置打开。
+
+可以打开所有的监控点
+
+```properties
+management.endpoints.web.exposure.include=*
+```
+
+也可以打开部分
+
+```properties
+management.endpoints.web.exposure.include=beans,trace
+```
+
+Actuator 默认所有的监控点路径都在 `/actuator/*`，当然如果有需要这个路径也支持定制。
+
+```properties
+management.endpoints.web.base-path=/manage
+```
+
+设置完成重启后，再次访问地址就会变成 `/manage/*`
+
+
+
+Actuator 几乎监控了应用涉及的方方面面，重点讲述一些经常在项目中常用的属性。
+
+#### 2.1.4.1 health
+
+`http://localhost:8080/actuator/health`
+
+![image-20220628155547298](assest/image-20220628155547298.png)
+
+#### 2.1.4.2 info
+
+`http://localhost:8080/actuator/info`
+
+![image-20220628155504680](assest/image-20220628155504680.png)
+
+#### 2.1.4.3 beans
+
+`http://localhost:8080/actuator/beans`
+
+#### 2.1.4.4 conditions
+
+`http://localhost:8080/actuator/conditions`
+
+#### 2.1.4.5 heapdump
+
+返回一个 gzip 压缩的 JVM 堆 dump
+
+启动示例项目，访问 `http://localhost:8080/actuator/heapdump`  会自动生成一个 JVM 的堆文件 heapdump，可以使用 jdk 自带的 Jvm 监控工具 VisualVM 打开此文件查看内存快照。
+
+![image-20220628155122823](assest/image-20220628155122823.png)
+
+#### 2.1.4.6 mappings
+
+`http://localhost:8080/actuator/mappings`
+
+#### 2.1.4.7 threaddump
+
+`http://localhost:8080/actuator/threaddump`
+
+#### 2.1.4.8 shutdown
+
+
+
+## 2.2 SpringBoot Admin
