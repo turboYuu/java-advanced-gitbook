@@ -498,3 +498,144 @@ Actuator 几乎监控了应用涉及的方方面面，重点讲述一些经常�
 
 
 ## 2.2 SpringBoot Admin
+
+### 2.2.1 什么是 Spring Boot Admin
+
+可视化后台管理系统
+
+SpringBoot Admin 是一个针对 SpringBoot 的 Actuator 接口进行UI 美化封装的监控工具，它可以返回在列表中浏览所有被监控 SpringBoot 项目的基本信息，如：SpringBoot 容器管理的所有的 bean、详细的 Health 信息、内存信息、JVM 信息、垃圾回收信息、各种配置信息（比如 数据源、缓存列表和命中率）等，Threads 线程管理，Environment 管理等。
+
+利用 SpringBoot Admin 进行监控的架构图如下：
+
+
+
+### 2.2.2 搭建 Server 端
+
+pom.xml
+
+```xml
+<dependencies>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter</artifactId>
+    </dependency>
+
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-test</artifactId>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>de.codecentric</groupId>
+        <artifactId>spring-boot-admin-starter-server</artifactId>
+        <version>2.3.1</version>
+    </dependency>
+</dependencies>
+```
+
+application.yml
+
+```yaml
+server:
+  port: 8081
+```
+
+@EnableAdminServer
+
+```java
+@EnableAdminServer
+@SpringBootApplication
+public class SpringBootAdminServerApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(SpringBootAdminServerApplication.class, args);
+    }
+}
+```
+
+启动服务 `http://localhost:8081`
+
+![image-20220628162156142](assest/image-20220628162156142.png)
+
+目前client监控信息为空。
+
+### 2.2.3 搭建 client 端
+
+pom.xml
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-web</artifactId>
+</dependency>
+
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+
+<dependency>
+    <groupId>de.codecentric</groupId>
+    <artifactId>spring-boot-admin-starter-client</artifactId>
+    <version>2.3.1</version>
+</dependency>
+```
+
+application.yml
+
+```yaml
+server:
+  port: 8082
+info:
+  name: echo
+  age: 10
+  phone: 111
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+
+spring:
+  boot:
+    admin:
+      client:
+        url: http://localhost:8081/
+  application:
+    name: spring-boot-admin-client
+```
+
+启动类：
+
+```java
+@SpringBootApplication
+@RestController
+public class SpringBootAdminClientApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(SpringBootAdminClientApplication.class, args);
+    }
+
+    @RequestMapping("/index")
+    public String index(){
+        return "index";
+    }
+
+    @RequestMapping("/home")
+    public String home(){
+        return "home";
+    }
+}
+```
+
+启动 client....，几秒后，可以看到 client 端注册到 server。
+
+![image-20220628174827228](assest/image-20220628174827228.png)
