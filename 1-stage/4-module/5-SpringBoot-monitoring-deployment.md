@@ -159,13 +159,48 @@ SpringBoot 项目改造打包成 war 的流程
 
 ## 1.3 jar 包 和 war 包 方式对比
 
+1. SpringBoot项目打包成 jar 与 war ，对比两种打包方式：
+
+   jar 更加简单，使用 java -jar xxx.jar 就可以启动。所以打成 jar 包最多。
+
+   而 war 包可以部署到 tomcat 的 webapps 中，随 tomcat 的启动而启动。
+
+   具体使用哪种方式，应视应用场景而定
+
+2. 打 jar 时不会把 src/main/webapp 下面的内容打到 jar 包中。
+
+3. 打成什么文件包进行部署与业务有关，就像提供 rest 服务的项目需要打包成 jar 文件，用命令行很方便。而有大量 css、js、html，且需要经常改动的项目，打成 war 包运行比较方便，因为改动静态资源文件可以直接覆盖，很快看到改动后的效果，这是 jar 包不能比的。
+
 ## 1.4 多环境部署
+
+[官网说明](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.profiles)
+
+在项目运行中，包括多种环境，例如线上环境 prod，开发环境 dev，测试环境 test，体侧环境 qa，单元测试 unitest。不同的环境需要进行不同的配置，从而在不同的场景中跑程序。例如 prod 环境 和 dev 环境通常需要连接不同的数据库，需要配置不同的日志输出。还有一些类和方法，在不同的环境下有不同的实现方式。
+
+Spring Boot 对此提供了支持，一方面是注解 @Profile，另一方面还有很多资源配置文件。
 
 ### 1.4.1 @Profile
 
+`@Profile` 注解的作用是指定类或方法在塔顶的Profile 环境生效，任何 `@Component` 或 `@Configuration` 注解的类都可以使用 `@Profile` 注解。在使用 DI 来依赖注入的时候，能够根据 `@Profile` 标明的环境，将注入符合当前运行环境的相应的 bean。
+
+使用要求：
+
+- `@Component` 或 `@Configuration` 注解的类可以使用 `@Profile`
+- `@Profile` 中需要指定一个字符串，约定生效的环境
+
+
+
 #### 1.4.1.1 @Profile 的使用位置
 
+1. `@Profile` 修饰类
+2. `@Profile` 修饰方法
+3. `@Profile` 修饰注解
+
 #### 1.4.1.2 profile激活
+
+实际使用中，注解中标识了 prod、test、qa 等多个环境，运行时使用哪个 profile 由 spring.profiles.active 控制，一下说明了两种方式：配置文件方式、命令行方式。
+
+
 
 ### 1.4.2 多Profile的资源文件
 
