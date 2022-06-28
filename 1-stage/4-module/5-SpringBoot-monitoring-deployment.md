@@ -6,6 +6,8 @@
 
 ## 1.1 jar包（官方推荐）
 
+[Creating an Executable Jar 官网说明](https://docs.spring.io/spring-boot/docs/current/reference/html/getting-started.html#getting-started.first-application.executable-jar)
+
 SpringBoot 项目默认打包称 jar 包
 
 ![image-20220627182510219](assest/image-20220627182510219.png)
@@ -146,6 +148,8 @@ SpringBoot 项目改造打包成 war 的流程
    ![image-20220627191521223](assest/image-20220627191521223.png)
 
 7. 使用外部 tomcat 运行该 war 文件（放入 tomcat 的 webapps 目录下，启动 tomcat ）
+
+   ![image-20220628105941357](assest/image-20220628105941357.png)
 
 
 
