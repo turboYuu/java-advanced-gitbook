@@ -193,20 +193,159 @@ Spring Boot 对此提供了支持，一方面是注解 @Profile，另一方面�
 #### 1.4.1.1 @Profile 的使用位置
 
 1. `@Profile` 修饰类
+
+   ```java
+   @Configuration @Profile("prod")
+   public class JndiDataConfig {    
+       @Bean(destroyMethod="")
+   	public DataSource dataSource() throws Exception {        
+           Context ctx = new InitialContext();
+   		return (DataSource) ctx.lookup("java:comp/env/jdbc/datasource");  
+       }
+   }
+   ```
+
+   
+
 2. `@Profile` 修饰方法
+
+   ```java
+   @Configuration
+   public class AppConfig {
+       
+       @Bean("dataSource")
+   	@Profile("dev")
+   	public DataSource standaloneDataSource() {        
+           return new EmbeddedDatabaseBuilder()
+               .setType(EmbeddedDatabaseType.HSQL)
+               .addScript("classpath:com/bank/config/sql/schema.sql")
+               .addScript("classpath:com/bank/config/sql/test-data.sql")
+               .build();
+   	}
+      
+       @Bean("dataSource")    
+       @Profile("prod")
+   	public DataSource jndiDataSource() throws Exception {        
+           Context ctx = new InitialContext();
+   		return (DataSource) ctx.lookup("java:comp/env/jdbc/datasource");  
+       }
+   }
+   ```
+
+   
+
 3. `@Profile` 修饰注解
+
+   `@Profile`注解支持定义在其他注解之上，以创建自定义场景注解。这样就创建了一个 `@Dev` 注解，该注解可以标识 bean 使用于 `@Dev` 这个场景。后续就不再不需要使用 `@Profile("dev")` 的方式，这样就可以简化代码。
+
+   ```java
+   @Target(ElementType.TYPE)
+   @Retention(RetentionPolicy.RUNTIME) 
+   @Profile("prod")
+   public @interface Production { 
+   }
+   ```
+
+   
 
 #### 1.4.1.2 profile激活
 
 实际使用中，注解中标识了 prod、test、qa 等多个环境，运行时使用哪个 profile 由 spring.profiles.active 控制，一下说明了两种方式：配置文件方式、命令行方式。
 
+1. 配置文件方式激活 profile
 
+   确定当前使用的是哪个环境，这边环境的值与 application-prod.properties 中 - 后面的值对应，这是 SpringBoot约好的。
+
+   在 resources/application.properties 中添加下面的配置。需要注意的是，spring.profiles.active 的取值应该与 `@Profile` 注解中的标示保持一致。
+
+   ```properties
+   spring.profiles.active=dev
+   ```
+
+   除此之外，同理还可以在 resources/application.yml 中配置，效果一样：
+
+   ```yaml
+   spring:
+     profiles:
+       active: dev
+   ```
+
+2. 命令行方式激活profile
+
+   在打包运行的时候，添加参数：
+
+   ```bash
+   java -jar xxx.jar --spring.profiles.active=dev;
+   ```
+
+   
 
 ### 1.4.2 多Profile的资源文件
 
+除了 `@Profile` 注解的可以标明某些方法和类具体在哪个环境下注入。SpringBoot的环境隔离还可以使用多资源文件的方式，进行一些参数的配置。
+
 #### 1.4.2.1 资源配置文件
 
+SpringBoot 的资源配置文件除了 application.properties 之外，还可以有对应的资源文件 application-{profile}.properties。
+
+假设，一个应用的工作环境有：dev、test、prod
+
+那么，可以添加4个配置文件：
+
+- application.properties - 公共配置
+- application-dev.properties - 开发环境配置
+- application-test.properties - 测试环境配置
+- application-prod.properties - 生产环境配置
+
+不同的properties配置文件也可以是在 application.properties 文件中来激活 profile：`spring.profiles.active=dev`
+
 #### 1.4.2.2 效果
+
+![image-20220628141338520](assest/image-20220628141338520.png)
+
+```java
+@RestController
+public class TestController {
+
+	@Value("${com.name}")
+	private String name;
+
+	@Value("${com.location}")
+	private String location;
+
+	@GetMapping("/sound")
+	public String sound(){
+		return name +  " hello spring boot! " + location;
+	}
+}
+```
+
+application.properties：
+
+```properties
+#多环境配置文件激活属性
+spring.profiles.active=dev
+```
+
+application-dev.properties：
+
+```properties
+server.port=8081
+com.name=DEV
+com.location=BEIJING
+```
+
+application-prod.properties:
+
+```properties
+server.port=8082
+com.name=PROD
+com.location=SHANGHAI
+```
+
+![image-20220628141745253](assest/image-20220628141745253.png)
+
+![image-20220628141824260](assest/image-20220628141824260.png)
 
 ### 1.4.3 Spring Profile 和 Maven Profile 融合
 
