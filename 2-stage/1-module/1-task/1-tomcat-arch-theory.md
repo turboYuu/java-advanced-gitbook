@@ -128,6 +128,27 @@ Coyote 组件及作用
 
 ## 4.1 Tomcat 模块分层结构图及Catalina位置
 
+Tomcat 是一个由一些列可配置（conf/server.xml）的组件构成的 Web 容器，而 Catalina 是 Tomcat 的 Servlet 容器。
+
+从另一个角度来说，**Tomcat 本质上就是一款 Servlet 容器**，因为 Catalina 才是 Tomcat 的核心，其他模块都是为 Catalina 提供支撑的。比如：通过Coyote 模块提供链接通信，Jasper 模块提供 JSP 引擎，Naming 提供 JNDI 服务，Juli 提供日志服务。
+
+![image-20220629190833554](assest/image-20220629190833554.png)
+
+
+
 ## 4.2 Servlet 容器 Catalina 的结构
 
+Tomcat（我们往往有一个认识，Tomcat就是一个Catalina的实例，因为Catalina是Tomcat的核心）
+
+Tomcat/Catalina实例
+
+
+
 ## 4.3 Container 组件的具体结构
+
+
+
+
+
+
+
