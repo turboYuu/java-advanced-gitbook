@@ -10,7 +10,9 @@ http 请求的处理过程
 
 
 
-![Figure 4 Protocol layers](assest/img004.png)
+![https://code.tutsplus.com/tutorials/http-succinctly-http-connections--net-33707](assest/img004.png)
+
+![https://www.cnblogs.com/zhoulingjie/p/10244920.html](assest/1567509-20190109161147451-430062166.png)
 
 注意：浏览器访问服务器使用的是 HTTP 协议，HTTP是应用层协议，用于定义数据通信的格式，具体的数据传输使用的是 TCP/IP 协议。
 
