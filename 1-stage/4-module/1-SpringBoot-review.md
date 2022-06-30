@@ -258,6 +258,9 @@ SpringBoot会加载全部主配置文件；互补配置；
 备注：
 这里说的配置文件，都还是在项目里面。最终都会被打进 jar 包，需要注意。
 
+1、如果同一个目录下，有application.yml也有application.properties，默认先读取 application.properties。
+2、如果同一个配置属性，在多个配置文件都配置了，默认使用第1个读取到的，后面读取的不覆盖前面读取到的。
+3、创建SpringBoot项目时，一般的配置文件放置在“项目的resources目录下”
 ```
 
 如果我们的配置文件名字不叫 application.properties 或者 application.yml 可以通过以下参数来指定配置文件的名字，myproject是配置文件名（配置文件在项目中）
@@ -275,6 +278,24 @@ java -jar run-0.0.1-SNAPSHOT.jar --spring.config.location=D:/application.propert
 **知识补充**
 
 SpringBoot不同版本之间 properties 和 yml 的优先级有所不同。
+
+
+
+Spring Boot 2.4 改进了处理 application.properties 和 application.yml 配置文件的方式，
+
+如果是2.4.0之前版本，优先级properties>yaml
+
+但是如果是2.4.0的版本，优先级yaml>properties
+
+如果想继续使用 Spring Boot 2.3 的配置逻辑，也可以通过在 application.properties 或者 application.yml 配置文件中添加以下参数：
+
+```properties
+spring.config.use-legacy-processing = true
+```
+
+目前 测试 2.4.5 中properties优先级高。
+
+
 
 ## 5.2 application.properties配置文件
 
