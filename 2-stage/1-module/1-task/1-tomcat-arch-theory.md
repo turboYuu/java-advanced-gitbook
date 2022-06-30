@@ -174,7 +174,25 @@ Tomcat/Catalina实例：
 
 ## 4.3 Container 组件的具体结构
 
+Container 组件下有几种具体的组件，分别是 Engine、Host、Context 和 Wrapper。这4 种组件（容器）是父子关系。TOmcat 通过一种分层的架构，使得 Servlet 容器具有很好的灵活性。
 
+- Engine
+
+  表示整个 Catalina 的 Servlet 引擎，用来管理多个虚拟站点，一个 Service 最多只能有一个 Engine，但是一个引擎可包含多个 Host
+
+- Host
+
+  代表一个虚拟主机，或者说一个站点，可以给 Tomcat 配置多个虚拟主机地址，而一个虚拟主机下可包含多个 Context 。
+
+- Context
+
+  表示一个 Web 应用程序，一个 Web 应用可包含多个 Wrapper
+
+- Wrapper
+
+  表示一个 Servlet，Wrapper 作为容器种的最底层，不能包含子容器。
+
+**上述组件的配置其实就体现在 conf/server.xml 中**。
 
 
 
