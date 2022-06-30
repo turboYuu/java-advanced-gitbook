@@ -140,11 +140,41 @@ Tomcat 是一个由一些列可配置（conf/server.xml）的组件构成的 Web
 
 Tomcat（我们往往有一个认识，Tomcat就是一个Catalina的实例，因为Catalina是Tomcat的核心）
 
-Tomcat/Catalina实例
+Tomcat/Catalina实例：
+
+![image-20220630102440899](assest/image-20220630102440899.png)
+
+其实，可以认为整个 Tomcat 就是一个 Catalina 实例，Tomcat 启动的时候就会初始化这个实例，Catalina实例通过加载 server.xml 完成其他实例的创建，创建并管理一个 Server，Server 创建并管理多个Service服务，每个服务又可以有多个 Connector 和 一个 Container。
+
+一个 Catalina 实例（容器）
+
+一个Server实例（容器）
+
+多个Service实例（容器）
+
+每一个 Service 实例下可以有多个 Connector 实例 和 一个 Container 实例。
+
+- Catalina
+
+  负责解析 Tomcat 的配置文件（server.xml），以此来创建服务器Server组件并进行管理
+
+- Server
+
+  服务器标识整个 Catalina Servlet 容器以及其他组件，负责组装并启动 Servlet 引擎，Tomcat 连接器
 
 
 
 ## 4.3 Container 组件的具体结构
+
+
+
+
+
+
+
+
+
+
 
 
 
