@@ -156,11 +156,19 @@ Tomcat/Catalina实例：
 
 - Catalina
 
-  负责解析 Tomcat 的配置文件（server.xml），以此来创建服务器Server组件并进行管理
+  负责解析 Tomcat 的配置文件（server.xml），以此来创建服务器 Server 组件并进行管理。
 
 - Server
 
-  服务器标识整个 Catalina Servlet 容器以及其他组件，负责组装并启动 Servlet 引擎，Tomcat 连接器
+  服务器标识整个 Catalina Servlet 容器以及其他组件，负责组装并启动 Servlet 引擎，Tomcat 连接器。Server 通过实现 Lifecycle 接口，提供了一种优雅的启动和关闭整个系统的方式。
+  
+- Service
+
+  服务是 Server 内部的组件，一个 Server 包含多个 Service。它将若干个 Connector 组件绑定到一个 Container。
+
+- Container
+
+  容器，负责处理用户的 Servlet 请求，并返回对象给 web 用户的模块。
 
 
 
