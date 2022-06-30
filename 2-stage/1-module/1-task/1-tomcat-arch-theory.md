@@ -99,9 +99,7 @@ Coyote 是 Tomcat 中连接器组件名称，是对外的接口。客户端通�
 
 Tomcat 支持多种应用层协议和 I/O 模型，如下：
 
-
-
-
+![image-20220630132524619](assest/image-20220630132524619.png)
 
 
 
@@ -174,7 +172,7 @@ Tomcat/Catalina实例：
 
 ## 4.3 Container 组件的具体结构
 
-Container 组件下有几种具体的组件，分别是 Engine、Host、Context 和 Wrapper。这4 种组件（容器）是父子关系。TOmcat 通过一种分层的架构，使得 Servlet 容器具有很好的灵活性。
+Container 组件下有几种具体的组件，分别是 Engine、Host、Context 和 Wrapper。这4 种组件（容器）是父子关系。Tomcat 通过一种分层的架构，使得 Servlet 容器具有很好的灵活性。
 
 - Engine
 
@@ -193,18 +191,5 @@ Container 组件下有几种具体的组件，分别是 Engine、Host、Context 
   表示一个 Servlet，Wrapper 作为容器种的最底层，不能包含子容器。
 
 **上述组件的配置其实就体现在 conf/server.xml 中**。
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
