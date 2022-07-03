@@ -4,6 +4,10 @@
 
 ## 1.1 下载源码
 
+![image-20220704002517371](assest/image-20220704002517371.png)
+
+[其他版本下载](https://archive.apache.org/dist/tomcat/)。
+
 ## 1.2 源码导入 IDE 之前准备工作
 
 ## 1.3 导入源码工厂到 IDE 进行配置
