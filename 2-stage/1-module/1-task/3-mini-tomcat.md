@@ -579,3 +579,118 @@ private void loadServlet() {
 4. 使用输入流封装 Request 对象，使用 输出流封装 Response 对象。
 5. `servletMap.get(request.getUrl())` 不为空，说明使用 servlet 动态请求，使用 servlet 的 service() 方法。
 6. 否则是静态资源 ，使用 `response.outputHtml` 方法 返回。
+
+
+
+# 4 Minicat v3.0 多线程改造
+
+## 4.1 不使用线程池
+
+1. 增加 RequestProcessor
+
+   ```java
+   package server;
+   
+   import java.io.InputStream;
+   import java.net.Socket;
+   import java.util.Map;
+   
+   public class RequestProcessor extends Thread {
+   
+       private Socket socket;
+       private Map<String,HttpServlet> servletMap;
+   
+   
+       public RequestProcessor(Socket socket, Map<String, HttpServlet> servletMap) {
+           this.socket = socket;
+           this.servletMap = servletMap;
+       }
+   
+       @Override
+       public void run() {
+           try {
+               InputStream inputStream = socket.getInputStream();
+               // 封装 Request 对象 和 Response 对象
+               Request request = new Request(inputStream);
+               Response response = new Response(socket.getOutputStream());
+   
+               if(servletMap.get(request.getUrl()) == null){ // 静态资源处理
+                   response.outputHtml(request.getUrl());
+               }else{
+                   // 动态资源servlet请求
+                   HttpServlet httpServlet = servletMap.get(request.getUrl());
+                   httpServlet.service(request,response);
+               }
+               socket.close();
+           } catch (Exception e) {
+               e.printStackTrace();
+           }
+       }
+   }
+   ```
+
+2. 修改Bootstrap
+
+   ```java
+   public void start() throws Exception {
+   
+       // 加载解析相关的配置，web.xml
+       loadServlet();
+       ServerSocket serverSocket = new ServerSocket(port);
+       System.out.println("====>Minicat start on port: "+port);
+       // 阻塞式监听端口
+       /**
+        * 多线程改造
+        */
+       while (true){
+           Socket socket = serverSocket.accept();
+           RequestProcessor requestProcessor = new RequestProcessor(socket,servletMap);
+           requestProcessor.start();
+       }
+   }
+   ```
+
+
+
+## 4.2 使用线程池
+
+修改 BootStrap
+
+```java
+public void start() throws Exception {
+
+    // 加载解析相关的配置，web.xml
+    loadServlet();
+
+    // 定义一个线程池
+    int corePoolSize = 10;
+    int maximumPoolSize = 50;
+    long keepAliveTime = 100L;
+    TimeUnit unit = TimeUnit.SECONDS;
+    BlockingQueue<Runnable> workQueue = new ArrayBlockingQueue<>(50);
+    ThreadFactory threadFactory = Executors.defaultThreadFactory();
+    RejectedExecutionHandler handler = new ThreadPoolExecutor.AbortPolicy();
+    ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(corePoolSize,
+                                                                   maximumPoolSize,
+                                                                   keepAliveTime,
+                                                                   unit,
+                                                                   workQueue,
+                                                                   threadFactory,
+                                                                   handler);
+
+    ServerSocket serverSocket = new ServerSocket(port);
+    System.out.println("====>Minicat start on port: "+port);
+    // 阻塞式监听端口
+
+    /**
+     * 多线程改造（使用线程池）
+     */
+    System.out.println("====>>使用线程池进行多线程改造");
+    while (true){
+        Socket socket = serverSocket.accept();
+        RequestProcessor requestProcessor = new RequestProcessor(socket,servletMap);
+        threadPoolExecutor.execute(requestProcessor);
+    }
+}
+```
+
