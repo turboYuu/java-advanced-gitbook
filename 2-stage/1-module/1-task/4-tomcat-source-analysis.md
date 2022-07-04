@@ -145,3 +145,71 @@
 重启 tomcat ，正常访问即可。
 
 # 2 核心流程源码解析
+
+tomcat 中的各容器组件都会涉及创建、销毁等，因此设计了生命周期接口 Lifecycle 进行统一规范，各容器组件实现该接口。
+
+**Lifecycle生命周期接口主要方法示意**
+
+![image-20220704134453807](assest/image-20220704134453807.png)
+
+**Lifecycle生命周期接口继承体系示意**
+
+![image-20220704134804630](assest/image-20220704134804630.png)
+
+**ProtocolHandler 接口继承体系示意**
+
+![image-20220704175935679](assest/image-20220704175935679.png)
+
+**核心流程源码剖析**
+
+源码追踪部分我们关注两个流程：**tomcat 启动流程** 和 **tomcat 请求处理流程**。
+
+## 2.1 tomcat 启动流程
+
+
+
+![image-20220704175459968](assest/image-20220704175459968.png)
+
+打开 /bin/startup.sh:
+
+![image-20220704172140439](assest/image-20220704172140439.png)
+
+打开 /bin/catalina.sh:
+
+![image-20220704172505872](assest/image-20220704172505872.png)
+
+
+
+![image-20220704183126271](assest/image-20220704183126271.png)
+
+### 2.1.1 tomcat 初始化流程源码
+
+![image-20220704181512622](assest/image-20220704181512622.png)
+
+![image-20220704181608236](assest/image-20220704181608236.png)
+
+
+
+## 2.2 tomcat 请求处理流程
+
+### 2.2.1 请求处理流程分析
+
+tomcat 请求处理流程：当一个servlet请求到来的时候，tomcat是通过怎样的机制定位到servlet并且执行的：
+
+url:http://localhost:8080/web_demo/resume/address
+
+![image-20220704140014645](assest/image-20220704140014645.png)
+
+Mapper（映射的意思，这里不是集合）组件完成 url 和 Host 、Context、Wrapper 等容器的映射
+
+Mapper 组件体系结构：
+
+web应用案例 ---> 部署到 tomcat 软件中（不是源代码工程），最终，希望的是把web应用案例部署到 tomcat 源代码工程中。
+
+### 2.2.2 请求处理流程示意图
+
+![image-20220704141730596](assest/image-20220704141730596.png)
+
+### 2.2.3 Mapper组件体系结构
+
+![image-20220704142304277](assest/image-20220704142304277.png)
