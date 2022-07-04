@@ -119,7 +119,7 @@
 
 先找到 Bootstrap#main 方法，run 一下，如果错误处理一下。
 
-然后配置 VM 参数：
+然后配置 VM 参数：（自己的source路径）
 
 ```properties
 -Dcatalina.home=D:\file\leaveDev\tomcat\apache-tomcat-8.5.81-src\source
