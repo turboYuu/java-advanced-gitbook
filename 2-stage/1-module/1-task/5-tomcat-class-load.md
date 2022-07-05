@@ -50,7 +50,7 @@ JVM 的类加载机制中有一个非常重要的角色叫做**类加载器**（
 
 Tomcat 的类加载机制相对于 Jvm 的类加载机制做了一些改变。
 
-没有严格的遵从双亲委派机制，也可以说打破了双亲委派机制。
+**没有严格的遵从双亲委派机制，也可以说打破了双亲委派机制**。
 
 比如：有一个 tomcat，webapps 下部署了两个应用：
 
@@ -64,11 +64,20 @@ app2/lib/a-2.0.jar com.turbo.Abc
 
 ![image-20220704155807278](assest/image-20220704155807278.png)
 
+- 引导类加载器 和 扩展类加载器 的作用不变
+- 系统类加载器 正常情况下加载的是 CLASSPATH 下的类，但是 Tomcat 的启动脚本并未使用该变量，而是加载 tomcat 启动的类，比如 bootstrap.jar，通常在 catalina.bat 或者 catalina.sh 中指定。位于 CLASSPATH_HOME/bin 下。
+- Common 通用类加载器加载 Tomcat 使用以及应用通用的一些类，位于 CATALINA_HOME/lib 下，比如 servlet-api.jar
+- Catalina ClassLoader 用于加载服务器内部可见类，这些类应用程序不能访问
+- Shared ClassLoader 用于加载应用程序共享类，这些类服务器不会依赖
+- Webapp ClassLoader，每个应用程序都会一个独一无二的 Webapp ClassLoader，它用来加载本应用程序 /WEB-INF/classes 和 /WEB-INF/lib 下的类。
 
 
 
+Tomcat 8.5 默认改变了严格的双亲委派机制：
 
-
-
+- 首先从 Bootstrap ClassLoader 加载指定的类
+- 如果未加载到，则从 /WEB-INF/classes 加载
+- 如果未加载到，则从 /WEB-INF/lib/*.jar 加载
+- 如果为加载到，则依次从 System、Common、Shared 加载（在这最后一步，遵从双亲委派机制）
 
 
