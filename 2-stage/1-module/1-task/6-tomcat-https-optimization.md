@@ -31,13 +31,44 @@ Https 是用来加强数据传输安全的
    keytool -genkey -alias turbo -keyalg RSA -keystore turbo.keystore
    ```
 
+   ![image-20220705185548912](assest/image-20220705185548912.png)
+
+   ![image-20220705185402107](assest/image-20220705185402107.png)
+
 2. 配置 conf/server.xml
 
    ```xml
+   <Connector port="8443" protocol="org.apache.coyote.http11.Http11NioProtocol"
+                  maxThreads="150" schema="https" secure="true" SSLEnabled="true">
+       <SSLHostConfig>
+           <Certificate certificateKeystoreFile="conf/turbo.keystore" 
+                        certificateKeystorePassword="turbo123"
+                        type="RSA" />
+       </SSLHostConfig>
+   </Connector>
    
+   <Host name="www.abc.com"  appBase="webapps"
+               unpackWARs="true" autoDeploy="true">
+   
+           <!-- SingleSignOn valve, share authentication between web applications
+                Documentation at: /docs/config/valve.html -->
+           <!--
+           <Valve className="org.apache.catalina.authenticator.SingleSignOn" />
+           -->
+   
+           <!-- Access log processes all example.
+                Documentation at: /docs/config/valve.html
+                Note: The pattern used is equivalent to using pattern="common" -->
+       <Valve className="org.apache.catalina.valves.AccessLogValve" directory="logs"
+              prefix="localhost_access_log" suffix=".txt"
+              pattern="%h %l %u %t &quot;%r&quot; %s %b" />
+   
+   </Host>
    ```
 
-3. 使用 https 协议访问 8443 端口（）
+3. 使用 https 协议访问 8443 端口（https://www.abc.com:8443/）
+
+   ![image-20220705190357437](assest/image-20220705190357437.png)
 
    
 
