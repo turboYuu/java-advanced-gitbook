@@ -210,14 +210,82 @@ url:http://localhost:8080/web_demo/resume/address
 
 Mapper（**映射**的意思，这里不是集合）组件完成 url 和 Host 、Context、Wrapper 等容器的映射
 
-Mapper 组件体系结构：
-
-web应用案例 ---> 部署到 tomcat 软件中（不是源代码工程），最终，希望的是把web应用案例部署到 tomcat 源代码工程中。
-
 ### 2.2.2 请求处理流程示意图
 
 ![image-20220704141730596](assest/image-20220704141730596.png)
 
+可以根据上图进行源码跟踪。
+
 ### 2.2.3 Mapper组件体系结构
 
+![image-20220705132730177](assest/image-20220705132730177.png)
+
 ![image-20220704142304277](assest/image-20220704142304277.png)
+
+### 2.2.4 tomcat 请求处理流程源码跟踪
+
+web应用案例 ---> 部署到 tomcat 软件中（不是源代码工程）；最终，希望的是把web应用案例部署到 tomcat 源代码工程中。
+
+![image-20220705134303125](assest/image-20220705134303125.png)
+
+![image-20220705134428534](assest/image-20220705134428534.png)
+
+![image-20220705134550771](assest/image-20220705134550771.png)
+
+![image-20220705134856489](assest/image-20220705134856489.png)
+
+增加 ResumeServlet.java
+
+```java
+package com.turbo.servlet;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+
+public class ResumeServlet extends HttpServlet {
+
+    @Override
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        System.out.println("====> web_demo doGet .....");
+    }
+
+    @Override
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        System.out.println("====> web_demo doPost .....");
+    }
+}
+```
+
+配置 web.xml
+
+```xml
+<servlet>
+    <servlet-name>resumeServlet</servlet-name>
+    <servlet-class>com.turbo.servlet.ResumeServlet</servlet-class>
+</servlet>
+<servlet-mapping>
+    <servlet-name>resumeServlet</servlet-name>
+    <url-pattern>/resume/address</url-pattern>
+</servlet-mapping>
+```
+
+将 web_demo 部署到 tomcat（不是源码）中，测试，
+
+![image-20220705135823114](assest/image-20220705135823114.png)
+
+然后将 web_demo 部署到 tomcat 源码中：将  ...tomcatsource\out\artifacts\ 中的 \web_demo_war_exploded 重命名为 web_demo，然后将其启动到 ...apache-tomcat-8.5.81-src\source\webapps 下：
+
+![image-20220705140753793](assest/image-20220705140753793.png)
+
+启动 tomcat 源码，http://localhost:8080/web_demo/resume/address
+
+![image-20220705140939488](assest/image-20220705140939488.png)
+
+
+
+
+
+![image-20220705142013640](assest/image-20220705142013640.png)
