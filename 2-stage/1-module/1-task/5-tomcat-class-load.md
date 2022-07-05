@@ -58,7 +58,7 @@ app1/lib/a-1.0.jar com.turbo.Abc
 
 app2/lib/a-2.0.jar com.turbo.Abc
 
-不同版本中 Abc 类的内容是不同的，代码是不一样的。
+不同版本中 Abc 类的内容是不同的，代码是不一样的。如果严格按照双亲委派机制加载，app2中的 Abc就不会被加载。
 
 
 
@@ -66,7 +66,7 @@ app2/lib/a-2.0.jar com.turbo.Abc
 
 - 引导类加载器 和 扩展类加载器 的作用不变
 - 系统类加载器 正常情况下加载的是 CLASSPATH 下的类，但是 Tomcat 的启动脚本并未使用该变量，而是加载 tomcat 启动的类，比如 bootstrap.jar，通常在 catalina.bat 或者 catalina.sh 中指定。位于 CLASSPATH_HOME/bin 下。
-- Common 通用类加载器加载 Tomcat 使用以及应用通用的一些类，位于 CATALINA_HOME/lib 下，比如 servlet-api.jar
+- Common 通用类加载器加载 Tomcat 使用 以及 应用通用的一些类，位于 CATALINA_HOME/lib 下，比如 servlet-api.jar
 - Catalina ClassLoader 用于加载服务器内部可见类，这些类应用程序不能访问
 - Shared ClassLoader 用于加载应用程序共享类，这些类服务器不会依赖
 - Webapp ClassLoader，每个应用程序都会一个独一无二的 Webapp ClassLoader，它用来加载本应用程序 /WEB-INF/classes 和 /WEB-INF/lib 下的类。
@@ -75,9 +75,9 @@ app2/lib/a-2.0.jar com.turbo.Abc
 
 Tomcat 8.5 默认改变了严格的双亲委派机制：
 
-- 首先从 Bootstrap ClassLoader 加载指定的类
-- 如果未加载到，则从 /WEB-INF/classes 加载
-- 如果未加载到，则从 /WEB-INF/lib/*.jar 加载
-- 如果为加载到，则依次从 System、Common、Shared 加载（在这最后一步，遵从双亲委派机制）
+- 首先从 Bootstrap ClassLoader 加载指定的类 （引导类加载器）rt.jar
+- 如果未加载到，则从 /WEB-INF/classes 加载（WebApp ClassLoader）
+- 如果未加载到，则从 /WEB-INF/lib/*.jar 加载（WebApp ClassLoader）
+- 如果为加载到，则依次从 System、Common、Shared 加载（该步遵从双亲委派机制）
 
 
