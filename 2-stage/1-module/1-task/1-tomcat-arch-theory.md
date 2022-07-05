@@ -150,6 +150,8 @@ Tomcat/Catalina实例：
 
 多个Service实例（容器）
 
+Wrapper（包裹Servlet）
+
 每一个 Service 实例下可以有多个 Connector 实例 和 一个 Container 实例。
 
 - Catalina

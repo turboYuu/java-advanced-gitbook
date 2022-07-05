@@ -204,7 +204,11 @@ url:http://localhost:8080/web_demo/resume/address
 
 ![image-20220704140014645](assest/image-20220704140014645.png)
 
-Mapper（映射的意思，这里不是集合）组件完成 url 和 Host 、Context、Wrapper 等容器的映射
+
+
+
+
+Mapper（**映射**的意思，这里不是集合）组件完成 url 和 Host 、Context、Wrapper 等容器的映射
 
 Mapper 组件体系结构：
 
