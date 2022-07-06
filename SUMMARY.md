@@ -67,6 +67,7 @@
             * [第五部分 Tomcat类加载机制剖析](2-stage/1-module/1-task/5-tomcat-class-load.md)
             * [第六部分 Tomcat 对 Https 的支持及 Tomcat 性能优化策略](2-stage/1-module/1-task/6-tomcat-https-optimization.md)
         * [任务二 Nginx](2-stage/1-module/2-task/README.md)
+            * [Nginx](2-stage/1-module/2-task/1-nginx.md)
     * [模块二 分布式集群架构场景化解决方案](2-stage/2-module/1-disCluster-arch-solut.md)
     * [模块三 并发编程与环境优化](2-stage/3-module/README.md)
         * [任务一 并发编程](2-stage/3-module/1-task/README.md)
