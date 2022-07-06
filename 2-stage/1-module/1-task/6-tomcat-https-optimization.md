@@ -117,13 +117,23 @@ Java 虚拟机的运行优化主要是内存分配和垃圾回收策略的优化
 
 参数调整示例：
 
-linux中配置在catalina.sh，window配置在 catalina.bat。
+linux中配置在catalina.sh，
 
 ```bash
 JAVA_OPTS="-server -Xms2048m -Xmx2048m -XX:MetaspaceSize=256m -XX:MaxMetaspaceSize=512m"
 ```
 
+windows中配置在 catalina.bat
+
+```bash
+set JAVA_OPTS=-server -Xms2048m -Xmx2048m -XX:MetaspaceSize=256m -XX:MaxMetaspaceSize=512m -XX:+UseConcMarkSweepGC
+```
+
+
+
 调整后查看，可使用JDK提供的内存映射工具
+
+
 
 ![image-20220706153826808](assest/image-20220706153826808.png)
 
@@ -140,13 +150,17 @@ JAVA_OPTS="-server -Xms2048m -Xmx2048m -XX:MetaspaceSize=256m -XX:MaxMetaspaceSi
 
   单线程执行所有的垃圾回收工作，适用于单核 CPU 服务器
 
+  **工作进程 --- |（单线程）垃圾回收线程进行垃圾收集| -- 工作进程继续**
+
 - 并行收集器（Parallel Collector）
 
   又称为吞吐量收集器（关注吞吐量），以并行的方式执行年轻代的垃圾回收，该方式可以显著降低垃圾回收的开销（指多条垃圾收集线程并行工作，但此时用户线程仍然处于等待状态）。适用于多处理器或多线程 硬件上运行的数据量较大的应用。
 
+  **工作进程 --- |（并行）垃圾回收线程进行垃圾收集| -- 工作进程继续**
+
 - 并发收集器（Concurrent Collector）
 
-  以并发的方式执行大部分垃圾回收工作，以缩短垃圾回收的暂停时间。适用于那些响应时间优于吞吐量的应用，因为该收集器虽然最小化了暂停时间（指用户线程与垃圾收集线程同时执行，但不一定是并行的，可能会交替进行），但是会降低应用程序的性能。
+  以并发的方式执行大部分垃圾回收工作，以**缩短垃圾回收的暂停时间**。适用于那些响应时间优于吞吐量的应用，因为该收集器虽然最小化了暂停时间（**指用户线程与垃圾收集线程同时执行，但不一定是并行的，可能会交替进行**），但是会降低应用程序的性能。
 
 - CMS收集器（Concurrent Mark Sweep Controller）
 
@@ -174,12 +188,22 @@ JAVA_OPTS="-server -Xms2048m -Xmx2048m -XX:MetaspaceSize=256m -XX:MaxMetaspaceSi
 在 bin/catalina.sh 的脚本中，追加如下配置：
 
 ```bash
-JAVA_OPTS="-XX:+UseConcMarkSweepGC"
+JAVA_OPTS="-XX:+UseG1GC"
 ```
 
-
+下图中可以看到 堆内存大小 和 使用的 垃圾回收方法。
 
 ![image-20220706154443926](assest/image-20220706154443926.png)
+
+也可以使用 jdk 中的 jconsole 工具：
+
+![image-20220706174845495](assest/image-20220706174845495.png)
+
+![image-20220706175023445](assest/image-20220706175023445.png)
+
+![image-20220706175447349](assest/image-20220706175447349.png)
+
+![image-20220706180725268](assest/image-20220706180725268.png)
 
 ## 2.2 tomcat 配置优化
 
@@ -189,27 +213,29 @@ Tomcat 自身相关的调优
 
   ![image-20220706163331695](assest/image-20220706163331695.png)
 
-- 调整 tomcat 的链接器
+- 调整 tomcat 的连接器
 
   调整 tomcat/conf/server.xml 中关于链接器的配置可以提升应用服务器的性能。
 
   | 参数           | 说明                                                         |
   | -------------- | ------------------------------------------------------------ |
-  | maxConnections | 最大连接数，当达到该值后，服务器接收但不会处理更多的请求，额外的请求将会阻塞直到连接数低于 maxConnections。可通过ulimit -a 查看服务器限制。对于 CPU 要求更高（计算密集型）时，建议不要配置过大；对于 CPU 要求不是特别高，建议配置在 2000 左右（受服务器性能影响）。当然这个需要服务器硬件的支持 |
+  | maxConnections | 最大连接数，当达到该值后，服务器接收但不会处理更多的请求，额外的请求将会阻塞直到连接数低于 maxConnections。可通过ulimit -a 查看服务器限制。对于 CPU 要求更高（计算密集型）时，**建议不要配置过大**(每一个链接都需要CPU的支持)；对于 CPU 要求不是特别高，建议配置在 2000 左右（受服务器性能影响）。当然这个需要服务器硬件的支持 |
   | maxThreads     | 最大线程数，需要根据服务器的硬件情况，进行一个合理的设置     |
   | acceptCount    | 最大排队等待数，当服务器接收的请求数量达到 maxConnections，此时 Tomcat 会将后面的请求，存放在任务队列进行排序，acceptCount指的就是任务队列中排队等待的请求数。一台 Tomcat 的最大请求处理数量是 maxConnections + acceptCount |
 
-- 禁用 AJP 链接器
+- 禁用 AJP 连接器
+
+  AJP 用于和 WX集成（如Apache），以实现对静态资源的优化以及集群部署。不需要时 禁用 AJP 连接器
 
   ![image-20220706165040866](assest/image-20220706165040866.png)
 
 - 调整 IO 模式
 
-  Tomcat 8 之前的版本默认使用 BIO（阻塞式 IO），对于每一个请求都要创建一个线程来处理，不适合高并发；Tomcat8 以后的版本默认使用 NIO 模式（非阻塞式 IO）
+  Tomcat 8 之前的版本默认使用 BIO（阻塞式 IO），对于每一个请求都要创建一个线程来处理，不适合高并发；Tomcat8 以后的版本默认使用 NIO 模式（非阻塞式 IO）（protocol 配置全限定名称）
 
   ![image-20220706165529400](assest/image-20220706165529400.png)
 
-  当 Tomcat 并发性能有较高要求或者出现瓶颈时，我们可以尝试使用 APR 模式，APR（Apache Portable Runtime）是从操作系统级别解决异步 IO 问题，使用时需要在操作系统上安装 APR 和 Native（因为 APR 原理时使用 JNI 技术调用操作系统底层的 IO 接口）
+  当 Tomcat 并发性能有较高要求或者出现瓶颈时，我们可以尝试使用 APR 模式，APR（Apache Portable Runtime）是从操作系统级别解决异步 IO 问题，**使用时需要在操作系统上安装 APR 和 Native**（因为 APR 原理时使用 JNI 技术调用操作系统底层的 IO 接口）
 
 - 动静分离
 

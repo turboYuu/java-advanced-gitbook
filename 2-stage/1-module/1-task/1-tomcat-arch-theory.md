@@ -103,7 +103,7 @@ Tomcat 支持多种应用层协议和 I/O 模型，如下：
 
 
 
-在 8.0 之前，Tomcat 默认采用的 I/O 方式为 BIO，之后改为 NIO。无论 NIO、NIO2 还是 APR，在性能方面均优于以往的 BIO。如果采用 APR，针织可以达到 Apache HTTP Server 的性能。
+在 8.0 之前，Tomcat 默认采用的 I/O 方式为 BIO，之后改为 NIO。无论 NIO、NIO2 还是 APR，在性能方面均优于以往的 BIO。如果采用 APR，甚至可以达到 Apache HTTP Server 的性能。
 
 ## 3.2 Coyote 的内部组件及流程
 
