@@ -89,9 +89,97 @@
 
 # 2 Nginx 核心配置文件解读
 
+Nginx 的核心配置文件 conf/nginx.conf 中包含三块内容：全局快、events 块、http 块
+
+- 全局块
+
+  从配置文件开始到 events 块之间的内容，此处的配置影响 nginx 服务器整体的运行，比如 worker 进程的数量、错误日志的位置等。
+
+  ![image-20220707092749993](assest/image-20220707092749993.png)
+
+- events 块
+
+  events 块主要影响 nginx 服务器与用户的网络连接，比如 worker_connections 1024 ，标识每个worker process 支持的最大连接数为 1024。
+
+  ![image-20220707094707593](assest/image-20220707094707593.png)
+
+- http块
+
+  http块 是配置最频繁的部分，虚拟主机的配置，监听端口的配置，请求转发、反向代理、负载均衡等。
+
+  ![image-20220707095506426](assest/image-20220707095506426.png)
+
+  ![image-20220707095611629](assest/image-20220707095611629.png)
+
+  ![image-20220707095650457](assest/image-20220707095650457.png)
+
 # 3 Nginx 应用场景之反向代理
 
+需求：
+
+![image-20220707101126970](assest/image-20220707101126970.png)
+
+![image-20220707101155495](assest/image-20220707101155495.png)
+
+## 3.1 需求一
+
+1. 部署 tomcat，保持默认监听 8080 端口
+
+2. 修改 nginx 配置，并重新加载
+
+   修改 nginx 中 http 块的配置
+
+   ![image-20220707102352490](assest/image-20220707102352490.png)
+
+   重新加载 nginx 配置 `./nginx -s reload`
+
+3. 测试，访问 http://192.168.3.135:9003，
+
+   ![image-20220707102538150](assest/image-20220707102538150.png)
+
+## 3.2 需求二
+
+1. 在部署一台 tomcat，保持默认监听 8081 端口
+
+2. 修改 nginx 配置，并重新加载
+
+   ![image-20220707103053340](assest/image-20220707103053340.png)
+
+3. 测试
+
+   访问：http://192.168.3.135:9003/abc
+
+   ![image-20220707104333262](assest/image-20220707104333262.png)
+
+   访问：http://192.168.3.135:9003/def
+
+   ![image-20220707104406517](assest/image-20220707104406517.png)
+
+   
+
+
+
+这里主要是 **多localhost的使用，这里的nginx中的 http/server/location 就好比 tomcat 中的 Server/Service/Engine/Host/Context**
+
+location 语法如下：
+
+```bash
+location [=|^~|~*|~] /uri/ {...}
+```
+
+在 nginx 配置文件中，location 主要有这几种形式：
+
+1. 正则匹配 `location ~/turbo{}`
+2. 不区分大小写的正则匹配 `location ~*/turbo {}`
+3. 匹配路径的前缀 `location ^~/turbo {}`
+4. 精准匹配 `location =/turbo {}`
+5. 普通路径前缀匹配 `location /turbo {}`
+
+优先级：4>3>2>1>5
+
 # 4 Nginx 应用场景之负载均衡
+
+
 
 # 5 Nginx 应用场景之动静分离
 
