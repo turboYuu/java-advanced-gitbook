@@ -146,11 +146,167 @@ Hash 算法在很多分布式集群产品中都有应用，比如分布式集群
 
 # 4 实现一致性Hash算法
 
+## 4.1 普通 Hash 算法实现
+
+```java
+public class GeneralHash {
+    /**
+     * 普通哈希算法实现
+     * @param args
+     */
+    public static void main(String[] args) {
+        //定义客户端Id
+        String[] clients = new String[]{"10.78.12.3","113.25.63.1","126.12.3.8"};
+
+        //定义服务器数量
+        int serverCount = 5;
+
+        for (String client:clients){
+            int hash = Math.abs(client.hashCode());
+            int index = hash % serverCount;
+            System.out.println("客户端："+client+"被路由到服务器编号为："+index);
+        }
+    }
+}
+```
+
+
+
+## 4.2 一致性Hash算法实现（不含虚拟节点）
+
+```java
+/**
+ * 一致性Hash算法 不包含虚拟节点
+ *
+ * step1 初始化：把服务器节点IP的哈希值对应到哈希环上
+ * step2 针对客户端IP求出hash值
+ * step3 针对客户端,找到能够处理当前客户端请求的服务器（哈希环上顺时针最近）
+ */
+public class ConsistentHashNoVirtual {
+
+
+    public static void main(String[] args) {
+        // step1: 初始化，把服务器节点的IP的哈希值对应到哈希环上
+        String[] servers = new String[]{"134.56.12.0","107.28.63.1","146.12.3.2","123.98.26.3"};
+
+        // 可排序的Map
+        SortedMap<Integer,String> hashServerMap = new TreeMap<Integer, String>();
+
+        for (String server:servers){
+            // 求出每一个ip的hash值，对应到hash环上，存储hash和ip的对应关系
+            int serverHash = Math.abs(server.hashCode());
+            hashServerMap.put(serverHash,server);
+        }
+
+
+        // 定义客户端IP
+        String[] clients = new String[]{"10.78.12.3","113.25.63.1","126.12.3.8"};
+        //针对客户端IP求出hash值
+        for(String client:clients){
+            int clientHash = Math.abs(client.hashCode());
+
+            // 根据客户端的ip的hash值中去找出哪一个服务节点能够处理
+            SortedMap<Integer, String> integerStringSortedMap = hashServerMap.tailMap(clientHash);
+            if(integerStringSortedMap.isEmpty()){
+                Integer firstKey = hashServerMap.firstKey();
+                System.out.println("==========>>>>客户端：" + client + " 被路由到服务器：" + hashServerMap.get(firstKey));
+            }else {
+                Integer firstKey = integerStringSortedMap.firstKey();
+                System.out.println("==========>>>>客户端：" + client + " 被路由到服务器：" + hashServerMap.get(firstKey));
+            }
+        }
+    }
+}
+```
+
+
+
+## 4.3 一致性 Hash 算法实现（含虚拟节点）
+
+```java
+import java.util.SortedMap;
+import java.util.TreeMap;
+
+/**
+ * 一致性Hash算法，包含虚拟节点
+ */
+public class ConsistentHashWithVirtual {
+
+    public static void main(String[] args) {
+
+        // step1: 初始化，把服务器节点的IP的哈希值对应到哈希环上
+        String[] servers = new String[]{"134.56.12.0","107.28.63.1","146.12.3.2","123.98.26.3"};
+
+        // 可排序的Map
+        SortedMap<Integer,String> hashServerMap = new TreeMap<Integer, String>();
+
+        //增加虚拟节点
+        int virtaulCount = 3;
+
+        for (String server:servers){
+            // 求出每一个ip的hash值，对应到hash环上，存储hash和ip的对应关系
+            int serverHash = Math.abs(server.hashCode());
+            hashServerMap.put(serverHash,server);
+
+            for (int i=0;i<virtaulCount;i++){
+                int virtaulHash = Math.abs((serverHash + "#" + i).hashCode());
+                hashServerMap.put(virtaulHash,"----由虚拟节点"+ i  + "映射过来的请求："+ server);
+            }
+        }
+
+        // 定义客户端IP
+        String[] clients = new String[]{"10.78.12.3","113.25.63.1","126.12.3.8"};
+        //针对客户端IP求出hash值
+        for(String client:clients){
+            int clientHash = Math.abs(client.hashCode());
+
+            // 根据客户端的ip的hash值中去找出哪一个服务节点能够处理
+            SortedMap<Integer, String> integerStringSortedMap = hashServerMap.tailMap(clientHash);
+            if(integerStringSortedMap.isEmpty()){
+                Integer firstKey = hashServerMap.firstKey();
+                System.out.println("==========>>>>客户端：" + client + " 被路由到服务器：" + hashServerMap.get(firstKey));
+            }else {
+                Integer firstKey = integerStringSortedMap.firstKey();
+                System.out.println("==========>>>>客户端：" + client + " 被路由到服务器：" + hashServerMap.get(firstKey));
+            }
+        }
+    }
+}
+```
+
+
+
 # 5 Nginx配置一致性 Hash 负载均衡策略
 
+ngx_http_upstream_consistent_hash 模块是一个负载均衡器，使用一个内部一致性 hash 算法来选择合适的后端节点。
 
+该模块可以根据配置参数采取不同的方式将请求均匀的映射到后端机器，
 
+- consistent_hash $remote_addr：可以根据客户端ip映射
+- consistent_hash $request_uri：根据客户端请求的 uri 映射
+- consistent_hash $args：根据客户端携带的参数进行映射
 
+ngx_http_upstream_consistent_hash 模块是一个第三方模块，需要下载安装后使用
+
+1. github下载nginx一致性 hash 负载均衡器模块  https://github.com/replay/ngx_http_consistent_hash
+
+   ![image-20220708141434031](assest/image-20220708141434031.png)
+
+2. 将下载的压缩包上传至 nginx 服务器，并解压
+
+3. 已经编译安装过 nginx，此时进入当时 nginx 的源码目录，执行如下命令
+
+   ```bash
+   ./conﬁgure —add-module=/root/ngx_http_consistent_hash-master
+   make
+   make install
+   ```
+
+   ![image-20220708142314381](assest/image-20220708142314381.png)
+
+4. Nginx就可以使用了，在 nginx.conf 文件中配置
+
+   ![image-20220708142924929](assest/image-20220708142924929.png)
 
 
 
