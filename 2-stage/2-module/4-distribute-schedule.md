@@ -175,7 +175,7 @@
 
 Elastic-Job是当当网开源的一个分布式调度解决方案，基于 Quartz二次开发，有两个相互独立的子项目 Elastic-Job-Lite 和 Elastic-Job-Cloud 组成。我们主要学习的是 Elastic-Job-Lite，它定位为轻量级无中心化解决方案，使用Jar包的形式提供分布式任务的协调服务；而 Elastic-Job-Cloud 子项目需要结合 Mesos 以及 Docker 在云环境下使用。
 
-Elastic-Job 的 github 地址：
+Elastic-Job 的 github 地址：https://github.com/elasticjob
 
 **主要功能介绍**
 
@@ -212,6 +212,83 @@ Elastic-Job 的 github 地址：
 jar 包（API）+ 安装 zk 软件
 
 Elastic-Job 依赖于 Zookeeper 进行分布式协调，所以需要安装 Zookeeper 软件（3.4.6 版本以上）。此处需要明白 Zookeeper 的半只功能：存储 + 通知。
+
+### 5.2.1 安装 Zookeeper（此处单例配置）
+
+zookeeper-3.4.10 下载地址： http://archive.apache.org/dist/zookeeper/zookeeper-3.4.10/
+
+![image-20220710161216670](assest/image-20220710161216670.png)
+
+1. 上传 zookeeper-3.4.10.tar.gz 到 linux，并解压
+
+2. 进入 conf 目录，cp zoo_sample.cfg zoo.cfg
+
+3. 进入 bin 目录，启动 zk 服务
+
+   ```bash
+   # 启动
+   ./zkServer.sh start
+   # 停止
+   ./zkServer.sh stop
+   # 查看状态
+   ./zkServer.sh status
+   ```
+
+   ![image-20220710175154573](assest/image-20220710175154573.png)
+
+
+
+**Zookeeper的树形节点结构图**
+
+![image-20220710175955819](assest/image-20220710175955819.png)
+
+### 5.2.2 代码
+
+#### 5.2.2.1 引入 Jar
+
+```xml
+<!-- https://mvnrepository.com/artifact/com.dangdang/elastic-job-lite-core -->
+<!--elastic-job-lite核心包-->
+<dependency>
+    <groupId>com.dangdang</groupId>
+    <artifactId>elastic-job-lite-core</artifactId>
+    <version>2.1.5</version>
+</dependency>
+```
+
+#### 5.2.2.2 定时任务实例
+
+- 需求：每隔两秒执行一次定时任务（resume表中未归档的数据归档到 resume_bak 表中，每次归档一条记录）
+
+  - resume_bak 和 resume 表结构完全一致
+  - resume 表中数据归档之后不删除，只将 state 置为 “已归档”
+
+- 数据表结构
+
+  ```sql
+  -- ---------------------------- 
+  -- Table structure for resume
+  -- ---------------------------- 
+  DROP TABLE IF EXISTS `resume`;
+  
+  CREATE TABLE `resume` (
+  	`id` BIGINT (20) NOT NULL AUTO_INCREMENT,
+  	`name` VARCHAR (255) DEFAULT NULL,
+  	`sex` VARCHAR (255) DEFAULT NULL,
+  	`phone` VARCHAR (255) DEFAULT NULL,
+  	`address` VARCHAR (255) DEFAULT NULL,
+  	`education` VARCHAR (255) DEFAULT NULL,
+  	`state` VARCHAR (255) DEFAULT NULL,
+  	PRIMARY KEY (`id`)
+  ) ENGINE = INNODB AUTO_INCREMENT = 1001 DEFAULT CHARSET = utf8;
+  
+  
+  SET FOREIGN_KEY_CHECKS = 1;
+  ```
+
+#### 5.2.2.3 程序开发
+
+
 
 ## 5.3 Elastic-Job-Lite 轻量级去中心化的特点
 
