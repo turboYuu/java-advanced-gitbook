@@ -177,6 +177,8 @@ Elastic-Job是当当网开源的一个分布式调度解决方案，基于 Quart
 
 Elastic-Job 的 github 地址：https://github.com/apache/shardingsphere-elasticjob，<br>文档：https://shardingsphere.apache.org/elasticjob/current/cn/overview/#elasticjob-lite
 
+![https://shardingsphere.apache.org/elasticjob/current/cn/overview/#elasticjob-lite](assest/image-20220711142738181.png)
+
 **主要功能介绍**
 
 - 分布式调度协调
@@ -211,7 +213,7 @@ Elastic-Job 的 github 地址：https://github.com/apache/shardingsphere-elastic
 
 jar 包（API）+ 安装 zk 软件
 
-Elastic-Job 依赖于 Zookeeper 进行分布式协调，所以需要安装 Zookeeper 软件（3.4.6 版本以上）。此处需要明白 Zookeeper 的半只功能：存储 + 通知。
+Elastic-Job 依赖于 Zookeeper 进行分布式协调，所以需要安装 Zookeeper 软件（3.4.6 版本以上）。此处需要明白 Zookeeper 的半只功能：存储 + **通知**。
 
 ### 5.2.1 安装 Zookeeper（此处单例配置）
 
@@ -288,11 +290,218 @@ zookeeper-3.4.10 下载地址： http://archive.apache.org/dist/zookeeper/zookee
 
 #### 5.2.2.3 程序开发
 
+- 定时任务类
 
+  ```java
+  
+  ```
+
+  
+
+- 主类
+
+  ```java
+  	
+  ```
+
+  
+
+- JdbcUtil工具类
+
+  ```java
+  package elasticjob;
+  
+  import java.sql.*;
+  import java.util.ArrayList;
+  import java.util.HashMap;
+  import java.util.List;
+  import java.util.Map;
+  
+  /**
+   * @author yutao
+   */
+  public class JdbcUtil {
+  
+  
+      /**
+       * url
+       */
+      private static String url = "jdbc:mysql://152.136.177.192:3306/bank?characterEncoding=utf8&useSSL=false";
+      /**
+       * user
+       */
+      private static String user = "root";
+      /**
+       * password
+       */
+      private static String password = "123456";
+      /**
+       * 驱动程序类
+       */
+      private static String driver = "com.mysql.jdbc.Driver";
+  
+      static {
+          try {
+              Class.forName(driver);
+          } catch (ClassNotFoundException e) {
+              // TODO Auto-generated catch block e.printStackTrace();
+          }
+      }
+  
+      public static Connection getConnection() {
+          try {
+              return DriverManager.getConnection(url, user,password);
+          } catch (SQLException e) {
+              // TODO Auto-generated catch block e.printStackTrace();
+              e.printStackTrace();
+          }
+          return null;
+      }
+  
+  
+  
+      public static void close(ResultSet rs, PreparedStatement ps, Connection con) {
+          if(rs != null){
+              try {
+                  rs.close();
+              } catch (SQLException e) {
+                  e.printStackTrace();
+              }finally {
+                  if(ps != null){
+                      try {
+                          ps.close();
+                      } catch (SQLException e) {
+                          e.printStackTrace();
+                      }finally {
+                          if(con!=null){
+                              try {
+                                  con.close();
+                              } catch (SQLException e) {
+                                  e.printStackTrace();
+                              }
+                          }
+                      }
+                  }
+  
+              }
+          }
+      }
+  
+      public static void executeUpdate(String sql,Object...obj){
+          Connection con = getConnection();
+          PreparedStatement ps = null;
+          try {
+              ps = con.prepareStatement(sql);
+              for (int i = 0; i < obj.length; i++) {
+                  ps.setObject(i+1,obj[i]);
+              }
+              ps.executeUpdate();
+          } catch (SQLException e) {
+              e.printStackTrace();
+          }finally {
+              close(null,ps,con);
+          }
+      }
+  
+      public static List<Map<String,Object>> executeQuery(String sql, Object...obj) {
+          Connection con = getConnection();
+          ResultSet rs = null;
+          PreparedStatement ps = null;
+          try {
+              ps = con.prepareStatement(sql);
+              for (int i = 0; i < obj.length; i++) {
+                  ps.setObject(i + 1, obj[i]);
+              }
+              rs = ps.executeQuery();
+              List<Map<String, Object>> list = new ArrayList<>();
+              int count = rs.getMetaData().getColumnCount();
+  
+              while (rs.next()) {
+                  Map<String, Object> map = new HashMap<String, Object>();
+                  for (int i = 0; i < count; i++) {
+                      Object ob = rs.getObject(i + 1);
+                      String key = rs.getMetaData().getColumnName(i +1);
+                      map.put(key, ob);
+  
+                  }
+                  list.add(map);
+              }
+              return list;
+          } catch (SQLException e) {
+              e.printStackTrace();
+          }finally {
+              close(rs,ps,con);
+          }
+          return null;
+      }
+  }
+  ```
+
+- 测试
+
+  1. 可以先启动一个进程，然后再启动一个进程（两个进程模拟分布式环境下，同一个定时任务部署了两份在 工作）
+  2. 两个进程逐个启动，观察现象
+  3. 关闭其中执行的进行，观察现象
+
+- Leader节点选举机制
+
+  每个 Elastic-Job 的任务执行实例 App 作为 Zookeeper 的客户端来操作 Zookeeper 的 znode 
+
+  1. 多个实例同时创建 /leader 节点。
+  2. /leader 节点只能创建一个，后创建的会失败，创建成功的实例会被选为 leader 节点，执行任务。
+
+
+
+![image-20220711140230168](assest/image-20220711140230168.png)
+
+![image-20220711141617062](assest/image-20220711141617062.png)
+
+![image-20220711141700571](assest/image-20220711141700571.png)
+
+![image-20220711142118801](assest/image-20220711142118801.png)
+
+剩下两个进程时：
+
+![image-20220711142345201](assest/image-20220711142345201.png)
+
+剩下一个进程时：
+
+![image-20220711142532408](assest/image-20220711142532408.png)
 
 ## 5.3 Elastic-Job-Lite 轻量级去中心化的特点
 
+如何理解轻量级和去中心化？
+
+![image-20220711144050997](assest/image-20220711144050997.png)
+
+
+
+
+
 ## 5.4 任务分片
 
+一个大的非常耗时的作业 Job，比如：一次要处理一亿条的数据，那么这一亿的数据存储在数据库中，如果用一个作业节点处理一亿条数据要很久，在互联网领域时不能接受的，互联网领域更希望增加机器来横向扩展处理能力。所以，ElasticJob可以把作业分为多个 task（每一个task就是一个任务分片），每一个 task 交给具体的一个机器实例去处理（一个机器实例是可以处理多个 task 的），但是具体每个 task 执行什么逻辑我们自己来指定
+
+
+
+Strategy 策略定义这些分片项 怎么去分配到各个机器上去，默认是平均分配，可以定制，比如某一个机器负载比较高或者预配置比较高，那么就可以写策略。分片和作业本身是通过一个注册中心协调的，因为在分布式环境下，状态数据肯定集中到一点，才可以在分布式中沟通。
+
+
+
+**分片代码**
+
+![image-20220711150506686](assest/image-20220711150506686.png)
+
+![image-20220711150812690](assest/image-20220711150812690.png)
+
 ## 5.5 弹性扩容
+
+
+
+新增加一个运行实例 app3，它会自动注册到注册中心，注册中心发现新的服务上线，注册中心会通知 ElasticJob 进行重新分片，那么总的分片项由多少，那么就可以扩展多少个实例机器，比如完全可以分 1,000 片。
+
+注意：
+
+1. 分片项 也是一个 Job 配置，修改配置，重新分片，在**下一次定时运行之前会重新调用分片算法**，那么这个分片算法的结果就是：哪台机器运行哪一个分片，这个结果存储在 zk 中，主节点会把分片分号放到注册中心去，然后执行节点从注册中心获取信息（执行节点在定时任务开启的时候获取相应的分片）。
+2. 如果所有的节点挂掉剩下一个节点，所有分片都会指向剩下的一个节点，这也是 ElasticJob的高可用。
 
