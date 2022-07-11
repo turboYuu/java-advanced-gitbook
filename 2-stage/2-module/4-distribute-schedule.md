@@ -293,7 +293,49 @@ zookeeper-3.4.10 下载地址： http://archive.apache.org/dist/zookeeper/zookee
 - 定时任务类
 
   ```java
+  /**
+   * ElasticJobLite定时任务业务逻辑处理类
+   * @author yutao
+   */
+  public class ArchiveJob implements SimpleJob {
+      /**
+       *
+       * 需求：每隔两秒钟执⾏⼀次定时任务（resume表中未归档的数据归档到resume_bak表中， 每次归档1条记录）
+       *
+       * execute 方法中写我们的业务逻辑 （execute每次定时任务都会执行一次）
+       * @param shardingContext
+       */
+      @Override
+      public void execute(ShardingContext shardingContext) {
   
+          int shardingItem = shardingContext.getShardingItem();
+          System.out.println("====>当前分片："+shardingItem);
+  
+          // 0=bachelor,2=master,3=doctor
+          String shardingParameter = shardingContext.getShardingParameter();
+  
+          // 1、从resume中查询出未归档的数据1条
+          String selectSql = "select * from resume where state='未归档' and education='"+shardingParameter+"' limit 1";
+          List<Map<String, Object>> list = JdbcUtil.executeQuery(selectSql);
+          if(list == null || list.size() == 0){
+              System.out.println("数据已经处理完毕!");
+              return;
+          }
+          // 2、“未归档”更改为“已归档”
+          Map<String, Object> stringObjectMap = list.get(0);
+          long id = (long) stringObjectMap.get("id");
+          String name = (String) stringObjectMap.get("name");
+          String education = (String) stringObjectMap.get("education");
+  
+          System.out.println("========> id:"+id+" name:"+name+" education:"+education);
+  
+          String updateSql = "update resume set state='已归档' where id = ?";
+          JdbcUtil.executeUpdate(updateSql,id);
+          // 3、把归档的数据插入 resume_bak表中
+          String insertSql = "insert into resume_bak select * from resume where id = ?";
+          JdbcUtil.executeUpdate(insertSql,id);
+      }
+  }
   ```
 
   
@@ -301,7 +343,30 @@ zookeeper-3.4.10 下载地址： http://archive.apache.org/dist/zookeeper/zookee
 - 主类
 
   ```java
-  	
+  public class ElasticJobMain {
+  
+      public static void main(String[] args) {
+          // 1、配置分布式协调服务（注册中心）Zookeeper
+          ZookeeperConfiguration zookeeperConfiguration = new ZookeeperConfiguration("152.136.177.192:2181","data-archive-job");
+          // 注册中心对象
+          CoordinatorRegistryCenter coordinatorRegistryCenter = new ZookeeperRegistryCenter(zookeeperConfiguration);
+          coordinatorRegistryCenter.init();
+  
+          // 任务配置 （时间事件、定时任务业务逻辑、调度器）
+          JobCoreConfiguration jobCoreConfiguration = JobCoreConfiguration.newBuilder("archive-job",
+                  "*/2 * * * * ?",
+                  3)
+                  .shardingItemParameters("0=bachelor,1=master,2=doctor")
+                  .build();
+  
+          SimpleJobConfiguration simpleJobConfiguration = 
+              new SimpleJobConfiguration(jobCoreConfiguration,ArchiveJob.class.getName());
+  
+          JobScheduler jobScheduler = new JobScheduler(coordinatorRegistryCenter, LiteJobConfiguration.newBuilder(simpleJobConfiguration).overwrite(true).build());
+          jobScheduler.init();
+  
+      }
+  }
   ```
 
   
@@ -309,19 +374,7 @@ zookeeper-3.4.10 下载地址： http://archive.apache.org/dist/zookeeper/zookee
 - JdbcUtil工具类
 
   ```java
-  package elasticjob;
-  
-  import java.sql.*;
-  import java.util.ArrayList;
-  import java.util.HashMap;
-  import java.util.List;
-  import java.util.Map;
-  
-  /**
-   * @author yutao
-   */
   public class JdbcUtil {
-  
   
       /**
        * url
@@ -472,9 +525,7 @@ zookeeper-3.4.10 下载地址： http://archive.apache.org/dist/zookeeper/zookee
 
 如何理解轻量级和去中心化？
 
-![image-20220711144050997](assest/image-20220711144050997.png)
-
-
+![image-20220711171148026](assest/image-20220711171148026.png)
 
 
 
