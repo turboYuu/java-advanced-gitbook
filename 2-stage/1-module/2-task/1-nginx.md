@@ -250,6 +250,8 @@ Nginx启动后，以 daemon 多进程方式 在后台运行，包括一个Master
 
 ![image-20220707141355864](assest/image-20220707141355864.png)
 
+> 在计算 nginx 最大并发时候：(worker_processes * worker_connections)/4
+
 **以  `./nginx -s reload` 来说明 nginx 信号处理部分**
 
 1. master 进程对配置文件进行语法检查
