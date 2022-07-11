@@ -175,7 +175,7 @@
 
 Elastic-Job是当当网开源的一个分布式调度解决方案，基于 Quartz二次开发，由两个相互独立的子项目 Elastic-Job-Lite 和 Elastic-Job-Cloud 组成。我们主要学习的是 Elastic-Job-Lite，它定位为轻量级无中心化解决方案，使用 Jar 包的形式提供分布式任务的协调服务；而 Elastic-Job-Cloud 子项目需要结合 Mesos 以及 Docker 在云环境下使用。
 
-Elastic-Job 的 github 地址：https://github.com/elasticjob
+Elastic-Job 的 github 地址：https://github.com/apache/shardingsphere-elasticjob，<br>文档：https://shardingsphere.apache.org/elasticjob/current/cn/overview/#elasticjob-lite
 
 **主要功能介绍**
 
