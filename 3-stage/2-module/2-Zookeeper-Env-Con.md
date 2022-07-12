@@ -48,7 +48,7 @@ http://archive.apache.org/dist/zookeeper/
 
 6. 修改 zoo.cfg 中的 data 属性
 
-   ```xml
+   ```bash
    dataDir=/root/zookeeper/zookeeper-3.4.14/data
    ```
 
@@ -129,7 +129,7 @@ Zookeeper 不但可以在单机上运行单机模式 Zookeeper，而且可以在
 
 7. 配置每一个 Zookeeper 的 dataDir（zoo.cfg），clientPort 分别为 2181 2182 2183
 
-   ```xml
+   ```bash
    dataDir=/root/zookeeper/zkcluster/zookeeper01/data
    dataLogDir=/root/zookeeper/zkcluster/zookeeper01/data/logs
    clientPort=2181
