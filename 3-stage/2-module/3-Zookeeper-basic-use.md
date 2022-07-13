@@ -38,7 +38,41 @@ Zookeeper 节点类型可以分为三大类：
 
 ## 1.2 ZNode 的状态信息
 
+![image-20220713102423068](assest/image-20220713102423068.png)
+
+整个 ZNode 节点内容包括两部分：节点数据内容和节点状态信息。图中quota是数据内容，其他的属性状态信息。那么这些状态信息都有什么含义呢？
+
+```bash
+cZxid 就是 Create ZXID, 表示节点被创建时的事务ID。
+ctime 就是 Create Time, 表示节点创建时间。
+mZxid 就是 Modified ZXID, 表示节点最后一次被修改时的事务ID。
+mtime 就是 Modified Time, 表示节点最后一次被修改的时间。
+pZxid 表示该节点的子节点列表最后一次被修改时的事务ID, 只有子节点列表变更才会更新 pZxid, 子节点内容变更不会更新。
+cversion 表示子节点的版本号。
+dataVersion 表示内容版本号。
+aclVersion 表示acl版本
+ephemeralOwner 表示创建该临时节点时的会话 sessionID, 如果是持久性节点那么值为 0 
+dataLength 表示数据长度。
+numChildren 表示直系子节点数。
+```
+
+
+
 ## 1.3 Watcher -- 数据变更通知
+
+Zookeeper 使用 Watcher 机制实现分布式数据的发布/订阅 功能
+
+一个典型的发布/订阅 模型系统定义了一种 一对多的订阅关系，能够让多个订阅者同时监听某一个主题对象，当这个主题对象自身状态变化时，会通知所有订阅者，使它们能够做出相应的处理。
+
+在 Zookeeper 中，引入了 Watcher 机制来实现这种分布式的通知功能。Zookeeper 允许客户端向服务器端注册一个 Watcher 监听，当服务端的一些指定事件触发了这个 Watcher，那么就会向指定客户端发送一个事件通知来实现分布式的通知功能。
+
+整个 Watcher 注册与通知过程如图所示：
+
+![image-20220713110113325](assest/image-20220713110113325.png)
+
+Zookeeper 的 Watcher 机制主要包括 **客户端线程**、客户端WatcherManager、Zookeeper服务器 三部分。
+
+具体工作流程为：客户端在向 Zookeeper 服务器注册的同时，会将 Watcher 对象存储在客户端的 WatcherManager 中。当 Zookeeper 服务器触发 Watcher 事件后，会向客户端发送通知，客户端线程从 WatcherManager 中取出对应的 Watcher 对象来执行回调逻辑。
 
 ## 1.4 ACL -- 保障数据的安全
 
