@@ -244,6 +244,85 @@ get path [watch]
 
 # 3 Zookeeper的API使用
 
+Zookeeper 作为一个分布式框架，主要用来解决分布式一致性问题。它提供了简单的分布式原语，并且对多种编程语言提供了 API，所以接下来重点看下 Zookeeper 的 Java 客户端 API 使用方式。
+
+Zookeeper API 共包含 5 个包，分别为：
+
+1. org.apache.zookeeper
+2. org.apache.zookeeper.data
+3. org.apache.zookeeper.server
+4. org.apache.zookeeper.server.quorum
+5. org.apache.zookeeper.server.upgrade
+
+其中 org.apache.zookeeper ，包含 Zookeeper 类，它是我们编程时最常用的类文件。这个类是 Zookeeper 客户端的主要类文件。<br>如果要使用 Zookeeper 服务，应用程序必须建一个 Zookeeper 实例，这时就需要使用此类。<br>一旦客户端和 Zookeeper 服务端建立起了连接，Zookeeper 系统将会给本次连接会话分配一个 ID 值，并且客户端将会周期性的向服务器端发送心跳来维持会话连接。只要连接有效，客户端就可以使用 Zookeeper API 来做相应处理了。
+
+准备工作：导入依赖
+
+```xml
+<dependency>
+    <groupId>org.apache.zookeeper</groupId>
+    <artifactId>zookeeper</artifactId>
+    <version>3.4.14</version>
+</dependency>
+```
+
+## 3.1 建立会话
+
+```java
+public class CreateSession implements Watcher {
+
+    // countDownLatch这个类使⼀个线程等待,主要不让main⽅法结束
+    private static CountDownLatch countDownLatch = new CountDownLatch(1);
+
+    /**
+     * 建立会话
+     * @param args
+     */
+    public static void main(String[] args) throws IOException, InterruptedException {
+
+        /**
+        客户端可以通过创建⼀个zk实例来连接zk服务器
+        new Zookeeper(connectString,sesssionTimeOut,Wather) connectString: 连接地址：IP：端⼝
+        sesssionTimeOut：会话超时时间：单位毫秒
+        Wather：监听器(当特定事件触发监听时，zk会通过watcher通知到客户端)
+       */
+        ZooKeeper zooKeeper = new ZooKeeper("152.136.177.192:2181", 5000, new CreateSession());
+        System.out.println(zooKeeper.getState());
+        // 计数工具类 CountDownLatch:不让main方法结束，让线程处于等待阻塞
+        countDownLatch.await();
+        // 表示会话真正建立
+        System.out.println("客户端与服务端会话真正建立..");
+
+    }
+
+    /**
+     * 回调方法：处理来自服务器端的watcher通知
+     * 当前类实现了Watcher接⼝，重写了process⽅法，该⽅法负责处理来⾃Zookeeper服务端的 watcher通知，
+     * 在收到服务端发送过来的SyncConnected事件之后，解除主程序在CountDownLatch上 的等待阻塞，
+     * ⾄此，会话创建完毕
+     * @param watchedEvent
+     */
+    public void process(WatchedEvent watchedEvent) {
+        // SyncConnected
+        // 当连接创建了，服务端发送给客户端 SyncConnected 事件
+        if(watchedEvent.getState() == Event.KeeperState.SyncConnected){
+            // 解除主程序在CountDownLatch上的线程阻塞
+            countDownLatch.countDown();
+        }
+    }
+}
+```
+
+注意，Zookeeper 客户端 和 服务端会话建立是一个异步的过程；也就是说在程序中，构造方法会在处理完 客户端初始化工作后立即返回，在大多数情况下，此时并没有真正建立好一个可用的会话，在会话的生命周期中处于 “CONNECTING” 的状态。当该会话真正创建完毕后 Zookeeper 服务端会向会话对应的客户端发送一个事件通知，以告知客户端，客户端只有在获取这个通知之后，才算真正建立了会话。
+
+## 3.2 创建节点
+
+## 3.3 获取节点数据
+
+## 3.4 修改节点数据
+
+## 3.5 删除节点
+
 # 4 Zookeeper 开源客户端
 
 
