@@ -664,7 +664,7 @@ public class DeleteNode implements Watcher {
 
 ## 4.1 ZkClinet
 
-ZkClient 是 GitHub 上一个开源的 zookeeper 客户端，在 Zookeeper 原生 API 接口之上进行了包装。是一个更易用的 Zookeeper 客户端，同时，zkClient 在内部还实现了诸如 Session 超时重连，Watcher 反复注册等功能。
+[ZkClient](https://github.com/sgroschupf/zkclient) 是 GitHub 上一个开源的 zookeeper 客户端，在 Zookeeper 原生 API 接口之上进行了包装。是一个更易用的 Zookeeper 客户端，同时，zkClient 在内部还实现了诸如 Session 超时重连，Watcher 反复注册等功能。
 
 加下来，还是从创建会话，创建节点、读取数据、更新数据、删除节点 等方面来介绍如何使用 zkClient 这个 zookeeper 客户端。
 
@@ -919,15 +919,26 @@ public class NodeApi {
 
 ## 4.2 Curator
 
+[curator](https://github.com/Netflix/curator) 是 Netflix 公司开源的一套 Zookeeper 客户端框架，和 ZKClient 一样，Curator 解决了很多 Zookeeper 客户端非常底层的细节开发工作。包括 连接重连、反复注册Watcher 和 NodeExistsException 异常等，是最流行的 Zookeeper 客户端之一。从编码风格上来讲，它提供了基于 Fluent 的编码风格支持。
 
+![Fluent 编码风格](assest/image-20210612163810897.png)
 
+添加依赖：
 
+```xml
+<dependency>
+    <groupId>org.apache.curator</groupId>
+    <artifactId>curator-framework</artifactId>
+    <version>2.12.0</version>
+</dependency>
+```
 
+### 4.2.1 创建会话
 
+### 4.2.2 创建节点
 
+### 4.2.3 删除节点
 
+### 4.2.4 获取数据
 
-
-
-
-
+### 4.2.5 更新数据
