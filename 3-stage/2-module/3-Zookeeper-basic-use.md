@@ -317,13 +317,613 @@ public class CreateSession implements Watcher {
 
 ## 3.2 创建节点
 
+```java
+public class CreateNode implements Watcher {
+
+    // 表示等待一个线程
+    private static CountDownLatch countDownLatch = new CountDownLatch(1);
+
+    private static ZooKeeper zooKeeper;
+
+    /**
+     * 建立会话
+     * @param args
+     */
+    public static void main(String[] args) throws IOException, InterruptedException, KeeperException {
+
+        /**
+        客户端可以通过创建⼀个zk实例来连接zk服务器
+        new Zookeeper(connectString,sesssionTimeOut,Wather) connectString: 连接地址：IP：端⼝
+        sesssionTimeOut：会话超时时间：单位毫秒
+        Wather：监听器(当特定事件触发监听时，zk会通过watcher通知到客户端)
+       */
+        zooKeeper = new ZooKeeper("152.136.177.192:2181", 5000, new CreateNode());
+        System.out.println(zooKeeper.getState());
+        // 计数工具类 CountDownLatch:不让main方法结束，让线程处于等待阻塞
+        countDownLatch.await();
+       
+        System.out.println("客户端与服务端会话真正建立..");
+
+
+    }
+
+
+    /**
+     * 回调方法：处理来自服务器端的watcher通知
+     * 当前类实现了Watcher接⼝，重写了process⽅法，该⽅法负责处理来⾃Zookeeper服务端的 watcher通知，
+     * 在收到服务端发送过来的SyncConnected事件之后，解除主程序在CountDownLatch上 的等待阻塞，
+     * ⾄此，会话创建完毕
+     * @param watchedEvent
+     */
+    public void process(WatchedEvent watchedEvent) {
+        // SyncConnected
+        if(watchedEvent.getState() == Event.KeeperState.SyncConnected){
+
+            // 创建节点
+            try {
+                createNodeSync();
+            } catch (KeeperException e) {
+                e.printStackTrace();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            // 解除主程序在CountDownLatch上的线程阻塞
+            countDownLatch.countDown();
+        }
+    }
+
+    /**
+     * 创建节点的方法
+     */
+    private static void createNodeSync() throws KeeperException, InterruptedException {
+        /**
+         *  path        ：节点创建的路径 /开头
+         *  data[]      ：节点创建要保存的数据，是个byte类型的
+         *  acl         ：节点创建的权限信息(4种类型)
+         *                 ANYONE_ID_UNSAFE    : 表示任何⼈
+         *                 AUTH_IDS    ：此ID仅可⽤于设置ACL。它将被客户机验证的ID替 换。
+         *                 OPEN_ACL_UNSAFE    ：这是⼀个完全开放的ACL(常⽤)--> world:anyone
+         *                 CREATOR_ALL_ACL  ：此ACL授予创建者身份验证ID的所有权限
+         *  createMode    ：创建节点的类型(4种类型)
+         *                  PERSISTENT：持久节点
+         *                  PERSISTENT_SEQUENTIAL：持久顺序节点
+         *                  EPHEMERAL：临时节点
+         *                  EPHEMERAL_SEQUENTIAL：临时顺序节点
+         *                  String node = zookeeper.create(path,data,acl,createMode);
+         */
+
+        // 持久节点
+        String note_persistent = zooKeeper.create("/turbo-persistent", "持久节点内容".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        // 临时节点
+        String note_ephemeral = zooKeeper.create("/turbo-ephemeral", "临时节点内容".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
+        // 持久顺序节点
+        String note_persistent_sequential = zooKeeper.create("/turbo-persistent_sequential", "持久顺序节点内容".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT_SEQUENTIAL);
+
+        System.out.println("持久节点"+note_persistent);
+        System.out.println("临时节点"+note_ephemeral);
+        System.out.println("持久顺序节点"+note_persistent_sequential);
+    }
+}
+```
+
+
+
 ## 3.3 获取节点数据
+
+```java
+public class GetNodeData implements Watcher {
+
+    // 表示等待一个线程
+    private static CountDownLatch countDownLatch = new CountDownLatch(1);
+
+    private static ZooKeeper zooKeeper;
+
+    /**
+     * 建立会话
+     * @param args
+     */
+    public static void main(String[] args) throws IOException, InterruptedException, KeeperException {
+
+        /**
+        客户端可以通过创建⼀个zk实例来连接zk服务器
+        new Zookeeper(connectString,sesssionTimeOut,Wather) connectString: 连接地址：IP：端⼝
+        sesssionTimeOut：会话超时时间：单位毫秒
+        Wather：监听器(当特定事件触发监听时，zk会通过watcher通知到客户端)
+       */
+        zooKeeper = new ZooKeeper("152.136.177.192:2181", 5000, new GetNodeData());
+        System.out.println(zooKeeper.getState());
+        Thread.sleep(Integer.MAX_VALUE);
+    }
+
+
+    /**
+     * 回调方法：处理来自服务器端的watcher通知
+     * 当前类实现了Watcher接⼝，重写了process⽅法，该⽅法负责处理来⾃Zookeeper服务端的 watcher通知，
+     * 在收到服务端发送过来的SyncConnected事件之后，解除主程序在CountDownLatch上 的等待阻塞，
+     * ⾄此，会话创建完毕
+     * @param watchedEvent
+     */
+    public void process(WatchedEvent watchedEvent) {
+        /**
+         * 当子节点列表发生改变时，服务器端会发出noteChildrenChanged事件通知
+         * 要重新获取子节点列表，同时注意：通知是一次性的，需要反复注册监听
+         */
+        if(watchedEvent.getType() == Event.EventType.NodeChildrenChanged){
+            List<String> children = null;
+            try {
+                // 重新获取子节点列表 ,true - 又一次注册监听
+                children = zooKeeper.getChildren("/turbo-persistent", true);
+            } catch (KeeperException e) {
+                e.printStackTrace();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            System.out.println(children);
+        }
+        // SyncConnected
+        if(watchedEvent.getState() == Event.KeeperState.SyncConnected){
+            // 解除主程序在CountDownLatch上的线程阻塞
+            //countDownLatch.countDown();
+            // 获取节点数据
+            try {
+                getNodeData();
+                // 获取节点的子节点列表
+                getChildrens();
+            } catch (KeeperException e) {
+                e.printStackTrace();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+        }
+    }
+
+    /**
+     * 获取某个节点的内容
+     */
+    private void getNodeData() throws KeeperException, InterruptedException {
+        /**
+         * path    : 获取数据的路径
+         * watch    : 是否开启监听
+         * stat    : 节点状态信息
+         *          null: 表示获取最新版本的数据
+         *  zk.getData(path, watch, stat);
+         */
+        byte[] data = zooKeeper.getData("/turbo-persistent", false, null);
+        System.out.println(new String(data));
+    }
+
+    /**
+     * 获取某个节点的子节点列表方法
+     */
+    public static void getChildrens() throws KeeperException, InterruptedException {
+        /*
+            path:路径
+            watch:是否要启动监听，当⼦节点列表发⽣变化，会触发监听
+            zooKeeper.getChildren(path, watch);
+        */
+        List<String> children = zooKeeper.getChildren("/turbo-persistent", true);
+        System.out.println(children);
+    }
+}
+```
+
+![image-20220714181016664](assest/image-20220714181016664.png)
 
 ## 3.4 修改节点数据
 
+```java
+public class UpdateNodeData implements Watcher {
+
+    // 表示等待一个线程
+    private static CountDownLatch countDownLatch = new CountDownLatch(1);
+
+    private static ZooKeeper zooKeeper;
+
+    /**
+     * 建立会话
+     * @param args
+     */
+    public static void main(String[] args) throws IOException, InterruptedException, KeeperException {
+
+        /**
+        客户端可以通过创建⼀个zk实例来连接zk服务器
+        new Zookeeper(connectString,sesssionTimeOut,Wather) connectString: 连接地址：IP：端⼝
+        sesssionTimeOut：会话超时时间：单位毫秒
+        Wather：监听器(当特定事件触发监听时，zk会通过watcher通知到客户端)
+       */
+        zooKeeper = new ZooKeeper("152.136.177.192:2181", 5000, new UpdateNodeData());
+        System.out.println(zooKeeper.getState());
+        Thread.sleep(Integer.MAX_VALUE);
+    }
+
+
+    /**
+     * 回调方法：处理来自服务器端的watcher通知
+     * 当前类实现了Watcher接⼝，重写了process⽅法，该⽅法负责处理来⾃Zookeeper服务端的 watcher通知，
+     * 在收到服务端发送过来的SyncConnected事件之后，解除主程序在CountDownLatch上 的等待阻塞，
+     * ⾄此，会话创建完毕
+     * @param watchedEvent
+     */
+    public void process(WatchedEvent watchedEvent) {
+        // SyncConnected
+        if(watchedEvent.getState() == Event.KeeperState.SyncConnected){
+            // 更新数据节点内容的方法
+            try {
+                updateNodeDataSync();
+            } catch (KeeperException e) {
+                e.printStackTrace();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    /**
+     * 更新数据节点内容的方法
+     */
+    private void updateNodeDataSync() throws KeeperException, InterruptedException {
+        byte[] data = zooKeeper.getData("/turbo-persistent", false, null);
+        System.out.println("修改前："+new String(data));
+        /*
+            path:路径
+            data:要修改的内容 byte[]
+            version:为-1，表示对最新版本的数据进⾏修改
+            zooKeeper.setData(path, data,version);
+        */
+
+        // stat状态信息对象
+        Stat stat = zooKeeper.setData("/turbo-persistent", "客户端修改了节点内容".getBytes(), -1);
+        byte[] dataAfter = zooKeeper.getData("/turbo-persistent", false, null);
+        System.out.println("修改后："+new String(dataAfter));
+    }
+}
+```
+
+
+
 ## 3.5 删除节点
 
+```java
+public class DeleteNode implements Watcher {
+
+    // 表示等待一个线程
+    private static CountDownLatch countDownLatch = new CountDownLatch(1);
+
+    private static ZooKeeper zooKeeper;
+
+    /**
+     * 建立会话
+     * @param args
+     */
+    public static void main(String[] args) throws IOException, InterruptedException, KeeperException {
+
+        /**
+        客户端可以通过创建⼀个zk实例来连接zk服务器
+        new Zookeeper(connectString,sesssionTimeOut,Wather) connectString: 连接地址：IP：端⼝
+        sesssionTimeOut：会话超时时间：单位毫秒
+        Wather：监听器(当特定事件触发监听时，zk会通过watcher通知到客户端)
+       */
+        zooKeeper = new ZooKeeper("152.136.177.192:2181", 5000, new DeleteNode());
+        System.out.println(zooKeeper.getState());
+        // 计数工具类 CountDownLatch:不让main方法结束，让线程处于等待阻塞
+        //countDownLatch.await();
+        Thread.sleep(Integer.MAX_VALUE);
+        //System.out.println("客户端与服务端会话真正建立..");
+
+
+    }
+
+
+    /**
+     * 回调方法：处理来自服务器端的watcher通知
+     * 当前类实现了Watcher接⼝，重写了process⽅法，该⽅法负责处理来⾃Zookeeper服务端的 watcher通知，
+     * 在收到服务端发送过来的SyncConnected事件之后，解除主程序在CountDownLatch上 的等待阻塞，
+     * ⾄此，会话创建完毕
+     * @param watchedEvent
+     */
+    public void process(WatchedEvent watchedEvent) {
+        // SyncConnected
+        if(watchedEvent.getState() == Event.KeeperState.SyncConnected){
+            // 解除主程序在CountDownLatch上的线程阻塞
+            //countDownLatch.countDown();
+            // 删除节点
+            try {
+                deleteNodeSync();
+            } catch (KeeperException e) {
+                e.printStackTrace();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+        }
+    }
+
+    /**
+     * 删除节点的方法
+     */
+    private void deleteNodeSync() throws KeeperException, InterruptedException {
+        /*
+            zooKeeper.exists(path,watch) :判断节点是否存在
+            zookeeper.delete(path,version) : 删除节点
+        */
+        Stat exists = zooKeeper.exists("/turbo-persistent/c1", false);
+        System.out.println(exists == null?"该节点不存在":"该节点存在");
+        if(exists != null){
+            zooKeeper.delete("/turbo-persistent/c1",-1);
+        }
+        Stat stat = zooKeeper.exists("/turbo-persistent/c1", false);
+        System.out.println(stat == null?"该节点不存在":"该节点存在");
+    }
+}
+```
+
+
+
 # 4 Zookeeper 开源客户端
+
+## 4.1 ZkClinet
+
+ZkClient 是 GitHub 上一个开源的 zookeeper 客户端，在 Zookeeper 原生 API 接口之上进行了包装。是一个更易用的 Zookeeper 客户端，同时，zkClient 在内部还实现了诸如 Session 超时重连，Watcher 反复注册等功能。
+
+加下来，还是从创建会话，创建节点、读取数据、更新数据、删除节点 等方面来介绍如何使用 zkClient 这个 zookeeper 客户端。
+
+添加依赖：
+
+```xml
+<dependency>
+    <groupId>com.101tec</groupId>
+    <artifactId>zkclient</artifactId>
+    <version>0.2</version>
+</dependency>
+```
+
+
+
+### 4.1.1 创建会话
+
+使用 ZkClient可以轻松的创建会话，连接到服务端。
+
+```java
+public class CreateSession {
+
+    /**
+     * 借助zkClient完成会话的创建
+     * @param args
+     */
+    public static void main(String[] args) {
+        /**
+         * 创建一个zkclient实例，就可以完成会话创建
+         * serverstring:服务器连接地址
+         *
+         * 注意：zkClient通过对zookeeperAPI内部封装，将这个异步创建会话的过程同步化了。
+         */
+        ZkClient zkClient = new ZkClient("152.136.177.192:2181");
+        System.out.println("Zookeeper session established..");
+    }
+}
+
+```
+
+![image-20220714183622417](assest/image-20220714183622417.png)
+
+结果表明已经成功创建会话。
+
+### 4.1.2 创建节点
+
+ZkClient 提供了递归创建节点的接口，即 帮助开发者先完成父节点的创建，再创建子节点
+
+```java
+public class CreateNode {
+
+    /**
+     * 借助zkClient完成会话的创建
+     * @param args
+     */
+    public static void main(String[] args) {
+        /**
+         * 创建一个zkclient实例，就可以完成会话创建
+         * serverstring:服务器连接地址
+         *
+         * 注意：zkClient通过对zookeeperAPI内部封装，将这个异步创建会话的过程同步化了。
+         */
+        ZkClient zkClient = new ZkClient("152.136.177.192:2181");
+        System.out.println("会话被创建了..");
+
+        //创建节点
+        /**
+         * createParent:是否要创建父节点，如果为true,那么就递归创建节点
+         */
+        zkClient.createPersistent("/turbo-zkClient/turbo-c1",true);
+        System.out.println("节点递归创建完成");
+    }
+}
+```
+
+![image-20220714184648036](assest/image-20220714184648036.png)
+
+结果表明已经成功创建了子节点，指的注意的是，在原生态接口中是无法创建成功的（父节点不存在），但是通过 ZkClient 设置 `createParents` 参数为 true，可以递归的先创建父节点，再创建子节点。
+
+
+
+### 4.1.3 删除节点
+
+ZkClient 提供了递归删除节点的接口，即其帮助开发者先删除所有子节点（存在），再删除父节点。
+
+```java
+public class DeleteNode {
+
+    /**
+     * 借助zkClient完成会话的创建
+     * @param args
+     */
+    public static void main(String[] args) {
+        /**
+         * 创建一个zkclient实例，就可以完成会话创建
+         * serverstring:服务器连接地址
+         *
+         * 注意：zkClient通过对zookeeperAPI内部封装，将这个异步创建会话的过程同步化了。
+         */
+        ZkClient zkClient = new ZkClient("152.136.177.192:2181");
+        System.out.println("会话被创建了..");
+        // 递归删除节点
+        String path = "/turbo-zkClient/turbo-c1";
+        zkClient.createPersistent(path+"/c11");
+        zkClient.deleteRecursive(path);
+        System.out.println("递归删除成功..");
+    }
+}
+```
+
+
+
+![image-20220714185424304](assest/image-20220714185424304.png)
+
+结果表明 ZkClient 可直接删除带子节点的父节点，因为其底层先删除其所有子节点，然后再删除父节点。
+
+### 4.1.4 获取子节点
+
+```java
+package com.turbo.zkclient;
+
+import org.I0Itec.zkclient.IZkChildListener;
+import org.I0Itec.zkclient.ZkClient;
+
+import java.util.List;
+
+public class GetNodeChildren {
+
+    /**
+     * 借助zkClient完成会话的创建
+     * @param args
+     */
+    public static void main(String[] args) throws InterruptedException {
+        /**
+         * 创建一个zkclient实例，就可以完成会话创建
+         * serverstring:服务器连接地址
+         *
+         * 注意：zkClient通过对zookeeperAPI内部封装，将这个异步创建会话的过程同步化了。
+         */
+        ZkClient zkClient = new ZkClient("152.136.177.192:2181");
+        System.out.println("会话被创建了..");
+        // 获取子节点列表
+        List<String> children = zkClient.getChildren("/turbo-zkClient");
+        System.out.println(children);
+
+        // 注册监听事件
+        /**
+         * 客户端可以对一个不存在的节点进行子节点监听
+         * 只要该节点的子节点列表，或者该节点本身被创建或删除，都会触发监听
+         */
+        zkClient.subscribeChildChanges("/turbo-zkClient-get", new IZkChildListener() {
+            /**
+             * s: parentPath
+             * list: 变化后的子节点列表
+             * @param parentPath
+             * @param list
+             * @throws Exception
+             */
+            public void handleChildChange(String parentPath, List<String> list) throws Exception {
+                System.out.println(parentPath+"的子节点列表发生变化，变化后为："+list);
+            }
+        });
+
+        // 测试
+        zkClient.createPersistent("/turbo-zkClient-get");
+        Thread.sleep(1000);
+
+        zkClient.createPersistent("/turbo-zkClient-get/c1");
+        Thread.sleep(1000);
+    }
+}
+```
+
+![image-20220714185921084](assest/image-20220714185921084.png)
+
+结果表明：
+
+客户端可以对一个**不存在的节点**进行子节点变更的监听。
+
+一旦客户端对一个节点注册了 **子节点列表变更监听**之后，那么当该节点的子节点列表发生表更时，服务端都会通知客户端，并将最新的子节点列表发送给客户端。
+
+**该节点本身的创建或删除 也会通知到客户端**。
+
+### 4.1.5 获取数据（节点是否存在、更新、删除）
+
+```java
+public class NodeApi {
+
+    /**
+     * 借助zkClient完成会话的创建
+     * @param args
+     */
+    public static void main(String[] args) throws InterruptedException {
+        /**
+         * 创建一个zkclient实例，就可以完成会话创建
+         * serverstring:服务器连接地址
+         *
+         * 注意：zkClient通过对zookeeperAPI内部封装，将这个异步创建会话的过程同步化了。
+         */
+        ZkClient zkClient = new ZkClient("152.136.177.192:2181");
+        System.out.println("会话被创建了..");
+
+        // 判断节点是否存在
+        String path = "/turbo-zkClient-ep";
+        boolean exists = zkClient.exists(path);
+        if(!exists){
+            // 创建临时节点
+            zkClient.createEphemeral(path,"123");
+        }
+        // 读取节点内容
+        Object o = zkClient.readData(path);
+        System.out.println(o);
+
+        // 注册监听
+        zkClient.subscribeDataChanges(path, new IZkDataListener() {
+            /**
+             * 当节点数据内容发生变化时执行回调方法
+             * s:path
+             * o:当前变化后的节点内容
+             * @param s
+             * @param o
+             * @throws Exception
+             */
+            public void handleDataChange(String s, Object o) throws Exception {
+                System.out.println(s+"该节点内容被更新，更新后的内容："+o);
+            }
+
+            /**
+             * 当节点被删除时执行的回调方法
+             * s:节点路径
+             * @param s
+             * @throws Exception
+             */
+            public void handleDataDeleted(String s) throws Exception {
+                System.out.println(s+"该节点被删除");
+            }
+        });
+
+        // 更新节点内容
+        zkClient.writeData(path,"456");
+        Thread.sleep(1000);
+        // 删除节点
+        zkClient.delete(path);
+        Thread.sleep(1000);
+    }
+}
+```
+
+![image-20220714190707336](assest/image-20220714190707336.png)
+
+结果表明可以成功监听节点 数据变化 或 删除事件。
+
+## 4.2 Curator
+
+
+
+
+
+
 
 
 
