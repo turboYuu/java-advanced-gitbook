@@ -4,7 +4,9 @@
 
 在 Zookeeper 中，数据信息被保存在一个个数据节点上，这些节点被称为 znode。ZNode 是 Zookeeper 中最小数据单位，在 ZNode 下面又可以再挂 ZNode，这样一层层下去就形成了一个层次化命名空间 ZNode 树，我们称为 ZNode Tree，它采用了类似文件系统的层级树状结构进行管理。见下图：
 
-![image-20220712184208232](assest/image-20220712184208232.png)
+[Data model and the hierarchical namespace](https://zookeeper.apache.org/doc/r3.4.14/zookeeperOver.html#sc_dataModelNameSpace)
+
+![ZooKeeper's Hierarchical Namespace](assest/zknamespace.jpg)
 
 在 Zookeeper 中，每一个数据节点都是一个 ZNode，上图根目录下有两个，分别是：znode1 和 znode2，其中 znode1 下面又有两个子节点，所有 ZNode 按层次化进行组织，形成这么一棵树，ZNode 的节点路径标识方式 和 Unix 文件系统路径非常相似，都是由一些列使用斜杠（/）进行分割的路径表示，开发人员可以向这个节点写入数据，也可以在这个节点下面创建子节点。
 
@@ -98,14 +100,155 @@ Zookeeper 作为一个分布式协调框架，其内部存储了分布式系统�
 
    World 是一种开放的权限控制模式，这种权限控制方式几乎没有任何作用，数据节点的访问权限对所有用户开放，即所有用户都可以在不进行任何校验的情况下操作 Zookeeper 上的数据。
 
+   另外，World 模式也可以看作是一种特殊的 Digest 模式，它只有一个权限标识，即 "world:anyone"。
+
 4. Super
+
+   Super 模式，顾名思义就是超级用户的意思，也就是一种特殊的 Digest 模式。在 Super 模式下，超级用户可以对任意 Zookeeper 上的数据节点进行任何操作。
 
 ### 1.4.2 授权对象（ID）
 
+授权对象指的是权限赋予的用户或一种指定实体，例如 IP 地址或是机器等。在不同的权限模式下，授权对象是不同的。表中列出了各个权限模式和授权对象之间的对应关系。
+
+| 权限模式 | 授权对象                                                     |
+| -------- | ------------------------------------------------------------ |
+| IP       | 通常是一个 IP 地址 或 IP 段，例如：192.168.10.110 或 192.168.10.1/24 |
+| Digest   | 自定义，通常是 username:BASE64(SHA-1(username:password)) ，例如：zm:sdfndsllndlksfn7c= |
+| World    | 只有一个 ID：anyone                                          |
+| Super    | 超级用户                                                     |
+
+
+
 ### 1.4.3 权限（Permission）
 
+权限就是指那些通过权限检查后可以被允许执行的操作。在 Zookeeper 中，所有对数据的操作权限分为以下 5 大类：
+
+1. CREATE（C）：数据节点的创建权限，允许授权对象在该数据节点下创建子节点。
+2. DELETE（D）：子节点的删除权限，允许授权对象删除该数据节点的子节点。
+3. READ（R）：数据节点的读取权限，允许授权对象访问该数据节点 并 读取器数据内容 或 子节点列表。
+4. WRITE（W）：数据节点的更新权限，允许授权对象对该数据节点进行更新操作。
+5. ADMIN（A）：数据节点的管理权限，允许授权对象对该数据节点进行 ACL 相关的设置操作
+
 # 2 Zookeeper 命令行操作
+
+现在已经搭建起一个能够正常运行的 zookeeper 服务了，所以接下来，就是借助客户端来对 zookeeper 的数据节点进行操作。
+
+首先，进入到 Zookeeper 的 bin 目录之后，通过 zkClient 进入 zookeeper 建客户端命令行
+
+```bash
+./zkCli.sh # 连接到本地的 zookeeper 服务器
+./zkCli.sh -server ip:port # 连接指定的服务器
+```
+
+连接成功后，系统会输出 Zookeeper 的相关环境及配置信息等。输入 help 之后，会输出可用的 Zookeeper 命令，如下：
+
+![image-20220714111609431](assest/image-20220714111609431.png)
+
+## 2.1 创建节点
+
+使用 create 命令，可以创建一个 Zookeeper 节点，如：
+
+```bash
+create [-s] [-e] path data acl
+# 其中，-s(Sequential) 和 -e(Ephemeral) 分别指节点类型，顺序或临时节点;若不指定，则创建持久节点；acl 用来进行权限控制。
+```
+
+1. 创建顺序节点
+
+   使用 **`create -s /zk-test 123`** 命令创建 zk-test 顺序节点
+
+   ![image-20220714112605595](assest/image-20220714112605595.png)
+
+   执行完成后，就在根节点下创建一个叫做 /zk-test 的节点，该节点内容就是 123，同时可以看到创建的 zk-test 节点后面添加了一串数字以示区别。
+
+2. 创建临时节点
+
+   使用 **`create -e /zk-temp 123`** 命令创建 zk-temp 临时节点
+
+   ![image-20220714112941880](assest/image-20220714112941880.png)
+
+   临时节点在客户端会话结束后，就会自动删除，下面使用 **quit** 命令退出客户端
+
+   ![image-20220714113115141](assest/image-20220714113115141.png)
+
+   再次使用客户端连接服务端，并使用 ls / 命令查看根目录下的节点：
+
+   ![image-20220714113211447](assest/image-20220714113211447.png)
+
+   可以看到根目录下已经不存在 zk-temp 临时节点了。
+
+3. 创建永久节点
+
+   使用 **`create /zk-persistent 123`** 命令创建 zk-persistent 永久节点
+
+   ![image-20220714113519466](assest/image-20220714113519466.png)
+
+   可以看到永久节点不同于顺序节点，不会自动在后面添加一串数字
+
+
+
+## 2.2 读取节点
+
+与 读取相关的命令有 ls 命令和 get 命令
+
+ls 命令可以列出 Zookeeper 指定节点下的所有子节点，但指能查看指定节点下的第一级的所有子节点。
+
+```bash
+ls path [watch]
+# 其中，path标识的是指定数据节点的节点路径
+```
+
+get命令可以获取 Zookeeper 指定节点的数据内容和属性信息
+
+```bash
+get path [watch]
+```
+
+若获取根节点下面的所有子节点，使用 **`ls /`** 命令即可
+
+![image-20220714130003305](assest/image-20220714130003305.png)
+
+若想获取 /zk-persistent 的数据内容和属性，可使用如下命令：**`get /zk-persistent`**
+
+![image-20220714130134167](assest/image-20220714130134167.png)
+
+从上面的输出信息中，可以看到，第一行是节点 /zk-persistent 的数据内容，其他几行则是创建该节点的事务ID（cZxid）、最后一次更新该节点的事务 ID（mZxid）和最后一次更新该节点的时间（mtime）等属性信息。
+
+1. 更新节点
+
+   使用 set 命令，可以更新指定节点的数据内容，用法如下：
+
+   ```bash
+   set path data [version]
+   ```
+
+   其中，data 就是要更新的新内容，version 表示数据版本，在Zookeeper中，节点的数据是有版本概念的，这个参数用于指定本次更新操作是基于 Znode 的哪一个数据版本进行的，如将 /zk-persistent 节点的数据更新为 456，可以使用如下命令：**`set /zk-persistent 456`**
+
+   ![image-20220714130923234](assest/image-20220714130923234.png)
+
+   现在dataVersion 已经变为 1 了，表示进行了更新。
+
+2. 删除节点
+
+   使用 delete 命令可以删除 Zookeeper 上的指定节点，用法如下：
+
+   ```bash
+   delete path [version]
+   ```
+
+   其中 version 也是表示数据版本，使用 **`delete /zk-persistent`** 命令即可删除 /zk-persistent 节点
+
+   ![image-20220714131426056](assest/image-20220714131426056.png)
+
+   可以看到，已经成功删除 /zk-persistent 节点。值得注意的是，**若删除节点存在子节点，那么无法删除该节点，必须先删除子节点，在删除父节点**
 
 # 3 Zookeeper的API使用
 
 # 4 Zookeeper 开源客户端
+
+
+
+
+
+
+

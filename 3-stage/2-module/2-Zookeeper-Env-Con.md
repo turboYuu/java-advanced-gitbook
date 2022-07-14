@@ -8,7 +8,7 @@ Zookeeper 安装方式有三种，**单机模式**和**集群模式**以及**伪
 
 # 1 单机模式搭建
 
-Zookeeper 安装以 Linux 环境为例：
+Zookeeper 安装以 Linux 环境为例：[InstallingSingleMode 官网说明](https://zookeeper.apache.org/doc/r3.4.14/zookeeperStarted.html#sc_InstallingSingleMode)
 
 地址：https://zookeeper.apache.org/releases.html
 
@@ -68,6 +68,8 @@ http://archive.apache.org/dist/zookeeper/
 ![image-20220712172557204](assest/image-20220712172557204.png)
 
 # 2 伪集群模式
+
+[Clustered (Multi-Server) Setup 官网说明](https://zookeeper.apache.org/doc/r3.4.14/zookeeperAdmin.html#sc_zkMulitServerSetup)
 
 Zookeeper 不但可以在单机上运行单机模式 Zookeeper，而且可以在单机模拟集群模式 Zookeeper 的运行，也就是将不同实例运行在同一台机器上，用端口进行区分，伪集群模式为我们体验 Zookeeper 和 做一些尝试性的实验提供了很大的便利。比如，我们在测试的时候，可以先使用少量数据在伪集群模式下进行测试。当测试可行性的时候，再将数据移植到集群模式进行真实的数据实验。这样不但保证了它的可行性，同时大大提高了实验的效率。这种搭建方式，比较简单，成本比较低，适合测试和学习。
 
