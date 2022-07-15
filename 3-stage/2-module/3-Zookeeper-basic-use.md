@@ -935,6 +935,59 @@ public class NodeApi {
 
 ### 4.2.1 创建会话
 
+Curator 的创建会话方式与原生的 API 和 ZkClient 的创建方式区别很大。Curator 创建客户端是通过 CuratorFrameworkFactory 工厂类来实现的。具体如下：
+
+1. 使用 CuratorFramework 这个工厂类的两个静态方法来创建一个客户端
+
+   ```java
+   public static CuratorFramework newClient(String connectString, RetryPolicy retryPolicy) 
+   
+   public static CuratorFramework newClient(String connectString, int sessionTimeoutMs, int connectionTimeoutMs, RetryPolicy retryPolicy) 
+   ```
+
+   其中参数 RetryPolicy 提供重试策略的接口，可以让用户实现自定义的重试策略，默认提供了以下实现：分别为 ExponentialBackoffRetry（基于backoff的重连策略）、RetryNTime（重连N次策略）、RetryForever（永远重试策略）。
+
+2. 通过调用 CuratorFramework 中的 start() 方法来启动会话
+
+   ```java
+   RetryPolicy retryPolicy = new ExponentialBackoffRetry(1000, 3);
+   CuratorFramework curatorFramework = CuratorFrameworkFactory.newClient("152.136.177.192:2181", retryPolicy);
+   curatorFramework.start();
+   ```
+
+   ```java
+   RetryPolicy retryPolicy = new ExponentialBackoffRetry(1000, 3);
+   CuratorFramework curatorFramework = CuratorFrameworkFactory.newClient("152.136.177.192:2181", 5000, 1000, retryPolicy);
+   curatorFramework.start();
+   ```
+
+   其实进一步查看源码可以得知，其实这两种方法内部实现一样，只是对外包装成不同的方法。它们的底层都是通过第三个方法 builder 来实现的：
+
+   ```java
+   RetryPolicy retryPolicy = new ExponentialBackoffRetry(1000, 3);
+   CuratorFramework curatorFramework1 = CuratorFrameworkFactory.builder().connectString("152.136.177.192:2181")
+                   .sessionTimeoutMs(50000)
+                   .connectionTimeoutMs(30000)
+                   .retryPolicy(retryPolicy)
+                   .namespace("base") //独立的命名空间 /base
+                   .build();
+   curatorFramework1.start();
+   ```
+
+   参数：
+
+   - connectString：zk 的 server 地址，多个 server 之间使用英文逗号分隔开
+   - sessionTimeoutMs：会话超时时间，默认60s
+   - connectionTimeoutMs：连接超时时间，默认 15s
+   - retryPolicy：失败重试策略
+     - ExponentialBackoffRetry：构造器含有三个参数 ExponentialBackoffRetry(int baseSleepTimeMs, int maxRetries, int maxSleepMs)
+       - baseSleepTimeMs：初始的sleep时间，用于计算之后的每次重试的 sleep 时间。
+         - 计算公式：当前 sleep 时间 = baseSleepTimeMs * Math.max(1,random.nextInt(1<<(retryCount+1)))
+         - maxRetries：最大重试次数
+         - maxSleepMs：最大
+       - maxRetries
+       - maxSleepMs
+
 ### 4.2.2 创建节点
 
 ### 4.2.3 删除节点
