@@ -983,15 +983,299 @@ Curator 的创建会话方式与原生的 API 和 ZkClient 的创建方式区别
      - ExponentialBackoffRetry：构造器含有三个参数 ExponentialBackoffRetry(int baseSleepTimeMs, int maxRetries, int maxSleepMs)
        - baseSleepTimeMs：初始的sleep时间，用于计算之后的每次重试的 sleep 时间。
          - 计算公式：当前 sleep 时间 = baseSleepTimeMs * Math.max(1,random.nextInt(1<<(retryCount+1)))
-         - maxRetries：最大重试次数
-         - maxSleepMs：最大
-       - maxRetries
-       - maxSleepMs
+       - maxRetries：最大重试次数
+       - maxSleepMs：最大 sleep 时间，如上述的当前 sleep 计算出来比这个大，那么 sleep 用这个时间，默认的最大时间是 Integer.MAX_VALUE 毫秒。
+     - 其他，查看  org.apache.curator.RetryPolicy 接口的实现类
+
+   ```java
+   public class CreateSession {
+   
+       // 创建会话
+       public static void main(String[] args) {
+           // 不使用fluent编码风格
+           RetryPolicy retryPolicy = new ExponentialBackoffRetry(1000, 3);
+           CuratorFramework curatorFramework = CuratorFrameworkFactory.newClient("152.136.177.192:2181", retryPolicy);
+           curatorFramework.start();
+           System.out.println("会话被建立");
+   
+           // 使用fluent编码风格
+           /**
+            * //独立的命名空间 /base 设置命名空间之后，对zookeeper上任何数据节点的操作都是相对于/base这个目录进行的
+            * 好处：实现不同zookeeper之间的业务隔离
+            */
+           CuratorFramework curatorFramework1 = CuratorFrameworkFactory.builder().connectString("152.136.177.192:2181")
+                   .sessionTimeoutMs(50000)
+                   .connectionTimeoutMs(30000)
+                   .retryPolicy(retryPolicy)
+                   .namespace("base") //独立的命名空间 /base
+                   .build();
+           curatorFramework1.start();
+           System.out.println("会话2被建立");
+       }
+   }
+   ```
+
+   需要注意的是 session2 会话含有隔离命名空间，即客户端对 Zookeeper 上数据节点的任何操作都是相对于 /base 目录进行的，这有利于实现不同的 Zookeeper的业务之间的隔离。
 
 ### 4.2.2 创建节点
 
+curator 提供了一些列 Fluent 风格的接口，通过使用 Fluent 编程风格的接口，开发人员可以进行自由组合来完成各种类型节点的创建。
+
+下面简单介绍常用的几个节点创建场景。
+
+1. 创建一个初始内容为空的节点
+
+   ```java
+   client.create().forPath(String path);
+   ```
+
+   **Curator默认创建的持久节点**，内容为空。
+
+2. 创建一个包含内容的节点
+
+   ```java
+   client.create().forPath(String path, byte[] data);
+   ```
+
+   Curator 和 ZkClient 不同的是依旧采用 Zookeeper 原生 API 的风格，内容使用 byte[] 作为方法参数。
+
+3. 递归创建父节点，并选择节点类型
+
+   ```java
+   client.create().creatingParentsIfNeeded().withMode(CreateMode.PERSISTENT).forPath(String path)
+   ```
+
+   creatingParentsIfNeeded 这个接口非常有用，在使用 Zookeeper 的过程中，开发人员经常会碰到 NoNodeException 遗产，其中一个可能的原因就是试图对一个不存在的父节点创建子节点。在使用 Curator 之后，通过调用 creatingParentsIfNeeded 接口，Curator 就能够自动地递归创建所有需要的父节点。
+
+   ```java
+   public class CreateNodeCurator {
+   
+       // 创建会话
+       public static void main(String[] args) throws Exception {
+           RetryPolicy retryPolicy = new ExponentialBackoffRetry(1000, 3);
+           // 使用fluent编码风格
+           /**
+            * //独立的命名空间 /base 设置命名空间之后，对zookeeper上任何数据节点的操作都是相对于/base这个目录进行的
+            * 好处：实现不同zookeeper之间的业务隔离
+            */
+           CuratorFramework client = CuratorFrameworkFactory.builder()
+                   .connectString("152.136.177.192:2181")
+                   .sessionTimeoutMs(50000)
+                   .connectionTimeoutMs(30000)
+                   .retryPolicy(retryPolicy)
+                   .namespace("base") //独立的命名空间 /base
+                   .build();
+           client.start();
+           System.out.println("会话2被建立");
+   
+           //创建节点
+           String path = "/turbo-curator/c1";
+           String s = client.create().creatingParentsIfNeeded().withMode(CreateMode.PERSISTENT).forPath(path, "init".getBytes());
+           System.out.println("节点递归创建成功,路径："+s);
+           Thread.sleep(1000);
+       }
+   }
+   ```
+
+   ![image-20220715131828354](assest/image-20220715131828354.png)
+
 ### 4.2.3 删除节点
+
+删除节点的方法也是基于 Fluent 方式来进行操作，不同类型的操作调用不同的方法即可。
+
+1. 删除一个子节点
+
+   ```java
+   client.delete().forPath(String path)
+   ```
+
+2. 删除节点并递归删除其子节点
+
+   ```java
+   client.delete().deletingChildrenIfNeeded().forPath(String path)
+   ```
+
+3. 指定版本进行删除
+
+   ```java
+   client.delete().deletingChildrenIfNeeded().withVersion(int version).forPath(String path)
+   ```
+
+   如果此版本已经不存在，则抛出异常，异常信息如下：
+
+   ```java
+   org.apache.zookeeper.KeeperException$BadVersionException: KeeperErrorCode = BadVersion for
+   ```
+
+4. 强制保证删除一个节点
+
+   ```java
+   client.delete().guaranteed().forPath(String path)
+   ```
+
+   只要客户端会话有效，那么 Curator 会在后台持续进行删除操作，直到节点删除成功，比如遇到一些网络异常的情况，此 guaranteed 的强制删除就会很有效果。
+
+演示：
+
+```java
+public class DeleteNodeCurator {
+
+    // 创建会话
+    public static void main(String[] args) throws Exception {
+        // 不使用fluent编码风格
+        RetryPolicy retryPolicy = new ExponentialBackoffRetry(1000, 3);
+        // 使用fluent编码风格
+        /**
+         * //独立的命名空间 /base 设置命名空间之后，对zookeeper上任何数据节点的操作都是相对于/base这个目录进行的
+         * 好处：实现不同zookeeper之间的业务隔离
+         */
+        CuratorFramework client = CuratorFrameworkFactory.builder().connectString("152.136.177.192:2181")
+                .sessionTimeoutMs(50000)
+                .connectionTimeoutMs(30000)
+                .retryPolicy(retryPolicy)
+                .namespace("base") //独立的命名空间 /base
+                .build();
+        client.start();
+        System.out.println("会话2被建立");
+
+        // 删除节点
+        String path = "/turbo-curator";
+        Void aVoid = client.delete().deletingChildrenIfNeeded().withVersion(-1).forPath(path);
+        System.out.println("删除成功，删除节点："+path);
+    }
+}
+```
+
+![image-20220715150457244](assest/image-20220715150457244.png)
 
 ### 4.2.4 获取数据
 
+获取节点数据内容 API 相当简单，同时 Curator 提供了传入一个 Stat 变量的方式来存储服务端的返回的最新节点状态信息。
+
+```java
+// 普通查询
+client.getData().forPath(String path);
+
+// 包含状态查询
+Stat stat = new Stat();
+client.getData().storingStatIn(stat).forPath(path);
+```
+
+```java
+package com.turbo.curator;
+
+import org.apache.curator.RetryPolicy;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.data.Stat;
+
+public class GetNodeCurator {
+
+    // 创建会话
+    public static void main(String[] args) throws Exception {
+        RetryPolicy retryPolicy = new ExponentialBackoffRetry(1000, 3);
+        // 使用fluent编码风格
+        /**
+         * //独立的命名空间 /base 设置命名空间之后，对zookeeper上任何数据节点的操作都是相对于/base这个目录进行的
+         * 好处：实现不同zookeeper之间的业务隔离
+         */
+        CuratorFramework client = CuratorFrameworkFactory.builder()
+                .connectString("152.136.177.192:2181")
+                .sessionTimeoutMs(50000)
+                .connectionTimeoutMs(30000)
+                .retryPolicy(retryPolicy)
+                .namespace("base") //独立的命名空间 /base
+                .build();
+        client.start();
+        System.out.println("会话2被建立");
+
+        //创建节点
+        String path = "/turbo-curator/c1";
+        String s = client.create().creatingParentsIfNeeded().withMode(CreateMode.PERSISTENT).forPath(path, "init".getBytes());
+        System.out.println("节点递归创建成功,路径："+s);
+
+        // 获取节点的数据内容和状态信息
+        byte[] bytes = client.getData().forPath(path);
+        System.out.println("获取到的节点数据内容："+new String(bytes));
+
+        Stat stat = new Stat();
+        client.getData().storingStatIn(stat).forPath(path);
+        System.out.println("获取到的节点状态信息："+stat);
+
+        Thread.sleep(1000);
+    }
+}
+```
+
+![image-20220715151849772](assest/image-20220715151849772.png)
+
+
+
 ### 4.2.5 更新数据
+
+更新数据，如果未传入 version 参数，那么更新当前最新版本；如果传入 version 则抛出异常。
+
+```java
+// 普通更新
+client.setData().forPath(String path, byte[] data);
+// 执行版本更新
+client.setData().withVersion(int version).forPath(String path, byte[] data);
+```
+
+版本不一致异常信息
+
+```java
+org.apache.zookeeper.KeeperException$BadVersionException: KeeperErrorCode = BadVersion for
+```
+
+```java
+public class UpdateNodeCurator {
+
+    // 创建会话
+    public static void main(String[] args) throws Exception {
+        RetryPolicy retryPolicy = new ExponentialBackoffRetry(1000, 3);
+        // 使用fluent编码风格
+        /**
+         * //独立的命名空间 /base 设置命名空间之后，对zookeeper上任何数据节点的操作都是相对于/base这个目录进行的
+         * 好处：实现不同zookeeper之间的业务隔离
+         */
+        CuratorFramework client = CuratorFrameworkFactory.builder()
+                .connectString("152.136.177.192:2181")
+                .sessionTimeoutMs(50000)
+                .connectionTimeoutMs(30000)
+                .retryPolicy(retryPolicy)
+                .namespace("base") //独立的命名空间 /base
+                .build();
+        client.start();
+        System.out.println("会话2被建立");
+
+        String path = "/turbo-curator/c1";
+        // 获取节点的数据内容和状态信息
+        byte[] bytes = client.getData().forPath(path);
+        System.out.println("获取到的节点数据内容："+new String(bytes));
+
+        Stat stat = new Stat(); // 0
+        client.getData().storingStatIn(stat).forPath(path);
+        System.out.println("获取到的节点状态信息："+stat);
+
+        //更新节点内容 // 1
+        int version = client.setData().withVersion(stat.getVersion()).forPath(path, "modify".getBytes()).getVersion();
+        System.out.println("当前的最新版本："+version);
+
+        byte[] bytes2 = client.getData().forPath(path);
+        System.out.println("获取到修改后节点数据内容："+new String(bytes2));
+
+        // BadVersionException
+        client.setData().withVersion(stat.getVersion()).forPath(path, "modify-2".getBytes()).getVersion();
+
+        Thread.sleep(1000);
+    }
+}
+```
+
+结果表明当前携带数据版本不一致，无法完成更新操作。
+
+![image-20220715155733772](assest/image-20220715155733772.png)
+
