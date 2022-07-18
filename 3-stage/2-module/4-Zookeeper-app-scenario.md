@@ -115,7 +115,7 @@ Zookeeper 创建节点的API接口，其中一个重要的特性便是：利用 
 
 ![image-20220718174051714](assest/image-20220718174051714.png)
 
-在这个系统中中，首先会在 Zookeeper 上创建一个日期节点，例如 “2020-11-11”。客户端集群每天都会定时向 Zookeeper 上创建一个临时节点，例如 /master_election/2020-11-11/binding。在这个过程中，只有一个客户端能够成功创建这个节点，那么这个客户端所在的机器就成为了 Master。同时，其他没有在 Zookeeper 上成功创建节点的客户端，都会在节点 /master_election/2020-11-11 上注册一个子节点变更的 Watcher，用于监控当前的 Master 机器是否存活，一旦发现当前的 Master 挂了，那么其余的客户端将会重新进行 Master 选举。
+在这个系统中，首先会在 Zookeeper 上创建一个日期节点，例如 “2020-11-11”。客户端集群每天都会定时向 Zookeeper 上创建一个临时节点，例如 /master_election/2020-11-11/binding。在这个过程中，只有一个客户端能够成功创建这个节点，那么这个客户端所在的机器就成为了 Master。同时，其他没有在 Zookeeper 上成功创建节点的客户端，都会在节点 /master_election/2020-11-11 上注册一个子节点变更的 Watcher，用于监控当前的 Master 机器是否存活，一旦发现当前的 Master 挂了，那么其余的客户端将会重新进行 Master 选举。
 
 
 
