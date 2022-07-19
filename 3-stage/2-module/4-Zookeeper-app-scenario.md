@@ -251,11 +251,18 @@ Barrier 原意是指 障碍物、屏障，而在分布式系统中，特指系�
 
 这些队列其实是在 FIFO 队列的基础上进行了增强，大致的设计思想如下：开始，/queue_barrier 节点是一个已经存在的默认节点，并且将其节点的数据内容赋值为一个数字 n 来代表 Barrier 值，例如 n = 10 表示只有当 /queue_barrier 节点下的子节点个数达到 10 后，才会打开 Barrier。之后，所有的客户端都会到 /queue_barrier 节点下创建一个临时节点。例如 /queue_barrier/host1，如图：
 
+![image-20220719144923951](assest/image-20220719144923951.png)
+
+创建完节点后，按照如下步骤执行：
+
+1. 通过调用 getData 接口获取 /queue_barrier 节点的数据内容：10
+2. 通过调用 getChildren 接口获取 /queue_barrier 节点下的所有子节点，同时注册对子节点变更的 Watcher 监听。
+3. 统计子节点的个数。
+4. 如果子节点个数不足 10 个，那么需要等待
+5. 接收到 Watcher 通知后，重复步骤2
 
 
 
-
-
-
+![image-20220719150111840](assest/image-20220719150111840.png)
 
 
