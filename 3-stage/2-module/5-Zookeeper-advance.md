@@ -54,11 +54,51 @@ ZAB 协议的消息广播过程使用原子广播协议，类似于一个二阶�
 
 ### 1.3.2 崩溃恢复
 
+ZAB 协议的这个基于原子广播协议的消息广播过程，在正常情况下运行非常良好，但是一旦在 Leader 服务器出现崩溃，或者由于网络原因导致 Leader 服务器失去了与过半 Follower 的联系，那么就会进入崩溃恢复模式。
 
+在 ZAB 协议中，为了保证程序的正确运行，整个恢复过程结束后需要选举出一个新的 Leader 服务器，因此，ZAB 协议需要一个高效且可靠的 Leader 选举算法，从而保证能够快速的选举出新的 Leader。同时，Leader 选举算法不仅仅需要让 Leader 自身知道已经被选举为 Leader，同时还需要让集群中的所有其他机器也能够快速的感知到选举产生出来的新 Leader 服务器。
+
+### 1.3.3 基本特性
+
+根据上面的内容，了解到，ZAB 协议规定了如果一个事务 Proposal 在一台机器上被处理成功，那么应该在所有的机器上都被处理成功，哪怕机器出现故障崩溃。接下来看看在崩溃恢复过程中，可能会出现的两个数据不一致的隐患以及针对这些情况 ZAB 协议需要保证的特性。
+
+**ZAB 协议需要确保那些已经在 Leader 服务器上提交的事务最终被所有服务器提交**
+
+ZAB 协议必须设计成这样一个 Leader 选举算法：能够确保已经被 Leader 提交的事务 Proposal，同时丢弃已经被跳过的事务 Proposal。针对这个要求，如果让 Leader 选举算法能够保证新选举出来的 Leader 服务器拥有集群中所有机器最高编号 （ZXID最大）的事务 Proposal，那么就可以保证这个新选举出来的 Leader 一定具有所有已经提交的提案。更为重要的是，如果让具有更高编号事务 Proposal 的机器成为 Leader，就可以省去 Leader 服务器检查 Proposal 的提交和丢弃工作这一步操作了。
+
+### 1.3.4 数据同步
+
+完成 Leader 选举之后，在正式开始工作（即接收客户端的事务请求，然后提出新的提案）之前，Leader 服务器会首先确认事务日志中的所有 Proposal 是否都已经被集群中过半的机器提交了，即是否完成数据同步。下面看一下 ZAB 协议的数据同步过程。
+
+所有正常运行的服务器，要么成为 Leader，要么成为 Follower 并和 Leader 保持同步。<br>Leader 服务器需要确保所有的 Follower 服务器能够接收到每一条事务 Proposal，并且能够正确地将所有已经提交的事务 Proposal 应用到内存数据库中。<br>具体的，Leader 服务器会为每一个 Follower 服务器都准备一个队列，并将那些没有被各 Follower 服务器同步的事务以 Proposal 消息的形式逐个发送给 Follower 服务器，并在每一个 Proposal 消息后面紧接着再发送一个 Commit 消息，以表示该事务已经被提交。<br>等到 Follower 服务器将所有其尚未同步的事务 Proposal 都从 Leader 服务器上同步过来并成功应用到本地数据库中后，Leader 服务器就会将该 Follower 服务器加入真正的可用 Follower列表中，并开始之后的其他流程。
 
 ## 1.4 运行时状态分析
 
+在 ZAB 协议的设计中，每个进程都有可能处于如下三种状态之一：
+
+- LOOKING：Leader 选举阶段
+- FOLLOWING：Follower服务器和 Leader 服务器保持同步状态
+- LEADING：Leader 服务器作为主进程领导状态
+
+所有进程初始状态都是 LOOKING 状态，此时不存在 Leader，接下来，进程会试图选举出一个新的 Leader，之后，如果进程发现已经选举出新的 Leader 了，那么它就会切换到 FOLLOWING 状态，并开始和 Leader 保持同步，处于 FOLLOWING 状态的进程称为 Follower，LEADING 状态的进程称为 Leader，当 Leader 崩溃或放弃领导地位时，其余的 Follower 进程就会转换到 LOOKING 状态开始新一轮的 Leader 选举。
+
+一个 Follower 只能和一个 Leader 保持同步，Leader 进程和所有的 Follower 进程之间都通过心跳检测机制来感知彼此的情况。若 Leader 能够在超时时间内正常收到心跳检测，那么 Follower 就会一直与该 Leader 保持连接；而如果在指定时间内 Leader 无法从过半的 Follower 进程那里接收到心跳检测，或者 TCP 连接断开，那么 Leader 就会放弃当前周期的领导，并转换到 LOOKING 状态，其他的 Follower也会选择放弃这个 Leader，同时转换到 LOOKING 状态，之后会进行新一轮的 Leader 选举。
+
 ## 1.5 ZAB 与 Paxos 的联系和区别
+
+联系：
+
+1. 都存在一个类似于 Leader 进程的角色，由其负责协调多个 Follower 进程的运行
+2. Leader 进程都会等待超过半数的 Follower 做出正确的反馈后，才会将一个提议进行提交。
+3. 在 ZAB 协议中，每个 Proposal 中都包含了一个 epoch 值，用来代表当前的 Leader 周期，在 Paxos 算法中，同样存在这样的一个标识，名字为 Ballot。
+
+区别：
+
+Paxos 算法中，新选举产生的主进程会进行两个节点的工作，第一阶段称为读阶段，新的主进程和其他进程通信来收集主进程提出的提议，并将它们提交。第二阶段称为写阶段，当前主进程开始提出自己的提议。
+
+ZAB 协议在 Paxos 基础上添加了同步阶段，此时，新的 Leader 会确保存在过半的 Follower 已经提交了之前的 Leader 周期中所有事务 Proposal。这一同步阶段的引入，能够有效的保证 Leader 在新的周期中提出事务 Proposal 之前，所有的进程都已经完成了对之前所有事务 Proposal 的提交。
+
+总的来说，ZAB 协议 和 Paxos 算法的本质区别在于，两者的设计目标不太一样，Z**AB 协议主要用于构建一个高可用的分布式数据主备系统，而 Paxos 算法则用于构建一个分布式的一致性状态机系统。**
 
 # 2 服务器角色
 
