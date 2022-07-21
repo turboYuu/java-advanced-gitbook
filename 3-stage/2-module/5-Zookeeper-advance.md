@@ -179,7 +179,7 @@ Observer 服务器在工作原理上 和 Follower 基本是一致的，对于非
 
 ![image-20220721142950320](assest/image-20220721142950320.png)
 
-另外需要注意的一点是，虽然在图中可以看到，Observer 服务器在初始化阶段会将 SyncRequestProcessor 处理器也组装上去，但在实际运行过程中，Leader 服务器不会讲事务请求的投票发送给 Observer 服务器。
+另外需要注意的一点是，虽然在图中可以看到，Observer 服务器在初始化阶段会将 SyncRequestProcessor 处理器也组装上去，但在实际运行过程中，Leader 服务器不会将事务请求的投票发送给 Observer 服务器。
 
 # 3 服务器启动
 
