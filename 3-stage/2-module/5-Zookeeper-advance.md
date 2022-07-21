@@ -234,7 +234,47 @@ Zookeeper 服务器的启动，大致可以分为以下5个步骤：
 
 单机和集群服务器的启动在很多地方是一致的，其流程图：
 
+![image-20220721171957029](assest/image-20220721171957029.png)
 
+上图的过程可以分为 **预启动**、**初始化**、**Leader选举**、**Leader与Follower启动期交互**、**Leader与Follower启动** 等过程。
+
+### 3.3.1 预启动
+
+1. 统一由 QuorumPeerMain 作为启动类。
+2. 解析配置文件 zoo.cfg。
+3. 创建并启动历史文件清理器 DatadirCleanupFactory。
+4. 判断当前是集群模式还是单机模式的启动。在集群模式中，在 zoo.cfg 文件中配置了多个服务器地址，可以选择集群启动。
+
+
+
+### 3.3.2 初始化
+
+1. 创建 ServerCnxnFactory。
+2. 初始化 ServerCnxnFactory。
+3. 创建 Zookeeper 数据管理器 FileTxnSnapLog。
+4. 创建 QuorumPeer 实例。Quorum 是集群模式下特有的对象，是 Zookeeper 服务器实例（ZookeeperServer）的托管者，QuorumPeer 代表了集群中的一台机器，在运行期间，QuorumPeer 会不断检测当前服务器实例的运行状态，同时根据情况发起 Leader 选举。
+5. 创建内存数据库 ZKDatabase。ZKDatabase 负责管理 Zookeeper 的所有会话记录以及 DataTree 和事务日志的存储。
+6. 初始化 QuorumPeer。将核心组件如 FileTxnSnapLog、ServerCnxnFactory、ZKDatabase 注册到 QuorumPeer 中，同时配置 QuorumPeer 的参数，如服务器列表地址、Leader选举算法 和 会话超时时间限制等。
+7. 恢复本地数据。
+8. 启动 ServerCnxnFactory 主线程。
+
+
+
+### 3.3.3 Leader 选举
+
+1. 初始化 Leader 选举
+
+   集群模式特有，Zookeeper 首先会根据自身的服务器ID（SID）、最新的 ZXID（lastLoggedZxid）和 当前的服务器 epoch（currentEpoch）来生成一个初始化投票。在初始化过程中，每个服务器都会给自己投票；然后，根据 zoo.cfg 的配置，创建相应 Leader 选举算法实现，Zookeeper 提供了三种默认算法（LeaderElection、AuthFastLeaderElection、FastLeaderElection），可通过 zoo.cfg 中的 electionAlg 属性来指定，但现在只支持 FastLeaderElection 选举算法。在初始化阶段，Zookeeper 会创建 Leader 选举所需的网络 I/O 层 QuorumCnxManager，同时启动对 Leader 选举端口的监听，等待集群中其他服务器创建连接。
+
+2. 注册 JMX 服务。
+
+3. 检测当前服务器状态。
+
+   运行期间，QuorumPeer 会不断检测检测当前服务器状态。在正常情况下，Zookeeper 服务器的状态在 LOOKING、LEADING、FOLLOWING/OBSERVING 之间进行切换。在启动阶段，QuorumPeer 的初始状态是 LOOKING，因此开始进行 Leader 选举。
+
+4. Leader 选举
+
+   
 
 # 4 Leader选举
 
