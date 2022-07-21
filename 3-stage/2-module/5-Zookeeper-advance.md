@@ -113,7 +113,37 @@ Leader 服务器是 Zookeeper 集群工作的核心，其主要工作有以下�
 
 使用责任链来处理每个客户端的请求是 Zookeeper 的特色，Leader 服务器的请求处理链如下：
 
-![image-20220720190947310](assest/image-20220720190947310.png)
+![image-20220721103137034](assest/image-20220721103137034.png)
+
+可以看到，从 prepRequestProcessor 到 FinalRequestProcessor 前后一共 7 个请求处理器组成了 Leader 服务器的请求处理链。
+
+1. PrepRequestProcessor
+
+   请求预处理器，也是 Leader 服务器中的第一个请求处理器。在 Zookeeper 中，那么会改变服务器状态的请求称为事务请求（创建节点、更新数据、删除节点、创建会话等），PrepRequestProcessor 能够识别出当前客户端请求是否是事务请求。对于事务请求，PrepRequestProcessor 处理器会对其进行一系列预处理，如创建请求事务头、事务体、会话检查、ACL 检查 和 版本检查等。
+
+2. ProposalRequestProcessor
+
+   事务投票处理器。也是 Leader 服务器处理流程的发起者，对于非事务性请求，ProposalRequestProcessor 会直接将请求转发到 CommitProcessor处理器，不再做任何处理，而对于事务性请求，处理将请求转发到 CommitProcessor 外，还会根据请求类型创建对应的 Proposal 提议，并发送给所有的 Follower 服务器来发起一次集群内的事务投票。同时 ProposalRequestProcessor 还会将事务请求交付给 SyncRequestProcessor 进行事务日志的记录。
+
+3. SyncRequestProcessor
+
+   事务日志记录处理器。用来将事务请求记录到事务日志文件中，同时会触发 Zookeeper 进行数据快照。
+
+4. AckRequestProcessor
+
+   负责在 SyncRequestProcessor 完成事务日志记录后，向 Proposal 的投票收集器发送 Ack 反馈，以通知投票收集器已经完成了对该 Proposal 的事务日志记录。
+
+5. CommitProcessor
+
+   事务提交处理器。对于非事务请求，该处理器会直接将其交付给下一级处理器处理；对于事务请求，其会等待集群内针对Proposal的投票直到该 Proposal可被提交，利用 CommitProcessor ，每个服务器都可以很好地控制对事务请求的顺序处理。
+
+6. ToBeCommitProcessor
+
+   该处理器有一个 toBeApplied 队列，用来存储那些已经被 CommitProcessor 处理过的可被提交的 Proposal。其会将这些请求交付给 FinalRequestProcessor 处理器处理，待其处理完后，再将其从 toBeApplied 队列中移除。
+
+7. FinalRequestProcessor
+
+   用来进行客户端请求返回之前的操作，包括创建客户端请求的响应，针对事务请求，该处理器还会负责将事务应用到内存数据库中。
 
 ## 2.2 Follower
 
