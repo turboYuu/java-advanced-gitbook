@@ -274,7 +274,13 @@ Zookeeper 服务器的启动，大致可以分为以下5个步骤：
 
 4. Leader 选举
 
+   Zookeeper 的 Leader 选举过程，简单的讲，就是一个集群中所有的机器相互之间进行一系列投票，选举产生最合适的机器成为 Leader，同时其余机器成为 Follower 或是 Observer 的集群机器角色初始化的过程。
    
+   关于 Leader 选举算法，简而言之，就是集群中哪个机器处理的数据越新（通常根据每个服务器处理过的最大 ZXID 来比较确定其数据是否更新），其越有可能成为 Leader。当然，如果集群中的所有机器处理的 ZXID 一致的话，那么 SID（自身的服务器ID） 最大的服务器成为 Leader，其余机器成为 Follower 和 Observer。
+
+
+
+### 3.3.4 Leader 和 Follower 启动期交互过程
 
 # 4 Leader选举
 
