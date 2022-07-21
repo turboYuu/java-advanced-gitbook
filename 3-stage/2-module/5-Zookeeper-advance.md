@@ -217,9 +217,24 @@ Zookeeper 服务器的启动，大致可以分为以下5个步骤：
 1. 创建服务器统计器 ServerStats。ServerStats 是 Zookeeper 服务器运行时的统计器。
 2. 创建Zookeeper数据管理器 FileTxnSnapLog。FileTxnSnapLog 是 Zookeeper 上层服务器 和 底层数据存储之间的对接层，提供了一系列操作数据文件的接口，如果事务日志文件和快照数据文件。Zookeeper 根据 zoo.cfg 文件中解析出来的快照数据目录 dataDir 和 事务日志目录 dataLogDir 来创建 FileTxnSnapLog。
 3. 设置服务器 tickTime 和 会话超时时间限制。
-4. 
+4. 创建 ServerCnxnFactory。通过配置系统属性 zookeeper.serverCnxnFactory 来指定使用 Zookeeper 自己实现的 NIO 还是使用 Netty 框架作为 Zookeeper 服务端网络连接工厂。
+5. 初始化 ServerCnxnFactory。Zookeeper 会初始化 Thread 作为 ServerCnxnFactory 的主线程，然后再初始化 NIO 服务器。
+6. 启动 ServerCnxnFactory 主线程。进入 Thread 的 run 方法，此时服务端还不能处理客户端请求。
+7. 恢复本地数据。启动时，需要从本地快照数据文件和事务日志文件进行数据恢复。
+8. 创建并启动会话管理器。Zookeeper 会创建会话管理器 SessionTracker 进行会话管理。
+9. 初始化 Zookeeper 的请求处理链。Zookeeper 请求处理方式为责任链模式的实现。会有多个请求处理器依次处理一个客户端请求，在服务器启动时，会将这些请求处理器串联成一个请求处理链。
+10. 注册 JMX 服务。Zookeeper 会将服务器运行时的一些信息以 JMX 的方式暴露给外部。
+11. 注册 Zookeeper 服务器实例。将 Zookeeper 服务器实例注册给 ServerCnxnFactory，之后 Zookeeper 就可以对外提供服务。
+
+
+
+至此，单机版的 Zookeeper 服务器启动完毕。
 
 ## 3.3 集群服务器启动
+
+单机和集群服务器的启动在很多地方是一致的，其流程图：
+
+
 
 # 4 Leader选举
 
