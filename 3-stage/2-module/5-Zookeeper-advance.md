@@ -171,6 +171,16 @@ Follower 服务器是 Zookeeper 集群状态中的跟随着，其主要工作有
 
 ## 2.3 Observer
 
+Observer 是 Zookeeper 自 3.3.0 版本开始引入的一个全新的服务器角色。从字面意思看，该服务器充当了一个观察者的角色——其观察 Zookeeper 集群的最新状态变化并将这些状态变更同步过来。
+
+Observer 服务器在工作原理上 和 Follower 基本是一致的，对于非事务请求，都可以进行独立的处理，而对于事务请求，则会转发给 Leader 服务器进行处理。和 Follower 唯一的区别在于，**Observer 不参与任何形式的投票，包括事务请求 Proposal 的投票和 Leader 选举投票**。简单的讲，Observer 服务器只提供非事务服务，通常用于在不影响集群事务处理能力的前提下提升集群的非事务处理能力。
+
+另外，Observer的请求处理链路 和 Follower 服务器也非常相近，其处理链路如下：
+
+![image-20220721142950320](assest/image-20220721142950320.png)
+
+另外需要注意的一点是，虽然在图中可以看到，Observer 服务器在初始化阶段会将 SyncRequestProcessor 处理器也组装上去，但在实际运行过程中，Leader 服务器不会讲事务请求的投票发送给 Observer 服务器。
+
 # 3 服务器启动
 
 ## 3.1 服务端整体架构图
