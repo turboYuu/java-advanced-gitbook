@@ -185,7 +185,39 @@ Observer 服务器在工作原理上 和 Follower 基本是一致的，对于非
 
 ## 3.1 服务端整体架构图
 
+![image-20220721144648734](assest/image-20220721144648734.png)
+
+Zookeeper 服务器的启动，大致可以分为以下5个步骤：
+
+1. 配置文件解析
+2. 初始化数据管理器
+3. 初始化网络 I/O 管理器
+4. 数据恢复
+5. 对外服务
+
 ## 3.2 单机版服务器启动
+
+单机版服务器的启动流程图如下：
+
+![image-20220721150355879](assest/image-20220721150355879.png)
+
+上图的过程可以分为**预启动**和**初始化**过程。
+
+### 3.2.1 预启动
+
+1. 统一由 QuorumPeerMain 作为启动类。无论单机或集群，在 zkServer.cmd 和 zkServer.sh 中都配置了 QuorumPeerMain 作为启动入口类。
+2. 解析配置文件 zoo.cfg。zoo.cfg 配置运行时的基本参数，如 tickTime、dataDir、ClientPort 等参数。
+3. 创建并启动历史文件清理器 DatadirCleanupManager。对事务日志和快照数据文件进行定时清理
+4. 判断当前是集群模式还是单机模式启动。若是单机模式，则委托给 ZookeeperServerMain 进行启动。
+5. 再次进行配置文件 zoo.cfg 的解析。
+6. 创建服务器实例 ZookeeperServer。Zookeeper 服务器首先会进行服务器实例的创建，然后对该服务器实例进行初始化，包括连接器、内存数据库、请求处理器等组件的初始化。
+
+### 3.2.2 初始化
+
+1. 创建服务器统计器 ServerStats。ServerStats 是 Zookeeper 服务器运行时的统计器。
+2. 创建Zookeeper数据管理器 FileTxnSnapLog。FileTxnSnapLog 是 Zookeeper 上层服务器 和 底层数据存储之间的对接层，提供了一系列操作数据文件的接口，如果事务日志文件和快照数据文件。Zookeeper 根据 zoo.cfg 文件中解析出来的快照数据目录 dataDir 和 事务日志目录 dataLogDir 来创建 FileTxnSnapLog。
+3. 设置服务器 tickTime 和 会话超时时间限制。
+4. 
 
 ## 3.3 集群服务器启动
 
@@ -194,3 +226,4 @@ Observer 服务器在工作原理上 和 Follower 基本是一致的，对于非
 ## 4.1 服务器启动时期的 Leader 选举
 
 ## 4.2 服务器运行时期的 Leader 选举
+
