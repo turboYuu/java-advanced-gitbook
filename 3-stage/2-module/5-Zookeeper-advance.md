@@ -12,6 +12,8 @@ ZAB 协议并不像 Paxos 算法那样是一种通用的分布式一致性算法
 
 
 
+![ZooKeeper Service](assest/zkservice.jpg)
+
 ## 1.2 ZAB 核心
 
 ZAB 协议的核心是定义了对于那些会改变 Zookeeper 服务器数据状态的事务请求的处理方式。
@@ -146,6 +148,26 @@ Leader 服务器是 Zookeeper 集群工作的核心，其主要工作有以下�
    用来进行客户端请求返回之前的操作，包括创建客户端请求的响应，针对事务请求，该处理器还会负责将事务应用到内存数据库中。
 
 ## 2.2 Follower
+
+Follower 服务器是 Zookeeper 集群状态中的跟随着，其主要工作有以下三个：
+
+1. 处理客户端非事务性请求（读数据），转发事务请求给 Leader 服务器
+2. 参与事务请求 Proposal 的投票
+3. 参与 Leader 选举投票
+
+和 Leader 一样，Follower 也采用了责任链模式组装的请求处理链来处理每一个客户端请求，由于不需要对事务请求的投票处理，因此 Follower 的请求处理链相对简单，其处理链如下：
+
+![image-20220721112937584](assest/image-20220721112937584.png)
+
+和 Leader 服务器的请求处理链最大的不同点在于，Follower 服务器的第一个处理器换成了 FollowerRequestProcessor 处理器，同时由于不需要处理事务请求的投票，因此也没有了 ProposalRequestProcessor 处理器。
+
+1. FollowerRequestProcessor
+
+   起作用识别当前请求是否是事务请求，若是，那么 Follower 就会将该请求转发给 Leader 服务器，Leader 服务器在接收到这个事务请求后，就会将其提交到请求处理链，按照正常事务请求进行处理。
+
+2. SendAckRequestProcessor
+
+   其承担了事务日记记录反馈的角色，在完成事务日志记录后，会向 Leader 服务器发送 ACK 消息以表明 自身完成了事务日志的记录工作。
 
 ## 2.3 Observer
 
