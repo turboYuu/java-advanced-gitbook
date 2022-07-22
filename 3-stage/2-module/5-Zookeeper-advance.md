@@ -282,6 +282,13 @@ Zookeeper 服务器的启动，大致可以分为以下5个步骤：
 
 ### 3.3.4 Leader 和 Follower 启动期交互过程
 
+到这里为止，Zookeeper已经完成了 Leader 选举，并且集群中每个服务器都已经确定了自己的角色 —— 通常情况下就分为 Leader 和 Follower 两种角色。下面来对 Leader 和 Follower 在启动期间的交互进行介绍，其大致交互流程如图所示：
+
+![image-20220722133810274](assest/image-20220722133810274.png)
+
+1. 创建 Leader 服务器和 Follower服务器。完成 Leader 选举后，每个服务器会根据自己服务器的角色创建相应的服务器实例，并进入各自的主流程。
+2. Leader 服务器启动 Follower 接收器 LearnerCnxAcceptor。运行期间，Leader 服务器需要和所有其余的服务器（统称为 Leader）保持连接以确保集群的机器存活情况，LearnerCnxAcceptor 负责接收所有非 Leader 服务器的连接请求。
+
 # 4 Leader选举
 
 ## 4.1 服务器启动时期的 Leader 选举
