@@ -288,6 +288,20 @@ Zookeeper 服务器的启动，大致可以分为以下5个步骤：
 
 1. 创建 Leader 服务器和 Follower服务器。完成 Leader 选举后，每个服务器会根据自己服务器的角色创建相应的服务器实例，并进入各自的主流程。
 2. Leader 服务器启动 Follower 接收器 LearnerCnxAcceptor。运行期间，Leader 服务器需要和所有其余的服务器（统称为 Leader）保持连接以确保集群的机器存活情况，LearnerCnxAcceptor 负责接收所有非 Leader 服务器的连接请求。
+3. Learner 服务器开始 和 Leader 建立连接。所有 Learner 会找到 Leader 服务器，并与其建立连接。
+4. Leader 服务器创建 LearnHandler。Leader 接收来自其他机器连接创建请求后，会创建一个 LearnerHandler 实例，每个 LearnerHandler 实例都对应一个 Leader 与 Learner 服务器之间的连接，其负责 Leader 和 Learner 服务器之间几乎所有的消息通信和数据同步。
+5. 向 Leader 注册。Learner 完成 和 Leader 的连接后，会向 Leader 进行注册，即将 Learner 服务器的基本信息（LearnerInfo），包括 SID 和 ZXID，发送给 Leader 服务器。
+6. Leader 解析 Learner 信息，计算新的 epoch。Leader 接收到 Learner 服务器基本信息后，会解析出该 Learner 的 SID 和 ZXID，然后根据 ZXID 解析出对应的 epoch_of_learner，并和当前 Leader 服务器的 epoch_of_leader 进行比较，如果该 Learner 的 epoch_of_learner 更大，则更新 Leader 的 epoch_of_leader = epoch_of_learner + 1。然后 LearnHandler 进行等待，直到过半 Learner 已经向 Leader 进行了注册，同时更新了 epoch_of_leader 后，Leader 就可以确定当前集群的 epoch 了。
+7. 发送 Leader 状态，计算出新的 epoch 后，Leader 会将该信息以一个 LEADERINFO 消息的形式发送给 Learner，并等待 Learner 的响应。
+8. Learner 发送 ACK 消息。Learner 接收到 LEADERINFO 后，会解析出 epoch 和 ZXID，然后向 Leader 反馈一个 ACKEPOCH 响应。
+9. 数据同步。Leader 收到 Learner 的 ACKEPOCH 后，即可进行数据同步。
+10. 启动 Leader 和 Learner 服务器。当有过半 Learner 已经完成数同步，那么 Leader 和 Learner 服务器实例就可以启动了。
+
+
+
+### 3.3.5 Leader 和 Follower 启动
+
+
 
 # 4 Leader选举
 
