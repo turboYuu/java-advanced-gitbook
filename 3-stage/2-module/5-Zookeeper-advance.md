@@ -264,7 +264,7 @@ Zookeeper 服务器的启动，大致可以分为以下5个步骤：
 
 1. 初始化 Leader 选举
 
-   集群模式特有，Zookeeper 首先会根据自身的服务器ID（SID）、最新的 ZXID（lastLoggedZxid）和 当前的服务器 epoch（currentEpoch）来生成一个初始化投票。在初始化过程中，每个服务器都会给自己投票；然后，根据 zoo.cfg 的配置，创建相应 Leader 选举算法实现，Zookeeper 提供了三种默认算法（LeaderElection、AuthFastLeaderElection、FastLeaderElection），可通过 zoo.cfg 中的 electionAlg 属性来指定，但现在只支持 FastLeaderElection 选举算法。在初始化阶段，Zookeeper 会创建 Leader 选举所需的网络 I/O 层 QuorumCnxManager，同时启动对 Leader 选举端口的监听，等待集群中其他服务器创建连接。
+   集群模式特有，Zookeeper 首先会根据自身的服务器ID（SID）、最新的 ZXID（lastLoggedZxid）和 当前的服务器 epoch（currentEpoch）来生成一个初始化投票。在初始化过程中，每个服务器都会给自己投票；然后，根据 zoo.cfg 的配置，创建相应 Leader 选举算法实现，Zookeeper 提供了三种默认算法（LeaderElection、AuthFastLeaderElection、FastLeaderElection），可通过 zoo.cfg 中的 electionAlg 属性来指定，但现在只支持 **FastLeaderElection** 选举算法。在初始化阶段，Zookeeper 会创建 Leader 选举所需的网络 I/O 层 QuorumCnxManager，同时启动对 Leader 选举端口的监听，等待集群中其他服务器创建连接。
 
 2. 注册 JMX 服务。
 
