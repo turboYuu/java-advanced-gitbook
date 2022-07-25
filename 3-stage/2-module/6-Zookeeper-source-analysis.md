@@ -4,7 +4,9 @@
 
 zk 源码下载地址：https://github.com/apache/zookeeper/tree/release-3.5.4
 
-> 注意：因为 zk 是由 ant 来构建的，所以需要使用 ant 命令来转换成工程，然后导入 idea
+链接: https://pan.baidu.com/s/1DqqiNM0Ln-_y1lhIMaQd4g 提取码: kbnr 
+
+> 注意：因为 zk 是由 ant 来构建的，所以需要使用 ant 命令来转换成工程，然后导入 idea（当前网盘提供的下载地址无需进行转换操作，下载完毕后直接导入idea即可）
 
 ## 1.1 idea 导入源码
 
