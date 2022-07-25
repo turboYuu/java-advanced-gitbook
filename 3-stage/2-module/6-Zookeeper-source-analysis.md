@@ -410,8 +410,257 @@ protected void setupRequestProcessors() {
 
 # 3 源码分析之 Leader 选举（一）
 
+分析 Zookeeper 中一个核心的模块，Leader 选举。
+
+**总体框架图**
+
+对于Leader 选举，其总体框架图如下图所示
+
+![image-20220725154728134](assest/image-20220725154728134.png)
+
+AuthFastLeaderElection，LeaderElection 其在 3.4.0 之后的版本中已经不建议使用。
+
+**Election 源码分析**
+
+```java
+/**
+ * 实现类：FastLeaderElection,其是标准的fast paxos算法的实现，基于TCP协议进行选举。
+ */
+public interface Election {
+    // 表示寻找Leader
+    public Vote lookForLeader() throws InterruptedException;
+    //关闭服务端之间的连接
+    public void shutdown();
+}
+```
+
+说明：
+
+选举的父接口为 Election，其定义了 lookForLeader 和 shutdown 两个方法。lookForLeader 表示寻找 Leader，shutdown 则表示关闭，如关闭服务端之间的连接。
+
 # 4 源码分析之 Leader 选举（二）之 FastLeaderElection
 
-## 4.1 FastLeaderElection 源码分析
+刚刚介绍了 Leader 选举的总体框架，接着来学习 Zookeeper 中默认的选举策略，FastLeaderElection。
+
+**FastLeaderElection 源码分析**
+
+类的继承关系
+
+```java
+public class FastLeaderElection implements Election {}
+```
+
+说明：FastLeaderElection 实现了 Election 接口，重写了接口中定义的 lookForLeader 方法 和 shutdown 方法。
+
+在源码分析之前，我们首先介绍几个概念：
+
+- 外部投票：特指其他服务器发来的投票。
+- 内部投票：服务器自身当前的投票。
+- 选举轮次：Zookeeper 服务器 Leader 选举的轮次，即 logical clock（逻辑时钟）。
+- PK：指对内部投票和外部投票进行一个对比来确定是否需要变更内部投票，选票管理。
+- sendqueue：选票发送队列，用于保存待发送的选票。
+- recvqueue：选票接收队列，用于保存接收到的外部投票。
+
+
+
+**FastLeaderElection 基本结构**
+
+![image-20220725155511579](assest/image-20220725155511579.png)
+
+
+
+## 4.1 lookForLeader函数
+
+当 Zookeeper 服务器检测到当前服务器状态变成 LOOKING 时，就会触发 Leader 选举，即调用 lookForLeader 方法来进行 Leader 选举。
+
+![image-20220725162922829](assest/image-20220725162922829.png)
+
+```java
+public Vote lookForLeader() throws InterruptedException {    
+        synchronized(this){
+            // 首先会将逻辑时钟自增，每进行一轮新的 Leader 选举，都需要更新逻辑时钟
+            logicalclock.incrementAndGet();
+            // 更新选票（初始化选票）
+            updateProposal(getInitId(), getInitLastLoggedZxid(), getPeerEpoch());
+        }
+
+        LOG.info("New election. My id =  " + self.getId() +
+                 ", proposed zxid=0x" + Long.toHexString(proposedZxid));
+        // 向其他服务器发送自己的选票（已更新的选票）
+        sendNotifications();
+```
+
+之后每台服务器会不断地从 recvqueue 队列中获取外部投票。如果服务器发现无法获取到任何外部投票，就立即确认自己是否和集群中其他服务器保持着有效地连接，如果没有连接，则立马建立连接，如果已经建立了连接，则再次发送自己当前的内部投票，其流程如下：
+
+```java
+// 从 recvqueue 接收队列中取出投票
+Notification n = recvqueue.poll(notTimeout, TimeUnit.MILLISECONDS);
+
+/*
+ * Sends more notifications if haven't received enough.
+ * Otherwise processes new notification.
+ */
+if(n == null){ // 无法获取选票
+    if(manager.haveDelivered()){ // manager 已经发送了所有选票消息（表示有连接）
+        // 向所有其他服务器发送消息
+        sendNotifications();
+    } else { // 还未发送所有消息（表示无连接）
+        // 连接其他每个服务器
+        manager.connectAll();
+    }
+
+    /*
+     * Exponential backoff
+     */
+    int tmpTimeOut = notTimeout*2;
+    notTimeout = (tmpTimeOut < maxNotificationInterval?
+                  tmpTimeOut : maxNotificationInterval);
+    LOG.info("Notification time out: " + notTimeout);
+} 
+```
+
+在发送完初始化选票之后，接着开始处理外部投票。在处理外部投票时，会根据选举轮次来进行不同的处理。
+
+- **外部投票的选举轮次大于内部投票**。若服务器自身的选举轮次落后于该外部投票对应服务器的选举轮次，那么就会立即更新自己的选举轮次（logical clock），并且清空所有已经收到的投票，然后使用初始化的投票来进行 PK 以确定是否变更内部投票。最终再将内部投票发送出去。
+- **外部投票的选举轮次小于内部投票**。若服务器接收的外部选票的选举轮次落后于自身的选举轮次，那么Zookeeper 就会直接忽略该外部投票，不做任何处理。
+- **外部投票的选举轮次等于内部投票**。此时可以开始进行选票 PK，如果消息中的选票更优，则需要更新本服务器内部的选票，再发送给其他服务器。
+
+之后再对选票进行归档操作，无论是否变更了投票，都会将刚刚收到的那份外部投票放入到选票集合 recvset 中进行归档，其中 recvset 用于记录当前服务器在本轮次的 Leader 选举中收到的所有外部投票，然后开始统计投票，**统计投票是为了统计集群中是否已经有过半的服务器认可了当前的内部投票**，如果确定已经有过半服务器认可了该投票，然后再进行最后一次确认，判断是否又有更优的选票产生，若无，则终止投票，然后最终的投票，其流程如下：
+
+```java
+						// If notification > current, replace and send messages out
+                        if (n.electionEpoch > logicalclock.get()) { // 其选举周期大于逻辑时钟
+                            // 重新赋值逻辑时钟
+                            logicalclock.set(n.electionEpoch);
+                            // 清空所有接收到的所有选票
+                            recvset.clear();
+                            if(totalOrderPredicate(n.leader, n.zxid, n.peerEpoch,
+                                    getInitId(), getInitLastLoggedZxid(), getPeerEpoch())) { // 进行 PK，选出较优的服务器
+                                // 更新选票
+                                updateProposal(n.leader, n.zxid, n.peerEpoch);
+                            } else { // 无法选出较优的服务器
+                                // 更新选票
+                                updateProposal(getInitId(),
+                                        getInitLastLoggedZxid(),
+                                        getPeerEpoch());
+                            }
+                            // 发送本服务器的内部选票消息
+                            sendNotifications();
+                        } else if (n.electionEpoch < logicalclock.get()) { // 选举周期小于逻辑时钟，不做处理，直接忽略
+                            if(LOG.isDebugEnabled()){
+                                LOG.debug("Notification election epoch is smaller than logicalclock. n.electionEpoch = 0x"
+                                        + Long.toHexString(n.electionEpoch)
+                                        + ", logicalclock=0x" + Long.toHexString(logicalclock.get()));
+                            }
+                            break;
+                        } else if (totalOrderPredicate(n.leader, n.zxid, n.peerEpoch,
+                                proposedLeader, proposedZxid, proposedEpoch)) { // PK，选出较优的服务器
+                            // 更新选票
+                            updateProposal(n.leader, n.zxid, n.peerEpoch);
+                            // 发送消息
+                            sendNotifications();
+                        }
+
+                        if(LOG.isDebugEnabled()){
+                            LOG.debug("Adding vote: from=" + n.sid +
+                                    ", proposed leader=" + n.leader +
+                                    ", proposed zxid=0x" + Long.toHexString(n.zxid) +
+                                    ", proposed election epoch=0x" + Long.toHexString(n.electionEpoch));
+                        }
+
+                        // recvset 用于记录当前服务器在本轮次的 Leader 选举中收到的所有外部投票
+                        recvset.put(n.sid, new Vote(n.leader, n.zxid, n.electionEpoch, n.peerEpoch));
+
+                        if (termPredicate(recvset,
+                                new Vote(proposedLeader, proposedZxid,
+                                        logicalclock.get(), proposedEpoch))) { // 若能选出 Leader
+
+                            // Verify if there is any change in the proposed leader
+                            while((n = recvqueue.poll(finalizeWait,
+                                    TimeUnit.MILLISECONDS)) != null){ // 遍历已经接收到的投票集合
+                                if(totalOrderPredicate(n.leader, n.zxid, n.peerEpoch,
+                                        proposedLeader, proposedZxid, proposedEpoch)){ // 选票有变更，比之前提议的Leader有更好的选票加入
+                                    // 将更优的选票放在 recvset 中
+                                    recvqueue.put(n);
+                                    break;
+                                }
+                            }
+
+                            /*
+                             * This predicate is true once we don't read any new
+                             * relevant message from the reception queue
+                             */
+                            if (n == null) { // 表示之前提议的 Leader 已经是最优的
+                                // 设置服务器状态
+                                self.setPeerState((proposedLeader == self.getId()) ?
+                                        ServerState.LEADING: learningState());
+
+                                // 最终的选票
+                                Vote endVote = new Vote(proposedLeader,
+                                        proposedZxid, proposedEpoch);
+                                // 清空 recvqueue 队列的选票
+                                leaveInstance(endVote);
+                                // 返回选票
+                                return endVote;
+                            }
+                        }
+```
+
+1. 自增选举轮次。在FastLeaderElection 实现中，有一个 logical clock 属性，用于标识当前 Leader 的选举轮次，Zookeeper 规定了所有有效的投票都必须在同一轮次中。Zookeeper 在开始新一轮的投票时，会首先对 logical clock 进行自增操作。
+
+2. 初始化选票。在开始进行新一轮的投票之前，每个服务器都会首先初始化自己的选票。在上图中已经讲过 Vote 数据结构，初始化选票也就是对 Vote 属性的初始化。在初始化阶段，每台服务器都会将自己推举为 Leader。
+
+3. 发送初始化选票。在完成选票的初始化后，服务器就会发起第一次投票。Zookeeper 会将刚刚初始化好的选票放入 sendqueue 队列中，由发送器 WorkerSender 负责发送。
+
+4. 接收外部投票。每台服务器都会不断从 recvqueue 队列中获取外部投票。如果服务器发现无法获取到任何外部投票，那么就会立即确认自己是否和集群中其他服务器保持着有效连接。如果发现没有建立连接，那么就会马上建立连接。如果已经建立的连接，那么就再次发送自己当前的内部投票。
+
+5. 判断选举轮次。当发送完初始化选票之后，接下来就要开始处理外部投票了。在处理外部投票的时候，会根据选举轮次来进行不同的处理。
+
+   - **外部投票的选举轮次大于内部投票**。如果服务器发现自己的选举轮次落后于该外部投票对应服务器的选举轮次，那么就会立即更新自己的选举轮次（logical clock），并且清空所有已经收到的投票，然后使用初始化的投票来进行 PK，以确定是否变更内部投票（关于 PK 的逻辑会在 步骤6 中讲解），最终再将内部投票发送出去。
+   - **外部投票的选举轮次小于内部投票**。如果接收到的选票的选举轮次落后于服务器自身的，那么 Zookeeper 就会直接忽略该外部投票，不做任何处理，并返回步骤 4。
+   - **外部投票的选举轮次等于内部投票**。这也是大多数投票的场景，如外部投票的选举轮次和内部投票一致的话，那么就开始进行选票 PK。总的来说，只有在同一个选举轮次的投票才是有效的投票。
+
+6. 选票 PK。在步骤5 中提到，在收到来自其他服务器的有效的外部投票后，就要进行选票 PK 了 —— 也就是 FastLeaderElection#totalOrderPredicate 的方法的核心逻辑。选票 PK 的目的是为了确定当前是否需要变更投票，主要从选举轮次、ZXID 和 SID 三个因素来考虑。
+
+   ```java
+   /*
+   		totalOrderPredicate 方法中的一段注释
+            * We return true if one of the following three cases hold:
+            * 1- New epoch is higher
+            * 2- New epoch is the same as current epoch, but new zxid is higher
+            * 3- New epoch is the same as current epoch, new zxid is the same
+            *  as current zxid, but server id is higher.
+            */
+   return ((newEpoch > curEpoch) ||
+                   ((newEpoch == curEpoch) &&
+                   ((newZxid > curZxid) || ((newZxid == curZxid) && (newId > curId)))));
+   ```
+
+   - 如果外部投票中被推举的 Leader 服务器的选举轮次大于内部投票，那么就需要进行投票变更。
+   - 如果选举轮次一致，那么就对比两者的 ZXID。如果外部投票的ZXID 大于内部投票，就需要进行投票变更。
+   - 如果两者 ZXID 一致，就对比 SID。如果外部投票的 SID 大于 内部投票，就进行投票变更。
+
+7. 变更投票。通过选票 PK 后，如果确定了外部投票优于内部投票（所谓的“优于”，是指外部投票所推举的服务器更适合成为 Leader），那么就进行投票变更 —— 使用外部投票的选票信息来覆盖内部投票。变更完成后，再次将这个变更后的内部投票发送出去。
+
+8. 选票归档。无论是否进行了投票变更，都会将刚刚收到的那份外部投票放入 “选票集合” recvset 中进行归档。recvset 用于记录当前服务器在本轮次的 Leader 选举中收到的所有外部投票 —— 按照服务器对应的 SID 来区分，例如 ：{ (1,vote1),  (2,vote2), ... }。
+
+9. 统计投票。完成了选票归档后，就可以开始停机投票了。统计投票的或称就是为例统计集群中是否已经有过半的服务器认可了当前的内部投票。如果确定已经有过半的服务器认可了该内部投票，则终止投票。否则返回步骤4。
+
+10. 更新服务器状态。统计投票后，如果已经确定可以终止投票，那么就开始更新服务器状态。服务器会首先判断当前被过半服务器认可的投票对应的 Leader 服务器是否是自己，如果是自己，那么就将自己的服务器状态更新为 LEADING；如果不是，那么就根据实际情况来确定自己是 FOLLOWING 或是 OBSERVING。
+
+
+
+以上 10 个步骤，就是 FastLeaderElection 选举算法的核心步骤，其中步骤 4 ~ 9 会经过几轮循环，直到 Leader 选举产生。另外还有一个细节需要注意，就是在完成步骤 9 之后，如果统计投票发现已经有过半的服务器认可了当前的选票，这个时候，Zookeeper 并不会立即进入步骤 10 来更新服务器状态，而是会等待一段时间（默认是 200 ms）来确定是否有新的更优的投票。
+
+
 
 # 5 zookeeper 源码分子之集群模式服务端
+
+
+
+
+
+
+
+
+
