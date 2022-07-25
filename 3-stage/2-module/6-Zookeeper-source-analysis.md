@@ -624,13 +624,13 @@ if(n == null){ // 无法获取选票
 
    ```java
    /*
-   		totalOrderPredicate 方法中的一段注释
-            * We return true if one of the following three cases hold:
-            * 1- New epoch is higher
-            * 2- New epoch is the same as current epoch, but new zxid is higher
-            * 3- New epoch is the same as current epoch, new zxid is the same
-            *  as current zxid, but server id is higher.
-            */
+    * totalOrderPredicate 方法中的一段注释
+    * We return true if one of the following three cases hold:
+    * 1- New epoch is higher
+    * 2- New epoch is the same as current epoch, but new zxid is higher
+    * 3- New epoch is the same as current epoch, new zxid is the same
+    *  as current zxid, but server id is higher.
+    */
    return ((newEpoch > curEpoch) ||
                    ((newEpoch == curEpoch) &&
                    ((newZxid > curZxid) || ((newZxid == curZxid) && (newId > curId)))));
