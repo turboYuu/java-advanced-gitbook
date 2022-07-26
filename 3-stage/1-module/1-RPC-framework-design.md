@@ -2880,8 +2880,119 @@ Java RMI，即远程方法调用（Remote Method Invocation），一种用于实
 [代码实例](https://gitee.com/turboYuu/rpc-3-1/tree/master/lab/RMI/src/com/turbo/rmi)
 
 1. 服务端
+
+   ```java
+   package com.turbo.rmi.server;
+   
+   import com.turbo.rmi.service.IUserService;
+   import com.turbo.rmi.service.UserServiceImpl;
+   
+   import java.rmi.RemoteException;
+   import java.rmi.registry.LocateRegistry;
+   import java.rmi.registry.Registry;
+   
+   /**
+    * 服务端
+    */
+   public class RMIServer {
+       public static void main(String[] args) {
+           try {
+               //1.注册Registry实例. 绑定端口
+               Registry registry = LocateRegistry.createRegistry(9998);
+               //2.创建远程对象
+               IUserService userService = new UserServiceImpl();
+               //3.将远程对象注册到RMI服务器上即(服务端注册表上)
+               registry.rebind("userService", userService);
+               System.out.println("---RMI服务端启动成功----");
+           } catch (RemoteException e) {
+               e.printStackTrace();
+           }
+       }
+   }
+   ```
+
+   
+
 2. 客户端
+
+   ```java
+   package com.turbo.rmi.client;
+   
+   import com.turbo.rmi.pojo.User;
+   import com.turbo.rmi.service.IUserService;
+   
+   import java.rmi.NotBoundException;
+   import java.rmi.RemoteException;
+   import java.rmi.registry.LocateRegistry;
+   import java.rmi.registry.Registry;
+   
+   /**
+    * 客户端
+    */
+   public class RMIClient {
+       public static void main(String[] args) throws RemoteException, NotBoundException {
+           //1.获取Registry实例
+           Registry registry = LocateRegistry.getRegistry("127.0.0.1", 9998);
+           //2.通过Registry实例查找远程对象
+           IUserService userService = (IUserService) registry.lookup("userService");
+           User user = userService.getByUserId(2);
+           System.out.println(user.getId() + "----" + user.getName());
+       }
+   }
+   ```
+
+   
+
 3. 接口与实现类
+
+   ```java
+   package com.turbo.rmi.service;
+   
+   import com.turbo.rmi.pojo.User;
+   
+   import java.rmi.Remote;
+   import java.rmi.RemoteException;
+   
+   public interface IUserService extends Remote {
+   
+       User getByUserId(int id) throws RemoteException;
+   }
+   ```
+
+   ```java
+   package com.turbo.rmi.service;
+   
+   import com.turbo.rmi.pojo.User;
+   
+   import java.rmi.RemoteException;
+   import java.rmi.server.UnicastRemoteObject;
+   import java.util.HashMap;
+   import java.util.Map;
+   
+   public class UserServiceImpl extends UnicastRemoteObject implements IUserService {
+       Map<Object, User> userMap = new HashMap();
+   
+       public UserServiceImpl() throws RemoteException {
+           super();
+           User user1 = new User();
+           user1.setId(1);
+           user1.setName("张三");
+           User user2 = new User();
+           user2.setId(2);
+           user2.setName("李四");
+           userMap.put(user1.getId(), user1);
+           userMap.put(user2.getId(), user2);
+   
+       }
+   
+       @Override
+       public User getByUserId(int id) throws RemoteException {
+           return userMap.get(id);
+       }
+   }
+   ```
+
+   
 
 ## 6.2 基于Netty实现RPC框架
 
@@ -3199,7 +3310,6 @@ Dubbo底层使用了Netty作为网络通讯框架，要求用Netty实现一个�
      }
      ```
    
-     
 2. 客户端代码实现
    - 客户端Netty启动类
    
