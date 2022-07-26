@@ -1044,5 +1044,7 @@ public Vote lookForLeader() throws InterruptedException {
 
 经过上面的发起投票，统计投票信息最终每个节点都会确认自己的身份，节点根据类型的不同会执行以下逻辑：
 
-
+1. 如果是 Leader 节点，首先会向其他节点发送一条 NEWLEADER 信息，确认自己的身份，等到各节点的 ACK 消息以后开始正是对外提供服务，同时开启新的监听器，处理新节点加入的逻辑。
+2. 如果是 Follower 节点，首先向 Leader 节点发送一条 FOLLOWERINFO 信息，告诉 Leader 节点自己处理的事务的最大 Zxid，然后 Leader 节点会根据自己最大 Zxid 与 Follower 节点进行同步，如果 Follower 节点落后的不多则会收到 Leader 的 DIFF 信息通过内存同步；如果 Follower 节点落后的很多则会收到 SNAP 通过快照同步，如果 Follower 节点的 Zxid 大于 Leader 节点 则会收到 TRUNC 信息忽略多余的事务。
+3. 如果是 Observer 节点，则与 Follower 节点相同。
 
