@@ -2856,7 +2856,7 @@ RPC的目标是要把2、3、4、5、7、8、9、10这些步骤都封装起来�
 
 ### 6.1.3 RMI
 
-Java RMI，即远程方法调用（Remote Method Invocation），一种用于实现远程过程调用（RPC - Remote Procedure Call）的Java API，能够直接传输序列化后的Java对象。它的实现依赖于Java虚拟机，因此它仅支持从一个JVM到另一个JVM的调用。
+Java RMI，即远程方法调用（Remote Method Invocation），一种用于实现远程过程调用（RPC - Remote Procedure Call）的 Java API，能够直接传输序列化后的 Java 对象。它的实现依赖于 Java 虚拟机，因此它仅支持从一个 JVM 到另一个 JVM 的调用。
 
 ![image-20211112145618809](assest/image-20211112145618809.png)
 
