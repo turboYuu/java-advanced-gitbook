@@ -135,6 +135,10 @@ https://gitee.com/turboYuu/rpc-3-1/tree/master/lab/socket
 
 
 
+![阻塞](assest/image-20220726134903186.png)
+
+![非阻塞](assest/image-20220726134929121.png)
+
 ![image-20211104153301346](assest/image-20211104153301346.png)
 
 ![image-20211104153313907](assest/image-20211104153313907.png)
@@ -205,7 +209,7 @@ AIO引入异步通道的概念，采用Proactor模式，简化了程序编写，
 
 ## 2.1 NIO介绍
 
-Java NIO全称Java non-blocking IO，是指JDK提供的新API。从JDK1.4 开始，Java提供了一系列改进输入/输出的新特性，被统称为NIO（New I/O）同步非阻塞。
+Java NIO全称 Java non-blocking IO，是指JDK提供的新API。从JDK1.4 开始，Java提供了一系列改进输入/输出的新特性，被统称为NIO（New I/O）同步非阻塞。
 
 1. NIO有三大部分：Channel（通道）、Buffer（缓冲区）、Selector（选择器）
 2. NIO是面向缓冲区编程的，数据读取到一个缓冲区，需要时可在缓冲区中前后移动，这就增加了处理过程中的灵活性，使用它可以提供非阻塞式的高伸缩性网络。
@@ -610,7 +614,7 @@ public class NIOClient {
 
 ![image-20211108111948660](assest/image-20211108111948660.png)
 
-**在这种没有选择器的情况下，对应每个连接对应一个处理线程。但是连接并不能骂声就会发送消息，所以还会产生资源浪费**
+**在这种没有选择器的情况下，对应每个连接对应一个处理线程。但是连接并不能马上就会发送消息，所以还会产生资源浪费**
 
 ![image-20211108112207553](assest/image-20211108112207553.png)
 
@@ -771,7 +775,7 @@ public class NIOSelectorServer {
 
 ### 3.1.2 概述
 
-Netty是由JBOSS提供的一个Java开源框架。Netty提供异步的、基于事件驱动的网络应用程序框架，用以快速开发高性能、高可靠的网络IO程序。Netty是一个基于NIO的网络编程框架，使用Netty可以帮助你快速、简单的开发出一个网络应用，相当于简化和流程化了NIO的开发过程。作为当前最流行的NIO框架，Netty在互联网领域、大数据分布式计算领域、游戏行业、通信行业等获得了广泛的应用，知名的Elasticsearch、Dubbo框架内部都采用了Netty。
+Netty是由 JBOSS 提供的一个Java开源框架。Netty 提供异步的、基于事件驱动的网络应用程序框架，用以快速开发高性能、高可靠的网络 IO 程序。Netty是一个基于NIO的网络编程框架，使用Netty可以帮助你快速、简单的开发出一个网络应用，相当于简化和流程化了NIO的开发过程。作为当前最流行的NIO框架，Netty在互联网领域、大数据分布式计算领域、游戏行业、通信行业等获得了广泛的应用，知名的 Elasticsearch、Dubbo 框架内部都采用了 Netty。
 
 https://netty.io/
 
@@ -2889,7 +2893,7 @@ Dubbo底层使用了Netty作为网络通讯框架，要求用Netty实现一个�
 2. 创建一个提供者，该类需要监听消费者的请求，并按照约定返回数据
 3. 创建一个消费者，该类需要透明的调用自己不存在的方法，内部需要使用Netty进行数据通信
 4. 提供者与消费者数据传输使用json字符串数据格式
-5. 提供者使用netty集成springboot环境实现
+5. 提供者使用netty 集成 springboot环境实现
 
 **案例：客户端远程调用服务点提供根据ID查询user对象的方法**
 
@@ -2901,13 +2905,600 @@ Dubbo底层使用了Netty作为网络通讯框架，要求用Netty实现一个�
 
 1. 服务端代码
    - 注解RpcService
+   
+     ```java
+     package com.turbo.rpc.provider.anno;
+     
+     import java.lang.annotation.ElementType;
+     import java.lang.annotation.Retention;
+     import java.lang.annotation.RetentionPolicy;
+     import java.lang.annotation.Target;
+     
+     /**
+      * 对外暴露服务接口
+      */
+     @Target(ElementType.TYPE) // 用于接口和类上
+     @Retention(RetentionPolicy.RUNTIME)// 在运行时可以获取到
+     public @interface RpcService {
+     }
+     ```
+   
+     
+   
    - 实现类UserServiceImpl
-   - 服务Netty启动类RpcServer
+   
+     ```java
+     package com.turbo.rpc.provider.service;
+     
+     import com.turbo.rpc.api.IUserService;
+     import com.turbo.rpc.pojo.User;
+     import com.turbo.rpc.provider.anno.RpcService;
+     import org.springframework.stereotype.Service;
+     
+     import java.util.HashMap;
+     import java.util.Map;
+     
+     @RpcService
+     @Service
+     public class UserServiceImpl implements IUserService {
+         Map<Object, User> userMap = new HashMap();
+     
+         @Override
+         public User getById(int id) {
+             if (userMap.size() == 0) {
+                 User user1 = new User();
+                 user1.setId(1);
+                 user1.setName("张三8899");
+                 User user2 = new User();
+                 user2.setId(2);
+                 user2.setName("李四8899");
+                 userMap.put(user1.getId(), user1);
+                 userMap.put(user2.getId(), user2);
+             }
+             return userMap.get(id);
+         }
+     }
+     ```
+   
+     
+   
+   - 服务端 Netty 启动类 RpcServer
+   
+     ```java
+     package com.turbo.rpc.provider.server;
+     
+     import com.turbo.rpc.provider.handler.RpcServerHandler;
+     import io.netty.bootstrap.ServerBootstrap;
+     import io.netty.channel.ChannelFuture;
+     import io.netty.channel.ChannelInitializer;
+     import io.netty.channel.ChannelPipeline;
+     import io.netty.channel.nio.NioEventLoopGroup;
+     import io.netty.channel.socket.SocketChannel;
+     import io.netty.channel.socket.nio.NioServerSocketChannel;
+     import io.netty.handler.codec.string.StringDecoder;
+     import io.netty.handler.codec.string.StringEncoder;
+     import org.springframework.beans.factory.DisposableBean;
+     import org.springframework.beans.factory.annotation.Autowired;
+     import org.springframework.stereotype.Service;
+     
+     /**
+      * 启动类
+      */
+     @Service
+     public class RpcServer implements DisposableBean {
+     
+         private NioEventLoopGroup bossGroup;
+     
+         private NioEventLoopGroup workerGroup;
+     
+         @Autowired
+         RpcServerHandler rpcServerHandler;
+     
+     
+         public void startServer(String ip, int port) {
+             try {
+                 //1. 创建线程组
+                 bossGroup = new NioEventLoopGroup(1);
+                 workerGroup = new NioEventLoopGroup();
+                 //2. 创建服务端启动助手
+                 ServerBootstrap serverBootstrap = new ServerBootstrap();
+                 //3. 设置参数
+                 serverBootstrap.group(bossGroup, workerGroup)
+                         .channel(NioServerSocketChannel.class)
+                         .childHandler(new ChannelInitializer<SocketChannel>() {
+                             @Override
+                             protected void initChannel(SocketChannel channel) throws Exception {
+                                 ChannelPipeline pipeline = channel.pipeline();
+                                 //添加String的编解码器
+                                 pipeline.addLast(new StringDecoder());
+                                 pipeline.addLast(new StringEncoder());
+                                 //业务处理类
+                                 pipeline.addLast(rpcServerHandler);
+                             }
+                         });
+                 //4.绑定端口
+                 ChannelFuture sync = serverBootstrap.bind(ip, port).sync();
+                 System.out.println("==========服务端启动成功==========");
+                 sync.channel().closeFuture().sync();
+             } catch (InterruptedException e) {
+                 e.printStackTrace();
+             } finally {
+                 if (bossGroup != null) {
+                     bossGroup.shutdownGracefully();
+                 }
+     
+                 if (workerGroup != null) {
+                     workerGroup.shutdownGracefully();
+                 }
+             }
+         }
+     
+     
+         @Override
+         public void destroy() throws Exception {
+             if (bossGroup != null) {
+                 bossGroup.shutdownGracefully();
+             }
+     
+             if (workerGroup != null) {
+                 workerGroup.shutdownGracefully();
+             }
+         }
+     }
+     ```
+   
+     
+   
    - 服务业务处理类RpcServerHandler
+   
+     ```java
+     package com.turbo.rpc.provider.handler;
+     
+     import com.alibaba.fastjson.JSON;
+     import com.turbo.rpc.common.RpcRequest;
+     import com.turbo.rpc.common.RpcResponse;
+     import com.turbo.rpc.provider.anno.RpcService;
+     import io.netty.channel.ChannelHandler;
+     import io.netty.channel.ChannelHandlerContext;
+     import io.netty.channel.SimpleChannelInboundHandler;
+     import org.springframework.beans.BeansException;
+     import org.springframework.cglib.reflect.FastClass;
+     import org.springframework.cglib.reflect.FastMethod;
+     import org.springframework.context.ApplicationContext;
+     import org.springframework.context.ApplicationContextAware;
+     import org.springframework.stereotype.Component;
+     
+     import java.lang.reflect.InvocationTargetException;
+     import java.util.Map;
+     import java.util.Set;
+     import java.util.concurrent.ConcurrentHashMap;
+     
+     /**
+      * 服务端业务处理类
+      * 1.将标有@RpcService注解的bean缓存
+      * 2.接收客户端请求
+      * 3.根据传递过来的beanName从缓存中查找到对应的bean
+      * 4.解析请求中的方法名称. 参数类型 参数信息
+      * 5.反射调用bean的方法
+      * 6.给客户端进行响应
+      */
+     @Component
+     @ChannelHandler.Sharable //被共享
+     public class RpcServerHandler extends SimpleChannelInboundHandler<String> implements ApplicationContextAware {
+     
+         private static final Map SERVICE_INSTANCE_MAP = new ConcurrentHashMap();
+     
+         /**
+          * 1.将标有@RpcService注解的bean缓存
+          *
+          * @param applicationContext
+          * @throws BeansException
+          */
+         @Override
+         public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+             Map<String, Object> serviceMap = applicationContext.getBeansWithAnnotation(RpcService.class);
+             if (serviceMap != null && serviceMap.size() > 0) {
+                 Set<Map.Entry<String, Object>> entries = serviceMap.entrySet();
+                 for (Map.Entry<String, Object> item : entries) {
+                     Object serviceBean = item.getValue();
+                     if (serviceBean.getClass().getInterfaces().length == 0) {
+                         throw new RuntimeException("服务必须实现接口");
+                     }
+                     //默认取第一个接口作为缓存bean的名称
+                     String name = serviceBean.getClass().getInterfaces()[0].getName();
+                     SERVICE_INSTANCE_MAP.put(name, serviceBean);
+                 }
+             }
+         }
+     
+         /**
+          * 通道读取就绪事件
+          *
+          * @param channelHandlerContext
+          * @param msg
+          * @throws Exception
+          */
+         @Override
+         protected void channelRead0(ChannelHandlerContext channelHandlerContext, String msg) throws Exception {
+             //1.接收客户端请求- 将msg转化RpcRequest对象
+             RpcRequest rpcRequest = JSON.parseObject(msg, RpcRequest.class);
+             // 向客户端返回信息
+             RpcResponse rpcResponse = new RpcResponse();
+             rpcResponse.setRequestId(rpcRequest.getRequestId());
+             try {
+                 //业务处理
+                 rpcResponse.setResult(handler(rpcRequest));
+             } catch (Exception exception) {
+                 exception.printStackTrace();
+                 rpcResponse.setError(exception.getMessage());
+             }
+             //6.给客户端进行响应
+             channelHandlerContext.writeAndFlush(JSON.toJSONString(rpcResponse));
+     
+         }
+     
+         /**
+          * 业务处理逻辑
+          *
+          * @return
+          */
+         public Object handler(RpcRequest rpcRequest) throws InvocationTargetException {
+             // 3.根据传递过来的beanName从缓存中查找到对应的bean
+             Object serviceBean = SERVICE_INSTANCE_MAP.get(rpcRequest.getClassName());
+             if (serviceBean == null) {
+                 throw new RuntimeException("根据beanName找不到服务,beanName:" + rpcRequest.getClassName());
+             }
+             //4.解析请求中的方法名称. 参数类型 参数信息
+             Class<?> serviceBeanClass = serviceBean.getClass();
+             String methodName = rpcRequest.getMethodName();
+             Class<?>[] parameterTypes = rpcRequest.getParameterTypes();
+             Object[] parameters = rpcRequest.getParameters();
+             //5.反射调用bean的方法- CGLIB反射调用
+             FastClass fastClass = FastClass.create(serviceBeanClass);
+             FastMethod method = fastClass.getMethod(methodName, parameterTypes);
+             return method.invoke(serviceBean, parameters);
+         }
+     
+     
+     }
+     ```
+   
+     
+   
    - 启动类ServerBootstrap
+   
+     ```java
+     package com.turbo.rpc.provider;
+     
+     import com.turbo.rpc.provider.server.RpcServer;
+     import org.springframework.beans.factory.annotation.Autowired;
+     import org.springframework.boot.CommandLineRunner;
+     import org.springframework.boot.SpringApplication;
+     import org.springframework.boot.autoconfigure.SpringBootApplication;
+     
+     @SpringBootApplication
+     public class ServerBootstrapApplication implements CommandLineRunner {
+     
+     
+         @Autowired
+         RpcServer rpcServer;
+     
+         public static void main(String[] args) {
+             SpringApplication.run(ServerBootstrapApplication.class, args);
+         }
+     
+         @Override
+         public void run(String... args) throws Exception {
+             new Thread(new Runnable() {
+                 @Override
+                 public void run() {
+                     rpcServer.startServer("127.0.0.1", 8899);
+                 }
+             }).start();
+         }
+     }
+     ```
+   
+     
 2. 客户端代码实现
    - 客户端Netty启动类
+   
+     ```java
+     package com.turbo.rpc.consumer.client;
+     
+     import com.turbo.rpc.consumer.handler.RpcClientHandler;
+     import io.netty.bootstrap.Bootstrap;
+     import io.netty.channel.*;
+     import io.netty.channel.nio.NioEventLoopGroup;
+     import io.netty.channel.socket.SocketChannel;
+     import io.netty.channel.socket.nio.NioSocketChannel;
+     import io.netty.handler.codec.string.StringDecoder;
+     import io.netty.handler.codec.string.StringEncoder;
+     
+     import java.util.concurrent.ExecutionException;
+     import java.util.concurrent.ExecutorService;
+     import java.util.concurrent.Executors;
+     import java.util.concurrent.Future;
+     
+     /**
+      * 客户端
+      * 1.连接Netty服务端
+      * 2.提供给调用者主动关闭资源的方法
+      * 3.提供消息发送的方法
+      */
+     public class RpcClient {
+     
+         private EventLoopGroup group;
+     
+         private Channel channel;
+     
+         private String ip;
+     
+         private int port;
+     
+         private RpcClientHandler rpcClientHandler = new RpcClientHandler();
+     
+         private ExecutorService executorService = Executors.newCachedThreadPool();
+     
+         public RpcClient(String ip, int port) {
+             this.ip = ip;
+             this.port = port;
+             initClient();
+         }
+     
+         /**
+          * 初始化方法-连接Netty服务端
+          */
+         public void initClient() {
+             try {
+                 //1.创建线程组
+                 group = new NioEventLoopGroup();
+                 //2.创建启动助手
+                 Bootstrap bootstrap = new Bootstrap();
+                 //3.设置参数
+                 bootstrap.group(group)
+                         .channel(NioSocketChannel.class) // 通道实现
+                         .option(ChannelOption.SO_KEEPALIVE, Boolean.TRUE) // 通道活跃状态
+                         .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 3000) //连接超时时间
+                         .handler(new ChannelInitializer<SocketChannel>() { // 通道初始化对象
+                             @Override
+                             protected void initChannel(SocketChannel channel) throws Exception {
+                                 ChannelPipeline pipeline = channel.pipeline();
+                                 //String类型编解码器
+                                 pipeline.addLast(new StringDecoder());
+                                 pipeline.addLast(new StringEncoder());
+                                 //添加客户端处理类
+                                 pipeline.addLast(rpcClientHandler);
+                             }
+                         });
+                 //4.连接Netty服务端
+                 channel = bootstrap.connect(ip, port).sync().channel();
+             } catch (Exception exception) {
+                 exception.printStackTrace();
+                 if (channel != null) {
+                     channel.close();
+                 }
+                 if (group != null) {
+                     group.shutdownGracefully();
+                 }
+             }
+         }
+     
+         /**
+          * 提供给调用者主动关闭资源的方法
+          */
+         public void close() {
+             if (channel != null) {
+                 channel.close();
+             }
+             if (group != null) {
+                 group.shutdownGracefully();
+             }
+         }
+     
+         /**
+          * 提供消息发送的方法
+          */
+         public Object send(String msg) throws ExecutionException, InterruptedException {
+             rpcClientHandler.setRequestMsg(msg);
+             Future submit = executorService.submit(rpcClientHandler);
+             return submit.get();
+         }
+     }
+     
+     ```
+   
+     
+   
    - 客户端业务处理类RpcClientHandler
+   
+     ```java
+     package com.turbo.rpc.consumer.handler;
+     
+     import io.netty.channel.ChannelHandlerContext;
+     import io.netty.channel.SimpleChannelInboundHandler;
+     
+     import java.util.concurrent.Callable;
+     
+     /**
+      * 客户端处理类
+      * 1.发送消息
+      * 2.接收消息
+      */
+     public class RpcClientHandler extends SimpleChannelInboundHandler<String> implements Callable {
+     
+         ChannelHandlerContext context;
+         //发送的消息
+         String requestMsg;
+     
+         //服务端的消息
+         String responseMsg;
+     
+         public void setRequestMsg(String requestMsg) {
+             this.requestMsg = requestMsg;
+         }
+     
+         /**
+          * 通道连接就绪事件
+          *
+          * @param ctx
+          * @throws Exception
+          */
+         @Override
+         public void channelActive(ChannelHandlerContext ctx) throws Exception {
+             context = ctx;
+         }
+     
+         /**
+          * 通道读取就绪事件
+          *
+          * @param channelHandlerContext
+          * @param msg
+          * @throws Exception
+          */
+         @Override
+         protected synchronized void channelRead0(ChannelHandlerContext channelHandlerContext, String msg) throws Exception {
+             responseMsg = msg;
+             //唤醒等待的线程
+             notify();
+         }
+     
+         /**
+          * 发送消息到服务端
+          *
+          * @return
+          * @throws Exception
+          */
+         @Override
+         public synchronized Object call() throws Exception {
+             //消息发送
+             context.writeAndFlush(requestMsg);
+             //线程等待
+             wait();
+             return responseMsg;
+         }
+     }
+     ```
+   
+     
+   
    - RPC代理类
+   
+     ```java
+     package com.turbo.rpc.consumer.proxy;
+     
+     import com.alibaba.fastjson.JSON;
+     import com.turbo.rpc.common.RpcRequest;
+     import com.turbo.rpc.common.RpcResponse;
+     import com.turbo.rpc.consumer.client.RpcClient;
+     import org.springframework.stereotype.Component;
+     
+     import java.lang.reflect.InvocationHandler;
+     import java.lang.reflect.Method;
+     import java.lang.reflect.Proxy;
+     import java.util.UUID;
+     
+     /**
+      * 客户端代理类-创建代理对象
+      * 1.封装request请求对象
+      * 2.创建RpcClient对象
+      * 3.发送消息
+      * 4.返回结果
+      */
+     @Component
+     public class RpcClientProxy {
+     
+         int port = 8899;
+     
+         public Object createProxy(Class serviceClass) {
+             return Proxy.newProxyInstance(Thread.currentThread().getContextClassLoader(),
+                     new Class[]{serviceClass}, new InvocationHandler() {
+                         @Override
+                         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+                             //1.封装request请求对象
+                             RpcRequest rpcRequest = new RpcRequest();
+                             rpcRequest.setRequestId(UUID.randomUUID().toString());
+                             rpcRequest.setClassName(method.getDeclaringClass().getName());
+                             rpcRequest.setMethodName(method.getName());
+                             rpcRequest.setParameterTypes(method.getParameterTypes());
+                             rpcRequest.setParameters(args);
+                             //2.创建RpcClient对象
+                             if(port == 8899){
+                                 port = 8898;
+                             }else {
+                                 port = 8899;
+                             }
+                             RpcClient rpcClient = new RpcClient("127.0.0.1", port);
+                             try {
+                                 //3.发送消息
+                                 Object responseMsg = rpcClient.send(JSON.toJSONString(rpcRequest));
+                                 RpcResponse rpcResponse = JSON.parseObject(responseMsg.toString(), RpcResponse.class);
+                                 if (rpcResponse.getError() != null) {
+                                     throw new RuntimeException(rpcResponse.getError());
+                                 }
+                                 //4.返回结果
+                                 Object result = rpcResponse.getResult();
+                                 return JSON.parseObject(result.toString(), method.getReturnType());
+                             } catch (Exception e) {
+                                 throw e;
+                             } finally {
+                                 rpcClient.close();
+                             }
+     
+                         }
+                     });
+         }
+     }
+     ```
+   
+   - UserController 类
+   
+     ```java
+     package com.turbo.rpc.consumer.controller;
+     
+     import com.turbo.rpc.api.IUserService;
+     import com.turbo.rpc.consumer.proxy.RpcClientProxy;
+     import com.turbo.rpc.pojo.User;
+     import org.springframework.beans.factory.annotation.Autowired;
+     import org.springframework.web.bind.annotation.GetMapping;
+     import org.springframework.web.bind.annotation.PathVariable;
+     import org.springframework.web.bind.annotation.RequestMapping;
+     import org.springframework.web.bind.annotation.RestController;
+     
+     @RestController
+     @RequestMapping("/")
+     public class UserController {
+     
+         @Autowired
+         RpcClientProxy rpcClientProxy;
+     
+         @GetMapping("{id}")
+         public User get(@PathVariable("id") Integer id){
+             IUserService userService = (IUserService) rpcClientProxy.createProxy(IUserService.class);
+             User user = userService.getById(id);
+             return user;
+         }
+     }
+     ```
+   
+     
+   
    - 客户端启动类ClientBootstrap
+   
+     ```java
+     package com.turbo.rpc.consumer;
+     
+     import org.springframework.boot.SpringApplication;
+     import org.springframework.boot.autoconfigure.SpringBootApplication;
+     
+     @SpringBootApplication
+     public class ClientBootStrap {
+     
+         public static void main(String[] args) {
+             SpringApplication.run(ClientBootStrap.class,args);
+         }
+     }
+     ```
+   
+     
 
