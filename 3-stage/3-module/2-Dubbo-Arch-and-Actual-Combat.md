@@ -65,11 +65,266 @@ Apache Dubbo 是一款 RPC 服务开发框架，用于解决微服务架构下�
 
 ## 4.2 开发过程
 
+官网参考 [以注解配置的方式来配置你的 Dubbo 应用](https://dubbo.apache.org/zh/docsv2.7/user/configuration/annotation/) 示例中使用的 dubbo 版本：`2.7.3`
+
+![image-20220727155516722](assest/image-20220727155516722.png)
+
 ### 4.2.1 接口协定
+
+1. 定义 maven
+
+   ```xml
+   <parent>
+       <artifactId>demo-base</artifactId>
+       <groupId>com.turbo</groupId>
+       <version>1.0-SNAPSHOT</version>
+   </parent>
+   <modelVersion>4.0.0</modelVersion>
+   
+   <artifactId>service-api</artifactId>
+   ```
+
+2. 定义接口，这里为了方便，知识写一个基本的方法
+
+   ```java
+   package com.turbo.service;
+   
+   public interface HelloService {
+   
+       String sayHello(String name);
+   }
+   ```
+
+   
 
 ### 4.2.2 创建接口提供者
 
+1. 引入 API 模块
+
+   ```xml
+   <dependency>
+       <groupId>com.turbo</groupId>
+       <artifactId>service-api</artifactId>
+       <version>1.0-SNAPSHOT</version>
+   </dependency>
+   ```
+
+2. 引入Dubbo相关依赖，这里使用注解方式
+
+   ```xml
+   <dependency>
+       <groupId>org.apache.dubbo</groupId>
+       <artifactId>dubbo</artifactId>
+   </dependency>
+   <dependency>
+       <groupId>org.apache.dubbo</groupId>
+       <artifactId>dubbo-registry-zookeeper</artifactId>
+   </dependency>
+   <dependency>
+       <groupId>org.apache.dubbo</groupId>
+       <artifactId>dubbo-rpc-dubbo</artifactId>
+   </dependency>
+   <dependency>
+       <groupId>org.apache.dubbo</groupId>
+       <artifactId>dubbo-remoting-netty4</artifactId>
+   </dependency>
+   <dependency>
+       <groupId>org.apache.dubbo</groupId>
+       <artifactId>dubbo-serialization-hessian2</artifactId>
+   </dependency>
+   ```
+
+3. 编写实现类。注意这里也是用了 Dubbo 中的 `@Service` 注解来声明它是一个服务的提供者。
+
+   ```java
+   package com.turbo.service.impl;
+   
+   import com.turbo.service.HelloService;
+   import org.apache.dubbo.config.annotation.Service;
+   
+   /**
+    * @author yutao
+    */
+   @Service
+   public class HelloServiceImpl implements HelloService {
+       @Override
+       public String sayHello(String name) {
+           return "Hello:"+name;
+       }
+   }
+   ```
+
+4. 编写配置文件，用于配置 dubbo。比如这里叫 `dubbo-provider.properties`，放到 `resources` 目录下：
+
+   ```properties
+   dubbo.application.name=service-provider
+   dubbo.protocol.name=dubbo
+   dubbo.protocol.port=20880
+   ```
+
+   - dubbo.application.name ：当前提供者的名称。
+   - dubbo.protocol.name：对外提供的时候使用的协议。
+   - dubbo.protocol.port：该服务对外暴露的端口是什么，在消费者使用时，则会使用这个端口并且使用指定的协议与提供者建立连接。
+
+5. 编写启动的 `main` 函数。
+
+   ```java
+   package com.turbo;
+   
+   import org.apache.dubbo.config.RegistryConfig;
+   import org.apache.dubbo.config.spring.context.annotation.EnableDubbo;
+   import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+   import org.springframework.context.annotation.Bean;
+   import org.springframework.context.annotation.Configuration;
+   import org.springframework.context.annotation.PropertySource;
+   
+   import java.io.IOException;
+   
+   /**
+    * @author yutao
+    */
+   public class DubboPureMain {
+   
+       public static void main(String[] args) throws IOException {
+           AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(ProviderConfiguration.class);
+           context.start();
+           System.in.read();
+       }
+   
+       /**
+        * 服务提供者的配置类
+        */
+       @Configuration
+       @EnableDubbo(scanBasePackages = "com.turbo.service.impl")
+       @PropertySource("classpath:/dubbo-provider.properties")
+       static class ProviderConfiguration{
+           @Bean
+           public RegistryConfig registryConfig(){
+               RegistryConfig registryConfig = new RegistryConfig();
+               registryConfig.setAddress("zookeeper://152.136.177.192:2181");
+               return registryConfig;
+           }
+       }
+   }
+   ```
+
+   
+
 ### 4.2.3 创建消费者
+
+1. 引入 API 模块
+
+   ```xml
+   <dependency>
+       <groupId>com.turbo</groupId>
+       <artifactId>service-api</artifactId>
+       <version>1.0-SNAPSHOT</version>
+   </dependency>
+   ```
+
+2. 引入 Dubbo 依赖，同服务提供者。
+
+3. 编写服务，用于真实的引用 dubbo 接口并使用。这里面 `@Reference` 所指向的就是真实的第三方服务接口。
+
+   ```java
+   package com.turbo.bean;
+   
+   import com.turbo.service.HelloService;
+   import org.apache.dubbo.config.annotation.Reference;
+   import org.springframework.stereotype.Component;
+   
+   /**
+    * @author yutao
+    */
+   @Component
+   public class ConsumerComponet {
+   
+       /**
+        * 引用dubbo的组件  @Reference
+        */
+       @Reference
+       private HelloService helloService;
+   
+       public String sayHello(String name){
+           return helloService.sayHello(name);
+       }
+   }
+   ```
+
+4. 编写消费者的配置文件。这里比较简单，主要就是指定了当前消费者的名称和注册中心的地址。通过这个注册中心地址，消费者就会注册到这里并且也可以根据这个注册中心找到真正的服务提供者列表。
+
+   ```properties
+   dubbo.application.name=service-consumer
+   dubbo.registry.address=zookeeper://152.136.177.192:2181
+   ```
+
+5. 编写启动类，用户在控制台输入一次换行后，则会发起一次请求。
+
+   ```java
+   package com.turbo;
+   
+   import com.turbo.bean.ConsumerComponet;
+   import org.apache.dubbo.config.spring.context.annotation.EnableDubbo;
+   import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+   import org.springframework.context.annotation.ComponentScan;
+   import org.springframework.context.annotation.Configuration;
+   import org.springframework.context.annotation.PropertySource;
+   
+   import java.io.IOException;
+   
+   public class AnnotationConsumerMain {
+   
+       public static void main(String[] args) throws IOException {
+           AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(ConsumerConfiguration.class);
+           context.start();
+           // 获取消费者组件
+           ConsumerComponet service = context.getBean(ConsumerComponet.class);
+           while (true){
+               System.in.read();
+               try{
+                   String world = service.sayHello("world");
+                   System.out.println("result:"+world);
+               }catch (Exception e){
+                   e.printStackTrace();
+               }
+   
+           }
+       }
+   
+       /**
+        *
+        */
+       @Configuration
+       @EnableDubbo
+       @PropertySource("classpath:/dubbo-consumer.properties")
+       @ComponentScan(basePackages = {"com.turbo.bean"})
+       static class ConsumerConfiguration{
+   
+       }
+   }
+   ```
+
+
+
+### 4.2.4 QOS 概述
+
+启动 服务提供者，然后启动服务消费者，消费者报错。
+
+![image-20220727163359441](assest/image-20220727163359441.png)
+
+错误提示 Qos 22222 端口已经被占用。
+
+参考官网 [QoS 参数配置](https://dubbo.apache.org/zh/docs3-v2/java-sdk/reference-manual/qos/overview/)
+
+使用系统属性方式配置，在服务端或消费端（主要是避免服务端和消费端 Qos 端口冲突）
+
+![image-20220727163559900](assest/image-20220727163559900.png)
+
+`telnet localhost 22222(qos.port)`
+
+![image-20220727163811181](assest/image-20220727163811181.png)
+
+
 
 ## 4.3 配置方式介绍
 
