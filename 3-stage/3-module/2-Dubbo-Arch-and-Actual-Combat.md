@@ -632,15 +632,95 @@ Apache Dubbo 是一款 RPC 服务开发框架，用于解决微服务架构下�
 
 ## 6.5 dubbo:reference
 
+服务消费者引用服务配置。对应的配置类：`org.apache.dubbo.config.ReferenceConfig`
 
+1. id：指定该 Bean 在注册到 Spring 中的 id。
+2. interface：服务接口名。
+3. version：指定当前服务版本，与服务提供者的版本一致。
+4. registry：指定具体使用的注册中心地址，多个注册中心ID用逗号分隔。这里面也就是使用上面在 `<dubbo:registry>` 中所声明的 id。
 
 ## 6.6 dubbo:method
 
+方法级配置。对应的配置类：`org.apache.dubbo.config.ReferenceConfig`。同时该标签为：`<dubbo:service>` 或 `<dubbo:reference>` 的子标签，用于控制到方法级。
 
+1. name：指定方法名称，用于对这个方法名称的 RPC 调用进行特殊配置。
+2. async：是否异步，默认 false。
 
 ## 6.7 dubbo:service 和 dubbo:reference 详解
 
+这两个在 dubbo 中是我们最常用的部分，其中有一些我们必然会接触到的属性。并且这里讲到一些设置上的使用方案。
 
+1. mock：用于在方法调用出现错误时，当做服务降级来统一对外返回结果。
+
+   ```xml
+    <!-- 生成远程服务代理，可以和本地bean一样使用helloService -->
+       <dubbo:reference id="helloService" interface="com.turbo.service.HelloService" mock="true" />
+   ```
+
+   在消费端增加 `HelloServiceMock` （HelloService 的实现类）
+
+   ```java
+   public class HelloServiceMock implements HelloService {
+       @Override
+       public String sayHello(String name) {
+           return "hello mock";
+       }
+   }
+   ```
+
+   ![image-20220728145907329](assest/image-20220728145907329.png)
+
+   结果
+
+   ![image-20220728145933460](assest/image-20220728145933460.png)
+
+2. timeout：用于指定当前方法 或者 接口中所有方法的超时时间。一般都会根据提供者的时长来具体规定。比如我们在进行第三方服务依赖时可能会对接口的时长做放宽，防止第三方服务不稳定导致服务受损。
+
+   ```xml
+   <dubbo:consumer timeout="2000" check="false"/> <!--dubbo:consumer 中的 timeout 优先级更高-->
+   <!-- 生成远程服务代理，可以和本地bean一样使用helloService -->
+   <dubbo:reference id="helloService" interface="com.turbo.service.HelloService" timeout="2000" />
+   ```
+
+   
+
+3. check：用于在启动时，检查生产者时候有该服务。我们一般都会将这个值设置为 false，不让其进行检查。因为如果出现模块之间循环引用的化，那么可能会出现相互依赖，都进行 check 的话，那么这两个服务永远也启动不起来。
+
+   ```xml
+   <dubbo:consumer timeout="2000" check="true"/> <!--先启动consumer，启动时会报错-->
+   ```
+
+   
+
+   ![image-20220728150857284](assest/image-20220728150857284.png)
+
+   consumer可以先正常启动，在不远程调用方法之前
+
+   ```xml
+   <dubbo:consumer timeout="2000" check="false"/>
+   ```
+
+   
+
+   
+
+4. retries：用于指定当前服务在执行时出现错误或者超时的重试机制。
+
+   - 注意提供者是否有**幂等**，否则可能出现数据一致性问题。
+   - 注意提供者是否有类似缓存机制，如果出现大面积错误，可能因为不停重试导致雪崩。
+
+   ```xml
+   <!-- 生成远程服务代理，可以和本地bean一样使用helloService -->
+   <dubbo:reference id="helloService" interface="com.turbo.service.HelloService" timeout="2000" retries="2" mock="true" />
+   ```
+
+   ![image-20220728151436790](assest/image-20220728151436790.png)
+
+5. executes：用户在提供者做配置，来确保最大的并行度。
+
+   - 可能导致集群无法充分利用或者阻塞
+   - 但是也可以启动部分对应用的保护功能
+   - 可以不做配置，结合后面熔断限流使用
 
 ## 6.8 其他配置 
 
