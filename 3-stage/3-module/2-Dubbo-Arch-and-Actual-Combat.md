@@ -583,3 +583,65 @@ Apache Dubbo 是一款 RPC 服务开发框架，用于解决微服务架构下�
 ![image-20220727190001073](assest/image-20220727190001073.png)
 
 # 6 Dubbo配置项说明
+
+[Dubbo 的 XML Schema 配置参考手册](https://dubbo.apache.org/zh/docs/v2.7/user/references/xml/)
+
+## 6.1 dubbo:application
+
+[application 2.7](https://dubbo.apache.org/zh/docs/v2.7/user/references/xml/dubbo-application/)
+
+[application 3.0](https://dubbo.apache.org/zh/docs3-v2/java-sdk/reference-manual/config/properties/#application)
+
+每个应用必须要有一个且只有一个 application 配置，对应的配置类：`org.apache.dubbo.config.ApplicationConfig`
+
+1. name：当前应用程序的名称，在 `dubbo-admin` 中可以看到，这个代表这个应用名称。在真正使用时 也会根据这个参数来进行聚合应用请求。
+2. owner：当前应用程序的负责人，可以通过这个负责人找到其相关的应用列表，用于快速定位到责任人。
+3. qosEnable：是否启动QoS，more true
+4. qosPort：启动 QoS绑定的端口，默认 22222
+5. qosAcceptForeignIp：安全配置，是否接收除 localhost 本机访问之外的外部请求。
+
+
+
+## 6.2 dubbo:registry
+
+注册中心配置。对应的配置类：`org.apache.dubbo.config.RegistryConfig`。如果同时有多个注册中心，可以声明多个 `<dubbo:regisrty>` 标签，并在 `<dubbo:service>` 或 `<dubbo:reference>` 的 `registry` 属性指定使用的注册中心。
+
+1. id：如果当前服务中 provider 或者 consumer 中存在多个注册中心时，则使用时需要增加该配置。在一些公司，会通过业务线的不同选择不同的注册中心，所以一般都会配置该值。
+2. address：当前注册中心的访问地址。
+3. protocol：当前注册中心所使用的协议是什么。也可以直接在 `address` 中写入，比如使用 zookeeper，就可以写成 `zookeeper://xx.xx.xx.xx:2181`
+4. timeout：当于注册中心不在同一个机房时，大多会把该参数延长。
+
+
+
+## 6.3 dubbo:protocol
+
+指定服务在进行数据传输所使用的协议。对应的配置类：`org.apache.dubbo.config.ProtocolConfig`。同时，如果需要支持多协议，可以声明多个 `<dubbo:protocol>` 标签，并在 `<dubbo:service>` 中通过 `protocol` 属性指定使用的协议。
+
+1. id：在大公司，可能因为各个部门技术栈不同，所以可能会选择使用不同的协议进行交互。这里在多喝协议使用时，需要指定。
+2. name：指定协议名称。默认使用 `dubbo`。
+
+
+
+## 6.4 dubbo:service
+
+**服务提供者暴露的服务配置**，对应的配置类：`org.apache.dubbo.config.ServiceConfig`
+
+1. interface：指定当前需要进行对外暴露的接口是什么。
+2. ref：具体实现对象的引用，一般在生产级别都是使用 Spring 去进行 Bean 托管，所以这里一般也指的是 Spring 中的 BeanId。
+3. version：对外暴露的版本号。不同的版本号，消费者在消费的时候只会根据固定的版本号进行消费。
+
+## 6.5 dubbo:reference
+
+
+
+## 6.6 dubbo:method
+
+
+
+## 6.7 dubbo:service 和 dubbo:reference 详解
+
+
+
+## 6.8 其他配置 
+
+[Dubbo 的 XML Schema 配置参考手册](https://dubbo.apache.org/zh/docs/v2.7/user/references/xml/)
