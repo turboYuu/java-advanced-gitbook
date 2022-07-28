@@ -21,7 +21,7 @@ SPI 遵循如下约定：
 
 ### 1.2.1 JDK SPI demo
 
-使用 maven 父工程统一管理。包括三个模块：API、impl、main。
+使用 maven 父工程统一管理。包括三个模块：API、impl、main。[源码地址](https://gitee.com/turboYuu/dubbo/tree/master/lab/spi/java_spi_demo)
 
 ![image-20220728181358016](assest/image-20220728181358016.png)
 
@@ -156,9 +156,127 @@ Dubbo 中已经存在的所有已经实现好的扩展点：
 
 ![image-20220728174410485](assest/image-20220728174410485.png)
 
+### 1.3.1 dubbo 自己做 SPI 的目的
 
+[官网参考](https://dubbo.apache.org/zh/docs/v2.7/dev/spi/#%E6%89%A9%E5%B1%95%E7%82%B9%E9%85%8D%E7%BD%AE)
+
+1. JDK 标准的 SPI 会一次性实例化扩展点所有实例，如果有扩展实现初始化很耗时，结果没有用上也加载，会很浪费资源。
+2. 如果有扩展点加载失败，则所有扩展点无法使用。
+3. 提供了对扩展点包装的功能（Adaptive），并且还支持通过 set 的方式对其他的扩展点进行注入。
 
 ## 1.4 Dubbo 中扩展点使用方式
+
+使用三个项目来演示 Dubbo 中扩展点的使用方式，一个主项目 main，一个服务接口项目 api，一个服务实现项目 impl。使用一个 maven 父工程来管理。
+
+![image-20220728190321419](assest/image-20220728190321419.png)
+
+### 1.4.1 api 项目创建
+
+1. 导入 dubbo 坐标
+
+   ```xml
+   <dependency>
+       <groupId>org.apache.dubbo</groupId>
+       <artifactId>dubbo</artifactId>
+       <version>2.7.6</version>
+   </dependency>
+   ```
+
+2. 创建接口，在接口上使用 `@SPI`
+
+   ```java
+   @SPI("dog")
+   public interface HelloService {
+       String sayHello();
+   }
+   ```
+
+   
+
+### 1.4.2 impl 项目创建
+
+1. 导入 api 项目的依赖
+
+   ```xml
+   <dependency>
+       <groupId>com.turbo</groupId>
+       <artifactId>dubbo_spi_demo_api</artifactId>
+       <version>1.0-SNAPSHOT</version>
+   </dependency>
+   ```
+
+2. 建立实现类，为了表达支持多个实现的目的，这里分别创建两个实现类。
+
+   ```java
+   public class HumanHelloService implements HelloService {
+       public String sayHello() {
+           return "hello:你好";
+       }
+   }
+   ```
+
+   ```java
+   public class DogHelloService implements HelloService {
+       public String sayHello() {
+           return "hello:wang Wang";
+       }
+   }
+   ```
+
+3. SPI 进行声明操作，在 `resources` 目录下创建目录 `META-INF/dubbo` 目录，在目录下创建名称为 ”接口全限定名“ ，文件内容为 两个实现类名称 和 对应的全限定名。
+
+   ![image-20220728191356134](assest/image-20220728191356134.png)
+
+   ```xml
+   human=com.turbo.service.impl.HumanHelloService
+   dog=com.turbo.service.impl.DogHelloService
+   ```
+
+   
+
+### 1.4.3 main 项目创建
+
+1. 引入 api、impl 项目依赖
+
+   ```xml
+   <dependency>
+       <groupId>com.turbo</groupId>
+       <artifactId>dubbo_spi_demo_api</artifactId>
+       <version>1.0-SNAPSHOT</version>
+   </dependency>
+   <dependency>
+       <groupId>com.turbo</groupId>
+       <artifactId>dubbo_spi_demo_impl</artifactId>
+       <version>1.0-SNAPSHOT</version>
+   </dependency>
+   ```
+
+2. 创建 DubboSpiMain
+
+   和原先调用的方式不太相同，dubbo 有对其进行自我重新实现，需要借助 org.apache.dubbo.common.extension.ExtensionLoader，创建新的运行项目。这里 demo 中的示例 和 java 中的功能相同，查询出所有的已知实现，并且调用。
+
+   ```java
+   package com.turbo;
+   
+   import com.turbo.service.HelloService;
+   import org.apache.dubbo.common.extension.ExtensionLoader;
+   
+   import java.util.Set;
+   
+   public class DubboSPIMain {
+   
+       public static void main(String[] args) {
+           // 获取扩展加载器
+           ExtensionLoader<HelloService> extensionLoader = ExtensionLoader.getExtensionLoader(HelloService.class);
+           // 遍历所有的支持的扩展点 META-INF.dubbo
+           Set<String> extensions = extensionLoader.getSupportedExtensions();
+           for(String extension:extensions){
+               String hello = extensionLoader.getExtension(extension).sayHello();
+               System.out.println(hello);
+           }
+       }
+   }
+   ```
 
 
 
