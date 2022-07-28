@@ -346,6 +346,8 @@ Apache Dubbo 是一款 RPC 服务开发框架，用于解决微服务架构下�
 
 [XML 配置](https://dubbo.apache.org/zh/docsv2.7/user/configuration/xml/)
 
+![image-20220728154455852](assest/image-20220728154455852.png)
+
 ### 4.4.1 provider 模块
 
 1. 引入 API 依赖
