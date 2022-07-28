@@ -166,7 +166,7 @@ Dubbo 中已经存在的所有已经实现好的扩展点：
 
 ## 1.4 Dubbo 中扩展点使用方式
 
-使用三个项目来演示 Dubbo 中扩展点的使用方式，一个主项目 main，一个服务接口项目 api，一个服务实现项目 impl。使用一个 maven 父工程来管理。
+使用三个项目来演示 Dubbo 中扩展点的使用方式，一个主项目 main，一个服务接口项目 api，一个服务实现项目 impl。使用一个 maven 父工程来管理。[源码地址](https://gitee.com/turboYuu/dubbo/tree/master/lab/spi/dubbo_spi_demo)
 
 ![image-20220728190321419](assest/image-20220728190321419.png)
 
