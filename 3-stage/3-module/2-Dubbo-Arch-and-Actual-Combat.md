@@ -84,7 +84,7 @@ Apache Dubbo 是一款 RPC 服务开发框架，用于解决微服务架构下�
    <artifactId>service-api</artifactId>
    ```
 
-2. 定义接口，这里为了方便，知识写一个基本的方法
+2. 定义接口，这里为了方便，只是写一个基本的方法
 
    ```java
    package com.turbo.service;
