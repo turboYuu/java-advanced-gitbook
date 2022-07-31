@@ -282,6 +282,8 @@ Dubbo 中已经存在的所有已经实现好的扩展点：
 
 ## 1.5 Dubbo SPI 中的 Adaptive 功能
 
+[扩展点自适应](https://dubbo.apache.org/zh/docs/v2.7/dev/spi/#%E6%89%A9%E5%B1%95%E7%82%B9%E8%87%AA%E9%80%82%E5%BA%94)
+
 Dubbo 中的 Adaptive 功能，
 
 ## 1.6 Dubbo 调用时拦截操作
