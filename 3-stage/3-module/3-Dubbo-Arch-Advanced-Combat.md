@@ -282,6 +282,8 @@ Dubbo 中已经存在的所有已经实现好的扩展点：
 
 ## 1.5 Dubbo SPI 中的 Adaptive 功能
 
+Dubbo 中的 Adaptive 功能，
+
 ## 1.6 Dubbo 调用时拦截操作
 
 # 2 负载均衡策略
