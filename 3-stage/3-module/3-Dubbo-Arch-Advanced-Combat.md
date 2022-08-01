@@ -350,7 +350,193 @@ Dubbo 中的 Adaptive 功能，主要解决的问题是如何动态的选择具�
 
 ## 1.6 Dubbo 调用时拦截操作
 
+[官方说明-调用拦截扩展](https://dubbo.apache.org/zh/docs/v2.7/dev/impls/filter/)
+
+与很多框架一样，Dubbo 也存在拦截（过滤）机制，可以通过该机制在执行目标程序前后执行我们指定的代码。
+
+Dubbo 的 Filter 机制，是专门为服务提供方和服务消费方调用过程进行拦截设计的，每次远程方法执行，该拦截器都会被执行。这样就为开发者提供了非常方便的扩展性，比如为 dubbo 接口实现 ip 白名单功能，监控功能、日志记录等。
+
+步骤：
+
+1. 实现 `org.apache.dubbo.rpc.Filter` 接口。
+
+2. 使用 `org.apache.dubbo.common.extension.Activate` 注解对类进行注册，通过 group 可以指定生产端、消费端。如：
+
+   ```java
+   @Activate(group = {CommonConstants.CONSUMER,CommonConstants.PROVIDER})
+   ```
+
+3. 计算方法运行时间的代码实现
+
+   ```java
+   @Activate(group = {CommonConstants.CONSUMER,CommonConstants.PROVIDER})
+   public class DubboInvokeFilter implements Filter {
+       public Result invoke(Invoker<?> invoker, Invocation invocation) throws RpcException {
+           long startTime = System.currentTimeMillis();
+           try {
+               Result invoke = invoker.invoke(invocation);
+               return invoke;
+           } finally {
+               System.out.println("invoke time:"+(System.currentTimeMillis()-startTime)+"ms");
+           }
+       }
+   }
+   ```
+
+4. 在 `META-INF/dubbo` 中新建 `org.apache.dubbo.rpc.Filter` 文件，并将当前类的全名写入
+
+   ![image-20220801151742713](assest/image-20220801151742713.png)
+
+   ```bash
+   timeFilter=com.turbo.filter.DubboInvokeFilter
+   ```
+
+
+
+注意：一般类似于这样的功能都是单独开发依赖的，所以在使用方的项目中只需要引入依赖，在调用接口时，该方法便会自动拦截。
+
+![image-20220801152049154](assest/image-20220801152049154.png)
+
+![image-20220801153307246](assest/image-20220801153307246.png)
+
+```xml
+<dependency>
+    <groupId>com.turbo</groupId>
+    <artifactId>dubbo_spi_filter</artifactId>
+    <version>1.0-SNAPSHOT</version>
+</dependency>
+```
+
+consumer 测试结果：
+
+![image-20220801152314981](assest/image-20220801152314981.png)
+
 # 2 负载均衡策略
+
+## 2.1 负载均衡基本配置
+
+负载均衡（Load Balance），其实就是将请求分摊到多个操作单元上进行执行，从而完成工作任务。
+
+负载均衡策略主要用于客户端存在多个提供者时进行选择某个提供者。
+
+在集群负载均衡时，Dubbo 提供了多种均衡策略（包括 随机、轮询、最少活跃调用数，一致性Hash），缺省为 random 随机调用。
+
+[负载均衡 官方示例](https://dubbo.apache.org/zh/docs/v2.7/user/examples/loadbalance/)
+
+配置负载均衡策略，既可以在服务提供者一方配置，也可以在服务消费者一方配置，如下：
+
+```java
+// 在服务消费者以访配置负载均衡策略
+@Reference(loadbalance = "random",check = false)
+private HelloService helloService;
+```
+
+```java
+// 在服务提供者一方配置负载均衡
+@Service(loadbalance = "random")
+public class HelloServiceImpl implements HelloService {
+    @Override
+    public String sayHello(String name) {
+        return "Hello2:"+name;
+    }
+}
+```
+
+
+
+## 2.2 自定义负载均衡器
+
+[负载均衡扩展](https://dubbo.apache.org/zh/docs/v2.7/dev/impls/load-balance/)
+
+负载均衡器在 Dubbo 中的 SPI 接口是 `org.apache.dubbo.rpc.cluster.LoadBalance`，可以通过实现这个接口来实现自定义的负载均衡策略规则。
+
+![image-20220801172059533](assest/image-20220801172059533.png)
+
+1. 自定义负载均衡器
+
+   在上一节的案例基础上创建名称为 dubbo-spi-loadbalance 的 maven 模块，并创建负载均衡器 `OnlyFirstLoadbalancer`。这里只是简单的选取所有机器中的第一个（按照字母排序 + 端口排序）。
+
+   ```xml
+   <!--不要忘记引入 dubbo-->
+   <dependency>
+       <groupId>org.apache.dubbo</groupId>
+       <artifactId>dubbo</artifactId>
+   </dependency>
+   ```
+
+   ```java
+   public class OnlyFirstLoadbalancer implements LoadBalance {
+       /**
+        * 这里功能只是简单的选取所有机器中的第一个(按照字母排序 + 端口排序)
+        * @param list 服务提供者
+        * @param url
+        * @param invocation
+        * @param <T>
+        * @return
+        * @throws RpcException
+        */
+       @Override
+       public <T> Invoker<T> select(List<Invoker<T>> list, URL url, Invocation invocation) throws RpcException {
+           // 所有服务提供者 ip+端口 排序 选择第一个
+           return list.stream().sorted((i1, i2) -> {
+               final int ipCompare = i1.getUrl().getIp().compareTo(i2.getUrl().getIp());
+               if (ipCompare == 0) {
+                   return Integer.compare(i1.getUrl().getPort(), i2.getUrl().getPort());
+               }
+               return ipCompare;
+           }).findFirst().get();
+       }
+   }
+   ```
+
+   
+
+2. 配置负载均衡器
+
+   在 dubbo-spi-loadbalancer 工程的 `META-INF/dubbo`  目录下新建 `org.apache.dubbo.rpc.cluster.LoadBalance` 文件，并将当前类的全名写入：
+
+   ```bash
+   onlyFirst=com.turbo.loadbalance.OnlyFirstLoadbalancer
+   ```
+
+   
+
+3. 在服务提供者工程实现类中编写用于测试负载均衡效果的方法，启动不同端口是，方法返回的信息不同。
+
+4. 启动多个服务，要求它们使用同一个接口注册到同一个注册中心，但是它们的 dubbo 通信端口不同。
+
+   这里只是增加几个启动类和对应的配置文件：
+
+   ![image-20220801173810225](assest/image-20220801173810225.png)
+
+5. 在服务消费方指定自定义负载均衡器 `onlyFirst`
+
+   ```java
+   @Component
+   public class ConsumerComponet {
+   
+       /**
+        * 引用dubbo的组件  @Reference
+        *
+        * loadbalance (负载均衡策略)  random 随机 roundrobin 轮询  leastactive 最少活跃调用数  consistenthash 一致性 Hash
+        * onlyFirst
+        */
+       @Reference(loadbalance = "onlyFirst")
+       private HelloService helloService;
+   
+       public String sayHello(String name){
+           return helloService.sayHello(name);
+       }
+   }
+   ```
+
+   
+
+6. 测试自定义负载均衡的效果
+
+   ![image-20220801174244348](assest/image-20220801174244348.png)
+
+   
 
 # 3 异步调用
 
