@@ -284,7 +284,69 @@ Dubbo 中已经存在的所有已经实现好的扩展点：
 
 [扩展点自适应](https://dubbo.apache.org/zh/docs/v2.7/dev/spi/#%E6%89%A9%E5%B1%95%E7%82%B9%E8%87%AA%E9%80%82%E5%BA%94)
 
-Dubbo 中的 Adaptive 功能，
+Dubbo 中的 Adaptive 功能，主要解决的问题是如何动态的选择具体的扩展点。通过 `getAdaptiveExtension` 统一对指定接口对应的所有扩展点进行封装，通过 URL 的方式对扩展点来进行动态选择。（dubbo中所有的注册信息都是通过 URL 的形式进行处理的）这里同样采用相同的方式进行实现。
+
+1. 创建接口
+
+   api 模块中的 `HelloService` 扩展如下方法，与原先类似，在 sayHello 中增加 `@Adaptive` 注解，并且在参数中提供 URL 参数，注意这里的 URL参数的类为 `org.apache.dubbo.common.URL`，其中 `@SPI` 可以指定一个字符串参数，用于指明该 SPI 的默认实现。
+
+   ```java
+   @SPI("dog")
+   public interface HelloService {
+       @Adaptive
+       String sayHello(URL url);
+   }
+   ```
+
+   
+
+2. 创建实现类
+
+   与上面 Service 实现类代码相似，只需增加 URL 形参即可。
+
+   ```java
+   public class DogHelloService implements HelloService {
+       public String sayHello(URL url) {
+           return "hello:wang Wang url";
+       }
+   }
+   ```
+
+   ```java
+   public class HumanHelloService implements HelloService {
+       public String sayHello(URL url) {
+           return "hello url";
+       }
+   }
+   ```
+
+   
+
+3. 编写DubboAdaptiveMain
+
+   最后在获取的时候方式有所改变，需要传入 URL 参数，并且在参数中指定具体的实现类参数。
+
+   如：
+
+   ```java
+   public class DubboAdaptiveMain {
+       public static void main(String[] args) {
+           URL url = URL.valueOf("test://localhost?hello.service=dog");
+           HelloService helloService = ExtensionLoader.getExtensionLoader(HelloService.class).getAdaptiveExtension();
+           String hello = helloService.sayHello(url);
+           System.out.println(hello);
+       }
+   }
+   ```
+
+
+
+注意：
+
+- 因为这里只是临时测试，所以为了保证 URL 规范，前面的信息均为测试值即可，关键的点在于 `hello.service`  参数，这个参数的指指定的就是具体的实现方式，关于为什么叫 `hello.service` 是因为这个接口的名称，其中后面的大写部分被 dubbo 自动转码为 `.` 分割。
+- 通过 `getAdaptiveExtension` 来提供一个统一的类来对所有的扩展点提供者支持（底层对所有的扩展点进行封装）。
+- 调用时通过参数中增加 `URL` 对象来实现动态扩展点的使用
+- 如果 URL 没有提供该参数，则该方法使用默认在 `SPI` 注解中声明的实现。
 
 ## 1.6 Dubbo 调用时拦截操作
 
