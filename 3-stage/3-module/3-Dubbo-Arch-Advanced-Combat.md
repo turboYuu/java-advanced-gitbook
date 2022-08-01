@@ -540,10 +540,95 @@ public class HelloServiceImpl implements HelloService {
 
 # 3 异步调用
 
+[官网说明-异步调用](https://dubbo.apache.org/zh/docs/v2.7/user/examples/async-call/)
 
+![/user-guide/images/future.jpg](assest/future.jpg)
+
+Dubbo 不只提供了阻塞式的同步调用，同时提供了异步调用的方式。这种方式主要应用于提供者接口响应耗时明显，消费者端可以利用调用接口的时间去做一些其他的接口调用，利用 `Future` 模式来异步等待 和 获取结果即可。这种方式可以大大的提升消费者端的利用率。目前这种方式可以通过 **XML** 和 **注解**  的方式引入。
+
+## 3.1 异步调用实现
+
+1. 为了能够模拟等待，通过 int timeToWait 参数，标明需要休眠多少毫秒后才返回。
+
+   ```java
+   public interface HelloService {
+       String sayHello(String name,int timeToWait);
+   }
+   ```
+
+2. 接口实现，为了模拟调用耗时，可以让线程等待一段时间
+
+   ```java
+   @Service
+   public class HelloServiceImpl implements HelloService {
+       @Override
+       public String sayHello(String name, int timeToWait) {
+           try {
+               Thread.sleep(timeToWait);
+           } catch (InterruptedException e) {
+               e.printStackTrace();
+           }
+           return "Hello:"+name;
+       }
+   }
+   ```
+
+3. 在消费者端，配置异步调用，注意消费端默认超时时间 1000 ms，如果提供端耗时大于 1000ms 会出现超时。
+
+   可以改变消费端的超时时间，通过 timeout 属性设置即可（单位 毫秒）
+
+   ![image-20220801183659663](assest/image-20220801183659663.png)
+
+   ```xml
+   <dubbo:reference id="helloService" interface="com.turbo.service.HelloService">
+       <dubbo:method name="sayHello" async="true"/>
+   </dubbo:reference>
+   ```
+
+4. 测试，休眠 100 ms，然后再去进行获取结果。方法在同步调用时的返回值是 空。可以通过 `RpcContext.getContext().getFuture()` 来进行获取 Future 对象来进行后续的结果等待操作。
+
+   ```java
+   public class XMLConsumerMain {
+   
+       public static void main(String[] args) throws IOException {
+           ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("classpath:consumer.xml");
+           HelloService service = context.getBean(HelloService.class);
+           while (true){
+               System.in.read();
+               try{
+                   String world = service.sayHello("world",100);
+                   // 使用Future模式 获取异步调用结果
+                   Future<Object> future = RpcContext.getContext().getFuture();
+   
+                   System.out.println("result:"+world);
+                   System.out.println("future result:"+future.get());
+               }catch (Exception e){
+                   e.printStackTrace();
+               }
+           }
+       }
+   }
+   ```
+
+   ![image-20220801182741608](assest/image-20220801182741608.png)
+
+
+
+## 3.2 异步调用特殊说明
+
+需要特别说明的是，该方法的使用，请确保 dubbo 的版本在 2.5.4 及以后的版本使用。原因在于 2.5.3 及之前的版本使用的时候，会出现异步状态传递问题。
+
+比如我们的服务调用关系是 `A-> B -> C`，这时候如果 A 向 B 发起了异步请求，在错误的版本时，B 向 C 发起的请求也会连带的产生异步请求，这是因为在底层实现层面，它是通过 `RPCContext` 中的 `attachment` 实现的。在 A 向 B 发起异步请求时，会在 `attachment` 中增加一个异步标识字段来标明异步等待结果。B 在接受到 A 中的请求时，会通过该字段来判断是否是异步处理。但是由于值传递问题，B 向 C 发起时同样会将该值进行传递，导致 C 误以为需要异步结果，导致返回空。这个问题在 2.5.4 及以后的版本[进行了修正](https://github.com/apache/dubbo/blob/47ee52d122fb6f0462ed99530cfe462c591feac8/dubbo-rpc/dubbo-rpc-api/src/main/java/org/apache/dubbo/rpc/filter/ContextFilter.java#L70-L71)。
 
 # 4 线程池
 
 # 5 路由规则
 
 # 6 服务动态降级
+
+
+
+
+
+
+
