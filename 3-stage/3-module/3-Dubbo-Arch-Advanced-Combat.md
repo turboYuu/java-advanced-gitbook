@@ -748,6 +748,282 @@ dubbo 在使用时，都是通过创建真实的业务线程池进行操作的�
 
 # 5 路由规则
 
+路由是决定一次请求中需要发往目标机器的重要判断，通过对其控制可以决定请求的目标机器。我们可以通过创建这样的规则来决定一个请求会交给哪些服务器去处理。
+
+[旧路由规则-官网说明](https://dubbo.apache.org/zh/docsv2.7/user/examples/routing-rule-deprecated/)
+
+[路由规则-官网说明](https://dubbo.apache.org/zh/docsv2.7/user/examples/routing-rule/)
+
+## 5.1 路由规则快速入门
+
+旧版路由规则入门
+
+1. 提供两个提供者（一台本机作为提供者，一台为其他的服务器），每个提供者会在调用时可以返回不同的信息，以区分提供者。
+
+2. 针对于消费者，这里通过一个死循环，每次等待用户输入，再进行调用，来模拟真实的请求。
+
+   通过调用的返回值，确认具体的提供者。
+
+3. 通过ipconfig来查询到我们的IP地址，并且单独启动一个客户端。来进行如下配置（这里假设我们希望隔离掉本机的请求，都发送到另外一台机器上）。
+
+   ```java
+   // 在消费端怎加路由规则
+   public class DubboRouterMain {
+   
+       public static void main(String[] args) {
+           //注册中心的工厂对象
+           RegistryFactory registryFactory = ExtensionLoader.getExtensionLoader(RegistryFactory.class).getAdaptiveExtension();
+           // 获取注册中心
+           Registry registry = registryFactory.getRegistry(URL.valueOf("zookeeper://152.136.177.192:2181"));
+           // 路由规则
+           registry.register(URL.valueOf("condition://0.0.0.0/com.turbo.service.HelloService?category=router&force=true" +
+                   "&dynamic=true&rule="+URL.encode("=>host!=134.134.2.124")));
+       }
+   }
+   ```
+
+4. 通过这个程序执行后，我们就通过消费端不停的发起请求，看到真实的请求都发到了出去本机意外的另外一台机器上。
+
+## 5.2 路由规则详解
+
+[旧路由规则-官网说明](https://dubbo.apache.org/zh/docsv2.7/user/examples/routing-rule-deprecated/)
+
+## 5.3 路由与上线系统结合
+
+当公司到了一定的规模之后，一般都会有自己的上线系统，专门用于服务上线。方便后期进行维护和记录的追查。我们去想象这样的一个场景，一个 dubbo 的提供者要准备进行上线，一般都会提供多台提供者来同时在线上提供服务。
+
+这时候一个请求刚到达一个提供者，提供者却进行关闭操作。那么此次请求就应该认定为失败了。
+
+所以基于这样的场景，我们可以通过路由规则，把预发布（灰度）的机器进行从机器列表中移除。并且等待一定的时间，让其把现有的请求处理完成之后再进行关闭服务。同时，在启动时，同样需要等待一定的时间，以免因为尚未重启完成，就已经注册上去。等启动到达一定时间之后，再进行开启流量操作。
+
+### 5.3.1 实现主题思路
+
+[路由扩展-官网说明](https://dubbo.apache.org/zh/docsv2.7/dev/impls/router/)
+
+```xml
+1. 利用 zookeeper 的路径感知能力，在服务准备重启之前将当前机器的IP地址和应用名写入zookeeper。
+2. 服务消费者监听该目录，读取其中需要进行关闭的应用名和机器IP列表，并且保存到内存中。
+3. 当请求过来时，判断是否是请求该应用，如果是请求重启应用，则将该提供者从服务列表中移除。
+```
+
+
+
+1. 新建模块，引入 `Curator`，用于方便操作 zookeeper
+
+   ```xml
+   <dependency>
+       <groupId>org.apache.curator</groupId>
+       <artifactId>curator-recipes</artifactId>
+       <version>4.0.1</version>
+   </dependency>
+   <dependency>
+       <groupId>org.apache.dubbo</groupId>
+       <artifactId>dubbo</artifactId>
+   </dependency>
+   ```
+
+2. 编写 Zookeeper 的操作类，用于方便进行 zookeeper 处理
+
+   ```java
+   public class ZookeeperClients {
+   
+       private final CuratorFramework client;
+   
+       private static ZookeeperClients INSTANCE;
+   
+       static {
+           RetryPolicy retryPolicy = new ExponentialBackoffRetry(1000,3);
+           CuratorFramework client = CuratorFrameworkFactory.newClient("152.136.177.192:2181",retryPolicy);
+           INSTANCE = new ZookeeperClients(client);
+           client.start();
+       }
+   
+       private ZookeeperClients(CuratorFramework client) {
+           this.client = client;
+       }
+   
+       public static CuratorFramework client(){
+           return INSTANCE.client;
+       }
+   }
+   ```
+
+3. 编写需要进行预发布的路径管理器，用于缓存和监听所有的待灰度机器信息列表
+
+   ```java
+   public class ReadyRestartInstances implements PathChildrenCacheListener {
+   
+       private static final Logger LOGGER = LoggerFactory.getLogger(ReadyRestartInstances.class);
+       private static final String LISTEN_PATHS = "/turbo/dubbo/restart/instances";
+       private final CuratorFramework zkClient;
+       // 当节点变化时 给这个结合赋值 重启机器的信息列表
+       private volatile Set<String> restartInstances = new HashSet<>();
+   
+       private ReadyRestartInstances(CuratorFramework zkClient) {
+           this.zkClient = zkClient;
+       }
+   
+       public static ReadyRestartInstances create(){
+           final CuratorFramework zookeeperClient = ZookeeperClients.client();
+           // 监听路径是否存在
+           try {
+               final Stat stat = zookeeperClient.checkExists().forPath(LISTEN_PATHS);
+               // 如果监听路径不存在
+               if(stat == null){
+                   zookeeperClient.create().creatingParentsIfNeeded().forPath(LISTEN_PATHS);
+               }
+           } catch (Exception e) {
+               e.printStackTrace();
+               LOGGER.error("确保基础路径存在");
+           }
+           final  ReadyRestartInstances instances = new ReadyRestartInstances(zookeeperClient);
+           // 创建一个节点缓存对象 NodeCache
+           PathChildrenCache nodeCache = new PathChildrenCache(zookeeperClient,LISTEN_PATHS,false);
+           // 给节点缓存对象加入监听
+           nodeCache.getListenable().addListener(instances);
+           try {
+               nodeCache.start();
+           } catch (Exception e) {
+               e.printStackTrace();
+               LOGGER.error("启动路径监听失败");
+           }
+           return instances;
+   
+       }
+       /**
+        * 返回应用名 和 主机拼接后的字符串
+        */
+       private String buildApplicationAndInstanceStr(String applicationName,String host){
+           return applicationName + "_" +host;
+       }
+   
+       /** 增加重启实例的配置信息方法*/
+       public void addRestartingInstance(String applicationName,String host) throws Exception {
+           zkClient.create().creatingParentsIfNeeded().forPath(LISTEN_PATHS+"/"+buildApplicationAndInstanceStr(applicationName,host));
+       }
+   
+       /** 删除重启实例的配置信息方法*/
+       public void removeRestartingInstance(String applicationName,String host) throws Exception {
+           zkClient.delete().forPath(LISTEN_PATHS+"/"+buildApplicationAndInstanceStr(applicationName,host));
+       }
+   
+       /**判断节点信是否存在于 restartInstances*/
+       public boolean hasRestartingInstances(String application,String host){
+           return restartInstances.contains(buildApplicationAndInstanceStr(application,host));
+       }
+   
+       @Override
+       public void childEvent(CuratorFramework curatorFramework, PathChildrenCacheEvent pathChildrenCacheEvent) throws Exception {
+           // 查询出监听路径下所有的目录配置信息
+           final List<String> restartingInstances = zkClient.getChildren().forPath(LISTEN_PATHS);
+           // 给restartInstances赋值
+           if(CollectionUtils.isEmpty(restartingInstances)){
+               this.restartInstances = Collections.emptySet();
+           }else {
+               this.restartInstances = new HashSet<>(restartingInstances);
+           }
+   
+       }
+   }
+   ```
+
+4. 编写路由类（实现 `org.apache.dubbo.rpc.cluster.Router`），主要目的在于对 `ReadyRestartInstances` 中的数据进行处理，并且移除路由调用列表中正在重启中的服务。
+
+   ```java
+   public class RestartingInstanceRouter implements Router {
+   
+       private final ReadyRestartInstances instances;
+       private final URL url;
+   
+       public RestartingInstanceRouter(URL url) {
+           this.url = url;
+           this.instances = ReadyRestartInstances.create();
+       }
+   
+       @Override
+       public URL getUrl() {
+           return null;
+       }
+   
+       @Override
+       public <T> List<Invoker<T>> route(List<Invoker<T>> invokers, URL url, Invocation invocation) throws RpcException {
+           // 如果没有在重启列表中，才会加入到后续调用列表中
+           return invokers.stream().filter(i->!instances.hasRestartingInstances(i.getUrl().getParameter("remote.application"),i.getUrl().getIp()))
+                   .collect(Collectors.toList());
+       }
+   
+       @Override
+       public boolean isRuntime() {
+           return false;
+       }
+   
+       @Override
+       public boolean isForce() {
+           return false;
+       }
+   
+       @Override
+       public int getPriority() {
+           return 0;
+       }
+   }
+   ```
+
+5. 由于 `Router` 机制比较特殊，所以需要利用一个专门的 `RouterFactory` 来生成，原因在于并不是所有的都需要添加路由，所以需要利用 `@Activate` 来锁定具体哪些服务才需要生成使用。
+
+   ```java
+   @Activate
+   public class RestartingInstanceRouterFactory implements RouterFactory {
+       @Override
+       public Router getRouter(URL url) {
+           return new RestartingInstanceRouter(url);
+       }
+   }
+   ```
+
+6. 对 `RouterFactory` 进行注册，同样放到 `META-INF/dubbo/org.a pache.dubbo.rpc.cluster.RouterFactory` 文件中。
+
+   ```bash
+   restartInstances=com.turbo.router.RestartingInstanceRouterFactory
+   ```
+
+7. 将 dubbo-spi-router 项目引入至 `consumer` 项目的依赖中。
+
+   ```xml
+   <dependency>
+       <groupId>com.turbo</groupId>
+       <artifactId>dubbo_spi_router</artifactId>
+       <version>1.0-SNAPSHOT</version>
+   </dependency>
+   ```
+
+   
+
+8. 这时直接启动程序，还是利用上面中写好的 `consumer` 程序进行执行，确认各个 `provider` 可以正常执行。
+
+9. 单独写一个 `main` 函数来进行将某实例 设置为启动中的状态，比如我们认定当前这台机器中的 `service-provider` 这个提供者需要进行重启操作。
+
+   ```java
+   // 在 consumer 模块中
+   public class ServerRestartMain {
+       public static void main(String[] args) throws Exception {
+           ReadyRestartInstances.create().addRestartingInstance("service-provider","192.168.31.137");
+       }
+   }
+   ```
+
+10. 执行完成后，再次进行尝试通过 `consumer` 进行调用，即可看到当前这台机器没有再接收任何请求。
+
+11. 一般情况下，当机器重启到一定时间后，我们可以再通过 `removeRestartingInstance` 方法对这台机器设定为可以继续执行。
+
+    ```java
+    ReadyRestartInstances.create().removeRestartingInstance("service-provider","192.168.31.137");
+    ```
+
+    
+
+12. 调用完成后，我们再次通过 `consumer` 去调用，即可看到已经再次恢复当前机器的请求参数。
+
 # 6 服务动态降级
 
 
