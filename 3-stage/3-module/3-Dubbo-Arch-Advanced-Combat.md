@@ -622,6 +622,8 @@ Dubbo 不只提供了阻塞式的同步调用，同时提供了异步调用的�
 
 # 4 线程池
 
+[dubbo线程模型-官网说明](https://dubbo.apache.org/zh/docsv2.7/user/examples/thread-model/)
+
 ## 4.1 Dubbo 已有线程池
 
 dubbo 在使用时，都是通过创建真实的业务线程池进行操作的。目前已知的线程池模型有两个和 java 中的相互对应：
@@ -632,6 +634,115 @@ dubbo 在使用时，都是通过创建真实的业务线程池进行操作的�
 ## 4.2 自定义线程池
 
 在真实的使用过程中可能会因为使用 fix 模式的线程池，导致具体某些业务场景因为线程池中的线程数量不足而产生错误，而很多业务研发是对这些无感知的，只有当出现错误的时候才会去查看警告或者通过客户反馈出现严重的问题才去查看，结果发现时线程池满了。所以可以在创建线程池时，通过某些手段对这个线程池进行监控，这样就可以进行及时的扩容机器 或者 告警。下面的这个程序就是这样子的，会在创建线程池后对其进行监控，并且及时做出相应的处理。
+
+[线程池扩展-官方说明](https://dubbo.apache.org/zh/docsv2.7/dev/impls/threadpool/)
+
+1. 线程池实现，这里主要是对 `FixedThreadPool` 的实现做扩展，扩展出线程监控的部分（在 base-demo的基础上增加模块）
+
+   ```java
+   public class WatchingThreadPool extends FixedThreadPool implements Runnable {
+   
+       private static final Logger LOGGER = LoggerFactory.getLogger(WatchingThreadPool.class);
+       // 定义线程池使用的阀值
+       private static final double ALARM_PERCENT = 0.90;
+       // 线程池存储对象
+       private final Map<URL, ThreadPoolExecutor> THREAD_POOLS = new ConcurrentHashMap<>();
+   
+       public WatchingThreadPool() {
+           // 每隔3s打印线程使用情况
+           Executors.newSingleThreadScheduledExecutor().scheduleWithFixedDelay(this,1,3, TimeUnit.SECONDS);
+       }
+   
+       // 通过父类创建线程池
+       @Override
+       public Executor getExecutor(URL url) {
+           final Executor executor = super.getExecutor(url);
+           if(executor instanceof ThreadPoolExecutor){
+               THREAD_POOLS.put(url, (ThreadPoolExecutor) executor);
+           }
+           return executor;
+       }
+   
+       @Override
+       public void run() {
+           // 遍历线程池
+           for(Map.Entry<URL,ThreadPoolExecutor> entry:THREAD_POOLS.entrySet()){
+               final URL url = entry.getKey();
+               final ThreadPoolExecutor executor = entry.getValue();
+               // 计算相关指标
+               final int activeCount = executor.getActiveCount();
+               final int poolSize = executor.getCorePoolSize();
+               double usedPrecent = activeCount/(poolSize*1.0) ;
+   
+               LOGGER.info("线程池执行状态[{}/{}:{}%]",activeCount,poolSize,usedPrecent*100);
+               if(usedPrecent > ALARM_PERCENT){
+                   LOGGER.error("超出警戒线,host:{} 当前使用率: {}%,URL:{}",url.getIp(),usedPrecent*100,url);
+               }
+           }
+       }
+   }
+   
+   ```
+
+2. SPI 声明，创建文件 `META-INF/dubbo/org.apache.dubbo.common.threadpool.ThreadPool`
+
+   ```bash
+   watching=com.turbo.threadpool.WatchingThreadPool
+   ```
+
+3. 在服务提供方项目中引入该依赖
+
+   ```xml
+   <dependency>
+       <groupId>com.turbo</groupId>
+       <artifactId>dubbo_spi_threadpool</artifactId>
+       <version>1.0-SNAPSHOT</version>
+   </dependency>
+   ```
+
+4. 在服务提供方项目中设置使用该线程池生成器
+
+   ```properties
+   dubbo.provider.threadpool=watching
+   ```
+
+5. 接下来需要做的就是模拟整个流程，因为该线程当前是每1秒抓一次数据，所以我们需要对该方法的提供者超过1秒的时间（比如这里用休眠 `Thread.sleep`），消费者则需要启动多个线程来并行执行，来模拟整个并发情况。
+
+   ```java
+   @Service
+   public class HelloServiceImpl implements HelloService {
+       @Override
+       public String sayHello(String name) {
+           try {
+               TimeUnit.SECONDS.sleep(1);
+           } catch (InterruptedException e) {
+               e.printStackTrace();
+           }
+           return "Hello:"+name;
+       }
+   }
+   ```
+
+   启动服务提供端：
+
+   ![image-20220802122706277](assest/image-20220802122706277.png)
+
+6. 在调用方则尝试简单通过 for 循环启动多个线程来执行，查看服务提供方的监控情况。
+
+   ```java
+   for (int i=0;i<1000;i++){
+       Thread.sleep(5);
+       new Thread(new Runnable() {
+           @Override
+           public void run() {
+               String world = service.sayHello("world");
+               System.out.println(world);
+           }
+       }).start();
+   }
+   ```
+
+   ![image-20220802122853496](assest/image-20220802122853496.png)
 
 
 
