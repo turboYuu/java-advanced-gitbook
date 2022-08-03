@@ -53,7 +53,31 @@
 
 ## 2.2 整体调用链路
 
+![/dev-guide/images/dubbo-extension.jpg](assest/dubbo-extension.jpg)
+
+说明：淡绿色代表了 服务生产者的范围；淡蓝色 代表 服务消费者的范围；红色箭头代表了调用的方向。
+
+业务逻辑层：RPC层（远程过程调用） Remoting（远程数据传输）
+
+整体链路调用的流程：
+
+1. 消费者通过 Interface 进行方法调用，统一交由消费端的 Proxy，通过 ProxyFactory 来进行代理对象的创建，使用到了 jdk、javassist 技术。
+2. 交给 Filter 这个模块，做一个统一的过滤请求，在 SPI 案例中涉及过。
+3. 接下来会进入最主要的 Invoker 调用逻辑。
+   - 通过 Directory 去配置中新读取信息，最终通过 list 方法获取所有的 Invoker
+   - 通过 Cluster 模块，根据选择的具体路由规则，来选取 Invoker 列表
+   - 通过 LoadBalance 模块，根据负载均衡策略，选择一个具体的 Invoker 来处理我们的请求
+   - 如果执行中出现错误，并且 Consumer 阶段配置了重试机制，则会重新尝试执行。
+4. 继续经过 FIlter ，进行执行功能的前后封装，Invoker 选择具体的执行协议
+5. 客户端 进行编码 和 序列化，然后发送数据
+6. 到达 Provider 中的 Server，在这里进行反编码 和 反序列化 的接收数据
+7. 使用 Exporter 选择执行执行器
+8. 交给 Filter 进行一个提供者端的过滤，到达 Invoker 执行器
+9. 通过 Invoker 调用接口的具体实现，然后返回
+
 ## 2.3 Dubbo源码整体设计
+
+![/dev-guide/images/dubbo-framework.jpg](assest/dubbo-framework.jpg)
 
 # 3 服务注册与消费源码剖析
 
