@@ -79,10 +79,89 @@
 
 ![/dev-guide/images/dubbo-framework.jpg](assest/dubbo-framework.jpg)
 
+图例说明：
+
+- 图中左边淡蓝背景 的为 服务消费方使用的接口；右边淡绿色背景的为服务提供方使用的接口；位于中轴线上的为双方都用到的接口。
+- 图中从下至上分为 十层，各层均为单向依赖，右边的黑色箭头代表层之间的依赖关系，每一层都可以剥离上层被复用。其中 ，Service 和 Config 层为 API，其它各层均为 SPI。
+- 图中绿色小块的为扩展接口，蓝色小块为实现类，图中只显示用于关联各层的实现类。
+- 图中蓝色虚线为初始化过程，即启动时组装链；红色实线为方法调用过程，即运行时调用链；紫色三角箭头为继承，可以把子类看作父类的同一个节点，线上的文字为调用的方法。
+
+
+
+### 2.3.1 分层介绍
+
+[各层说明-官网说明](https://dubbo.apache.org/zh/docsv2.7/dev/design/#%E5%90%84%E5%B1%82%E8%AF%B4%E6%98%8E)
+
 # 3 服务注册与消费源码剖析
+
+## 3.1 注册中心 Zookeeper 剖析
+
+[Zookeeper注册中心参考手册-官网说明](https://dubbo.apache.org/zh/docsv2.7/user/references/registry/zookeeper/)
+
+注册中心是 Dubbo 的重要组成部分，主要用于服务的注册与发现，可以选择 Redis、Nacos、Zookeeper 作为 Dubbo 的注册中心，Dubbo 推荐用户使用 Zookeeper 作为注册中心。
+
+### 3.1.1 注册中心 Zookeeper 目录结构
+
+使用一个最基本的服务注册与消费的 Demo 来进行说明。
+
+例如：只有一个提供者和消费者。`com.turbo.service.HelloService` 为所提供的服务。
+
+```java
+public interface HelloService {
+    String sayHello(String name);
+}
+```
+
+则 Zookeeper 的目录结构如下：
+
+![image-20220803173449891](assest/image-20220803173449891.png)
+
+- 可以在这里看到所有的都是在 dubbo 层级下的；
+- dubbo 根节点下面是当前所拥有的接口名称，如果有多个接口，则会以多个子节点的形式展开；
+- 每个服务下面有分别有四个配置项
+  - consumers：当前服务下面所有的消费者列表（URL）
+  - providers：当前服务下面所有的提供者列表（URL）
+  - configurators：当前服务下面的配置信息，provider 或者 consumer 会通过读取这里的配置信息来获取配置
+  - routers：当消费者在进行获取提供者时，会通过这里配置好的路由来进行适配匹配规则
+- 可以看到，dubbo基本上很多时候都是通过 URL 的形式来进行交互获取数据的，在 URL 中也会保存很多的信息。后面也会对 URL 的规则做详细介绍。
+
+![/user-guide/images/zookeeper.jpg](assest/zookeeper.jpg)
+
+通过这张图我们可以了解到如下信息：
+
+- 提供者会在 `providers` 目录下进行自身的注册。
+- 消费者会在 `consumers` 目录下进行自身注册，并且监听 `providers` 目录，以此通过监听提供者的变化，实现服务发现。
+- Monitor 模块会对整个服务级别做监听，用来得知整体的服务情况。以此就能更多的对整体情况做监控。
+
+
+
+## 3.2 服务注册过程分析
+
+[服务注册（暴露）过程](https://dubbo.apache.org/zh/docsv2.7/dev/implementation/#%E6%9C%8D%E5%8A%A1%E6%8F%90%E4%BE%9B%E8%80%85%E6%9A%B4%E9%9C%B2%E4%B8%80%E4%B8%AA%E6%9C%8D%E5%8A%A1%E7%9A%84%E8%AF%A6%E7%BB%86%E8%BF%87%E7%A8%8B)
+
+![/dev-guide/images/dubbo_rpc_export.jpg](assest/dubbo_rpc_export.jpg)
+
+首先 `ServiceConfig` 类拿到对外提供服务的实际类 ref（如：HelloServiceImpl），然后通过 `ProxyFactory` 接口实现类中的 `getInvoker` 方法使用 ref 生成一个 `AbstractProxyInvoker` 实例，到这一步就完成具体服务到 `Invoker` 的转化。接下来就是 `Invoker` 转换到 `Exporter` 的过程。
+
+
+
+查看 ServiceConfig 类：重点查看 ProxyFactory 和 Protocol 类型的属性，以及 ref。
+
+
+
+下面我们就看一下 Invoker  转换成 Exporter 的过程：
+
+其中会涉及到 RegistryService 接口、`RegistryFactory` 接口 和 注册 provider 到注册中心流程的过程。
+
+1. 
 
 # 4 Dubbo 扩展 SPI 源码剖析
 
 # 5 集群容错源码剖析
 
 # 6 网络通信原理剖析
+
+
+
+
+
