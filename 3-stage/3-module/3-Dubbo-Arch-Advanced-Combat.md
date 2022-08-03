@@ -1026,7 +1026,52 @@ dubbo 在使用时，都是通过创建真实的业务线程池进行操作的�
 
 # 6 服务动态降级
 
+## 6.1 什么是服务降级
 
+服务降级，当服务器压力剧增的情况下，根据当前业务情况及流量对一些服务有策略地降低服务级别，以释放服务器资源，保证核心任务地正常运行。
+
+## 6.2 为什么要服务降级
+
+为什么要使用服务降级，这时防止分布式服务发生雪崩效应，什么是雪崩？就是蝴蝶效应，当一个请求发生超时，一直等待服务响应，那么在高并发情况下，很多请求都是因为这样一直等着响应，知道服务资源耗尽导致宕机，而宕机之后导致分布式其他服务调用该宕机地服务也会出现资源耗尽宕机，这样下去将导致整个分布式服务都瘫痪，这就是雪崩。
+
+## 6.3 dubbo 服务降级实现方式
+
+### 6.3.1 在 dubbo-admin 管理控制台配置服务降级
+
+![image-20220803112254268](assest/image-20220803112254268.png)
+
+屏蔽 和 容错
+
+- 屏蔽
+
+  相当于 mock = force:return+null
+
+  表示消费者对该服务的方法调用都直接返回 null 值，不发起远程调用。用来屏蔽不重要服务，不可用时对调用方的影响。
+
+- 容错
+
+  相当于 mock = fail:return+null
+
+  表示消费方对该服务的方法调用在失败后，再返回 null 值，不抛出异常。用来容忍不重要服务不稳定时对调用方的影响。
+
+### 6.3.2 指定返回简单值或者 null
+
+```xml
+<dubbo:reference id="xxService" check="false" interface="com.xx.XxService" timeout="3000" mock="return null" />
+<dubbo:reference id="xxService2" check="false" interface="com.xx.XxService2" timeout="3000" mock="return 1234" />
+```
+
+如果是注解，则使用 `@Reference(mock = "return null")`  @Reference(mock = "return 简单值") 也支持 @Reference(mock = "force:return null")
+
+### 6.3.3 使用 java 代码，动态写入配置中心
+
+```java
+RegistryFactory registryFactory = ExtensionLoader.getExtensionLoader(RegistryFactory.class).getAdaptiveExtension();
+Registry registry = registryFactory.getRegistry(URL.valueOf("zookeeper://IP:端 口"));
+registry.register(URL.valueOf("override://0.0.0.0/com.foo.BarService?category=configurators&dynamic=false&application=foo&mock=force:return+null"));
+```
+
+### 6.3.4 整合 hystrix（在后面的 SpringCloud 中讲解）
 
 
 
