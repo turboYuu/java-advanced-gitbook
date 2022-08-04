@@ -262,6 +262,34 @@ public interface HelloService {
    }
    ```
 
+4. 下面再来看看 `register` 方法，这里面做的比较简单，主要是从 `RegistoryFactory` 中获取注册中心，并且进行地址注册。
+
+   ```java
+   public void register(URL registryUrl, URL registeredProviderUrl) {
+       // 获取注册中心
+       Registry registry = registryFactory.getRegistry(registryUrl);
+       // 对当前的服务进行注册
+       registry.register(registeredProviderUrl);
+   
+       // ProviderModel 表示服务提供者模型，此对象中存储了与服务提供者相关的信息。
+       // 比如服务的配置信息，服务实例等。每个被导出的服务对应一个 ProviderModel
+       ProviderModel model = ApplicationModel.getProviderModel(registeredProviderUrl.getServiceKey());
+       model.addStatedUrl(new ProviderModel.RegisterStatedURL(
+           registeredProviderUrl,
+           registryUrl,
+           true
+       ));
+   }
+   ```
+
+5. 这里我们在跟里面的 `register` 方法之前，先来介绍一下 Registry 中的类目录结构
+
+   ![image-20220804135014205](assest/image-20220804135014205.png)
+
+   目录结构描述如下：
+
+   - 
+
    
 
 # 4 Dubbo 扩展 SPI 源码剖析

@@ -2,6 +2,8 @@
 
 # 1 SPI
 
+[Dubbo SPI 的实现原理和实现细节-官网说明](https://dubbo.apache.org/zh/docsv2.7/dev/source/dubbo-spi/)
+
 ## 1.1 SPI 简介
 
 SPI 全称（Service Provider Interface），是 JDK 内置的一种服务提供发现机制。目前有不少框架用它来做服务的扩展发现。简单说，它就是一种动态替换发现机制。使用 SPI 机制的优势是实现解耦，使得第三方服务模块的装配控制逻辑与调用者的业务代码分离。
