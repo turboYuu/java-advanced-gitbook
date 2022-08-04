@@ -153,7 +153,116 @@ public interface HelloService {
 
 其中会涉及到 RegistryService 接口、`RegistryFactory` 接口 和 注册 provider 到注册中心流程的过程。
 
-1. 
+1. RegistryService 代码解读，这里的代码比较简单，主要是对指定的路径进行注册、解绑、监听 和 取消监听、查询操作。也是注册中心最为基础的类。
+
+   ```java
+   package org.apache.dubbo.registry;
+   
+   import org.apache.dubbo.common.URL;
+   
+   import java.util.List;
+   
+   public interface RegistryService {
+   
+       /**
+        * 进行对 URL的注册操作,比如: provider service, consumer address, route rule, override rule and other data.
+        */
+       void register(URL url);
+   
+       /**
+        * 解除对指定URL的注册，比如provider，consumer，routers等
+        */
+       void unregister(URL url);
+   
+       /**
+        * 增加对指定URL的路径监听，当有变化的时候进行通知操作
+        */
+       void subscribe(URL url, NotifyListener listener);
+   
+       /**
+        * 解除对指定 URL 的路径监听，取消指定的listener
+        */
+       void unsubscribe(URL url, NotifyListener listener);
+   
+       /**
+        * 查询指定URL下面的URL列表，比如查询指定服务下面的consumer列表
+        */
+       List<URL> lookup(URL url);
+   
+   }
+   ```
+
+2. 再来看 `RegistryFactory`，是通过它来生成真实的注册中心。通过这种方式，也可以保证一个应用中可以使用多个注册中心。可以看到这里也是通过不同的 protocol 参数，来选择不同的协议。
+
+   ```java
+   package org.apache.dubbo.registry;
+   
+   import org.apache.dubbo.common.URL;
+   import org.apache.dubbo.common.extension.Adaptive;
+   import org.apache.dubbo.common.extension.SPI;
+   
+   
+   @SPI("dubbo")
+   public interface RegistryFactory {
+       /**
+        * 获取注册中心地址
+        */
+       @Adaptive({"protocol"})
+       Registry getRegistry(URL url);
+   }
+   ```
+
+3. 下面就来跟踪一下，一个服务是如何注册到注册中心上去的。其中比较关键的一个类是 `RegistryProtocol`，它负责管理整个注册中心相关的协议，并且统一对外提供服务。这里我们主要以 `RegistryProtocol#export` 方法作为入口，这个方法主要的作用就是将我们需要执行的信息注册并且导出。
+
+   ```java
+   @Override
+   public <T> Exporter<T> export(final Invoker<T> originInvoker) throws RpcException {
+       // 获取注册中心的地址
+       // zookeeper://152.136.177.192:2181/org.apache.dubbo.registry.RegistryService?application=service-provider&dubbo=2.0.2&export=dubbo%3A%2F%2F192.168.56.1%3A20880%2Fcom.turbo.service.HelloService%3Fanyhost%3Dtrue%26application%3Dservice-provider%26bind.ip%3D192.168.56.1%26bind.port%3D20880%26deprecated%3Dfalse%26dubbo%3D2.0.2%26dynamic%3Dtrue%26generic%3Dfalse%26interface%3Dcom.turbo.service.HelloService%26methods%3DsayHello%26pid%3D12816%26qos.accept.foreign.ip%3Dfalse%26qos.enable%3Dtrue%26qos.port%3D33333%26release%3D2.7.6%26side%3Dprovider%26timestamp%3D1659586078756&pid=12816&qos.accept.foreign.ip=false&qos.enable=true&qos.port=33333&release=2.7.6&timeout=60000&timestamp=1659586078724
+       URL registryUrl = getRegistryUrl(originInvoker);
+       // 获取当前提供者需要注册的地址
+       // dubbo://192.168.56.1:20880/com.turbo.service.HelloService?anyhost=true&application=service-provider&bind.ip=192.168.56.1&bind.port=20880&deprecated=false&dubbo=2.0.2&dynamic=true&generic=false&interface=com.turbo.service.HelloService&methods=sayHello&pid=12816&qos.accept.foreign.ip=false&qos.enable=true&qos.port=33333&release=2.7.6&side=provider&timestamp=1659586078756
+       URL providerUrl = getProviderUrl(originInvoker);
+   
+       // 获取进行注册 override协议的访问地址
+       // provider://192.168.56.1:20880/com.turbo.service.HelloService?anyhost=true&application=service-provider&bind.ip=192.168.56.1&bind.port=20880&category=configurators&check=false&deprecated=false&dubbo=2.0.2&dynamic=true&generic=false&interface=com.turbo.service.HelloService&methods=sayHello&pid=12816&qos.accept.foreign.ip=false&qos.enable=true&qos.port=33333&release=2.7.6&side=provider&timestamp=1659586078756
+       final URL overrideSubscribeUrl = getSubscribedOverrideUrl(providerUrl);
+       // 增加override的监听器
+       final OverrideListener overrideSubscribeListener = new OverrideListener(overrideSubscribeUrl, originInvoker);
+       overrideListeners.put(overrideSubscribeUrl, overrideSubscribeListener);
+   
+       // 根据现有的override协议，对注册地址进行改写操作
+       providerUrl = overrideUrlWithConfig(providerUrl, overrideSubscribeListener);
+       // 对当前的服务进行本地导出
+       // 完成后即可以看到本地的20880端口已经启动，并且暴露服务
+       final ExporterChangeableWrapper<T> exporter = doLocalExport(originInvoker, providerUrl);
+   
+       // 获取真实的注册中心，比如我们常用的 ZookeeperRegistry
+       final Registry registry = getRegistry(originInvoker);
+       // 获取当前服务需要注册到注册中心的 providerURL，主要用于去除一些没有必要的参数（比如在本地导出时所使用的 qos 参数等值）
+       // dubbo://192.168.56.1:20880/com.turbo.service.HelloService?anyhost=true&application=service-provider&deprecated=false&dubbo=2.0.2&dynamic=true&generic=false&interface=com.turbo.service.HelloService&methods=sayHello&pid=12816&release=2.7.6&side=provider&timestamp=1659586078756
+       final URL registeredProviderUrl = getUrlToRegistry(providerUrl, registryUrl);
+       ProviderInvokerWrapper<T> providerInvokerWrapper = ProviderConsumerRegTable.registerProvider(originInvoker,
+                                                                                                    registryUrl, registeredProviderUrl);
+       // 获取当前url是否需要进行注册参数
+       boolean register = registeredProviderUrl.getParameter(REGISTER_KEY, true);
+       if (register) {
+           // 将当前的提供住注册到注册中心上去
+           register(registryUrl, registeredProviderUrl);
+       }
+   
+       // 对override协议进行注册，用于在接收到overrider请求时做适配，这种方式用于适配2.6.x 及之前的版本(混用)
+       registry.subscribe(overrideSubscribeUrl, overrideSubscribeListener);
+   
+       // 设置当前导出中的相关信息
+       exporter.setRegisterUrl(registeredProviderUrl);
+       exporter.setSubscribeUrl(overrideSubscribeUrl);
+       // 返回导出对象（对数据进行封装）
+       return new DestroyableExporter<>(exporter);
+   }
+   ```
+
+   
 
 # 4 Dubbo 扩展 SPI 源码剖析
 
