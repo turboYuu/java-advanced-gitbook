@@ -288,9 +288,259 @@ public interface HelloService {
 
    目录结构描述如下：
 
-   - 
+   - 在这里每个层级代表继承自父级。
+   - 这里面 `RegistryService` 就是我们之前所讲对外提供注册机制的接口。
+   - 其下面 `Registry` 也同样是一个接口，是对 `RegistryService` 的集成，并且继承了 `Node` 接口，说明注册中心也是基于 URL 去做的。
+   - `AbstractRegistry` 是对注册中心的封装，其主要会对本地注册地址进行缓存，主要功能在于远程注册中心不可用的时候，可以采用本地的注册中心来使用。
+   - `FailbackRegistry` 从名字中可以看出来，失败自动恢复，后台记录失败请求，定时重发功能。
+   - 最深的一层则更多是真实的第三方渠道实现。
 
+6. 下面我们来看一下在 `FailbackRegistry` 中的实现，可以在这里看到它的主要作用是调用第三方的实现方式，并且在出现错误的时候增加重试机制。
+
+   ```java
+   @Override
+   public void register(URL url) {
+       if (!acceptable(url)) {
+           logger.info("URL " + url + " will not be registered to Registry. Registry " + url + " does not accept service of this protocol type.");
+           return;
+       }
+       // 上层调用
+       // 主要用于保存已经注册的地址列表
+       super.register(url);
+       // 将一些错误的信息移除(确保当前地址可以在出现一些错误的地址时可以被删除)
+       removeFailedRegistered(url);
+       removeFailedUnregistered(url);
+       try {
+           // 发送给第三方渠道进行注册操作
+           doRegister(url);
+       } catch (Exception e) {
+           Throwable t = e;
    
+           // 记录日志
+           boolean check = getUrl().getParameter(Constants.CHECK_KEY, true)
+               && url.getParameter(Constants.CHECK_KEY, true)
+               && !CONSUMER_PROTOCOL.equals(url.getProtocol());
+           boolean skipFailback = t instanceof SkipFailbackWrapperException;
+           if (check || skipFailback) {
+               if (skipFailback) {
+                   t = t.getCause();
+               }
+               throw new IllegalStateException("Failed to register " + url + " to registry " + getUrl().getAddress() + ", cause: " + t.getMessage(), t);
+           } else {
+               logger.error("Failed to register " + url + ", waiting for retry, cause: " + t.getMessage(), t);
+           }
+   
+           // 后台异步进行重试，也是Failback比较关键的代码
+           addFailedRegistered(url);
+       }
+   }
+   ```
+
+7. 下面我们再来看看 Zookeeper 中的 `doRegister` 方法的实现，可以看到这里的实现也比较简单，关键在于 `toUrlPath` 方法的实现。关于 `dynamic` 的值，我们也在上面有看到，它的 URL 也是 也是 true。
+
+   ```java
+   @Override
+   public void doRegister(URL url) {
+       try {
+           // 进行创建地址
+           zkClient.create(toUrlPath(url), url.getParameter(DYNAMIC_KEY, true));
+       } catch (Throwable e) {
+           throw new RpcException("Failed to register " + url + " to zookeeper " + getUrl() + ", cause: " + e.getMessage(), e);
+       }
+   }
+   ```
+
+8. 解读 `toUrlPath` 方法。可以看到这里的实现也是比较简单，也验证了我们之前的路径规则。
+
+   ```java
+   private String toUrlPath(URL url) {
+       // 分类地址 + url 字符串
+       return toCategoryPath(url) + PATH_SEPARATOR + URL.encode(url.toFullString());
+   }
+   
+   private String toCategoryPath(URL url) {
+       // 服务名称 + category(在当前的例子中是 providers)
+       return toServicePath(url) + PATH_SEPARATOR + url.getParameter(CATEGORY_KEY, DEFAULT_CATEGORY);
+   }
+   
+   private String toServicePath(URL url) {
+       // 接口地址
+       String name = url.getServiceInterface();
+       if (ANY_VALUE.equals(name)) {
+           return toRootPath();
+       }
+       // 根节点+接口地址
+       return toRootDir() + URL.encode(name);
+   }
+   ```
+
+
+
+## 3.3 URL 规则详解 和 服务本地缓存
+
+### 3.3.1 URL 规则详解
+
+URL 地址如下：
+
+```bash
+protocol://host:port/path?key=value&key=value
+
+provider://192.168.56.1:20880/com.turbo.service.HelloService?anyhost=true&application=service-provider&bind.ip=192.168.56.1&bind.port=20880&category=configurators&check=false&deprecated=false&dubbo=2.0.2&dynamic=true&generic=false&interface=com.turbo.service.HelloService&methods=sayHello
+```
+
+URL 主要有以下几部分组成：
+
+- protocol：协议，一般像我们的 `provider` 或者 `consumer` 在这里都是认为具体的协议
+- host：当前 `provider` 或者其他协议所具体针对的地址，比较特殊的像 `override` 协议所指定的 host 就是 `0.0.0.0` 代表所有的机器都生效。
+- port：代表处理的端口号。
+- path：服务路径，在 `provider` 或者 `consumer` 等其他中代表我们真实的业务接口
+- key=value：这些则代表具体的参数，这里我们可以理解为对这个地址的配置。比如我们 `provider` 中需要具体机器的服务应用名，就可以是一个配置的方式设置上去。
+
+注意：Dubbo 中的 URL 与 java 中的 URL 是有一些区别的，如下：
+
+- 这里提供了针对于参数的 `parameter` 的增加和减少（支持动态更改）
+- 提供缓存功能，对一些基础的数据做缓存。
+
+
+
+### 3.3.2 服务本地缓存
+
+dubbo 调用者需要通过注册中心（如：ZK）注册信息，获取提供者。但是如果频繁从 ZK 获取信息，肯定会存在单点故障问题，所以 dubbo 提供了将提供者信息缓存在本地的方法。
+
+Dubbo 在订阅注册中心的回调处理逻辑当中会保存服务提供者信息到本地缓存文件当中（同步/异步两种方式），以 URL 维度进行全量保存。
+
+Dubbo 在服务引用过程中会创建 registry 对象并加载本地缓存文件，会优先订阅注册中心，订阅注册中心失败后会访问本地缓存文件内容获取服务提供信息。
+
+1. 首先从构造方法讲起，这里比较简单，主要用于确定需要保存的文件信息。并且从系统中读取已有的配置信息。
+
+   ```java
+   public AbstractRegistry(URL url) {
+       setUrl(url);
+       if (url.getParameter(REGISTRY__LOCAL_FILE_CACHE_ENABLED, true)) {
+           // Start file save timer
+           syncSaveFile = url.getParameter(REGISTRY_FILESAVE_SYNC_KEY, false);
+           // 默认保存路径(home/.dubbo/dubbo-registry-appName-address-port.cache)
+           String defaultFilename = System.getProperty("user.home") + "/.dubbo/dubbo-registry-" + url.getParameter(APPLICATION_KEY) + "-" + url.getAddress().replaceAll(":", "-") + ".cache";
+           String filename = url.getParameter(FILE_KEY, defaultFilename);
+           // 创建文件
+           File file = null;
+           if (ConfigUtils.isNotEmpty(filename)) {
+               file = new File(filename);
+               if (!file.exists() && file.getParentFile() != null && !file.getParentFile().exists()) {
+                   if (!file.getParentFile().mkdirs()) {
+                       throw new IllegalArgumentException("Invalid registry cache file " + file + ", cause: Failed to create directory " + file.getParentFile() + "!");
+                   }
+               }
+           }
+           this.file = file;
+           // 加载已有的配置文件
+           loadProperties();
+           notify(url.getBackupUrls());
+       }
+   }
+   ```
+
+2. 我们可以看到这个类中最为关键的一个属性为 `properties`，通过寻找，得到这个属性的设置只有在一个地方：`saveProperties`，看一下这个方法，这里也有一个我们值得关注的点，就是基于版本号的更改。
+
+   ```java
+   private void saveProperties(URL url) {
+       if (file == null) {
+           return;
+       }
+   
+       try {
+           StringBuilder buf = new StringBuilder();
+           // 获取所有通知到的地址
+           Map<String, List<URL>> categoryNotified = notified.get(url);
+           if (categoryNotified != null) {
+               for (List<URL> us : categoryNotified.values()) {
+                   for (URL u : us) {
+                       // 多个地址进行拼接
+                       if (buf.length() > 0) {
+                           buf.append(URL_SEPARATOR);
+                       }
+                       buf.append(u.toFullString());
+                   }
+               }
+           }
+           // 保存数据
+           properties.setProperty(url.getServiceKey(), buf.toString());
+           // 保存为一个新的版本号
+           // 通过这种机制可以保证后面保存的记录，在重试的时候，不会重试之前的版本
+           long version = lastCacheChanged.incrementAndGet();
+           // 需要同步保存则进行保存
+           if (syncSaveFile) {
+               doSaveProperties(version);
+           } else {
+               // 否则 异步进行处理
+               registryCacheExecutor.execute(new SaveProperties(version));
+           }
+       } catch (Throwable t) {
+           logger.warn(t.getMessage(), t);
+       }
+   }
+   ```
+
+3. 下面我们再来看看是如何进行保存文件的。这里的实现也比较简单，主要比较关键的代码在于利用文件级锁来保证同一时间只会有一个线程执行。
+
+   ```java
+   public void doSaveProperties(long version) {
+       if (version < lastCacheChanged.get()) {
+           return;
+       }
+       if (file == null) {
+           return;
+       }
+       // Save
+       try {
+           // 使用文件级别锁，来保证同一段时间只会有一个线程进行读取操作
+           File lockfile = new File(file.getAbsolutePath() + ".lock");
+           if (!lockfile.exists()) {
+               lockfile.createNewFile();
+           }
+           try (RandomAccessFile raf = new RandomAccessFile(lockfile, "rw");
+                FileChannel channel = raf.getChannel()) {
+               // 利用文件锁来保证并发的执行的情况下，只会有一个线程执行成功(原因在于可能是跨VM的)
+               FileLock lock = channel.tryLock();
+               if (lock == null) {
+                   throw new IOException("Can not lock the registry cache file " + file.getAbsolutePath() + ", ignore and retry later, maybe multi java process use the file, please config: dubbo.registry.file=xxx.properties");
+               }
+               // Save
+               try {
+                   if (!file.exists()) {
+                       file.createNewFile();
+                   }
+                   // 将配置的文件信息保存到文件中
+                   try (FileOutputStream outputFile = new FileOutputStream(file)) {
+                       properties.store(outputFile, "Dubbo Registry Cache");
+                   }
+               } finally {
+                   // 解开文件锁
+                   lock.release();
+               }
+           }
+       } catch (Throwable e) {
+           // 执行出现错误，则交给专门的线程去进行重试
+           savePropertiesRetryTimes.incrementAndGet();
+           if (savePropertiesRetryTimes.get() >= MAX_RETRY_TIMES_SAVE_PROPERTIES) {
+               logger.warn("Failed to save registry cache file after retrying " + MAX_RETRY_TIMES_SAVE_PROPERTIES + " times, cause: " + e.getMessage(), e);
+               savePropertiesRetryTimes.set(0);
+               return;
+           }
+           if (version < lastCacheChanged.get()) {
+               savePropertiesRetryTimes.set(0);
+               return;
+           } else {
+               registryCacheExecutor.execute(new SaveProperties(lastCacheChanged.incrementAndGet()));
+           }
+           logger.warn("Failed to save registry cache file, will retry, cause: " + e.getMessage(), e);
+       }
+   }
+   ```
+
+
+
+## 3.4 Dubbo 消费过程分析
 
 # 4 Dubbo 扩展 SPI 源码剖析
 
