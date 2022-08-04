@@ -775,7 +775,7 @@ public class NIOSelectorServer {
 
 ### 3.1.2 概述
 
-Netty是由 JBOSS 提供的一个Java开源框架。Netty 提供异步的、基于事件驱动的网络应用程序框架，用以快速开发高性能、高可靠的网络 IO 程序。Netty是一个基于NIO的网络编程框架，使用Netty可以帮助你快速、简单的开发出一个网络应用，相当于简化和流程化了NIO的开发过程。作为当前最流行的NIO框架，Netty在互联网领域、大数据分布式计算领域、游戏行业、通信行业等获得了广泛的应用，知名的 Elasticsearch、Dubbo 框架内部都采用了 Netty。
+Netty是由 JBOSS 提供的一个Java开源框架。**Netty 提供异步的、基于事件驱动的网络应用程序框架，用以快速开发高性能、高可靠的网络 IO 程序。**Netty是一个基于NIO的网络编程框架，使用Netty可以帮助你快速、简单的开发出一个网络应用，相当于简化和流程化了NIO的开发过程。作为当前最流行的NIO框架，Netty在互联网领域、大数据分布式计算领域、游戏行业、通信行业等获得了广泛的应用，知名的 Elasticsearch、Dubbo 框架内部都采用了 Netty。
 
 https://netty.io/
 
