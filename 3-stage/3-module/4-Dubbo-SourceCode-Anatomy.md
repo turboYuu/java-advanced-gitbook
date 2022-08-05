@@ -552,6 +552,363 @@ Dubbo 在服务引用过程中会创建 registry 对象并加载本地缓存文�
 
 [Dubbo SPI源码分析-官网说明](https://dubbo.apache.org/zh/docsv2.7/dev/source/dubbo-spi/#3-dubbo-spi-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90)
 
+Dubbo SPI 中最重要的类就是 `org.apache.dubbo.common.extension.ExtensionLoader`，它是所有 Dubbo 中 SPI 的入口。
+
+我们通过分析源码来想学习 `ExtensionLoader` 是怎么加载的。这里会具体介绍 `org.apache.dubbo.common.extension.ExtensionLoader#getExtensionLoader` 和 `org.apache.dubbo.common.extension.ExtensionLoader#getExtension` 方法。
+
+getExtensionLoader：获取扩展点加载器，并加载所对应的所有扩展点的实现
+
+getExtension：根据 name 获取扩展点的指定实现
+
+## 4.1 getExtensionLoader 加载过程
+
+1. 是如何进行实例化 `ExtensionLoader` 的
+
+   ```java
+   // org.apache.dubbo.common.extension.ExtensionLoader#getExtensionLoader
+   @SuppressWarnings("unchecked")
+   public static <T> ExtensionLoader<T> getExtensionLoader(Class<T> type) {
+       // 必须传入类型
+       if (type == null) {
+           throw new IllegalArgumentException("Extension type == null");
+       }
+       // 必须是接口类型
+       if (!type.isInterface()) {
+           throw new IllegalArgumentException("Extension type (" + type + ") is not an interface!");
+       }
+       // 必须包含SPI注解
+       if (!withExtensionAnnotation(type)) {
+           throw new IllegalArgumentException("Extension type (" + type +
+                                              ") is not an extension, because it is NOT annotated with @" + SPI.class.getSimpleName() + "!");
+       }
+   	// 尝试从已经加载过的数据中去读取(缓存功能)
+       ExtensionLoader<T> loader = (ExtensionLoader<T>) EXTENSION_LOADERS.get(type);
+       if (loader == null) {
+           // 如果没有的话，才会进行初始化，并且放入到缓存中汇总
+           EXTENSION_LOADERS.putIfAbsent(type, new ExtensionLoader<T>(type));
+           loader = (ExtensionLoader<T>) EXTENSION_LOADERS.get(type);
+       }
+       return loader;
+   }
+   
+   private static <T> boolean withExtensionAnnotation(Class<T> type) {
+       // 包含 @SPI 注解在接口上
+       return type.isAnnotationPresent(SPI.class);
+   }
+   ```
+
+2. 具体看一下 `ExtensionLoader` 的构造器函数，这里它的实现比较简单，并没有做太多的操作。主要是对type进行赋值操作，然后获取 `ExtensionFactory` 对象。
+
+   ```java
+   private ExtensionLoader(Class<?> type) {
+       this.type = type;
+       // 这里需要对 对象的工厂做额外的创建，可以看到扩展的工厂也是一个扩展点
+       objectFactory = (type == ExtensionFactory.class ? null : ExtensionLoader.getExtensionLoader(ExtensionFactory.class).getAdaptiveExtension());
+   }
+   ```
+
+3. 具体再来关注一下 `ExtensionFactory` 是做什么用的，从这里我们可以大概的看出，它是通过传入 扩展点的类型 和真正的名称 来获取扩展的。这里就和我们 SPI 中的具体名称实现相挂钩。
+
+   ```java
+   @SPI
+   public interface ExtensionFactory {
+   
+       /**
+        * Get extension.
+        *
+        * @param type object type.
+        * @param name object name.
+        * @return object instance.
+        */
+       <T> T getExtension(Class<T> type, String name);
+   
+   }
+   ```
+
+4. 可以在 `dubbo-common/src/main/resources/META-INF/dubbo/internal/com.alibaba.dubbo.common.extension.ExtensionFactory` 中看到，它默认有三个实现的提供：
+
+   ```properties
+   spring=org.apache.dubbo.config.spring.extension.SpringExtensionFactory
+   adaptive=org.apache.dubbo.common.extension.factory.AdaptiveExtensionFactory
+   spi=org.apache.dubbo.common.extension.factory.SpiExtensionFactory
+   ```
+
+5. 可以看到在 `AdaptiveExtensionFactory` 中是使用 `@Adaptive` 标记的。这里可以通过类名基本看出来，它其实最主要的作用是进行代理其他的 ExtensionFactory。其中比较重要的方法在于 `getSupportedExtensions` 方法，获取所有支持的扩展信息实现。
+
+   ```java
+   @Adaptive
+   public class AdaptiveExtensionFactory implements ExtensionFactory {
+   
+       private final List<ExtensionFactory> factories;
+   
+       public AdaptiveExtensionFactory() {
+           // 获取针对 ExtensionFactory 扩展加载器
+           ExtensionLoader<ExtensionFactory> loader = ExtensionLoader.getExtensionLoader(ExtensionFactory.class);
+           List<ExtensionFactory> list = new ArrayList<ExtensionFactory>();
+           // 获取支持的扩展
+           for (String name : loader.getSupportedExtensions()) {
+               // 将所有的 ExtensionFactory 进行缓存
+               list.add(loader.getExtension(name));
+           }
+           factories = Collections.unmodifiableList(list);
+       }
+   
+       @Override
+       public <T> T getExtension(Class<T> type, String name) {
+           for (ExtensionFactory factory : factories) {
+               // 交给每个真实的 ExtensionFactory 来处理
+               T extension = factory.getExtension(type, name);
+               if (extension != null) {
+                   return extension;
+               }
+           }
+           return null;
+       }
+   
+   }
+   ```
+
+6. 获取所有支持的扩展信息实现：`ExtensionLoader#getSupportedExtensions`，这里可以看到，其实比较关键的方法在于 `getExtensionClasses` 方法。
+
+   ```java
+   public Set<String> getSupportedExtensions() {
+       // 获取所有的扩展信息
+       Map<String, Class<?>> clazzes = getExtensionClasses();
+       // 返回所有的扩展点名称
+       return Collections.unmodifiableSet(new TreeSet<>(clazzes.keySet()));
+   }
+   ```
+
+7. 观察 `getExtensionClasses` 的实现，可以看到这里其实主要做的就是一件事，防止重复被加载，所以真正的实现还需要专门去看 `loadExtensionClasses` 方法。
+
+   在我们通过名称获取扩展类之前，首先需要根据配置文件解析出扩展类名称 到 扩展类的映射表 classes，之后再根据扩展项名称，从映射关系表中获取对应的扩展类即可。
+
+   ```java
+   private Map<String, Class<?>> getExtensionClasses() {
+       // 从缓存中获取已加载的扩展类
+       Map<String, Class<?>> classes = cachedClasses.get();
+       // 双重检查
+       if (classes == null) {
+           // 为空的话，则锁住，表示只会被执行一次
+           synchronized (cachedClasses) {
+               classes = cachedClasses.get();
+               if (classes == null) {
+                   // 进行加载信息，加载扩展类
+                   classes = loadExtensionClasses();
+                   cachedClasses.set(classes);
+               }
+           }
+       }
+       return classes;
+   }
+   ```
+
+8. 观察 `loadExtensionClasses` 方法实现。这里主要做了两件事情：
+
+   - 加载当前 SPI 的默认实现；
+   - 加载这个类的所有扩展点实现，并且按照 name 和 Class 对象的形式存储；
+
+   下面专门针对 `cacheDefaultExtensionName` 和 `loadDirectory` 方法做说明
+
+   ```java
+   private Map<String, Class<?>> loadExtensionClasses() {
+       // 加载默认扩展的实现名称
+       cacheDefaultExtensionName();
+   
+       // 获取其中每一种实现的名称和对应的classes
+       // 具体的目录请参考下面的所有目录
+       Map<String, Class<?>> extensionClasses = new HashMap<>();
+   
+       for (LoadingStrategy strategy : strategies) {
+           loadDirectory(extensionClasses, strategy.directory(), type.getName(), strategy.preferExtensionClassLoader(), strategy.excludedPackages());
+           loadDirectory(extensionClasses, strategy.directory(), type.getName().replace("org.apache", "com.alibaba"), strategy.preferExtensionClassLoader(), strategy.excludedPackages());
+       }
+   
+       return extensionClasses;
+   }
+   ```
+
+   观察 `cacheDefaultExtensionName` 方法实现。这里面的实现比较简单主要用于读取注解中value值，来获取到默认的名称。
+
+   ```java
+   private void cacheDefaultExtensionName() {
+       // 获取当前类是否包含 SPI 注解，一般走到这里都是拥有这个注解的
+       final SPI defaultAnnotation = type.getAnnotation(SPI.class);
+       if (defaultAnnotation == null) {
+           return;
+       }
+   
+       // 来获取其 value 值，这个值主要的作用是设置这个SPI中的默认扩展名
+       // 比如LoadBalance的默认实现是 random，就是通过这里进行设置
+       String value = defaultAnnotation.value();
+       if ((value = value.trim()).length() > 0) {
+           String[] names = NAME_SEPARATOR.split(value);
+           if (names.length > 1) {
+               throw new IllegalStateException("More than 1 default extension name on extension " + type.getName()
+                                               + ": " + Arrays.toString(names));
+           }
+           if (names.length == 1) {
+               cachedDefaultName = names[0];
+           }
+       }
+   }
+   ```
+
+   观察 `loadDirectory` 方法实现。这里的主要功能是从这个文件夹中寻找真正的文件列表，并且对其中的文件内容解析并且放入到 `extensionClasses` 这个 Map 中，具体解析文件的内容实现，还要参考 `loadResource` 实现。
+
+   ```java
+   private void loadDirectory(Map<String, Class<?>> extensionClasses, String dir, String type,
+                                  boolean extensionLoaderClassLoaderFirst, String... excludedPackages) {
+       // 文件名称规则：路径/包名.接口名
+       String fileName = dir + type;
+       try {
+           // 寻找 classLoader 和 url 列表
+           Enumeration<java.net.URL> urls = null;
+           ClassLoader classLoader = findClassLoader();
+   
+           // try to load from ExtensionLoader's ClassLoader first
+           // 如果需要的话，需要先从当前类的 ClassLoader 中寻找
+           if (extensionLoaderClassLoaderFirst) {
+               ClassLoader extensionLoaderClassLoader = ExtensionLoader.class.getClassLoader();
+               if (ClassLoader.getSystemClassLoader() != extensionLoaderClassLoader) {
+                   urls = extensionLoaderClassLoader.getResources(fileName);
+               }
+           }
+   
+           // 如果找不到任何url列表，则继续尝试去当前线程的ClassLoader中寻找
+           if(urls == null || !urls.hasMoreElements()) {
+               if (classLoader != null) {
+                   urls = classLoader.getResources(fileName);
+               } else {
+                   urls = ClassLoader.getSystemResources(fileName);
+               }
+           }
+           
+           // 如果存在文件的话
+           if (urls != null) {
+               while (urls.hasMoreElements()) {
+                   // 遍历每一个资源文件，并且进行加载资源信息到 extensionClasses，主要功能是读取文件内容
+                   java.net.URL resourceURL = urls.nextElement();
+                   loadResource(extensionClasses, classLoader, resourceURL, excludedPackages);
+               }
+           }
+       } catch (Throwable t) {
+           logger.error("Exception occurred when loading extension class (interface: " +
+                        type + ", description file: " + fileName + ").", t);
+       }
+   }
+   ```
+
+9. 观察 `loadResource` 实现，主要是用于读取文件操作，并且将方法交由 `loadClass` 来加载类信息。加载类信息也是最重要的方法所在。
+
+   ```java
+   private void loadResource(Map<String, Class<?>> extensionClasses, ClassLoader classLoader,
+                                 java.net.URL resourceURL, String... excludedPackages) {
+       try {
+           // 读取文件
+           try (BufferedReader reader = new BufferedReader(new InputStreamReader(resourceURL.openStream(), StandardCharsets.UTF_8))) {
+               String line;
+               while ((line = reader.readLine()) != null) {
+                   // 截取文件 # 前面的内容
+                   final int ci = line.indexOf('#');
+                   if (ci >= 0) {
+                       line = line.substring(0, ci);
+                   }
+                   line = line.trim();
+                   
+                   // 如果有内容的话
+                   if (line.length() > 0) {
+                       try {
+                           // 则进行加载key=value的形式数据
+                           String name = null;
+                           int i = line.indexOf('=');
+                           if (i > 0) {
+                               name = line.substring(0, i).trim();
+                               line = line.substring(i + 1).trim();
+                           }
+                           if (line.length() > 0 && !isExcluded(line, excludedPackages)) {
+                               // 对类信息进行加载操作
+                               loadClass(extensionClasses, resourceURL, Class.forName(line, true, classLoader), name);
+                           }
+                       } catch (Throwable t) {
+                           IllegalStateException e = new IllegalStateException("Failed to load extension class (interface: " + type + ", class line: " + line + ") in " + resourceURL + ", cause: " + t.getMessage(), t);
+                           exceptions.put(line, e);
+                       }
+                   }
+               }
+           }
+       } catch (Throwable t) {
+           logger.error("Exception occurred when loading extension class (interface: " +
+                        type + ", class file: " + resourceURL + ") in " + resourceURL, t);
+       }
+   }
+   ```
+
+10. 观察 `loadClass` 类的实现，可以看到这里是最终进行完成类映射的地方。
+
+    ```java
+    private void loadClass(Map<String, Class<?>> extensionClasses, java.net.URL resourceURL, Class<?> clazz, String name) throws NoSuchMethodException {
+        // 当前扩展点的实现，必须是当前扩展接口的实现才可以
+        if (!type.isAssignableFrom(clazz)) {
+            throw new IllegalStateException("Error occurred when loading extension class (interface: " +
+                                            type + ", class line: " + clazz.getName() + "), class "
+                                            + clazz.getName() + " is not subtype of interface.");
+        }
+        // 如果是包含了 Adaptive 注解，则认为是需要对扩展点包装的方法，这里只做了存储操作，存储至 cachedAdaptiveClass 中
+        if (clazz.isAnnotationPresent(Adaptive.class)) {
+            cacheAdaptiveClass(clazz);
+        } else if (isWrapperClass(clazz)) {
+            // 判断是否是 wrapper 类型，是否构造函数中有该接口类型的传入
+            // wrapper 类型的意思是，对当前的扩展点实现封装功能处理
+            cacheWrapperClass(clazz);
+        } else {
+            clazz.getConstructor();
+            // 寻找它是否已经定义过了名称，这里就不继续往里面细看了，主要是获取当前类的 org.apache.dubbo.common.Extension 注解，如果有的话就使用这个名称，否则的话就是用当前类的简单名称
+            if (StringUtils.isEmpty(name)) {
+                name = findAnnotationName(clazz);
+                if (name.length() == 0) {
+                    throw new IllegalStateException("No such extension name for the class " + clazz.getName() + " in the config " + resourceURL);
+                }
+            }
+    
+            // 否则的话，就对这个名称和class做映射
+            String[] names = NAME_SEPARATOR.split(name);
+            if (ArrayUtils.isNotEmpty(names)) {
+                // 如果当前类拥有 Activate 注解，则将其进行添加到 cacheActivateClass 对象中，意味着需要执行
+                cacheActivateClass(clazz, names[0]);
+                // 进行名称映射保存
+                for (String n : names) {
+                    cacheName(clazz, n);
+                    saveInExtensionClass(extensionClasses, clazz, n);
+                }
+            }
+        }
+    }
+    ```
+
+
+
+当执行完这几个方法之后，会对以下几个字段进行更新：
+
+- cachedAdaptiveClass：当前 Extension 类型对应的 AdaptiveExtension 类型（只能一个）
+- cachedWrapperClasses：当前 Extension  类型对应的所有 Wrapper 实现类型（无顺序）
+- cachedActivates：当前 Extension 实现自动激活实现缓存（map,无序）
+- cachedNames：扩展点实现类对应的名称（如配置多个名称则值为第一个）
+
+
+
+![image-20220805182041372](assest/image-20220805182041372.png)
+
+![image-20220805183839452](assest/image-20220805183839452.png)
+
+
+
+## 4.2 getExtension
+
+
+
+## 4.3 Adaptive 功能实现原理
+
 # 5 集群容错源码剖析
 
 # 6 网络通信原理剖析
