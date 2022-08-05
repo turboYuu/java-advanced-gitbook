@@ -899,13 +899,157 @@ getExtension：根据 name 获取扩展点的指定实现
 
 ![image-20220805182041372](assest/image-20220805182041372.png)
 
+`getSupportedExtensions` 方法执行后：
+
 ![image-20220805183839452](assest/image-20220805183839452.png)
 
 
 
 ## 4.2 getExtension
 
+1. `getExtension` 方法实现。这里面同样主要是根据 name 对扩展点进行处理和进行加锁来创建真实的引用，其中都是有使用缓存来处理。
 
+   ```java
+   @SuppressWarnings("unchecked")
+   public T getExtension(String name) {
+       if (StringUtils.isEmpty(name)) {
+           throw new IllegalArgumentException("Extension name == null");
+       }
+       // 获取当前 SPI 的默认扩展实现类
+       if ("true".equals(name)) {
+           return getDefaultExtension();
+       }
+       // 获取当前类的 holder，实现原理和cachedClasses的方式相同，都是建立同一个引用后再进行加锁
+       final Holder<Object> holder = getOrCreateHolder(name);
+       Object instance = holder.get();
+       if (instance == null) {
+           synchronized (holder) {
+               instance = holder.get();
+               if (instance == null) {
+                   // 真正进行创建实例
+                   instance = createExtension(name);
+                   holder.set(instance);
+               }
+           }
+       }
+       return (T) instance;
+   }
+   ```
+
+2. 下面看看 `getOrCreateHolder` 是如何保证缓存的。
+
+   ```java
+   private Holder<Object> getOrCreateHolder(String name) {
+       // 获取当前名称和对象 Holder 的映射关系
+       Holder<Object> holder = cachedInstances.get(name);
+       if (holder == null) {
+           // 如果不存在的话，则使用putIfAbsent的原子操作来设置值，这个值可以保证多线程的情况下有值的时候不处理，没有值进行保存
+           cachedInstances.putIfAbsent(name, new Holder<>());
+           // 获取真实的 holder 处理器
+           holder = cachedInstances.get(name);
+       }
+       return holder;
+   }
+   ```
+
+3. 然后再看 `createExtension` 的实现，它是具体根据扩展的 class 名称来进行创建实例类。这里也是创建扩展点类的主要实现。下面我们也对其他扩展点注册的方法做说明。
+
+   ```java
+   @SuppressWarnings("unchecked")
+   private T createExtension(String name) {
+       // 从配置文件中加载所有的扩展类，可以得到配置项名称 - 配置类的映射关系
+       Class<?> clazz = getExtensionClasses().get(name);
+       if (clazz == null) {
+           throw findException(name);
+       }
+       try {
+           // 获取是否已经有实例了
+           T instance = (T) EXTENSION_INSTANCES.get(clazz);
+           if (instance == null) {
+               // 没有的话，同样使用 putIfAbsent 的方式来保证只会创建一个对象并且保存
+               EXTENSION_INSTANCES.putIfAbsent(clazz, clazz.newInstance());
+               instance = (T) EXTENSION_INSTANCES.get(clazz);
+           }
+           // 注入其他扩展点的实体，用于扩展点和其他的扩展点相互打通
+           injectExtension(instance);
+           // 进行遍历所有的包装类信息，分别对包装的类进行包装实例化，并且返回自身引用
+           Set<Class<?>> wrapperClasses = cachedWrapperClasses;
+           if (CollectionUtils.isNotEmpty(wrapperClasses)) {
+               for (Class<?> wrapperClass : wrapperClasses) {
+                   // 同样进行注册其他扩展点的功能
+                   instance = injectExtension((T) wrapperClass.getConstructor(type).newInstance(instance));
+               }
+           }
+           // 对扩展点进行初始化操作
+           initExtension(instance);
+           return instance;
+       } catch (Throwable t) {
+           throw new IllegalStateException("Extension instance (name: " + name + ", class: " +
+                                           type + ") couldn't be instantiated: " + t.getMessage(), t);
+       }
+   }
+   ```
+
+4. `injectExtension` 方法观察
+
+   ```java
+   private T injectExtension(T instance) {
+   
+       if (objectFactory == null) {
+           return instance;
+       }
+   
+       try {
+           // 遍历其中所有的方法
+           for (Method method : instance.getClass().getMethods()) {
+               /**
+        		* return true if and only if:
+        		* <p>
+        		* 1, public
+        		* <p>
+        		* 2, name starts with "set"
+        		* <p>
+        		* 3, only has one parameter
+        		*/
+               if (!isSetter(method)) {
+                   continue;
+               }
+               /**
+                    * Check {@link DisableInject} to see if we need auto injection for this property
+                    */
+               // 如果设置了取消注册，则不进行处理
+               if (method.getAnnotation(DisableInject.class) != null) {
+                   continue;
+               }
+               // 获取参数类型，并且非基础类型（String,Integer等类型）
+               Class<?> pt = method.getParameterTypes()[0];
+               if (ReflectUtils.isPrimitives(pt)) {
+                   continue;
+               }
+   
+               try {
+                   // 获取需要 set 的扩展点名称
+                   String property = getSetterProperty(method);
+                   // 从 ExtensionLoader 中加载执行的扩展点
+                   // 比如有一个方法为 setRandom(LoadBalance loadBalance)，那么则以为需要加载负载均衡中名为 random 的扩展点
+                   Object object = objectFactory.getExtension(pt, property);
+                   if (object != null) {
+                       method.invoke(instance, object);
+                   }
+               } catch (Exception e) {
+                   logger.error("Failed to inject via method " + method.getName()
+                                + " of interface " + type.getName() + ": " + e.getMessage(), e);
+               }
+   
+           }
+       } catch (Exception e) {
+           logger.error(e.getMessage(), e);
+       }
+       return instance;
+   }
+   ```
+
+   
 
 ## 4.3 Adaptive 功能实现原理
 
