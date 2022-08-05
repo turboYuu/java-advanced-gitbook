@@ -542,7 +542,15 @@ Dubbo 在服务引用过程中会创建 registry 对象并加载本地缓存文�
 
 ## 3.4 Dubbo 消费过程分析
 
+[服务消费者消费一个服务的详细过程](https://dubbo.apache.org/zh/docsv2.7/dev/implementation/#%E6%9C%8D%E5%8A%A1%E6%B6%88%E8%B4%B9%E8%80%85%E6%B6%88%E8%B4%B9%E4%B8%80%E4%B8%AA%E6%9C%8D%E5%8A%A1%E7%9A%84%E8%AF%A6%E7%BB%86%E8%BF%87%E7%A8%8B)
+
+![/dev-guide/images/dubbo_rpc_refer.jpg](assest/dubbo_rpc_refer.jpg)
+
+首先 `ReferenceConfig`  类的 `init` 方法调用 `Protocol` 的 `refer` 方法生成 `Invoker` 实例（如上图中的红色部分），这是服务消费的关键。接下来把 `Invoker` 转换为客户端需要的接口（如：HelloService）。
+
 # 4 Dubbo 扩展 SPI 源码剖析
+
+[Dubbo SPI源码分析-官网说明](https://dubbo.apache.org/zh/docsv2.7/dev/source/dubbo-spi/#3-dubbo-spi-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90)
 
 # 5 集群容错源码剖析
 
