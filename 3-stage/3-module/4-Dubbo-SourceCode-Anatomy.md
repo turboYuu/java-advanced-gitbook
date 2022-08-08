@@ -1191,35 +1191,45 @@ Adaptive的主要功能是对所有的扩展点进行封装为一个类，通过
 
    ```java
    private String generateMethodContent(Method method) {
+       // 获取 Adaptive 注解，只支持含有 Adaptive 注解方法处理
        Adaptive adaptiveAnnotation = method.getAnnotation(Adaptive.class);
        StringBuilder code = new StringBuilder(512);
        if (adaptiveAnnotation == null) {
+           // 没有该注解，直接抛出异常
            return generateUnsupported(method);
        } else {
+           // 获取 URL 参数的所在位置
            int urlTypeIndex = getUrlTypeIndex(method);
    
            // found parameter in URL type
            if (urlTypeIndex != -1) {
-               // Null Point check
+               // 增加判断 url 不为空的代码
                code.append(generateUrlNullCheck(urlTypeIndex));
            } else {
-               // did not find parameter in URL type
+               // 获取这个方法中的所有参数列表
+               // 寻找每个参数中是否有 “get” 开头的方法，并且返回值是 URL 的
+               // 如果有则同样认定为找到，否则抛出异常
                code.append(generateUrlAssignmentIndirectly(method));
            }
-   
+   		// 获取扩展点的适配名称
            String[] value = getMethodAdaptiveValue(adaptiveAnnotation);
    
+           // 判断是否有参数是 Invocation 类
+           // 这里判断的主要目的在于，拥有 Invocation 时，则获取扩展名成的方式发生改变
+           // 存在 Invocation 时，通过 getMethodParameter，否则通过 getParameter 来执行
+           // getMethodParameter 是 dubboURL 中特有的，用于将 "test.a" 转换为 "testA" 的形式
            boolean hasInvocation = hasInvocationArgument(method);
    
+           // 增加有 Invocation 类时的不为空判断
            code.append(generateInvocationArgumentNullCheck(method));
-   
+   		// 生成获取扩展点名称的方法
            code.append(generateExtNameAssignment(value, hasInvocation));
-           // check extName == null?
+           // 检查扩展点不能为空
            code.append(generateExtNameNullCheck(value));
-   
+   		// 获取扩展点实现
            code.append(generateExtensionAssignment());
    
-           // return statement
+           // 返回扩展点中的真实调用
            code.append(generateReturnAndInvocation(method));
        }
    
