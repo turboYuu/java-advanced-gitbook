@@ -1053,7 +1053,181 @@ getExtension：根据 name 获取扩展点的指定实现
 
 ## 4.3 Adaptive 功能实现原理
 
-Adaptive的主要功能是对所有的扩展点进行封装为一个类，
+Adaptive的主要功能是对所有的扩展点进行封装为一个类，通过 URL 传入参数动态选择需要使用的扩展点。其底层的实现就是动态代理，这里会通过源码的形式，看它是如何通过动态代理进行加载的。
+
+1. 这里我们 `getAdaptiveExtension` 方法讲起，这个里面就是真正获取该类。这里可以看到，`ExtensionLoader` 中大量使用了 Holder 和加锁的方式进行唯一创建。
+
+   ```java
+   @SuppressWarnings("unchecked")
+   public T getAdaptiveExtension() {
+       // 和原先是用相同的方式，进行 Holder 和加锁的方式来保证只会被创建一次
+       Object instance = cachedAdaptiveInstance.get();
+       if (instance == null) {
+           // 如果直接已经有创建并且错误的情况，则直接返回错误信息，防止重复每必要的创建
+           if (createAdaptiveInstanceError != null) {
+               throw new IllegalStateException("Failed to create adaptive instance: " +
+                                               createAdaptiveInstanceError.toString(),
+                                               createAdaptiveInstanceError);
+           }
+   
+           synchronized (cachedAdaptiveInstance) {
+               instance = cachedAdaptiveInstance.get();
+               if (instance == null) {
+                   try {
+                       // 这里真实的进行创建操作
+                       instance = createAdaptiveExtension();
+                       cachedAdaptiveInstance.set(instance);
+                   } catch (Throwable t) {
+                       createAdaptiveInstanceError = t;
+                       throw new IllegalStateException("Failed to create adaptive instance: " + t.toString(), t);
+                   }
+               }
+           }
+       }
+   
+       return (T) instance;
+   }
+   ```
+
+2. 这里我们继续从 `createAdaptiveExtension` 来去查看实现。这里主要是进行了一些方法封装。
+
+   ```java
+   @SuppressWarnings("unchecked")
+   private T createAdaptiveExtension() {
+       try {
+           // 这里使用 getAdaptiveExtensionClass 方法进行构建类并且执行实例化
+           // 然后和普通的其他 class 相同，依旧使用 injectExtension 进行扩展
+           return injectExtension((T) getAdaptiveExtensionClass().newInstance());
+       } catch (Exception e) {
+           throw new IllegalStateException("Can't create adaptive extension " + type + ", cause: " + e.getMessage(), e);
+       }
+   }
+   ```
+
+   ```java
+   private Class<?> getAdaptiveExtensionClass() {
+       // 确保已经加载类所有的扩展类信息
+       getExtensionClasses();
+       // 如果已经加载过，则直接返回
+       if (cachedAdaptiveClass != null) {
+           return cachedAdaptiveClass;
+       }
+       // 否则进行构建操作
+       return cachedAdaptiveClass = createAdaptiveExtensionClass();
+   }
+   ```
+
+3. 具体再来看 `createAdaptiveExtensionClass` 方法，这里主要是进行生成 Adaptive 的代码，并且进行编译生成 class。
+
+   ```java
+   private Class<?> createAdaptiveExtensionClass() {
+       // 实例化一个新的 Adaptive 的代码生成器，并且进行代码生成
+       String code = new AdaptiveClassCodeGenerator(type, cachedDefaultName).generate();
+       // 获取类加载器
+       ClassLoader classLoader = findClassLoader();
+       // 通过扩展点，寻找编译器，目前有Java自带额编译器和Javassist的编译器
+       org.apache.dubbo.common.compiler.Compiler compiler = ExtensionLoader.getExtensionLoader(org.apache.dubbo.common.compiler.Compiler.class).getAdaptiveExtension();
+       // 编译并且生成 class
+       return compiler.compile(code, classLoader);
+   }
+   ```
+
+4. 具体通过 `AdaptiveClassCodeGenerator#generate` 方法来实现真正的代码生成。
+
+   ```java
+   public String generate() {
+       // 如果没有任何方法标记为 Adaptive，则不做处理
+       if (!hasAdaptiveMethod()) {
+           throw new IllegalStateException("No adaptive method exist on extension " + type.getName() + ", refuse to create the adaptive class!");
+       }
+   	// 进行编写代码
+       StringBuilder code = new StringBuilder();
+       // 生成包信息
+       code.append(generatePackageInfo());
+       // 生成引用信息
+       code.append(generateImports());
+       // 生成类声明
+       code.append(generateClassDeclaration());
+   
+       // 生成每一个方法
+       Method[] methods = type.getMethods();
+       for (Method method : methods) {
+           code.append(generateMethod(method));
+       }
+       // 输出最后的一个 “}” 来结束当前类
+       code.append("}");
+   
+       if (logger.isDebugEnabled()) {
+           logger.debug(code.toString());
+       }
+       return code.toString();
+   }
+   ```
+
+5. 这里主要对其中的每一个方法来做处理。具体主要看 `generateMethod` 方法。这里的很多方法主要是依赖反射机制去进行封装，最终拼接为一个最终字符串。其中最关键的方法在于 `generateMethodContent` 方法来生成代理功能。
+
+   ```java
+   /**
+    * generate method declaration
+    */
+   private String generateMethod(Method method) {
+       // 方法返回类型
+       String methodReturnType = method.getReturnType().getCanonicalName();
+       // 方法名称
+       String methodName = method.getName();
+       // 生成方法内容
+       String methodContent = generateMethodContent(method);
+       // 生成参数列表
+       String methodArgs = generateMethodArguments(method);
+       // 方法抛出的异常
+       String methodThrows = generateMethodThrows(method);
+       // 格式化为一个字符串
+       // public %s %s($s) %s{%s}
+       return String.format(CODE_METHOD_DECLARATION, methodReturnType, methodName, methodArgs, methodThrows, methodContent);
+   }
+   ```
+
+6. `generateMethodContent` 方法解读。这块更推荐通过 debug 的形式走进来，看代码也更直接了当（就可以直接按照常用功能中的 SPI 章节来 debug）。这部分也是整个 Adaptive 中最为核心的代码，包括获取扩展点名称并且执行。
+
+   ```java
+   private String generateMethodContent(Method method) {
+       Adaptive adaptiveAnnotation = method.getAnnotation(Adaptive.class);
+       StringBuilder code = new StringBuilder(512);
+       if (adaptiveAnnotation == null) {
+           return generateUnsupported(method);
+       } else {
+           int urlTypeIndex = getUrlTypeIndex(method);
+   
+           // found parameter in URL type
+           if (urlTypeIndex != -1) {
+               // Null Point check
+               code.append(generateUrlNullCheck(urlTypeIndex));
+           } else {
+               // did not find parameter in URL type
+               code.append(generateUrlAssignmentIndirectly(method));
+           }
+   
+           String[] value = getMethodAdaptiveValue(adaptiveAnnotation);
+   
+           boolean hasInvocation = hasInvocationArgument(method);
+   
+           code.append(generateInvocationArgumentNullCheck(method));
+   
+           code.append(generateExtNameAssignment(value, hasInvocation));
+           // check extName == null?
+           code.append(generateExtNameNullCheck(value));
+   
+           code.append(generateExtensionAssignment());
+   
+           // return statement
+           code.append(generateReturnAndInvocation(method));
+       }
+   
+       return code.toString();
+   }
+   ```
+
+   
 
 # 5 集群容错源码剖析
 
