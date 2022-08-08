@@ -1237,9 +1237,111 @@ Adaptive的主要功能是对所有的扩展点进行封装为一个类，通过
    }
    ```
 
-   
+   ![image-20220808142443137](assest/image-20220808142443137.png)
 
 # 5 集群容错源码剖析
+
+[集群-官网说明](https://dubbo.apache.org/zh/docsv2.7/dev/source/cluster/)
+
+在对集群相关代码进行分析之前，这里有必要先来介绍一下集群容错的所有组件。包含 Cluster、Cluster Invoker、Directory、Router 和 LoadBalance 等。
+
+![img](assest/cluster.jpg)
+
+集群工作过程可分为两个阶段，
+
+第一个阶段是在服务消费者初始化期间，集群 Cluster 实现类为服务消费者创建 Cluster Invoker 实例，即上图中的 merge 操作。
+
+第二个阶段是在服务消费者进行远程调用时。以 FailoverClusterInvoker 为例，该类型Cluster Invoker 首先会调用 Directory 的 list 方法列举 Invoker 列表（可将 Invoker 简单可理解为服务提供者）。Directory 的用途是保存 Invoker 列表，可简单类比为 List。其实现类 RegistryDirectory 是一个动态服务目录，可感知注册中心配置变化，它所持有的 Invoker 列表会随着注册中心内容的变化而变化。每次变化后，RegistryDirectory 会动态增删 Invoker，并调用 Router 的 route 方法进行路由，过滤掉不符合路由规则的 Invoker。当 FailoverClusterInvoker 拿到 Directory 返回的 Invoker 列表后，它会通过 LoadBalance 从 Invoker 列表中选择一个 Invoker。最后 FailoverClusterInvoker 会将参数传给 LoadBalance 选择出的 Invoker 实例的 invoker 方法，进行真正的远程调用。
+
+
+
+Dubbo 主要提供了这样几种容错方式：
+
+- Failover Cluster - 失败自动切换。失败时会重试其他服务器。
+- Failfast Cluster - 快速失败。请求失败后快速返回异常结果，不重试
+- Failsafe Cluster - 失败安全。痴线异常，直接忽略，会对请求做负载均衡
+- Failback Cluster - 失败自动恢复。请求失败后，会自动记录请求到失败队列中
+- Forking Cluster - 并行调用多个服务提供者。其中有一个返回，则立即返回结果
+
+
+
+## 5.1 信息缓存接口 Directory
+
+Directory 是Dubbo 中的一个接口，主要用于缓存当前可以被调用的提供者列表信息。我们在消费者进行调用时都会通过这个接口来获取所有的提供者列表，在进行后续处理。
+
+1. 我们先来看看 `Directory` 接口，这里比较简单，我们可以通过 `Directory` 来找到指定服务中的提供者信息列表。
+
+   ```java
+   public interface Directory<T> extends Node {
+   	// 获取服务的类型，也就是我们demo中所使用的HelloService
+       Class<T> getInterface();
+   
+     	// 根据本次调用的信息来获取所有可以被执行的提供者信息
+       List<Invoker<T>> list(Invocation invocation) throws RpcException;
+   	
+       // 获取所有的提供者信息
+       List<Invoker<T>> getAllInvokers();
+   
+       URL getConsumerUrl();
+   }
+   ```
+
+2. `Directory` 中有一个基础的实现类，主要是对一些通用的方法封装，主要还是依靠真正的实现。其中可以看看 `AbstractDirectory` 中的 `list` 方法。通过这个方式我们能知道，真正实现还是依靠与真正子类汇总的 `doList` 方法。
+
+   ```java
+   @Override
+   public List<Invoker<T>> list(Invocation invocation) throws RpcException {
+       if (destroyed) {
+           throw new RpcException("Directory already destroyed .url: " + getUrl());
+       }
+   	// 交给子类进行处理
+       return doList(invocation);
+   }
+   
+   protected abstract List<Invoker<T>> doList(Invocation invocation) throws RpcException;
+   ```
+
+3. 我们可以继续往下看，它的实现子类是 `RegistryDirectory#doList` 方法。我们可以看到这里的实现也相对比较简单，主要依靠 routerChain 去决定真实返回的提供者列表。
+
+   ```java
+   @Override
+   public List<Invoker<T>> doList(Invocation invocation) {
+       // 当没有提供者的时候会直接抛出异常
+       if (forbidden) {
+           // 1. No service provider 2. Service providers are disabled
+           throw new RpcException(RpcException.FORBIDDEN_EXCEPTION, "No provider available from registry " +
+                                  getUrl().getAddress() + " for service " + getConsumerUrl().getServiceKey() + " on consumer " +
+                                  NetUtils.getLocalHost() + " use dubbo version " + Version.getVersion() +
+                                  ", please check status of providers(disabled, not registered or in blacklist).");
+       }
+   
+       if (multiGroup) {
+           return this.invokers == null ? Collections.emptyList() : this.invokers;
+       }
+   
+       List<Invoker<T>> invokers = null;
+       try {
+           // 交给路由 chain 去处理并且获取所有的invokers
+           invokers = routerChain.route(getConsumerUrl(), invocation);
+       } catch (Throwable t) {
+           logger.error("Failed to execute router: " + getUrl() + ", cause: " + t.getMessage(), t);
+       }
+   
+       return invokers == null ? Collections.emptyList() : invokers;
+   }
+   ```
+
+4. 路由是如何获取 Invoker 列表的呢？我们观察这个方法：
+
+## 5.2 路由规则实现原理
+
+## 5.3 Cluster 组件
+
+## 5.4 负载均衡实现原理
+
+## 5.5 Invoker 执行逻辑
+
+
 
 # 6 网络通信原理剖析
 
