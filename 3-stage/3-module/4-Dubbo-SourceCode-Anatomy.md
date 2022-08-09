@@ -10,6 +10,8 @@
 
 4. 进行本地编译，进入 dubbo 项目 `cd dubbo`，进行编译操作 `mvn clean install -DskipTests`
 
+   ![image-20220803124139668](assest/image-20220803124139668.png)
+
 5. 使用 IDE 引入项目。
 
 6. 修改dubbo-demo中dubbo-demo-xml-provider 中 spring/dubbo-provider.xml，中的 zookeeper 地址（修改为自己的地址）。
@@ -38,9 +40,7 @@
 
 
 
-![image-20220803124139668](assest/image-20220803124139668.png)
-
-
+> 推荐直接 `fork` github 中的源码，然后再切换到指定分支，导入idea 中进行调试。
 
 
 
