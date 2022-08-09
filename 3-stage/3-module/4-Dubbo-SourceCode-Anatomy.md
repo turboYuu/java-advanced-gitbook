@@ -3,14 +3,46 @@
 # 1 源码下载和编译
 
 1. dubbo 的项目在 github 中的地址为 ：https://github.com/apache/dubbo
+
 2. 进行需要进行下载的目录，执行 `git clone https://github.com/apache/dubbo.git`
+
 3. 为了防止 master 中的代码不稳定，进入 dubbo 项目 `cd dubbo` 可以及切换到 2.7.6 分支 `git checkout 2.7.6`
+
 4. 进行本地编译，进入 dubbo 项目 `cd dubbo`，进行编译操作 `mvn clean install -DskipTests`
+
 5. 使用 IDE 引入项目。
+
+6. 修改dubbo-demo中dubbo-demo-xml-provider 中 spring/dubbo-provider.xml，中的 zookeeper 地址（修改为自己的地址）。
+
+   ![image-20220809125103479](assest/image-20220809125103479.png)
+
+   ```xml
+   <dubbo:metadata-report address="zookeeper://152.136.177.192:2181?timeout=60000"/>
+   
+   <dubbo:registry address="zookeeper://152.136.177.192:2181?timeout=60000"/>
+   ```
+
+7. 修改dubbo-demo中dubbo-demo-xml-consumer中 spring/dubbo-consumer.xml，中的 zookeeper 地址（修改为自己的地址）。
+
+   ```xml
+   <dubbo:registry address="zookeeper://152.136.177.192:2181?timeout=60000"/>
+   ```
+
+8. 运行 Provider
+
+   idea run `org.apache.dubbo.demo.provider.Application`
+
+9. 运行 Consumer
+
+   idea run `org.apache.dubbo.demo.consumer.Application`，看到 控制台打印的结果就成功了。
 
 
 
 ![image-20220803124139668](assest/image-20220803124139668.png)
+
+
+
+
 
 # 2 架构整体设计
 
