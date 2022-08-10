@@ -124,6 +124,17 @@
 
 [各层说明-官网说明](https://dubbo.apache.org/zh/docsv2.7/dev/design/#%E5%90%84%E5%B1%82%E8%AF%B4%E6%98%8E)
 
+- 第一层：service层，接口层，给服务提供者和消费者来实现的
+- 第二层：config 层，配置曾，主要是对 dubbo 进行各种配置的
+- 第三层：proxy层，服务代理层。无论是 consumer还是provider，dubbo都会给你生成代理，代理之间进行网络通信。
+- 第四层：registry层，服务注册曾，负责服务的注册与发现
+- 第五层：cluster层，集群层，风钻工多个服务提供者的路由以及负载均衡，经多个实例组合成一个服务
+- 第六层：monitor层，监控层，RPC 调用测试和调用时间监控
+- 第七层：protocol层，远程调用层，封装 rpc 调用
+- 第八层：exchange层，信息交换层，封装请求响应模式，同步转异步
+- 第九层：transport层，网络传输层，抽象 mina 和 netty 为统一接口
+- 第十层：serialize层，数据序列化层
+
 # 3 服务注册与消费源码剖析
 
 ## 3.1 注册中心 Zookeeper 剖析
@@ -1294,6 +1305,7 @@ Dubbo 主要提供了这样几种容错方式：
 - Failsafe Cluster - 失败安全。痴线异常，直接忽略，会对请求做负载均衡
 - Failback Cluster - 失败自动恢复。请求失败后，会自动记录请求到失败队列中
 - Forking Cluster - 并行调用多个服务提供者。其中有一个返回，则立即返回结果
+- Broadcast Cluster - 
 
 
 
