@@ -1,0 +1,7 @@
+> Java后端各种架构图汇总
+
+# 1 Dubbo
+
+[Apache Dubbo](https://dubbo.apache.org/zh/) 是一款微服务框架，为大规模微服务实践提供高性能 RPC 通信、流量治理、可观测性等解决方案。
+
+[![/dev-guide/images/dubbo-framework.jpg](assest/dubbo-framework.jpg)](https://dubbo.apache.org/zh/docsv2.7/dev/design/)
