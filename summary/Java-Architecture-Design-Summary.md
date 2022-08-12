@@ -1,7 +1,63 @@
 > Java后端各种架构图汇总
 
-# 1 Dubbo
+
+
+# 1 Mybatis 架构
+
+[MyBatis](https://mybatis.org/mybatis-3/zh/index.html) 是一款优秀的持久层框架，它支持自定义 SQL、存储过程以及高级映射。
+
+Mybatis 中比较重要的几个类 SqlSessionFactoryBuilder、SqlSessionFactory、SqlSession、Executor。
+
+Mybatis架构设计
+
+![image-20220426111724390](assest/image-20220426111724390.png)
+
+Mybatis 层次结构 和 执行流程
+
+![image-20220426130653547](assest/image-20220426130653547.png)
+
+# 2 Spring Framework
+
+[Spring](https://spring.io/projects/spring-framework) 是分层的 full-stack（全栈）轻量级开源框架，以 `IoC` 和 `AOP` 为内核，提供了展现层 SpringMVC 和 业务层事务管理等 众多的企业级应用技术，还整合开源世界众多著名的第三方框架和类库，已经成为使用最多的 Java EE 企业应用开源框架。
+
+![image-20211019185543778](assest/image-20211019185543778.png)
+
+
+
+![image-20220812173614259](assest/image-20220812173614259.png)
+
+**SpringBean 的生命周期**
+
+![image-20220812173817455](assest/image-20220812173817455.png)
+
+如果 该bean中有注入其他的bean，那么会在 BeanPostProcessor 的 postProcessAfterInitialization() 方法之前进行。（循环依赖也就在这里实现）
+
+**Spring IoC 的循环依赖**：
+
+![image-20220812175613829](assest/image-20220812175613829.png)
+
+三级缓存中，一级缓存存放完全初始化好的bean，二级缓存和三级缓存中存放的是提前暴露的bean，从三级缓存到二级缓存可以做一些扩展的功能（）。这就是为什么Spring IoC循环依赖需要三级缓存，而不是二级缓存。
+
+
+
+# 3 Spring MVC
+
+Spring MVC 是 Spring 给我们提供的一个用于简化 Web 开发的框架。
+
+**MVC 设计模式**
+
+![image-20220407163821263](assest/image-20220407163821263.png)
+
+**Spring MVC 请求处理流程**
+
+![image-20220407125553523](assest/image-20220407125553523.png)
+
+
+
+# 1 Dubbo 架构
 
 [Apache Dubbo](https://dubbo.apache.org/zh/) 是一款微服务框架，为大规模微服务实践提供高性能 RPC 通信、流量治理、可观测性等解决方案。
 
-[![/dev-guide/images/dubbo-framework.jpg](assest/dubbo-framework.jpg)](https://dubbo.apache.org/zh/docsv2.7/dev/design/)
+![/dev-guide/images/dubbo-framework.jpg](assest/dubbo-framework.jpg)
+
+理解这十层，每层的作用，可以作为自定义实现 RPC 框架的思路。
