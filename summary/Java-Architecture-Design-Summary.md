@@ -30,7 +30,7 @@ Mybatis 层次结构 和 执行流程
 
 ![image-20220812173817455](assest/image-20220812173817455.png)
 
-如果 该bean中有注入其他的bean，那么会在 BeanPostProcessor 的 postProcessAfterInitialization() 方法之前进行。（循环依赖也就在这里实现）
+如果 该bean中有注入其他的bean，那么会在 BeanPostProcessor 的 postProcessBeforeInitialization()、 postProcessAfterInitialization() 方法之前进行。（循环依赖也就在这里实现）
 
 **Spring IoC 的循环依赖**：
 
@@ -51,6 +51,10 @@ Spring MVC 是 Spring 给我们提供的一个用于简化 Web 开发的框架�
 **Spring MVC 请求处理流程**
 
 ![image-20220407125553523](assest/image-20220407125553523.png)
+
+
+
+
 
 
 
