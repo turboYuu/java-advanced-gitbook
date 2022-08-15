@@ -567,6 +567,23 @@ update account set money=money+100 where name=‘b’;
 - 不可重复读：一个线程中的事务读到了另外一个线程中已经提交的**update** 的数据（前后不一样）
 - 幻读：一个线程中的事务读到了另外一个线程中已经提交的 **insert** 或者 **delete** 的数据（前后条数不一样）。
 
+
+
+数据库共定义了四种隔离级别：
+
+1. Serializable（串行化）：可避免脏读、不可重复读、虚读情况的发生。（串行化）最高
+2. Repeatable read（可重复读）：可避免脏读，不可重复读情况的发生。（幻读有可能发生）第二，该机制下会对要 update 的行进行加锁。
+3. Read committed（读已提交）：可避免脏读情况发生。不可重复读和幻读一定会发生。第三。
+4. Read uncommitted（读未提交）：最低级别，以上情况均无法保证。（读未提交）最低
+
+**注意：级别一次升高，效率依次降低**
+
+MySQL 的默认隔离级别：Repeatable read
+
+查询当前使用的隔离级别：`SELECT @@tx_isolation;`
+
+设置MySQL事务隔离级别：`set session transaction isolation level xxx;`（设置的是当前 mysql 链接会话的，并不是永久改变的）
+
 ### 5.1.4 事务的传播级别
 
 事务往往在 service 层进行控制，如果出现 service 层方法A 调用了另外一个 service 层方法B，A和B方法本身都已经被添加了事务控制，那么A调用B的时候，就需要进行事务的一些协商，这就叫做事务的传播行为。
