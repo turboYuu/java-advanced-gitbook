@@ -32,11 +32,15 @@ Mybatis 层次结构 和 执行流程
 
 如果 该bean中有注入其他的bean，那么会在 BeanPostProcessor 的 postProcessBeforeInitialization()、 postProcessAfterInitialization() 方法之前进行。（循环依赖也就在这里实现）
 
+Spring AOP 生成代理对象是在 postProcessAfterInitialization() 中完成的。
+
 **Spring IoC 的循环依赖**：
 
 ![image-20220812175613829](assest/image-20220812175613829.png)
 
-三级缓存中，一级缓存存放完全初始化好的bean，二级缓存和三级缓存中存放的是提前暴露的bean，从三级缓存到二级缓存可以做一些扩展的功能（）。这就是为什么Spring IoC循环依赖需要三级缓存，而不是二级缓存。
+三级缓存中，一级缓存存放完全初始化好的bean，二级缓存和三级缓存中存放的是提前暴露的bean，从三级缓存到二级缓存可以做一些扩展的功能，同时通过三级缓存的名字可以看出是一个工厂，可生成一些代理的bean。这就是为什么Spring IoC循环依赖需要三级缓存，而不是二级缓存。
+
+
 
 
 
@@ -54,9 +58,63 @@ Spring MVC 是 Spring 给我们提供的一个用于简化 Web 开发的框架�
 
 
 
+**监听器、过滤器 和 拦截器的区别**
+
+![image-20220409143203202](assest/image-20220409143203202.png)
+
+# 4 SpringBoot 
+
+SpringBoot 启动类的 SpringApplication.run 方法解析
 
 
 
+# 5 Tomcat
+
+Http 请求处理过程
+
+![image-20220629142802249](assest/image-20220629142802249.png)
+
+**Tomcat Servlet 容器处理过程**
+
+![image-20220629153948180](assest/image-20220629153948180.png)
+
+**Tomcat 调试优化**
+
+- 修改conf/server.xml 连接
+  - 使用线程池
+  - 修改 I/O，使用 NIO
+  - 动态的修改垃圾回收参数
+- 动静分离
+
+# 6 Nginx
+
+**Nginx 进程模式示意图**：
+
+![image-20220707141355864](assest/image-20220707141355864.png)
+
+# 7 多线程
+
+线程状态转换
+
+![image-20220413160602425](assest/image-20220413160602425.png)
+
+# 8 JMM
+
+JMM：Java 虚拟机规范中定义了 Java 内存模型（Java Memory Model，JMM），用于屏蔽掉各种硬件和操作系统的内存访问差异，以实现让 Java 程序在各种平台下都能达到一致的并发效果。JMM 规范了 Java 虚拟机与计算机内存是如何协同工作的：规定了一个线程如何 和 何时 可以看到由其他线程修改后的共享变量的值，以及在必须时如何同步的访问共享变量。
+
+![image-20210925185512917](assest/image-20210925185512917.png)
+
+# 9 JVM
+
+![image-20211008140248375](assest/image-20211008140248375.png)
+
+![image-20211008124440250](assest/image-20211008124440250.png)
+
+# 10 线程池
+
+线程池状态
+
+![image-20210923133944932](assest/image-20210923133944932.png)
 
 # 1 Dubbo 架构
 
