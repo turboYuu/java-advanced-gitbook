@@ -104,19 +104,67 @@ JMM：Java 虚拟机规范中定义了 Java 内存模型（Java Memory Model，J
 
 ![image-20210925185512917](assest/image-20210925185512917.png)
 
-# 9 JVM
 
-![image-20211008140248375](assest/image-20211008140248375.png)
 
-![image-20211008124440250](assest/image-20211008124440250.png)
 
-# 10 线程池
+
+# 9 线程池
 
 线程池状态
 
 ![image-20210923133944932](assest/image-20210923133944932.png)
 
-# 1 Dubbo 架构
+# 10 JVM
+
+![image-20211008140248375](assest/image-20211008140248375.png)
+
+
+
+![image-20211008124440250](assest/image-20211008124440250.png)
+
+
+
+**类加载的过程**
+
+![image-20211014165304036](assest/image-20211014165304036.png)
+
+
+
+# 11 NIO
+
+Java NIO全称 Java non-blocking IO，是指JDK提供的新API。从JDK1.4 开始，Java提供了一系列改进输入/输出的新特性，被统称为NIO（New I/O）同步非阻塞。
+
+一张图描述NIO的Selector、Channel、Buffer的 三大核心原理示意图 关系
+
+![image-20211105185416652](assest/image-20211105185416652.png)
+
+
+
+# 12 Netty
+
+Netty是由 JBOSS 提供的一个Java开源框架。**Netty 提供异步的、基于事件驱动的网络应用程序框架，用以快速开发高性能、高可靠的网络 IO 程序。**
+
+详细版 Netty 线程模型
+
+![image-20211108183953465](assest/image-20211108183953465.png)
+
+# 13 集群、分布式、SOA、微服务
+
+
+
+# 14 Zookeeper
+
+Zookeeper 是一个开源的分布式协调服务
+
+![ZooKeeper Service](assest/zkservice.jpg)
+
+所有有关事务的请求都有 Leader 来处理。
+
+
+
+
+
+# 15 Dubbo 架构
 
 [Apache Dubbo](https://dubbo.apache.org/zh/) 是一款微服务框架，为大规模微服务实践提供高性能 RPC 通信、流量治理、可观测性等解决方案。
 
