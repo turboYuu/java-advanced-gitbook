@@ -335,9 +335,9 @@ eureka:
 
 
 
-## 3.3 微服务提供者注册到Eureka Server集群
+## 3.3 微服务提供者 注册到 Eureka Server集群
 
-注册建立微服务（建立服务部署两个实例，分别占用8080、8081端口）
+注册简历微服务（简历服务部署两个实例，分别占用8080、8081端口）
 
 - 父工程中引入 `spring-cloud-commons` 依赖
 
@@ -388,9 +388,7 @@ eureka:
   import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
   import org.springframework.cloud.netflix.eureka.EnableEurekaClient;
   
-  /**
-   * @author yutao
-   **/
+  
   @SpringBootApplication
   @EntityScan("com.turbo.pojo")
   // @EnableEurekaClient // 开启Eureka Client(Eureka独有)
@@ -415,6 +413,62 @@ eureka:
 ![image-20220818153851128](assest/image-20220818153851128.png)
 
 
+
+## 3.4 微服务消费者 注册到 Eureka Server 集群
+
+此处自动注册微服务的是消费者 `turbo-service-autodeliver`（投递简历服务部署两个实例，分别占用8090、8091端口）
+
+- pom 文件引入坐标，添加 eureka client 的相关坐标
+
+  ```xml
+  <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+  </dependency>
+  ```
+
+- 配置 application.yml 文件
+
+  ```yaml
+  eureka:
+    client:
+      service-url: #eureka server 的路径
+        # 把所有 eureka 集群中的所有url都填写进来，可以只写一台，因为各个 eureka server 可以同步注册表
+        defaultZone: http://TurboCloudEurekaServerB:8762/eureka,http://TurboCloudEurekaServerA:8761/eureka
+      registry-fetch-interval-seconds: 30
+    instance:
+      #服务实例中显示ip，而不是显示主机名，(为了兼容老版本,新版本经过实验都是ip)
+      prefer-ip-address: true
+      # 实例名称： 192.168.1.3:turbo-service-autodeliver:8090  可以自定义实例显示格式，加上版本号，便于多版本管理，注意是ip-address，早期版本是ipAddress
+      instance-id: ${spring.cloud.client.ip-address}:${spring.application.name}:${server.port}:@project.version@
+  ```
+
+- 在启动类添加注解 `@EnableDiscoveryClient` ，开启服务发现
+
+  ```java
+  package com.turbo;
+  
+  import org.springframework.boot.SpringApplication;
+  import org.springframework.boot.autoconfigure.SpringBootApplication;
+  import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+  import org.springframework.context.annotation.Bean;
+  import org.springframework.web.client.RestTemplate;
+  
+  @SpringBootApplication
+  @EnableDiscoveryClient
+  public class AutoDeliverApplication8090 {
+      public static void main(String[] args) {
+          SpringApplication.run(AutoDeliverApplication8090.class,args);
+      }
+  
+      @Bean
+      public RestTemplate getRestTemplate(){
+          return new RestTemplate();
+      }
+  }
+  ```
+
+![image-20220818160640529](assest/image-20220818160640529.png)
 
 # 4 Eureka 细节讲解
 
