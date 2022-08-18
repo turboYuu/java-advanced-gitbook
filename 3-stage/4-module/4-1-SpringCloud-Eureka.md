@@ -221,6 +221,118 @@ Eureka Server也是一个工程，基于Maven构建SpringBoot工程，在SpringB
 
 
 
+## 3.2 搭建 Eureka Server HA 高可用集群
+
+Eureka Server 集群中的节点通过点对点（P2P）通信的方式共享服务注册表。我们开启两台 Eureka Server 以搭建集群。
+
+![image-20220818135759134](assest/image-20220818135759134.png)
+
+1. 修改本机host属性
+
+   由于是在个人计算机中进行测试，很难模拟多主机的情况，Eureka 配置 server 集群时需要执行 host 地址，所以需要修改个人电脑中的 host 地址。
+
+   ![image-20210624144420603](assest/image-20210624144420603.png)
+
+   ```http
+   127.0.0.1       TurboCloudEurekaServerA
+   127.0.0.1       TurboCloudEurekaServerB
+   ```
+
+2. 复制 `turbo-cloud-eureka-server-8761` -> `turbo-cloud-eureka-server-8762` 修改 yml 配置文件
+
+   ![image-20210624145212472](assest/image-20210624145212472.png)
+
+   ```yaml
+   server:
+     port: 8761 # Eureka Server 服务端口
+   spring:
+     application:
+       name: turbo-cloud-eureka-server # 应⽤名称，会在Eureka中作为服务的 id标识（serviceId）
+   #Eurake 客户端配置（和Server交互），Eureka Server 其实也是一个Client
+   eureka:
+     instance:
+       hostname: TurboCloudEurekaServerA
+     client:
+       service-url: # 配置客户端交互的Eureka Server的地址 (Eureka Server集群中 每一个Server其实相对于其他Server来说都是客户端)
+         #此时集群模式下，defaultZone应该指向其他Eureka Server,如果有更多其他实例 逗号拼接
+         defaultZone: http://TurboCloudEurekaServerB:8762/eureka
+       register-with-eureka: true # 自己就是服务不需要注册自己 #集群模式下改为true
+       fetch-registry: true # 自己就是服务不需要从 Eureka Server 获取服务信息，默认为true，置为 false #集群模式下改为true
+   ```
+
+   ```yaml
+   server:
+     port: 8762 # Eureka Server 服务端口
+   spring:
+     application:
+       name: turbo-cloud-eureka-server # 应⽤名称，会在Eureka中作为服务的 id标识（serviceId）
+   #Eurake 客户端配置（和Server交互），Eureka Server 其实也是一个Client
+   eureka:
+     instance:
+       hostname: TurboCloudEurekaServerB
+     client:
+       service-url:
+         defaultZone: http://TurboCloudEurekaServerA:8761/eureka
+       register-with-eureka: true 
+       fetch-registry: true
+   ```
+
+3. 启动两个服务
+
+   `http://turbocloudeurekaservera:8761/，http://turbocloudeurekaserverb:8762/` 
+
+   ![image-20210624150525538](assest/image-20210624150525538.png)
+
+
+
+
+
+另外一种方式不复制项目，修改 `turbo-cloud-eureka-server` 中的 yml 配置文件
+
+```yaml
+#指定应⽤名称 
+spring:
+ application:
+  name: turbo-cloud-eureka-server 
+---
+#第⼀个profile,后期启动spring-boot项⽬时，可通过命令参数指定 
+spring:
+ profiles: TurboCloudEurekaServerA 
+server:
+ port: 8761
+eureka:
+ instance:
+  hostname: TurboCloudEurekaServerA   
+ client:
+  register-with-eureka: true     
+  fetch-registry: true
+  serviceUrl:
+   defaultZone: http://TurboCloudEurekaServerB:8762/eureka
+      
+---
+#第⼆个profile,后期启动spring-boot项⽬时，可通过命令参数指定 
+spring:
+ profiles: TurboCloudEurekaServerB 
+server:
+ port: 8762
+eureka:
+ instance:
+  hostname: TurboCloudEurekaServerB   
+ client:
+  register-with-eureka: true     
+  fetch-registry: true
+  serviceUrl:
+   defaultZone: http://TurboCloudEurekaServerA:8761/eureka
+```
+
+**说明**
+
+- 在 ⼀个实例中，把另外的实例作为了集群中的镜像节点，那么这个`http://TurboCloudEurekaServerB:8762/eureka` URL 中的 TurboCloudEurekaServerB 就要和其它个proﬁle 中的`eureka.instance.hostname`保持一致。
+- `register-with-eureka` 和 `fetch-registry `在单节点时设置为了 false, 因为 只有⼀台 Eureka Server，并不需要⾃⼰注册⾃⼰，⽽现在有了集群，可以在集 群的其他节点中注册本服务。
+- 启动两次该SpringBoot项⽬，分别使⽤两个不同的proﬁles
+
+![image-20210624150026737](assest/image-20210624150026737.png)
+
 # 4 Eureka 细节讲解
 
 # 5 Eureka 核心源码剖析
