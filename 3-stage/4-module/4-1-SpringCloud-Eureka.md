@@ -470,6 +470,47 @@ eureka:
 
 ![image-20220818160640529](assest/image-20220818160640529.png)
 
+## 3.5 服务消费者 调用 服务提供者（通过Eureka）
+
+```java
+package com.turbo.controller;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cloud.client.ServiceInstance;
+import org.springframework.cloud.client.discovery.DiscoveryClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
+import java.util.List;
+
+@RestController
+@RequestMapping("/autodeliver")
+public class AutodeliverController {
+    @Autowired
+    private DiscoveryClient discoveryClient;
+
+    @GetMapping("/checkState/{userId}")
+    public Integer findResumeOpenState(@PathVariable Long userId){
+        // 1 获取 Eureka 中注册的 user-service 实例列表
+        List<ServiceInstance> serviceInstanceList = discoveryClient.getInstances("turbo-service-resume");
+        // 2 获取实例（此处不考虑负载，就拿一个）
+        ServiceInstance serviceInstance = serviceInstanceList.get(0);
+        // 3 根据实例的信息拼接请求地址
+        String host = serviceInstance.getHost();
+        int port = serviceInstance.getPort();
+        // http://192.168.3.210:8080/resume/openState/2195320
+        String url = "http://"+host+":"+port+"/resume/openState/"+userId;
+        // 4 消费者直接调用消费者
+        Integer forObject = restTemplate.getForObject(url, Integer.class);
+        return forObject;
+    }
+}
+```
+
+
+
 # 4 Eureka 细节讲解
 
 # 5 Eureka 核心源码剖析
