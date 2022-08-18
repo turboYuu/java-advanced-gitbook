@@ -632,7 +632,9 @@ Eureka Server 会定时（间隔值是 `eureka.server.eviction-interval-timer-in
 
 默认情况下，如果 Eureka Server 在一定时间内（默认90s）没有接收到某个微服务实例的心跳，Eureka Server 将会移除该实例。但是当网络分区故障发生时，微服务与 Eureka Server 之间无法正常通信，而微服务本身是正常运行的，此时不应该移除这个微服务，所以引入了自我保护机制。
 
+![image-20210626005232254](assest/image-20210626005232254.png)
 
+![image-20210626010351093](assest/image-20210626010351093.png)
 
 当处于自我保护模式时：
 
