@@ -513,4 +513,141 @@ public class AutodeliverController {
 
 # 4 Eureka 细节讲解
 
+## 4.1 Eureka 元数据讲解
+
+Eureka 的元数据有两种：标准元数据 和 自定义元数据。
+
+**标准元数据**：主机名、IP地址、端口号等信息，这些信息都会被发布在服务注册表中，用于服务之间的调用。
+
+**自定义元数据**：可以使用 `eureka.instance.metadata-map` 配置，符合 key/value 的存储格式。这些元数据可以在远程客户端中访问。
+
+类似于：
+
+```yaml
+eureka:
+  instance:
+    metadata-map:
+      # 自定义元数据
+      cluster: cl1
+      region: rn1
+```
+
+可以在程序中使用 DiscoveryClient 获取指定微服务的所有元数据信息
+
+```java
+import com.turbo.AutoDeliverApplication8090;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.cloud.client.ServiceInstance;
+import org.springframework.cloud.client.discovery.DiscoveryClient;
+import org.springframework.test.context.junit4.SpringRunner;
+
+import java.util.List;
+
+@RunWith(SpringRunner.class)
+@SpringBootTest(classes = AutoDeliverApplication8090.class)
+public class AutoDeliverApplicationTest {
+
+    @Autowired
+    private DiscoveryClient discoveryClient;
+
+    @Test
+    public void deliver(){
+        List<ServiceInstance> serviceInstanceList = discoveryClient.getInstances("turbo-service-resume");
+        for (int i = 0; i < serviceInstanceList.size(); i++) {
+            ServiceInstance serviceInstance = serviceInstanceList.get(i);
+            System.out.println(serviceInstance);
+        }
+    }
+}
+```
+
+![image-20220818165736415](assest/image-20220818165736415.png)
+
+![image-20220818165812206](assest/image-20220818165812206.png)
+
+## 4.2 Eureka 客户端详解
+
+服务提供者（也就是 Eureka 客户端）要向 Eureka Server 注册服务，并完成服务续约等工作。
+
+### 4.2.1 服务注册详解（服务提供者）
+
+1. 当我们导入了 eureka-client 依赖坐标，配置 Eureka 服务注册中心地址。
+2. 服务在启动时会向注册中心发起注册请求，携带服务元数据信息。
+3. Eureka 注册中心会把服务的信息保存在 Map 中。
+
+### 4.2.2 服务续约详解（服务提供者）
+
+服务每个30s会向注册中心续约（心跳）一次（也称为报活），如果没有续约，租约在90s后到期，然后服务会被失效。每隔30s的续约操作我们称之为心跳检测。
+
+往往不需要我们调整这两个配置
+
+```yaml
+#向Eureka服务中⼼集群注册服务
+eureka:
+  instance:
+    # 租约续约间隔时间，默认30秒
+    lease-renewal-interval-in-seconds: 30
+    # 租约到期，服务时效时间，默认值90秒,服务超过90秒没有发⽣⼼跳， EurekaServer会将服务从列表移除
+    lease-expiration-duration-in-seconds: 90
+```
+
+### 4.2.3 获取服务列表详解（服务消费者）
+
+每隔 30s 服务会从注册中心拉取一份服务列表，这个时间可以通过配置修改。往往不需要我们调整
+
+```yaml
+eureka:
+  client:
+    # 每隔30s拉取一次服务列表
+    registry-fetch-interval-seconds: 30
+```
+
+1. 服务消费者启动时，从 eurekaServer服务列表获取只读备份，缓存到本地
+2. 每隔 30s，会重新获取并更新数据
+3. 每隔 30s 的时间可以通过配置 `eureka.client.registry-fetch-interval-seconds` 修改
+
+## 4.3 Eureka 服务端详解
+
+### 4.3.1 服务下线
+
+1. 当服务正常关闭操作时，会发送服务下线的 REST 请求给 EurekaServer。
+2. 服务中心接收到请求后，将该服务置为下线状态。
+
+### 4.3.2 失败剔除
+
+Eureka Server 会定时（间隔值是 `eureka.server.eviction-interval-timer-in-ms`，默认 60s ）进行检查，如果发现实例在一定时间（此值由客户端设置的 `eureka.instance.lease-expiration-duration-in-seconds` 定义，默认值为 90s）内没有收到心跳，则会注销此实例。
+
+### 4.3.3 自我保护
+
+服务提供者 -> 注册中心
+
+定期的续约（服务提供者和注册中心通信），假如服务提供者和注册中心之间的网络有问题，不代表服务提供者不可用，不代表服务消费者无法访问服务提供者 。
+
+如果在 15 分钟内超过 85% 的客户端节点都没有正常的心跳，那么 Eureka 就认为客户端与注册中心出现了网络故障，Eureka Server 自动进入自我保护机制。
+
+为什么会有自我保护机制？
+
+默认情况下，如果 Eureka Server 在一定时间内（默认90s）没有接收到某个微服务实例的心跳，Eureka Server 将会移除该实例。但是当网络分区故障发生时，微服务与 Eureka Server 之间无法正常通信，而微服务本身是正常运行的，此时不应该移除这个微服务，所以引入了自我保护机制。
+
+
+
+当处于自我保护模式时：
+
+1.  不会剔除任何服务实例（可能是服务提供者和 EurekaServer 之间网络问题），保证了大多数服务依然可用
+
+2. Eureka Server 仍然能够接收新服务的注册和查询请求，但是不会被同步到其他节点上，保证当前节点依然可用；当网络稳定时，当前 Eureka Server 新的注册信息会被同步到其他节点中。
+
+3. 在 Eureka Server 工程中通过 `eureka.server.enable-self-preservation` 配置可用关停自我保护，默认值是打开。
+
+   ```yaml
+   eureka:
+     server:
+       enable-self-preservation: false # 关闭⾃我保护模式（缺省为打开）
+   ```
+
+**经验：建议生产环境打开自我保护机制**
+
 # 5 Eureka 核心源码剖析
