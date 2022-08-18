@@ -292,37 +292,37 @@ Eureka Server 集群中的节点通过点对点（P2P）通信的方式共享服
 ```yaml
 #指定应⽤名称 
 spring:
- application:
-  name: turbo-cloud-eureka-server 
+  application:
+    name: turbo-cloud-eureka-server 
 ---
 #第⼀个profile,后期启动spring-boot项⽬时，可通过命令参数指定 
 spring:
- profiles: TurboCloudEurekaServerA 
+  profiles: TurboCloudEurekaServerA 
 server:
- port: 8761
+  port: 8761
 eureka:
- instance:
-  hostname: TurboCloudEurekaServerA   
- client:
-  register-with-eureka: true     
-  fetch-registry: true
-  serviceUrl:
-   defaultZone: http://TurboCloudEurekaServerB:8762/eureka
+  instance:
+    hostname: TurboCloudEurekaServerA   
+  client:
+    register-with-eureka: true     
+    fetch-registry: true
+    serviceUrl:
+      defaultZone: http://TurboCloudEurekaServerB:8762/eureka
       
 ---
 #第⼆个profile,后期启动spring-boot项⽬时，可通过命令参数指定 
 spring:
- profiles: TurboCloudEurekaServerB 
+  profiles: TurboCloudEurekaServerB 
 server:
- port: 8762
+  port: 8762
 eureka:
- instance:
-  hostname: TurboCloudEurekaServerB   
+  instance:
+    hostname: TurboCloudEurekaServerB   
  client:
-  register-with-eureka: true     
-  fetch-registry: true
-  serviceUrl:
-   defaultZone: http://TurboCloudEurekaServerA:8761/eureka
+    register-with-eureka: true     
+    fetch-registry: true
+    serviceUrl:
+      defaultZone: http://TurboCloudEurekaServerA:8761/eureka
 ```
 
 **说明**
@@ -332,6 +332,89 @@ eureka:
 - 启动两次该SpringBoot项⽬，分别使⽤两个不同的proﬁles
 
 ![image-20210624150026737](assest/image-20210624150026737.png)
+
+
+
+## 3.3 微服务提供者注册到Eureka Server集群
+
+注册建立微服务（建立服务部署两个实例，分别占用8080、8081端口）
+
+- 父工程中引入 `spring-cloud-commons` 依赖
+
+  ```xml
+  <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-commons</artifactId>
+  </dependency>
+  ```
+
+- pom 文件引入坐标，添加 eureka client 的相关坐标
+
+  ```xml
+  <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+  </dependency>
+  ```
+
+- 配置 application.yml 文件
+
+  在 application.yml 中添加 Eureka Server 高可用集群的地址及相关配置
+
+  ```yaml
+  eureka:
+    client:
+      service-url: #eureka server 的路径
+        # 把所有 eureka 集群中的所有url都填写进来，可以只写一台，因为各个 eureka server 可以同步注册表
+        defaultZone: http://TurboCloudEurekaServerB:8762/eureka,http://TurboCloudEurekaServerA:8761/eureka
+      registry-fetch-interval-seconds: 30
+    instance:
+      #服务实例中显示ip，而不是显示主机名，(为了兼容老版本,新版本经过实验都是ip)
+      prefer-ip-address: true
+      # 实例名称： 192.168.1.3:turbo-service-resume:8080  可以自定义实例显示格式，加上版本号，便于多版本管理，注意是ip-address，早期版本是ipAddress
+      instance-id: ${spring.cloud.client.ip-address}:${spring.application.name}:${server.port}:@project.version@
+  ```
+
+  **经验：自定义实例显示格式，加上版本号，便于多版本管理**
+
+- 启动类添加注解
+
+  ```java
+  package com.turbo;
+  
+  import org.springframework.boot.SpringApplication;
+  import org.springframework.boot.autoconfigure.SpringBootApplication;
+  import org.springframework.boot.autoconfigure.domain.EntityScan;
+  import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+  import org.springframework.cloud.netflix.eureka.EnableEurekaClient;
+  
+  /**
+   * @author yutao
+   **/
+  @SpringBootApplication
+  @EntityScan("com.turbo.pojo")
+  // @EnableEurekaClient // 开启Eureka Client(Eureka独有)
+  @EnableDiscoveryClient // 开启注册中心客户端（通用性注解，比如注册到 Eureka,Nacos）
+                          // 说明：从Spring Cloud 的 Edgware 版本开始，不加注解也可以，但建议加注解
+  public class TurboResumeApplication8080 {
+      public static void main(String[] args) {
+          SpringApplication.run(TurboResumeApplication8080.class,args);
+      }
+  }
+  ```
+
+  注意：
+
+  1. 从 Spring Cloud Edgware 版本开始，`@EnableDiscoveryClient` 或 `@EnableEurekaClient` 可省略。只需要加上相关依赖，并进行相应配置，即可将微服务注册到服务发现组件上。
+  2. `@EnableDiscoveryClient` 和 `@EnableEurekaClient`  二者的功能是一样的。但是如果选用的是 eureka 服务器，那么就推荐 `@EnableEurekaClient`，如果是其它的注册中心，那么推荐使用 `@EnableDiscoveryClient`，考虑到通用性，后期我们可以使用 `@EnableDiscoveryClient`
+
+  
+
+启动类执行，在 Eureka Server 后台界面可以看到注册的服务实例
+
+![image-20220818153851128](assest/image-20220818153851128.png)
+
+
 
 # 4 Eureka 细节讲解
 
