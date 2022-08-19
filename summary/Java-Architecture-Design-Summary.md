@@ -181,3 +181,15 @@ Zookeeper 是一个开源的分布式协调服务
 服务注册 与 发现
 
 ![image-20220818120417439](assest/image-20220818120417439.png)
+
+## 16.2 Spring Cloud Ribbon
+
+负载均衡
+
+**Ribbon工作原理**
+
+![image-20220819183930133](assest/image-20220819183930133.png)
+
+**Ribbon细节结构图**
+
+![image-20220819184552853](assest/image-20220819184552853.png)
