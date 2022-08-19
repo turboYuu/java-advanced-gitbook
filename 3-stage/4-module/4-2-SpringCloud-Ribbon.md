@@ -46,7 +46,7 @@ public class ResumeController {
 
 启动 `turbo-cloud-eureka-server`，`turbo-service-resume`，`turbo-service-autodeliver-8090`，使用 postman 测试：
 
-![ribbon-1](assest/ribbon-1.gif)
+![ribbon-2](assest/ribbon-2.gif)
 
 # 3 Ribbon 负载均衡策略
 
