@@ -65,6 +65,132 @@ Hystrix 主要通过以下几点实现延迟和容错。
 
 # 4 Hystrix 熔断应用
 
+目的：简历微服务长时间没有响应，服务消费者 -> **自动投递微服务**快速失败给用户提示。
+
+![image-20220822114307649](assest/image-20220822114307649.png)
+
+1. 服务消费者工程（`turbo-service-autodeliver-8092-hystrix`）中引入 Hystrix 依赖坐标（也可以添加在父工程中）
+
+   ```xml
+   <!--熔断器 Hystrix-->
+   <dependency>
+       <groupId>org.springframework.cloud</groupId>
+       <artifactId>spring-cloud-starter-netflix-hystrix</artifactId>
+   </dependency>
+   ```
+
+2. 服务消费者工程（`turbo-service-autodeliver-8092-hystrix`）的启动类中添加熔断器开启注解 `@EnableCircuitBreaker`
+
+   ```java
+   /**
+    * 注解简化写法：@SpringCloudApplication = @SpringBootApplication + @EnableDiscoveryClient + @EnableCircuitBreaker
+    **/
+   @SpringBootApplication
+   @EnableDiscoveryClient // 开启服务发现
+   @EnableCircuitBreaker // 开启熔断
+   public class AutoDeliverApplication8092 {
+       public static void main(String[] args) {
+           SpringApplication.run(AutoDeliverApplication8092.class,args);
+       }
+   
+       @Bean
+       @LoadBalanced // ribbon负载均衡
+       public RestTemplate getRestTemplate(){
+           return new RestTemplate();
+       }
+   }
+   ```
+
+3. 定义服务降级处理方法，并在业务方法上使用 `@HystrixCommand` 的 fallbacKMethod 属性关联到服务降级处理方法。
+
+   ```java
+   @RestController
+   @RequestMapping("/autodeliver")
+   public class AutodeliverController {
+   
+       @Autowired
+       RestTemplate restTemplate;
+     
+       /**
+        * 提供者模拟超时处理，调用方法添加 Hystrix 控制
+        * http://localhost:8092/autodeliver/checkStateTimeout/2195320
+        * @param userId
+        * @return
+        */
+       // 使用 @HystrixCommand注解进行熔断控制
+       @HystrixCommand(
+               threadPoolKey = "findResumeOpenStateTimeout",
+               threadPoolProperties = {
+                       @HystrixProperty(name = "coreSize",value = "1"), // 线程数
+                       @HystrixProperty(name = "maxQueueSize",value = "20") //等待队列长度
+               },
+               // commandProperties熔断的一些细节属性配置
+               commandProperties = {
+                       @HystrixProperty(name = "execution.isolation.thread.timeoutInMilliseconds",value = "2000")
+               }
+       )
+       @GetMapping("/checkStateTimeout/{userId}")
+       public Integer findResumeOpenStateTimeout(@PathVariable Long userId){
+           // 使用 Ribbon不需要自己获取获取服务实例然后选择一个访问
+           String url = "http://turbo-service-resume/resume/openState/"+userId; // 指定服务名
+           Integer forObject = restTemplate.getForObject(url, Integer.class);
+           return forObject;
+       }
+       
+       // http://localhost:8092/autodeliver/checkStateTimeoutFallback/2195320
+       @HystrixCommand(
+               threadPoolKey = "findResumeOpenStateTimeoutFallback",
+               threadPoolProperties = {
+                       @HystrixProperty(name = "coreSize",value = "1"), // 线程数
+                       @HystrixProperty(name = "maxQueueSize",value = "20") //等待队列长度
+               },
+               // commandProperties熔断的一些细节属性配置
+               // com.netflix.hystrix.contrib.javanica.conf.HystrixPropertiesManager
+               commandProperties = {
+                       @HystrixProperty(name = "execution.isolation.thread.timeoutInMilliseconds",value = "2000"),
+                       // hystrix 高级配置，定制工作过程细节
+                       // 统计时间窗口定义
+                       @HystrixProperty(name = "metrics.rollingStats.timeInMilliseconds",value = "8000"),
+                       // 统计时间窗口内的最小请求数
+                       @HystrixProperty(name = "circuitBreaker.requestVolumeThreshold",value = "2"),
+                       // 统计时间窗口内的错误数量百分比阈值
+                       @HystrixProperty(name = "circuitBreaker.errorThresholdPercentage",value ="50" ),
+                       // 自我修复时的活动窗口长度
+                       @HystrixProperty(name = "circuitBreaker.sleepWindowInMilliseconds",value = "3000")
+               },fallbackMethod = "myFallback" // 回退方法
+       )
+       @GetMapping("/checkStateTimeoutFallback/{userId}")
+       public Integer findResumeOpenStateTimeoutFallback(@PathVariable Long userId){
+           // 使用 Ribbon不需要自己获取获取服务实例然后选择一个访问
+           String url = "http://turbo-service-resume/resume/openState/"+userId; // 指定服务名
+           Integer forObject = restTemplate.getForObject(url, Integer.class);
+           return forObject;
+       }
+   
+       /**
+        * 定义回退方法，返回预设默认值
+        * 注意：该方法形参和返回值与原始方法保持一致
+        * @param userId
+        * @return
+        */
+       public Integer myFallback(Long userId){
+           return -1;
+       }
+   }
+   ```
+
+   **注意**：
+
+   - 降级（兜底）方法必须和被降级方法相同的方法签名（相同参数列表、相同返回值）
+
+4. 可以在类上使用 `@DefaultProperties` 注解统一指定整个类中公用的降级（兜底方法）。
+
+5. 服务提供者模拟请求超时（线程休眠3s），只修改 8080 实例，对比观察
+
+![hystrix-timeout](assest/hystrix-timeout.gif)
+
+![hystrix-timeout-fallback](assest/hystrix-timeout-fallback.gif)
+
 # 5 Hystrix 舱壁模式（线程池隔离策略）
 
 # 6 Hystrix 工作流程与高级应用
