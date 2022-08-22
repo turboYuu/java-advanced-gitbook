@@ -285,6 +285,129 @@ hystrix 正常工作状态：
 
 # 7 Hystrix Dashboard 断路监控仪表盘
 
+正常状态是 UP，跳闸是一种状态 CIRCUIT_OPEN，可以通过 /health 查看，前提是工程中需要引入 SpringBoot 的 actuator（健康监控），它提供了很多监控所需的接口，可以对应用系统进行配置查看，相关功能统计等。
+
+已经统一添加在父工程中：
+
+```xml
+<!--Actuator可以帮助你监控和管理 Spring Boot应用-->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+```
+
+比如想看到 Hystrix 相关数据，比如有多少请求，多少成功，多少失败、多少降级等，那么引入 SpringBoot 健康监控之后，访问 `http://localhost:8092/actuator/hystrix.stream` 接口可以获取到监控的文字信息，但是不直观，所以 Hystrix 官方还提供了基于图形化的 DashBoard（仪表盘）监控平台。Hystrix 仪表板显示每隔断路器（被 `@HystrixCommand` 注解的方法）的状态。
+
+![image-20220822161338125](assest/image-20220822161338125.png)
+
+1. 新建一个 `turbo-cloud-hystrix-dashboard-9000` 监控服务工厂，导入依赖
+
+   ```xml
+   <dependency>
+       <groupId>org.springframework.cloud</groupId>
+       <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+   </dependency>
+   <dependency>
+       <groupId>org.springframework.cloud</groupId>
+       <artifactId>spring-cloud-starter-netflix-hystrix</artifactId>
+   </dependency>
+   <dependency>
+       <groupId>org.springframework.cloud</groupId>
+       <artifactId>spring-cloud-starter-netflix-hystrix-dashboard</artifactId>
+   </dependency>
+   ```
+
+2. 启动类添加 `@EnableHystrixDashboard` 激活仪表盘
+
+   ```java
+   package com.turbo;
+   
+   import org.springframework.boot.SpringApplication;
+   import org.springframework.boot.autoconfigure.SpringBootApplication;
+   import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+   import org.springframework.cloud.netflix.hystrix.dashboard.EnableHystrixDashboard;
+   
+   @SpringBootApplication
+   @EnableDiscoveryClient
+   @EnableHystrixDashboard //开启 hystrix dashboard
+   public class HystrixDashboard9000 {
+       public static void main(String[] args) {
+           SpringApplication.run(HystrixDashboard9000.class,args);
+       }
+   }
+   ```
+
+3. application.yml
+
+   ```yaml
+   server:
+     port: 9000
+   spring:
+     application:
+       name: turbo-cloud-hystrix-dashboard
+   
+   eureka:
+     client:
+       service-url: #eureka server 的路径
+         # 把所有 eureka 集群中的所有url都填写进来，可以只写一台，因为各个 eureka server 可以同步注册表
+         defaultZone: http://TurboCloudEurekaServerB:8762/eureka,http://TurboCloudEurekaServerA:8761/eureka
+     instance:
+       #服务实例中显示ip，而不是显示主机名，(为了兼容老版本,新版本经过实验都是ip)
+       prefer-ip-address: true
+       # 实例名称： 192.168.1.3:turbo-service-autodeliver:8090  可以自定义实例显示格式，加上版本号，便于多版本管理，注意是ip-address，早期版本是ipAddress
+       instance-id: ${spring.cloud.client.ip-address}:${spring.application.name}:${server.port}:@project.version@
+   ```
+
+4. 在被监控的 `turbo-service-autodeliver-8092-hystrix` 微服务中注册监控 servlet（在启动类中）（自动投递微服务，监控数据就是来自这个微服务）
+
+   ```java
+   /**
+        * 在被监控的微服务中注册一个servlet,后期就是通过访问这个servlet来获取hystrix监控数据的
+        * 前提：被监控的微服务需要引入springboot的actuator功能
+        * @return
+        */
+   @Bean
+   public ServletRegistrationBean getServlet(){
+       HystrixMetricsStreamServlet streamServlet = new HystrixMetricsStreamServlet();
+       ServletRegistrationBean registrationBean = new ServletRegistrationBean(streamServlet);
+       registrationBean.setLoadOnStartup(1);
+       registrationBean.addUrlMappings("/actuator/hystrix.stream");
+       registrationBean.setName("HystrixMetricsStreamServlet");
+       return registrationBean;
+   }
+   ```
+
+启动相关微服务：
+
+![image-20220822163927805](assest/image-20220822163927805.png)
+
+可以直接访问监控 servlet，但是得到的数据并不直观，后期可以结合仪表盘更友好的展示：
+
+![image-20220822163852045](assest/image-20220822163852045.png)
+
+直接访问：http://localhost:9000/hystrix
+
+![image-20220822164053992](assest/image-20220822164053992.png)
+
+输入监控的微服务端点地址，展示监控的详细数据，比如监控服务消费者：http://localhost:8092/actuator/hystrix.stream
+
+![image-20220822165425178](assest/image-20220822165425178.png)
+
+百分比，10s 内错误请求百分比
+
+实心圆：
+
+- 大小：代表请求流量的大小，流量越大球越大。
+- 颜色，代表请求处理的健康状态，从绿色到红色递减，绿色代表健康，红色就代表很不健康。
+
 # 8 Hystrix Turbine 聚合监控
 
 # 9 Hystrix 核心源码剖析
+
+
+
+
+
+
+
