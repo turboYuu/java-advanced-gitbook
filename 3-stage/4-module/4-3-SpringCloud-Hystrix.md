@@ -197,6 +197,92 @@ Hystrix 主要通过以下几点实现延迟和容错。
 
 # 6 Hystrix 工作流程与高级应用
 
+![image-20220822150339909](assest/image-20220822150339909.png)
+
+1. 当调用出现问题时，开启一个时间窗（10s）.
+
+2. 在这个时间窗内，统计调用次数是否达到最小请求数？
+
+   如果没有达到，则重置统计信息，回到第一步；
+
+   如果达到了，则统计失败的请求数占所有请求数的百分比，是否达到阈值？
+
+   如果达到，则跳闸（不再请求对应服务）；
+
+   如果没有达到，则重置统计信息，回到第一步。
+
+3. 如果跳闸，则会开启一个活动窗口（默认5s），每隔5s，Hystrix 会让一个请求通过，到达那个问题服务，看是否调用成功；如果成功，重置断路器回到第一步，如果失败，回到第三步。
+
+```java
+commandProperties = {
+    /**
+     * hystrix 高级配置，定制工作过程细节
+     * 8s内，请求次数达到2个，并且失败率在50%以上美酒跳闸，
+     * 跳闸后，活动窗口设置为 3s
+     */
+    // 统计时间窗口定义
+    @HystrixProperty(name = "metrics.rollingStats.timeInMilliseconds",value = "8000"),
+    // 统计时间窗口内的最小请求数
+    @HystrixProperty(name = "circuitBreaker.requestVolumeThreshold",value = "2"),
+    // 统计时间窗口内的错误数量百分比阈值
+    @HystrixProperty(name = "circuitBreaker.errorThresholdPercentage",value ="50" ),
+    // 自我修复时的活动窗口长度
+    @HystrixProperty(name = "circuitBreaker.sleepWindowInMilliseconds",value = "3000")
+}
+```
+
+上述通过注解进行的配置也可以配置在配置文件中。
+
+```yaml
+# 配置熔断策略：
+hystrix:
+  command:
+    default:
+      circuitBreaker:
+        # 强制打开熔断器，如果该属性设置为true，强制断路器进⼊打开状态，将会拒绝所有的请求。默认false关闭的
+        forceOpen: false
+        # 触发熔断错误⽐例阈值，默认值50%
+        errorThresholdPercentage: 50
+        # 熔断后休眠时⻓，默认值5秒
+        sleepWindowInMilliseconds: 3000
+        # 熔断触发最⼩请求次数，默认值是20
+        requestVolumeThreshold: 2
+      execution:
+        isolation:
+          thread:
+            # 熔断超时设置，默认为1秒
+            timeoutInMilliseconds: 2000
+```
+
+基于 SpringBoot 的健康检查观察跳闸状态（自动投递微服务暴露健康检查细节）
+
+```yml
+# springboot中暴露健康检查等断点接口
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  # 暴露健康检查细节      
+  endpoint:
+    health:
+      show-details: always
+```
+
+访问健康检查接口：http://localhost:8092/actuator/health （使用 postMan `get` 请求也可）
+
+hystrix 正常工作状态：
+
+![image-20220822153609431](assest/image-20220822153609431.png)
+
+跳闸状态：
+
+![image-20220822153520024](assest/image-20220822153520024.png)
+
+活动窗口内自我修复：
+
+![image-20220822153609431](assest/image-20220822153609431.png)
+
 # 7 Hystrix Dashboard 断路监控仪表盘
 
 # 8 Hystrix Turbine 聚合监控
