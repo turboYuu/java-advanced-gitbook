@@ -285,6 +285,8 @@ hystrix 正常工作状态：
 
 # 7 Hystrix Dashboard 断路监控仪表盘
 
+[参考](https://github.com/Netflix-Skunkworks/hystrix-dashboard/wiki#using)
+
 正常状态是 UP，跳闸是一种状态 CIRCUIT_OPEN，可以通过 /health 查看，前提是工程中需要引入 SpringBoot 的 actuator（健康监控），它提供了很多监控所需的接口，可以对应用系统进行配置查看，相关功能统计等。
 
 已经统一添加在父工程中：
@@ -402,6 +404,104 @@ hystrix 正常工作状态：
 - 颜色，代表请求处理的健康状态，从绿色到红色递减，绿色代表健康，红色就代表很不健康。
 
 # 8 Hystrix Turbine 聚合监控
+
+之前，我们针对的是一个微服务实例Hystrix数据查询分析，在微服务架构下，一个微服务的实例往往是多个（集群化）
+
+比如 自动投递微服务：
+
+实例1(hystrix)：ip1:port1/actuator/hystrix.stream<br>实例2(hystrix)：ip2:port2/actuator/hystrix.stream<br>实例3(hystrix)：ip3:port3/actuator/hystrix.stream
+
+这时候可以使用 Hystrix Turbine 聚合（聚合各个实例上的 hystrix 监控数据）监控。
+
+> 思考：微服务架构下，一个微服务往往部署多个实例，如果每次只能查看单个实例的监控，就需要经常切换，很不方便。在这样的场景下我们可以使用 Hystrix Turbine 进行聚合监控，它可以把相关微服务的监控数据聚合在一起，便于查看。
+
+**Turbine服务搭建**
+
+1. 新建项目 `turbo-cloud-hystrix-turbine-9001`，引入依赖坐标
+
+   ```xml
+   <!--hystrix turbine 聚合监控-->
+   <dependency>
+       <groupId>org.springframework.cloud</groupId>
+       <artifactId>spring-cloud-starter-netflix-turbine</artifactId>
+   </dependency>
+   
+   <!--
+       引入eureka客户端的两个原因
+       1、微服务架构下的服务尽量都注册到服务中心，便于统一管理
+       2、后续在当前turbine项目中，需要配置turbine聚合服务，比如聚合
+          turbo-service-autodeliver这个服务各个实例的hystrix数据流，随后就需要在
+          application.yml文件中配置这个服务名，那么turbine获取服务下具体实例的数据流的
+          时候，需要ip和端口等实例信息，那么怎么获取？
+             当然是从eureka服务注册中心获取
+   -->
+   <dependency>
+       <groupId>org.springframework.cloud</groupId>
+       <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+   </dependency>
+   ```
+
+2. 讲需要进行 Hystrix 监控的多个微服务配置起来，在 application.yml 中开启 Turbine 及进行相关配置。
+
+   ```yaml
+   server:
+     port: 9001
+   spring:
+     application:
+       name: turbo-cloud-hystrix-turbine
+   
+   eureka:
+     client:
+       service-url: #eureka server 的路径
+         # 把所有 eureka 集群中的所有url都填写进来，可以只写一台，因为各个 eureka server 可以同步注册表
+         defaultZone: http://TurboCloudEurekaServerB:8762/eureka,http://TurboCloudEurekaServerA:8761/eureka
+     instance:
+       #服务实例中显示ip，而不是显示主机名，(为了兼容老版本,新版本经过实验都是ip)
+       prefer-ip-address: true
+       # 实例名称： 192.168.1.3:turbo-service-autodeliver:8090  可以自定义实例显示格式，加上版本号，便于多版本管理，注意是ip-address，早期版本是ipAddress
+       instance-id: ${spring.cloud.client.ip-address}:${spring.application.name}:${server.port}:@project.version@
+   
+   turbine:
+     # appCofing配置需要聚合的服务名称，⽐如这⾥聚合⾃动投递微服务的hystrix监控 数据
+     # 如果要聚合多个微服务的监控数据，那么可以使⽤英⽂逗号拼接，⽐如 a,b,c
+     app-config: turbo-service-autodeliver
+     cluster-name-expression: "'default'" # 集群默认名称
+   ```
+
+3. 在当前项目的启动类上添加注解 `@EnableTurbine`，开启仪表盘 以及 Turbine 聚合。
+
+   ```java
+   package com.turbo;
+   
+   import org.springframework.boot.SpringApplication;
+   import org.springframework.boot.autoconfigure.SpringBootApplication;
+   import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+   import org.springframework.cloud.netflix.turbine.EnableTurbine;
+   
+   
+   @SpringBootApplication
+   @EnableDiscoveryClient
+   @EnableTurbine // 开启 turbine 聚合
+   public class HystrixTurbineApplication9001 {
+       public static void main(String[] args) {
+           SpringApplication.run(HystrixTurbineApplication9001.class,args);
+       }
+   }
+   ```
+
+启动相关微服务：
+
+![image-20220822190804402](assest/image-20220822190804402.png)
+
+浏览器访问 Turbine 项目，http://localhost:9001/turbine.stream，就可以看到监控数据了：
+
+![image-20220822190903593](assest/image-20220822190903593.png)
+
+通过 dashboard 的页面查看数据更直观，把刚才的地址输入 dashboard 地址栏：
+
+![image-20220822191043815](assest/image-20220822191043815.png)
+
+![image-20220822191231453](assest/image-20220822191231453.png)
 
 # 9 Hystrix 核心源码剖析
 
