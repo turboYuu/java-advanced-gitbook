@@ -205,6 +205,23 @@ turbo-service-resume:
 
 # 5 Feign 对请求压缩和响应压缩的支持
 
+Feign 支持对请求和响应进行 GZIP 压缩，以减少通信过程中的性能损耗。通过下面的参数，即可开启请求与响应的压缩功能：
+
+```yaml
+feign:
+  compression:
+    request:
+      enabled: true # 开启请求压缩
+      mime-types: text/xml,application/xml,application/json #设置压缩的数据类型。此处是默认值
+      min-request-size: 2048 # 设置触发压缩的大小下限，此处也是默认值
+    response:
+      enabled: true # 开启响应压缩
+```
+
+
+
 # 6 Feign 的日志级别配置
+
+
 
 # 7 Feign 核心源码剖析
