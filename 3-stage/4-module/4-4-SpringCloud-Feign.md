@@ -26,6 +26,77 @@ Dubbo 的调用方式其实就是很好的面向接口编程。
 
 # 2 Feign 配置应用
 
+在服务调用者工程（消费）创建接口（添加注解）（效果）Feign = RestTemplate + Ribbon + Hystrix
+
+1. 服务消费者工程（）中引入 Feign 依赖（或者父工程）
+
+   ```xml
+   <dependency>
+       <groupId>org.springframework.cloud</groupId>
+       <artifactId>spring-cloud-starter-openfeign</artifactId>
+   </dependency>
+   ```
+
+2. 服务消费者工程（自动投递微服务）启动类使用注解 `@EnableFeignClients` 添加 Feign 支持
+
+   ```java
+   @SpringBootApplication
+   @EnableDiscoveryClient // 开启服务发现
+   @EnableFeignClients // 开启 Feign
+   public class AutoDeliverApplication8094 {
+       public static void main(String[] args) {
+           SpringApplication.run(AutoDeliverApplication8094.class,args);
+       }
+   }
+   ```
+
+   注意：此时去掉 Hystrix 熔断的支持注解 `@EnableCircuitBreaker` 即可，包括引入的依赖，因为 Feign 会自动引入。
+
+3. 创建 Feign 接口
+
+   ```java
+   package com.turbo.service;
+   
+   import org.springframework.cloud.openfeign.FeignClient;
+   import org.springframework.web.bind.annotation.GetMapping;
+   import org.springframework.web.bind.annotation.PathVariable;
+   
+   // http://turbo-service-resume/resume/openState/
+   // name: 调用服务名称，和服务提供者 yml 文件中 spring.application.name 保持一致
+   @FeignClient(name = "turbo-service-resume")
+   public interface ResumeFeignClient {
+       // 调用请求路径
+       @GetMapping("/resume/openState/{userId}")
+       public Integer findResumeOpenState(@PathVariable Long userId);
+   }
+   ```
+
+   注意：
+
+   - `@FeignClient` 注解的 name 属性用于指定要调用的服务提供者名称，和服务提供者 yml 文件中 spring.application.name 保持一致。
+   - 接口中的接口方法，就好比是远程服务提供者 Controller 中的 Handler 方法（只不过如同本地调用了），那么在进行参数绑定时，可以使用 `@PathVariable`、`@RequestParam`、`@RequestHeader` 等，这也是 OpenFeign 对 SpringMVC 注解的支持，但是需要注意 value 必须设置，否则会抛出异常
+
+4. 使用接口中方法完成远程调用（注入接口即可，实际注入的是接口的实现）
+
+   ```java
+   @RestController
+   @RequestMapping("/autodeliver")
+   public class AutodeliverController {
+   
+       @Autowired
+       ResumeFeignClient resumeFeignClient;
+       
+       // http://localhost:8094/autodeliver/checkState/2195320
+       // http://turbo-service-resume/resume/openState/
+       @GetMapping("/checkState/{userId}")
+       public Integer findResumeOpenState(@PathVariable Long userId){
+           return resumeFeignClient.findResumeOpenState(userId);
+       }
+   }
+   ```
+
+   
+
 # 3 Feign 对负载均衡的支持
 
 # 4 Feign 对熔断器的支持
