@@ -160,7 +160,7 @@ Zookeeper 是一个开源的分布式协调服务
 
 所有有关事务的请求都有 Leader 来处理。
 
-
+ZAB 协议（崩溃恢复、消息广播），Zookeeper 集群的Leade选举。
 
 
 
