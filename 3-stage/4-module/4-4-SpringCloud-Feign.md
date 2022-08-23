@@ -64,7 +64,7 @@ Dubbo 的调用方式其实就是很好的面向接口编程。
    // http://turbo-service-resume/resume/openState/
    // name: 调用服务名称，和服务提供者 yml 文件中 spring.application.name 保持一致
    @FeignClient(name = "turbo-service-resume")
-   public interface ResumeFeignClient {
+   public interface ResumeServiceFeignClient {
        // 调用请求路径
        @GetMapping("/resume/openState/{userId}")
        public Integer findResumeOpenState(@PathVariable Long userId);
@@ -84,13 +84,13 @@ Dubbo 的调用方式其实就是很好的面向接口编程。
    public class AutodeliverController {
    
        @Autowired
-       ResumeFeignClient resumeFeignClient;
+       ResumeServiceFeignClient resumeServiceFeignClient;
        
        // http://localhost:8094/autodeliver/checkState/2195320
        // http://turbo-service-resume/resume/openState/
        @GetMapping("/checkState/{userId}")
        public Integer findResumeOpenState(@PathVariable Long userId){
-           return resumeFeignClient.findResumeOpenState(userId);
+           return resumeServiceFeignClient.findResumeOpenState(userId);
        }
    }
    ```
@@ -99,7 +99,109 @@ Dubbo 的调用方式其实就是很好的面向接口编程。
 
 # 3 Feign 对负载均衡的支持
 
+Feign 本身已经集成了 Ribbon 依赖和自动配置，因此我们不需要额外引入依赖，可以通过 ribbon.xx 来进行全局配置，也可以通过 服务名.ribbon.xx 来对指定服务进行细节配置。
+
+Feign 默认的请求处理超时时长 1s，有时候我们的业务确实执行需要一定时间，那么这个时候，我们就需要调整处理超时时长，Feign 自己有超时设置，如果配置 Ribbon 的超时，则会以 Ribbon 的为准。
+
+Ribbon 设置
+
+```yaml
+#针对的被调⽤⽅微服务名称,不加就是全局⽣效
+turbo-service-resume:
+  ribbon:
+    #请求连接超时时间
+    ConnectTimeout: 2000
+    #请求处理超时时间
+    ReadTimeout: 3000  #Feign超时时长设置
+    #对所有操作都进⾏重试
+    OkToRetryOnAllOperations: true
+    ####根据如上配置，当访问到故障请求的时候，它会再尝试访问⼀次当前实例（次数 由MaxAutoRetries配置），
+    ####如果不⾏，就换⼀个实例进⾏访问，如果还不⾏，再换⼀次实例访问（更换次数 由MaxAutoRetriesNextServer配置），
+    ####如果依然不⾏，返回失败信息。
+    MaxAutoRetries: 0 #对当前选中实例重试次数，不包括第⼀次调⽤
+    MaxAutoRetriesNextServer: 0 #切换实例的重试次数
+    NFLoadBalancerRuleClassName: com.netflix.loadbalancer.RoundRobinRule #负载策略调整
+```
+
+
+
 # 4 Feign 对熔断器的支持
+
+1. 在 Feign 客户端工程配置文件（application.yml）中开启 Feign 对熔断器的支持
+
+   ```yaml
+   # 开启Feign 熔断功能
+   feign:
+     hystrix:
+       enabled: true
+   ```
+
+   Feign 的超时时长设置 其实就是上面 Ribbon 的超时时长设置
+
+   Hystrix 超时时长设置（就按照之前 Hystrix 设置的方式就 OK 了）
+
+   ```yaml
+   # 配置熔断策略：
+   hystrix:
+     command:
+       default:
+         execution:
+           isolation:
+             thread:
+               # 熔断超时设置，默认为1秒
+               timeoutInMilliseconds: 2000
+   ```
+
+   注意：
+
+   - 开启 Hystrix 之后，Feign 中的方法都会被进行一个管理，一旦出现问题就进入对应的回退逻辑处理
+   - 针对超时这一点，当前有两个超时时间设置（Feign/hystrix），熔断的时候是根据这两个时间的最小值来进行的，及处理时长超过最短的那个超时时间了就熔断进入回退降级逻辑。
+
+2. 自定义FallBack 处理类（需要实现 FeignClient 接口）
+
+   ```java
+   package com.turbo.service;
+   
+   import org.springframework.stereotype.Component;
+   
+   /**
+    * 降级回退逻辑需要定义一个类，实现 FeignClient 接口，实现接口中的方法
+    **/
+   @Component // 不要忘了这个注解，还应该被扫描倒
+   public class ResumeFallback implements ResumeServiceFeignClient {
+       @Override
+       public Integer findResumeOpenState(Long userId) {
+           return -6;
+       }
+   }
+   ```
+
+3. 在 `@FeignClient` 注解中关联 步骤二中自定义的处理类
+
+   ```java
+   // http://turbo-service-resume/resume/openState/
+   // name: 调用服务名称，和服务提供者 yml 文件中 spring.application.name 保持一致
+   @FeignClient(name = "turbo-service-resume",fallback = ResumeFallback.class,path = "/resume")
+   // 使用 fallback 的时候，类上的 @RequestMapping 的 url 前缀限定，改成配置在 @FeignClient 的 path 属性中
+   //@RequestMapping("/resume")
+   public interface ResumeServiceFeignClient {
+       // 调用请求路径
+       @GetMapping("/openState/{userId}")
+       public Integer findResumeOpenState(@PathVariable Long userId);
+   }
+   ```
+
+   
+
+
+
+启动相关微服务，其中 `turbo-service-resume-8080` ，线程休眠 3s。
+
+![image-20220823162504300](assest/image-20220823162504300.png)
+
+
+
+![feign-timeout-fallback](assest/feign-timeout-fallback.gif)
 
 # 5 Feign 对请求压缩和响应压缩的支持
 
