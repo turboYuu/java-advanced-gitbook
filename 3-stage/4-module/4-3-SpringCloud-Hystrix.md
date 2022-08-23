@@ -54,6 +54,10 @@
 
 # 3 Hystrix 简介
 
+[Netflix Hystrix](https://github.com/Netflix/Hystrix/wiki)
+
+![img](assest/hystrix-logo-tagline-640.png)
+
 Hystrix 主要通过以下几点实现延迟和容错。
 
 - 包裹请求：使用 HystirxCommand 包裹对调用的依赖。
@@ -285,7 +289,7 @@ hystrix 正常工作状态：
 
 # 7 Hystrix Dashboard 断路监控仪表盘
 
-[参考](https://github.com/Netflix-Skunkworks/hystrix-dashboard/wiki#using)
+[hystrix-dashboard 参考](https://github.com/Netflix-Skunkworks/hystrix-dashboard/wiki#using)
 
 正常状态是 UP，跳闸是一种状态 CIRCUIT_OPEN，可以通过 /health 查看，前提是工程中需要引入 SpringBoot 的 actuator（健康监控），它提供了很多监控所需的接口，可以对应用系统进行配置查看，相关功能统计等。
 
