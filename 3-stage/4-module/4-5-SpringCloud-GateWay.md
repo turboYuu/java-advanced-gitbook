@@ -282,16 +282,36 @@ GateWay 支持自动从注册中心获取服务列表并访问，即所谓的动
 
 # 7 GateWay 过滤器
 
+## 7.1 GateWay 过滤器简介
+
 [global-filters](https://docs.spring.io/spring-cloud-gateway/docs/current/reference/html/#global-filters)
 
-从过滤器生命周期（影响时机点）的角度来说，主要有两个：pre 和 post 
+从过滤器生命周期（影响时机点）的角度来说，主要有两个：pre 和 post  。[官网参考地址](https://docs.spring.io/spring-cloud-gateway/docs/current/reference/html/#gateway-combined-global-filter-and-gatewayfilter-ordering)
 
 | 生命周期时机点 | 作用                                                         |
 | -------------- | ------------------------------------------------------------ |
 | pre            | 这种过滤器在请求被路由之前调用。<br>可以利用这种过滤器实现身份验证、在集群中选择请求的微服务，记录调试信息等。 |
 | post           | 这种过滤器在路由到微服务之后执行。<br>这种过滤器可用来为响应加标准的 HTTP Header、收集统计信息和指标、将响应从微服务发送给客户端等。 |
 
+从过滤器类型的角度，Spring Cloud GateWay 的过滤器分为 [GateWayFilter](https://docs.spring.io/spring-cloud-gateway/docs/current/reference/html/#gatewayfilter-factories) 和 [GlobalFilter](https://docs.spring.io/spring-cloud-gateway/docs/current/reference/html/#global-filters)两种。
 
+| 过滤器类型    | 影响范围           |
+| ------------- | ------------------ |
+| GateWayFilter | 影响到单个路由上   |
+| GlobalFilter  | 应用到所有的路由上 |
+
+如 GateWay Filter  可以使用 [stripprefix](https://docs.spring.io/spring-cloud-gateway/docs/current/reference/html/#the-stripprefix-gatewayfilter-factory) 去掉 url 中的占位后转发路由，比如：
+
+```yaml
+predicates:
+  - Path=/resume/**
+filters:
+  - StripPrefix=1 # 可以去掉 resume 之后转发
+```
+
+![image-20220824191120561](assest/image-20220824191120561.png)
+
+**注意：GlobalFilter全局过滤器是使用比较多的过滤器，主要讲解这种类型**
 
 # 8 GateWay 高可用
 
