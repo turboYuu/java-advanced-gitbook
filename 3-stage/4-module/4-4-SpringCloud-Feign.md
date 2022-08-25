@@ -222,6 +222,52 @@ feign:
 
 # 6 Feign 的日志级别配置
 
+[feign logging 官网参考](https://docs.spring.io/spring-cloud-openfeign/docs/current/reference/html/#feign-logging)
 
+Feign 是 http 请求客户端，类似于咱们的浏览器，它在请求和接收响应的时候，可以打印出比较详细的一些日志信息（响应头，状态码等等）。
+
+如果我们想看到 Feign 请求的日志，我们可以进行配置，默认情况下 Feign 的日志没有开启。
+
+
+
+1. 开启Feign 日志功能及级别
+
+   ```java
+   package com.turbo.config;
+   
+   import feign.Logger;
+   import org.springframework.context.annotation.Bean;
+   import org.springframework.context.annotation.Configuration;
+   
+   /**
+    * @author yutao
+    * Feign的日志级别（Feign 请求过程信息）
+    * NONE：默认的，不显示任何日志 ---- 性能最好
+    * BASIC：仅记录请求方法、URL、响应状态码 以及 执行时间 ---- 生产问题追踪
+    * HEADERS: 在 BASIC 级别的基础上，记录请求和响应的 header
+    * FULL：记录请求和响应的 header、body 和 元数据 ---- 适用于开发及测试环境定位问题
+    **/
+   @Configuration
+   public class FeignConfig {
+   
+       @Bean
+       Logger.Level feignLevel(){
+           return Logger.Level.FULL;
+       }
+   }
+   ```
+
+2. 配置 log 日志界别为 debug
+
+   ```yaml
+   logging:
+     level:
+       # feign 日志只会对日志级别为 debug 的做出响应
+       com.turbo.service.ResumeServiceFeignClient: debug
+   ```
+
+
+
+![image-20220825150529814](assest/image-20220825150529814.png)
 
 # 7 Feign 核心源码剖析
