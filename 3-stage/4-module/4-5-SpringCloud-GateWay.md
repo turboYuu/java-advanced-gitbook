@@ -395,9 +395,24 @@ public class BlackListFilter implements GlobalFilter, Ordered {
 
 
 
-
-
 ![image-20220824194108987](assest/image-20220824194108987.png)
 
 # 8 GateWay 高可用
+
+网关作为非常核心的一个组件，如果挂掉，那么所有请求都可能无法路由处理，因此我们需要做 GateWay 的高可用。
+
+**GateWay 的高可用很简单**：可以启动多个 GateWay 实例来实现高可用，在 GateWay 的上游使用 Nginx 等负载均衡设备进行负载转发以达到高可用的目的。
+
+启动多个 GateWay 实例（例如：一个端口 9002，一个端口 9003），剩下的就是使用 Nginx 等完成负载代理即可。示例如下：
+
+```yaml
+# 配置多个 GateWay 实例
+upstream gateway{
+	server 127.0.0.1:9002;
+	server 127.0.0.1:9003;
+}
+location / {
+	proxy pass http://gateway;
+}
+```
 
