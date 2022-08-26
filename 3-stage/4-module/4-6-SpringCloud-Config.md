@@ -142,19 +142,110 @@ Spring Cloud Config 是一个分布式配置管理方案，包含了 Server 端 
 
 ### 2.2.2 构建 Client 客户端（在已有的简历微服务基础上）
 
-![image-20220825184759500](assest/image-20220825184759500.png)
 
-![image-20220825184820433](assest/image-20220825184820433.png)
 
 1. 已有工程中添加依赖坐标
 
    ```xml
+   <dependency>
+       <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-config-client</artifactId>
+   </dependency>
+   ```
    
+2. application.yml 修改为 bootstrap.yml 配置文件
+
+   bootstrap.yml 是系统级别的，优先级比 application.yml 高，应用启动时会检查这个配置文件，在这个配置文件中指定配置中心的服务地址，会自动拉取所有应用配置并且启用。
+
+   主要是把与统一配置中心连接的配置信息放到 bootstrap.yml。
+
+   注意：需要统一读取的配置信息，从集中配置中心获取。
+
+   bootstrap.yml
+
+   ```yaml
+   server:
+     port: 8082
+   spring:
+     application:
+       name: turbo-service-resume
+     datasource:
+       driver-class-name: com.mysql.jdbc.Driver
+       url: jdbc:mysql://152.136.177.192:3306/turbo?useUnicode=true&characterEncoding=utf8
+       username: root
+       password: 123456
+     cloud:
+       config: # config 客户端配置 和 configServer 通信，并告知 configServer 希望获取的配置信息在哪个文件中
+         name: turbo-service-resume # 配置文件名称
+         profile: dev # 后缀名称
+         label: master # 分支名称
+         uri: http://localhost:9006 # configServer 配置中心地址
+     jpa:
+       database: mysql
+       show-sql: true
+       hibernate:
+         naming:
+           physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+   
+   eureka:
+     client:
+       service-url: #eureka server 的路径
+         # 把所有 eureka 集群中的所有url都填写进来，可以只写一台，因为各个 eureka server 可以同步注册表
+         defaultZone: http://TurboCloudEurekaServerB:8762/eureka,http://TurboCloudEurekaServerA:8761/eureka
+       registry-fetch-interval-seconds: 30
+     instance:
+       #服务实例中显示ip，而不是显示主机名，(为了兼容老版本,新版本经过实验都是ip)
+       prefer-ip-address: true
+       # 实例名称： 192.168.1.3:turbo-service-resume:8081  可以自定义实例显示格式，加上版本号，便于多版本管理，注意是ip-address，早期版本是ipAddress
+       instance-id: ${spring.cloud.client.ip-address}:${spring.application.name}:${server.port}:@project.version@
+   
+   # springboot中暴露健康检查等断点接⼝
+   management:
+     endpoints:
+       web:
+         exposure:
+           include: "*"
+     # 暴露健康接口细节
+     endpoint:
+       health:
+         show-details: always
+   ```
+
+3. 测试
+
+   ```java
+   package com.turbo.controller;
+   
+   import org.springframework.beans.factory.annotation.Value;
+   import org.springframework.web.bind.annotation.GetMapping;
+   import org.springframework.web.bind.annotation.RequestMapping;
+   import org.springframework.web.bind.annotation.RestController;
+   
+   
+   @RestController
+   @RequestMapping("/config")
+   public class ConfigController {
+   
+       @Value("${turbo.message}")
+       private String turboMessage;
+   
+       // http:localhost:8082/config/viewConfig
+       @GetMapping("/viewConfig")
+       public String viewConfig(){
+           return "turboMessage == >"+ turboMessage;
+       }
+   }
    ```
 
    
 
+启动相关微服务：
 
+![image-20220825184759500](assest/image-20220825184759500.png)
+
+访问：http://localhost:8082/config/viewConfig
+
+![image-20220825184820433](assest/image-20220825184820433.png)
 
 # 3 Config 配置手动刷新
 
