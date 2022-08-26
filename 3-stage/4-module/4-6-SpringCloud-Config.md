@@ -307,3 +307,91 @@ Spring Cloud Config 是一个分布式配置管理方案，包含了 Server 端 
 思考：受否使用广播机制，一次通知，处处生效，方便大范围配置刷新？
 
 # 4 Config 配置自动更新
+
+实现一次通知处处生效。
+
+在微服务架构中，我们可以结合消息总线（Bus）实现分布式配置的自动更新（Spring Cloud Config + Spring Cloud Bus）
+
+## 4.1 消息总线
+
+所谓消息总线 Bus，即我们经常使用 MQ 消息代理构建一个共用的 Topic，通过这个 Topic 连接各个微服务实例，MQ广播的消息会被所有在注册中心的微服务实例监听和消费。**换言之就是通过一个主题连接各个微服务，打通脉络**。
+
+Spring Cloud Bus（基于MQ的，支持RabbitMq/Kafka）是 Spring Cloud 中的消息总线方案，Spring Cloud Config + Spring Cloud Bus 结合可以实现配置信息的自动更新。
+
+![image-20220826151037494](assest/image-20220826151037494.png)
+
+## 4.2 Spring Cloud Config + Spring Cloud Bus 实现自动刷新
+
+MQ 消息代理，我们还选择使用 RabbitMQ，ConfigServer 和 ConfigClient 都添加消息总线的支持 以及与 RabbitMq 的连接信息。
+
+1. Config Server、Config Client 服务端添加消息总线支持
+
+   ```xml
+   <dependency>
+       <groupId>org.springframework.cloud</groupId>
+       <artifactId>spring-cloud-starter-bus-amqp</artifactId>
+   </dependency>
+   ```
+
+2. Config Server 、Config Client 添加配置
+
+   ```yaml
+   spring:
+     rabbitmq:
+       host: 152.136.177.192
+       port: 5672
+       username: guest
+       password: guest
+   ```
+
+3. 服务端暴露端点
+
+   ```yaml
+   management:
+     endpoints:
+       web:
+         exposure:
+           include: bus-refresh
+   # 建议暴露所有的端点
+   management:
+     endpoints:
+       web:
+         exposure:
+           include: "*"
+   ```
+
+
+
+启动相关微服务：
+
+![image-20220826161631853](assest/image-20220826161631853.png)
+
+向配置中心服务端发送 post 请求 http://localhost:9006/actuator/bus-refresh，各个客户端配置即可自动刷新，在广播模式下实现一次请求处处更新：
+
+![image-20220826161841970](assest/image-20220826161841970.png)
+
+![image-20220826161853319](assest/image-20220826161853319.png)
+
+如果指向定向更新呢？
+
+在发起刷新请求的时候 http://localhost:9006/actuator/bus-refresh/turbo-service-resume:8082
+
+即为最后面跟上要定向刷新的实例 **服务名:端口号**  即可。
+
+![image-20220826162006572](assest/image-20220826162006572.png)
+
+![image-20220826162046747](assest/image-20220826162046747.png)
+
+
+
+备注：docker 中安装 rabbitmq
+
+```bash
+docker pull rabbitmq:management
+docker run --name rabbitmq -d -p 15672:15672 -p 5672:5672 rabbitmq:management
+
+#http://152.136.177.192:15672/
+username: guest
+password: guest
+```
+
