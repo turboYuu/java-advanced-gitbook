@@ -249,4 +249,59 @@ Spring Cloud Config 是一个分布式配置管理方案，包含了 Server 端 
 
 # 3 Config 配置手动刷新
 
+不用重启微服务，只需要手动的做一些其他的操作（访问一个地址 /refresh）刷新，之后再访问即可。此时，客户端取到了配置中心的值，但当我们修改 GitHub 上面的值时，服务端（Config Server）能实时获取最新的值，但客户端（Config Client）读的是缓存，无法实时获取最新值。Spring Cloud 已经为我们解决了这个问题，那就是客户端使用 post 去触发 refresh，获取最新数据。
+
+1. Client 客户端添加 依赖 spring-boot-starter-actuator （已经添加）
+
+2. Client 客户端 bootstrap.yml 中添加配置（暴露通信端点）
+
+   ```yaml
+   management:
+     endpoints:
+       web:
+         exposure:
+           include: refresh
+   # 也可以暴露所有的端点
+   management:
+     endpoints:
+       web:
+         exposure:
+           include: "*"
+   ```
+
+3. Client 客户端使用到配置信息的类上添加 `@RefreshScope`
+
+   ```java
+   @RestController
+   @RefreshScope
+   @RequestMapping("/config")
+   public class ConfigController {
+   
+       @Value("${turbo.message}")
+       private String turboMessage;
+   
+       // http:localhost:8082/config/viewConfig
+       @GetMapping("/viewConfig")
+       public String viewConfig(){
+           return "turboMessage == >"+ turboMessage;
+       }
+   }
+   ```
+
+4. 手动向 Client 客户端发起 POST 请求：http://localhost:8082/actuator/refresh，刷新配置信息。
+
+
+
+先手动修改 码云上 turbo-service-resume-dev.yml 配置文件，然后手动刷新配置信息。
+
+![image-20220826134525064](assest/image-20220826134525064.png)
+
+然后再访问测试结果：
+
+![image-20220826134709252](assest/image-20220826134709252.png)
+
+**注意：手动刷新方式避免了服务重启（流程：Git 改配置 ---> for 循环脚本手动刷新每个微服务）**
+
+思考：受否使用广播机制，一次通知，处处生效，方便大范围配置刷新？
+
 # 4 Config 配置自动更新
