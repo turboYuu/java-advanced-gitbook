@@ -19,6 +19,8 @@
 
 # 2 Spring Cloud Config
 
+[Spring Cloud Config 官网](https://spring.io/projects/spring-cloud-config)
+
 ## 2.1 Config 简介
 
 Spring Cloud Config 是一个分布式配置管理方案，包含了 Server 端 和 Client 端 两个部分。
