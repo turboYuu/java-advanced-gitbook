@@ -55,7 +55,7 @@ Stream 中的消息通信方式遵循了发布 — 订阅模式。
 | @Input          |      |
 | @Output         |      |
 | @StreamListener |      |
-|                 |      |
+| @EnableBinding  |      |
 
 
 
