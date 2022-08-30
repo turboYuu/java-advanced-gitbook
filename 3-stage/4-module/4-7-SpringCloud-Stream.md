@@ -329,4 +329,48 @@ Stream 中的消息通信方式遵循了发布 — 订阅模式。
 
 # 5 Stream 高级之自定义消息通道
 
+Stream 内置了两种接口 Source 和 Sink 分别定义了 binding 为 “input” 的输入流 和 “output” 的输出流，我们也可以自定义各种输出流（通道），但实际我们可以在我们的服务中使用多个 binder、多个输入通道和输出通道，然而默认就带了一个 input 的输入通道 和 一个 output 的输出通道，怎么办？
+
+我们是可以自定义消息通道的，学者 Source 和 Sink 的样子，给你的通道定义个自己的名字，多个输入通道和输出通道是可以写在一个类中的。
+
+定义接口
+
+```java
+public interface CustomChannel {
+
+    String INPUT_LOG = "inputLog";
+    String OUTPUT_LOG = "outputLog";
+
+    @Input(INPUT_LOG)
+    SubscribableChannel inputLog();
+    
+    @Output(OUTPUT_LOG)
+    MessageChannel outputLog();   
+}
+```
+
+如何使用？
+
+1. 在 `@EnableBinding` 注解中，绑定自定义的接口
+2. 使用 `@StreamListener` 做监听的时候，需要指定 CustomChannel.INPUT_LOG
+
+```yaml
+bindings: 
+  inputLog: 
+    destination: turboExchange
+  outputLog:
+    destination: turbineExchange
+```
+
+
+
 # 6 Stream 高级之消息分组
+
+如上我们的情况，消费者端有两个（消费同一个 MQ 的同一个主题），但是我们的业务场景中希望这个主题的的一个 Message 只能被一个消费端消费处理，此时我们就可以使用消息分组。
+
+**解决的问题：能解决消息重复消费问题**
+
+我们仅仅需要在服务消费者端设置 `spring.cloud.stream.bindings.input.group` 属性，多个消费者实例配置为同一个 group 名称（在同一个 group 中的多个消费者只有一个可以获取到消息并消费）。
+
+![image-20220830172619129](assest/image-20220830172619129.png)
+
