@@ -40,7 +40,45 @@ Eureka Server 中会有定时任务去检测失效的服务，将服务实例信
 
 ### 2.2.1 Eureka Client 缓存
 
+Eureka Client 负责跟 Eureka Server 进行交互，在 Eureka Client 中的 `com.netflix.discovery.DiscoveryClient#initScheduledTasks` 方法中，初始化了一个 CacheRefreshThread 定时任务专门用来拉取 Eureka Server 的实例信息到本地。
+
+所以我们需要缩短这个定时拉取服务信息的时间间隔（eureka.client.registry-fetch-interval-seconds）来快速发现新的服务。
+
 ### 2.2.2 Ribbon 缓存
 
+Ribbon 会从 Eureka Client 中获取服务信息，ServerListUpdater 是 Ribbon 中负责服务实例更新的组件，默认的实现是 PollingServerListUpdater，通过线程定时去更新实例信息。定时刷新的时间间隔默认是 30s，当服务停止或者上线后，这边最快也需要 30s 才能将实例信息更新成最新的。我们可以将这个时间调短一点，比如 3s。
 
+刷新间隔的参数是通过 getRefreshIntervalMs 方法来获取的，方法中的逻辑也是从 Ribbon 的配置中进行取值的。
+
+
+
+将这些服务服务端缓存和客户端缓存的时间全部缩短后，跟默认的配置时间相比，快了很多。我们通过调整参数的方式来尽量加快服务发现的速度，但是还是不能完全解决报错的问题，间隔时间设置为 3s，也还是会有间隔。所以我们一般都会开启重试功能，当路由的服务出现问题时，可以重试到另一个服务来保证这次请求的成功。
+
+
+
+# 3 Spring Cloud 各组件超时
+
+在 SpringCloud 中，应用的组件较多，只要涉及通信，就有可能会发生超时。那么如何设置超时时间？在 Spring Cloud 中 ，超时时间只需要重点关注 Ribbon 和 Hystrix 即可。
+
+## 3.1 Ribbon
+
+如果采用的是服务发现方式，就可以通过服务名去进行转发，需要配置 Ribbon 的超时。Ribbon 的超时可以配置全局 ribbon.ReadTimeout 和 ribbon.ConnectTimeout。也可以在前面指定服务名，为每个服务单独配置。比如：user-service.ribbon.ReadTimeout。
+
+其次是 Hystrix 的超时配置，Hystrix 的超时时间要大于 Ribbon 的超时时间，因为 Hystrix 将请求包装了起来，特别需要注意的是，如果 Ribbon 开启的重试机制，比如重试 3次，Ribbon 的超时为1s，那么Hystrix 的超时时间应该大于 3s，否则就会出现 Ribbon 还在重试中，而 Hystrix 已经超时的现象。
+
+## 3.2 Hystrix
+
+Hystrix 全局超时配置就可以用 default 来代替具体的 command 名称。
+
+hystrix.command.default.execution.isolation.thread.timeoutInMilliseconds=3000 ，如果相对具体的 command进行配置，那么就需要知道 command 名称的生成规则，才能准确的配置。
+
+如果我们使用 @HystrixCommand 的话，可以自定义 commandKey。如果使用 FeignClient 的话，可以为 FeignClient 来指定超时时间：hystrix.command.UserRemoteClient.execution.isolation.thread.timeoutInMilliseconds = 3000
+
+如果相对 FeignClient 中的某个接口设置单独的超时，可以在 FeignClient 名称后加上具体的方法：hystrix.command.UserRemoteClient#getUser(Long).execution.isolation.thread.timeoutInMilliseconds = 3000
+
+## 3.3 Feign
+
+Feign 本身也有超时时间的设置，如果此时设置了  Ribbon 的时间就以 Ribbon 的时间为准，如果没设置 Ribbon 的时间但配置了 Feign 的时间，就以 Feign 的时间为准。Feign 的时间同样也配置了连接超时时间（feign.client.config.服务名称.connectTimeout）和 读取超时时间（feign.client.config.服务名称.readTimeout）。
+
+建议，我们配置 Ribbon 超时时间和 Hystrix 超时时间即可。
 
