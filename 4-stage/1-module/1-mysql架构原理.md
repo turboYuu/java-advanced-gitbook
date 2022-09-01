@@ -102,13 +102,47 @@ MySQL Server 架构自顶向下大致可以分为网络连接层、服务层、�
 
 通过客户端/服务器通信协议 与 MySQL 建立连接。MySQL 客户端与服务端的通信方式是“半双工”。对于每一个 MySQL 的连接，时刻都有一个线程状态来标识这个连接正在做什么 。
 
-通讯机制：
+**通讯机制**：
 
 - 全双工：能同时发送和接收数据。
 - 半双工：指的某一时刻，要么发送数据，要么接收数据，不能同时。
 - 单工：只能发送数据或只能接收数据。
 
+
+
+**线程状态**：
+
+![image-20220831183247898](assest/image-20220831183247898.png)
+
+show processlist; // 查看用户正在运行的线程信息，root 用户能查看所有线程，其他用户只能看自己的；
+
+1. id：线程ID，可以使用 kill xx;
+2. user：启动这个线程的用户
+3. Host：发送请求的客户端的 IP 和端口号
+4. db：当前命令在哪个库执行
+5. Command：该线程正在执行的操作命令
+   - Create DB：正在创建库操作
+   - Drop DB：正在删除库操作
+   - Execute：正在执行一个 PreparedStatement
+   - Close Stmt：正在关闭一个 PreparedStatement
+   - Query：正在执行一个语句
+   - Sleep：正在等在客户端发送语句
+   - Quit：正在退出
+   - Shutdown：正在关闭服务器
+6. Time：表示该线程处于当前状态的时间，单位是秒
+7. State：线程状态
+   - Updating：正在搜索匹配记录，进行修改
+   - Sleeping：正在等在客户端发送新请求
+   - Starting：正在执行请求处理
+   - Checking table：正在检查数据表
+   - Closing table：正在将表中数据刷新到磁盘中
+   - Locked：被其他查询锁住了记录
+   - Sending Data：正在处理 Select 查询，同时将结果发送给客户端
+8. Info：一般记录线程执行的语句，默认显示前 100 个字符。想查看完整的使用 `show full processlist;`
+
 ## 2.2 查询缓存
+
+
 
 ## 2.3 解析器
 
