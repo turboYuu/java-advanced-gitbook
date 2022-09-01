@@ -140,9 +140,31 @@ show processlist; // 查看用户正在运行的线程信息，root 用户能查
    - Sending Data：正在处理 Select 查询，同时将结果发送给客户端
 8. Info：一般记录线程执行的语句，默认显示前 100 个字符。想查看完整的使用 `show full processlist;`
 
-## 2.2 查询缓存
+## 2.2 查询缓存（Cache&Buffer）
 
+这是MySQL的一个可优化查询的地方，如果开启了查询缓存，且在查询缓存过程中查询到完全相同的 SQL 语句，则将查询结果直接返回给客户端；如果没有开启查询缓存挥着没有查询到完全相同的 SQL 语句则会由解析器进行语法语义解析，并生成 “解析树”。
 
+- 缓存 Select 查询的结果和 SQL 语句
+
+- 执行 Select 查询时，先查询缓存，判断是否存在可用的记录集，要求是否完全相同（包括参数值），这样才会匹配缓存数据命中。
+
+- 即使开启查询缓存，以下 SQL 也不能缓存
+
+  - 查询语句使用 SQL_NO_CACHE  eg：`SELECT SQL_NO_CACHE	* FROM table_name`
+
+  - 查询的结果大于 query_cache_limit 设置 
+
+    eg：`select @@global.query_cache_limit;` 或 `select @@query_cache_limit;`
+
+  - 查询中有一些不确定的参数，比如 now()
+
+- show variables like '%query_cache%'; 查看查询缓存是否启用，空间大小，限制等。
+
+  ![image-20220901184250783](assest/image-20220901184250783.png)
+
+- show status like 'Qcache%';  查看更详细的缓存参数，可用缓存空间，缓存块，缓存多少等。
+
+  ![image-20220901184457687](assest/image-20220901184457687.png)
 
 ## 2.3 解析器
 
