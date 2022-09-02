@@ -375,7 +375,19 @@ innodb_flush_log_at_trx_commit 参数控制日志刷新行为，默认为1：
 
 ### 3.2.2 InnoDB 磁盘结构
 
+[InnoDB On-Disk Structures](https://dev.mysql.com/doc/refman/5.7/en/innodb-on-disk-structures.html)
 
+InnoDB 磁盘主要包含 Tablespaces，InnoDB Data Dictionary，Doublewrite Buffer，Redo Log 和 Undo Logs
+
+#### 3.2.2.1 Tablespaces
+
+#### 3.2.2.2 InnoDB Data Dictionary
+
+#### 3.2.2.3 Doublewrite Buffer
+
+#### 3.2.2.4 Redo Log
+
+#### 3.2.2.5 Undo Logs
 
 ### 3.2.3 新版本结构演变
 
