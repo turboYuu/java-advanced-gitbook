@@ -377,9 +377,35 @@ innodb_flush_log_at_trx_commit 参数控制日志刷新行为，默认为1：
 
 [InnoDB On-Disk Structures](https://dev.mysql.com/doc/refman/5.7/en/innodb-on-disk-structures.html)
 
-InnoDB 磁盘主要包含 Tablespaces，InnoDB Data Dictionary，Doublewrite Buffer，Redo Log 和 Undo Logs
+InnoDB 磁盘主要包含 [Tablespaces](https://dev.mysql.com/doc/refman/5.7/en/innodb-tablespace.html)，InnoDB Data Dictionary，Doublewrite Buffer，Redo Log 和 Undo Logs
 
 #### 3.2.2.1 Tablespaces
+
+表空间，用于存储表结构和数据。表空间又分为系统表空间、独立表空间、通用表空间、临时表空间、Undo表空间等多种类型。
+
+##### 3.2.2.1.1 The System Tablespaces
+
+系统表空间，包含 InnoDB 数据字典，Doublewrite Buffer，Change Buffer，Undo Logs 的存储区域。系统表空间也默认包含任何用户在系统表空间创建的表数据和索引数据。系统表空间是一个共享的表空间，因为它是被多个表共享的。该空间的数据文件通过参数 innodb_data_file_path 控制，默认值是：`ibdata1:12M:autoextend`文件名为 ibdata1、12MB、自动扩展）。
+
+![image-20220902180036928](assest/image-20220902180036928.png)
+
+##### 3.2.2.1.2 File-Per-Table Tablespace
+
+独立表空间
+
+![image-20220902180303124](assest/image-20220902180303124.png)
+
+##### 3.2.2.1.3 General Tablespaces
+
+通用表空间
+
+##### 3.2.2.1.4 Undo Tablespaces
+
+撤销表空间
+
+##### 3.2.2.1.5 The Temporary Tablespaces
+
+临时表空间
 
 #### 3.2.2.2 InnoDB Data Dictionary
 
