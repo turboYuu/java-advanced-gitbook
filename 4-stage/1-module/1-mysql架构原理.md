@@ -297,31 +297,85 @@ InnoDB 和 MyISAM 是使用 MySQL 时最常用的两种引擎类型，我们重�
 
 [InnoDB In-Memory Structures](https://dev.mysql.com/doc/refman/5.7/en/innodb-in-memory-structures.html)
 
-内存结构主要包括 [Buffer Pool](https://dev.mysql.com/doc/refman/5.7/en/innodb-buffer-pool.html)、Change Buffer、Adaptive Hash Index 和 Log Buffer  四大组件。
+内存结构主要包括 [Buffer Pool](https://dev.mysql.com/doc/refman/5.7/en/innodb-buffer-pool.html)、[Change Buffer](https://dev.mysql.com/doc/refman/5.7/en/innodb-change-buffer.html)、Adaptive Hash Index 和 Log Buffer  四大组件。
 
 #### 3.2.1.1 Buffer Pool
 
 缓冲池，简称 BP。BP 以 Page 页为单位，默认大小 16K，BP 的底层采用链表数据结构管理 Page。在 InnoDB 访问表记录和索引时会在 Page 页中缓存，以后使用可以减少磁盘 IO 操作，提升效率。
 
-- Page 管理机制
+##### 3.2.1.1.1 Page 管理机制
 
-  Page 根据状态可以分为三种类型
+Page 根据状态可以分为三种类型
 
-  - free page：空闲 page，未被使用。
-  - clean page：被使用 page，数据没有被修改过。
-  - dirty page：脏页，被使用 page，数据被修改过，页中数据和磁盘的数据产生了不一致。
+- free page：空闲 page，未被使用。
+- clean page：被使用 page，数据没有被修改过。
+- dirty page：脏页，被使用 page，数据被修改过，页中数据和磁盘的数据产生了不一致。
 
-  针对上述三种 page 类型，InnoDB 通过三种链表结构来维护和管理
+针对上述三种 page 类型，InnoDB 通过三种链表结构来维护和管理
 
-  1. free list：表示空闲缓冲区，管理 free page。
-  2. flush list：表示需要刷新到磁盘的缓冲区，管理 dirty page，内部 page 按修改时间排序。脏页即存在于 flush 链表，也在 LRU 链表中，但是两种互不影响，LRU 链表负责管理 page 的可用性和释放，而 flush 链表负责管理脏页的刷盘操作。
-  3. lru list：表示正在使用的缓冲区，管理 clean page 和 dirty page，缓冲区以 midpoint 为基点，前面链表称为 new 列表区，存放经常访问的数据，占63%；后面的链表称为 old 列表区，存放使用较少数据，占37%。
+1. free list：表示空闲缓冲区，管理 free page。
+2. flush list：表示需要刷新到磁盘的缓冲区，管理 dirty page，内部 page 按修改时间排序。脏页即存在于 flush 链表，也在 LRU 链表中，但是两种互不影响，LRU 链表负责管理 page 的可用性和释放，而 flush 链表负责管理脏页的刷盘操作。
+3. lru list：表示正在使用的缓冲区，管理 clean page 和 dirty page，缓冲区以 midpoint 为基点，前面链表称为 new 列表区，存放经常访问的数据，占63%；后面的链表称为 old 列表区，存放使用较少数据，占37%。
 
-- 改进型 LRU 算法维护
+##### 3.2.1.1.2 改进型 LRU（Least Recently Used） 算法维护
 
-  
+普通 LRU：末尾淘汰法，新数据从链表头部加入，释放空间时从末尾淘汰
+
+改进型 LRU：链表分为 new 和 old 两个部分，加入元素时并不是从表头插入，而是从中间 midpoint 位置插入，如果数据很快被访问，那么 page 就会向 new 列表头部移动，如果数据没有被访问，会逐步向 old 尾部移动，等待淘汰。
+
+每当有新的 page 数据读取到 buffer pool 时，InnoDB 引擎会判断是否有空闲页，是否足够，如果有就将 free page 从 从 free list 列表删除，放入到 LRU 列表中。没有空闲页，就会根据 LRU 算法淘汰 LRU 链表默认的页，将内存空间分配给新的页。
+
+![Content is described in the surrounding text.](assest/innodb-buffer-pool-list.png)
+
+##### 3.2.1.1.3 Buffer Pool 配置参数
+
+`show variables like '%innodb_page_size%';` 查看 page 页大小
+
+`show variables like '%innodb_old%';` 查看 lru list 中 old 列表参数
+
+`show variables like '%innodb_buffer%';` 查看 buffer pool 参数
+
+建议：将 innodb_buffer_pool_size 设置为总内存大小的 60% - 80%，innodb_buffer_pool_instances 可以设置为多个，这样可以避免缓存争夺。
+
+![image-20220902143826800](assest/image-20220902143826800.png)
+
+使用 innodb 的监控器监控 buffer pool 状态 ，使用 `SHOW ENGINE INNODB STATUS` sql 语句。
+
+#### 3.2.1.2 Change Buffer
+
+写缓冲区，简称 CB。在进行 DML（Data Manipulation Language）操作时，如果 BP 没有其相应的 Page 数据，并不会立刻将磁盘页加载到缓冲池，而是在 CB 记录缓冲变更，等未来数据被读取时，再将数据合并恢复到 BP 中。
+
+Change Buffer 占用 Buffer Pool 空间，默认占 25%，最大允许占 50%，可以根据读写业务量来进行调整。参数 `innodb_change_buffer_max_size`。
+
+![image-20220902145149367](assest/image-20220902145149367.png)
+
+当更新一条记录时，该记录在 BufferPool 存在，直接在 BufferPool 修改，一次内存操作。如果该记录在 BufferPool 不存在（没有命中），会直接在 ChangeBuffer 进行一次内存操作，不再去磁盘查询数据，避免一次磁盘 IO。当下次查询记录时，会先进行磁盘读取，然后再从 ChangeBuffer 中读取信息合并，最终载入 BufferPool 中。
+
+**写缓冲区，仅适用于非唯一普通索引页，为什么？**<br>如果索引设置了唯一性，在进行修改时，InnoDB必须要做唯一性校验，因此必须查询磁盘，做一次 IO 操作。会直接将记录缓存到BufferPool中，然后在缓冲池修改，不会在 ChangeBuffer 操作。
+
+![Content is described in the surrounding text.](assest/innodb-change-buffer.png)
+
+#### 3.2.1.3 Adaptive Hash Index
+
+自适应哈希索引，用于优化对 BP 数据的查询。InnoDB 存储引擎会监控对表索引的查找，如果观察到建立哈希索引可以带来速度的提升，则建立哈希索引，所以称之为自适应。InnoDB 存储引擎会自动根据访问的频率和模式来为某些页建立哈希索引。
+
+#### 3.2.1.4 Log Buffer
+
+日志缓冲区，用来保存要写入磁盘上 log 文件（Redo/Undo）的数据，日志缓冲区的内容定期刷新到磁盘 log 文件中。日志缓冲区满时 会自动将其刷新到磁盘，当遇到 BLOB 或多行更新的大事务操作时，增加日志缓冲区可以节省磁盘 I/O。
+
+LogBuffer 主要是用于记录 InnoDB 引擎日志，在 DML 操作时会产生 Redo 和 Undo 日志。<br>LogBuffer 空间满了，会自动写入磁盘，可以通过将 innodb_log_buffer_size 参数调大，减少磁盘 IO 频率。
+
+![image-20220902155359506](assest/image-20220902155359506.png)
+
+innodb_flush_log_at_trx_commit 参数控制日志刷新行为，默认为1：
+
+- 0：每隔1s 写日志文件和刷盘操作（写日志文件 LogBuffer --> OS cache，刷盘 OS cache --> 磁盘文件），最多丢失1s 数据。
+- 1：事务提交，立刻写日志文件 和 刷盘，数据不丢失，但是会频繁 IO 操作
+- 2：事务提交，立刻写日志文件，每隔1s 进行刷盘操作
 
 ### 3.2.2 InnoDB 磁盘结构
+
+
 
 ### 3.2.3 新版本结构演变
 
