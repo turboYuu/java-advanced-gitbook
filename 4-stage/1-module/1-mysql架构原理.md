@@ -391,7 +391,7 @@ InnoDB 磁盘主要包含 [Tablespaces](https://dev.mysql.com/doc/refman/5.7/en/
 
 ##### 3.2.2.1.2 File-Per-Table Tablespace
 
-独立表空间
+独立表空间，默认开启。独立表空间是一个单表表空间，该表创建于自己的数据文件中，而非创建于系统表空间中。
 
 ![image-20220902180303124](assest/image-20220902180303124.png)
 
