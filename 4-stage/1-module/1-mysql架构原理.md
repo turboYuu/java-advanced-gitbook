@@ -397,7 +397,7 @@ InnoDB 磁盘主要包含 [Tablespaces](https://dev.mysql.com/doc/refman/5.7/en/
 
 ##### 3.2.2.1.3 General Tablespaces
 
-通用表空间
+通用表空间，为通过 create tablespace 语法创建的共享表空间。通用表空间可以创建于 mysql 数据目录外的其他表空间，其可以容纳多张表，且其支持所有的行格式。
 
 ##### 3.2.2.1.4 Undo Tablespaces
 
