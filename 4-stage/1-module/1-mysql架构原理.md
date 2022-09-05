@@ -444,6 +444,10 @@ MySQL 以循环方式写入重做日志文件，记录 InnoDB 中所有对 Buffe
 
 ### 3.2.3 新版本结构演变
 
+[MySQL 8.0 版本 InnoDB 架构图](https://dev.mysql.com/doc/refman/8.0/en/innodb-architecture.html)
+
+![InnoDB architecture diagram showing in-memory and on-disk structures. In-memory structures include the buffer pool, adaptive hash index, change buffer, and log buffer. On-disk structures include tablespaces, redo logs, and doublewrite buffer files.](assest/innodb-architecture.png)
+
 
 
 ## 3.3 InnoDB 线程模型
