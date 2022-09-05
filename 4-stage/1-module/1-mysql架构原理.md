@@ -628,8 +628,92 @@ Undo：意为撤销或取消，以撤销操作为目的，返回指定某个状�
 
 Undo Log：数据库事务开始之前，会将要修改的记录存放到 Undo 日志里，当事务回滚时 或者 数据库崩溃时，可以利用 Undo 日志，撤销未提交事务对数据库产生的影响。
 
+Undo Log 产生和销毁：Undo Log 在事务开始前产生；事务在提交时，并不会立刻删除 Undo Log，innodb 会将该事务对应的 undo log 放入到删除列表中，后面会通过后台线程 purge thread 进程回收处理。Undo Log 属于逻辑日志，记录一个变化过程。例如执行一个 delete，undo log 会记录一个 insert；执行一个 update，undo log 会记录一个相反的 update。
+
+Undo Log 存储：undo log 采用段的方式管理和记录。在 innodb 数据文件中包含一种 rollback segment 回滚段，内部包含 1024 个 undo log segment。可以通过下面一组参数来控制 Undo Log 存储。
+
+`show variables like '%innodb_undo%';`
+
+![image-20220905165739254](assest/image-20220905165739254.png)
+
 
 
 ### 3.5.2 Undo Log 作用
 
+- 实现事务的原子性
+
+  Undo Log 是为了实现事务的原子性而出现的产物。事务处理过程中，如果出现了错误或者用户执行了 ROLLBACLK 语句，MySQL 可以利用 Undo Log 中的备份将数据恢复到事务开始之前的状态。
+
+- 实现多版本并发控制（MVCC）
+
+  Undo Log 在 MySQL InnoDB 存储引擎中用来实现多版本并发控制。事务未提交之前，Undo Log 保存了未提交之前的版本数据，Undo Log 中的数据可作为数据旧版本快照并提供给其他并发事务进行快照读。
+
+
+
+![image-20220905172400247](assest/image-20220905172400247.png)
+
+事务 A 手动开启事务，执行更新操作，首先会把更新命中的数据备份到 Undo Buffer 中。
+
+事务 B 手动开启事务，执行查询操作，会读取 Undo 日志数据返回，进行快照读。
+
 ## 3.6 Redo Log 和 Binlog
+
+Redo Log 和 Binlog 是 MySQL 日志系统中非常重要的两种机制，也有很多相似之处，下面介绍两者细节和区别。
+
+### 3.6.1 Redo Log 日志
+
+#### 3.6.1.1 Redo Log 介绍
+
+Redo：顾名思义 就是重做。以恢复操作为目的，在数据库发生意外时重现操作。
+
+Redo Log：指事务中修改的任何数据，将最新的数据备份存储的位置（Redo Log），被称为重做日志。
+
+Redo Log 的生成和释放：随着事务操作的执行，就会生成 Redo Log，在事务提交时会将产生的 Redu Buffer 写入 Redo Log，并不是随着事务的提交就立刻写入磁盘。等事务操作的脏页写入到磁盘之后，Redo Log 的使命也就完成了，Redo Log 占用的空间就可以重用（被覆盖写入）。
+
+#### 3.6.1.2 Redo Log 工作原理
+
+Redo Log 是为了实现事务的持久性而出现的产物。防止在发生故障的时间点，尚有脏页未写入表的 ibd 文件中，在重启 MySQL 服务的时候，根据 Redo Log 进行重做，从而达到事务的未入磁盘数据进行持久化这一特性。
+
+![image-20220905180453008](assest/image-20220905180453008.png)
+
+#### 3.6.1.3 Redo Log 写入机制
+
+Redo Log 文件是以顺序循环的方式写入文件，写满时回溯到第一个文件，进行覆盖写。
+
+![image-20220905180914030](assest/image-20220905180914030.png)
+
+如图所示：
+
+- write pos 是当前记录的位置，一边写一边后移，写到最后一个文件末尾就回到 0 号文件开头；
+- check point 是当前要擦除的位置，也是往后推移并且循环的，擦除记录前要把记录更新到数据文件；
+
+write pos 和 check point 之间还空着的部分，可用用来记录新的操作。如果 write pos 追上check point，表示写满，这时候不能再执行新的更新，得先停下来擦除一些记录，把 check point 推进一下。
+
+#### 3.6.1.4 Redo Log 相关配置参数
+
+每个 InnoDB 存储引擎至少有 1 个重做日志文件组（group），每个文件组至少有 2 个 重做日志文件，默认为 ib_logfile0 和 ib_logfile1。可以通过下面一组参数控制 Redo Log 存储：
+
+```bash
+show variables like '%innodb_log%';
+```
+
+![image-20220905182359135](assest/image-20220905182359135.png)
+
+Redo Buffer 持久到 Redo Log 的策略，可通过 innodb_flush_log_at_trx_commit 设置：(在 Log Buffer 章节中也出现)
+
+- 0：每秒提交 Redo buffer -> OS cache -> flush cache to disk，可能丢失一秒内的事务数据。由后台 master 线程每隔 1 秒 执行一次操作。
+- 1（默认值）：每次事务提交执行 Redo Buffer -> OS cache -> flush cache to disk，最安全，性能最差的方式。
+- 2：每次事务提交执行 Redo Buffer -> OS cache ，然后由后台 Master 线程再每隔1秒执行 OS cache -> flush cache to disk 的操作。
+
+一般建议选择 2，因为 MySQL 挂了数据没有损失，整个服务器挂了才会损失1秒的事务提交数据。
+
+![image-20220905184101688](assest/image-20220905184101688.png)
+
+
+
+
+
+
+
+### 3.6.2 Binlog 日志
+
