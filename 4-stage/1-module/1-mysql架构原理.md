@@ -713,6 +713,8 @@ Redo Buffer 持久到 Redo Log 的策略，可通过 innodb_flush_log_at_trx_com
 
 #### 3.6.2.1 Binlog 记录模式
 
+Redo Log 是属于 InnoDB 存储引擎所特有的日志，而 Binlog  是 MySQL Server 自己的日志，即 Binary Log（二进制日志），简称 Binlog。Binlog 是记录所有数据库表结构变更以及表数据修改的二进制日志，不会记录 SELECT 和 SHOW 这类操作。  
+
 #### 3.6.2.2 Binlog 文件结构
 
 #### 3.6.2.3 Binlog 写入机制
