@@ -622,4 +622,14 @@ ALTER TABLE 表名 ROW_FORMAT=格式类型;
 
 ## 3.5 Undo Log
 
+### 3.5.1 Undo Log 介绍
+
+Undo：意为撤销或取消，以撤销操作为目的，返回指定某个状态的操作。
+
+Undo Log：数据库事务开始之前，会将要修改的记录存放到 Undo 日志里，当事务回滚时 或者 数据库崩溃时，可以利用 Undo 日志，撤销未提交事务对数据库产生的影响。
+
+
+
+### 3.5.2 Undo Log 作用
+
 ## 3.6 Redo Log 和 Binlog
