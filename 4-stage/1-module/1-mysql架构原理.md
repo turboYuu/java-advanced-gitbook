@@ -709,11 +709,14 @@ Redo Buffer 持久到 Redo Log 的策略，可通过 innodb_flush_log_at_trx_com
 
 ![image-20220905184101688](assest/image-20220905184101688.png)
 
-
-
-
-
-
-
 ### 3.6.2 Binlog 日志
 
+#### 3.6.2.1 Binlog 记录模式
+
+#### 3.6.2.2 Binlog 文件结构
+
+#### 3.6.2.3 Binlog 写入机制
+
+#### 3.6.2.4 Binlog 文件操作
+
+### 3.6.3 Redo Log 和 Binlog 区别
