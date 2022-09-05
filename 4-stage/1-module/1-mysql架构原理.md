@@ -399,21 +399,48 @@ InnoDB 磁盘主要包含 [Tablespaces](https://dev.mysql.com/doc/refman/5.7/en/
 
 通用表空间，为通过 create tablespace 语法创建的共享表空间。通用表空间可以创建于 mysql 数据目录外的其他表空间，其可以容纳多张表，且其支持所有的行格式。
 
+```bash
+create tablespace ts1 add datafile 'ts1.ibd' engine=innodb; // 创建表空间ts1
+create table t1(c1 int primary key) tablespace ts1; // 将表添加到 ts1 表空间
+```
+
+
+
+![image-20220905101904812](assest/image-20220905101904812.png)
+
 ##### 3.2.2.1.4 Undo Tablespaces
 
-撤销表空间
+撤销表空间，由一个或多个包含 Undo 日志文件组成。在 MySQL 5.7 版本之间 Undo 占用的是 System Tablespace 共享区，从 5.7 开始将 Undo 从 System Tablespace 分离了出来。InnoDB 使用的 Undo 表空间 由 innodb_undo_tablespaces 配置选项控制，默认为 0。参数值为 0 表示使用系统表空间 ibdata1；大于0表示使用 undo 表空间 undo_001、undo_002 等。
+
+![image-20220905102634126](assest/image-20220905102634126.png)
 
 ##### 3.2.2.1.5 The Temporary Tablespaces
 
-临时表空间
+临时表空间，分为 session temporary tablespaces 和 global temporary tablesapce 两种。session temporary tablespaces 存储的是用户创建的临时表和磁盘内部的临时表。global temporary tablespace 存储用户临时表的回滚段（rollback segments）。mysql 服务器正常关闭或异常终止时，临时表空间将被移除，每次启动时会被重新创建。
 
 #### 3.2.2.2 InnoDB Data Dictionary
 
+InnoDB 数据字典由内部系统表组成，这些表包含用于查找表、索引 和 表字段等对象的元数据。元数据物理上位于 InnoDB 系统表空间中。由于历史原因，数据字典元数据在一定程度上与 InnoDB 表元数据文件（.frm文件）中存储的信息重叠。
+
 #### 3.2.2.3 Doublewrite Buffer
+
+双写缓冲区，位于系统表空间，是一个存储区域。在 BufferPage 的 page 页刷新到磁盘真正的位置前，会先将数据存在 Doublewrite 缓冲区。如果在 page 页写入过程中出现操作系统、存储子系统或 mysqld 进程崩溃，InnoDB 可以在崩溃恢复期间从 Doublewrite 缓冲区中找到页面的一个好备份。在大多数情况下，默认启动双写缓冲区，要禁用 Doublewrite 缓冲区，可以将 innodb_doublewrite 设置为 0。使用 Doublewrite 缓冲区时建议将 innodb_flush_method 设置为 O_DIRECT。
+
+> MySQL 的 innodb_flush_method 这个参数控制着 innodb 数据文件及 redo log 的打开、刷写模式。有三个值：fdatasync(默认)，O_DSYNC，O_DIRECT。设置 O_DIRECT 表示数据文件写入操作会通知操作系统不要缓存数据，也不要预读，直接从 Innodb buffer  写到磁盘文件。
+>
+> 默认的 fdatasync 意思是先写入操作系统缓存，然后再调用 fsync() 函数去异步刷新数据文件与 redo log 的缓存信息。
+
+![image-20220905111610284](assest/image-20220905111610284.png)
 
 #### 3.2.2.4 Redo Log
 
+重做日志是一种基于磁盘的数据结构，用于在崩溃恢复期间更正不完整事务写入的数据。
+
+MySQL 以循环方式写入重做日志文件，记录 InnoDB 中所有对 Buffer Pool 修改的日志。当出现实例故障（像断电）导致数据未能更新到数据文件，则数据库重启时必须 redo，重新把数据更新到数据文件。读写事务在执行的过程中，都会不断产生 redo log。默认情况下，重做日志在磁盘上由两个名为 ib_logfile0 和 ib_logfile1 的文件物理表示。
+
 #### 3.2.2.5 Undo Logs
+
+撤销日志是在事务开始之前保存的被修改数据的备份，用于例外情况时回滚事务。撤销日志属于逻辑日志，根据每行记录进行记录。撤销日志存在于系统表空间、撤销表空间 和 临时表空间中。
 
 ### 3.2.3 新版本结构演变
 
