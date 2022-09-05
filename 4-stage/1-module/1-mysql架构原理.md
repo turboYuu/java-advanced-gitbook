@@ -448,11 +448,177 @@ MySQL 以循环方式写入重做日志文件，记录 InnoDB 中所有对 Buffe
 
 ![InnoDB architecture diagram showing in-memory and on-disk structures. In-memory structures include the buffer pool, adaptive hash index, change buffer, and log buffer. On-disk structures include tablespaces, redo logs, and doublewrite buffer files.](assest/innodb-architecture.png)
 
-
+- MySQL 5.7 版本
+  - 将 Undo 日志表空间从共享表空间 ibdata 文件中分离出来，可以在安装 MySQL 时 由用户自行指定文件大小和数量。
+  - 增加了 temporary 临时表空间，里面存储着临时表或临时查询结果集的数据。
+  - Buffer Pool 大小可以动态修改，无需重启数据库实例。
+- MySQL 8.0 版本
+  - 将 InnoDB 表的数据字典 和 Undo 都从共享表空间 ibdata 中彻底分离出来了，以前需要 ibdata 中的数据字典与独立表空间 ibd 文件中数据字典一致才行，8.0 版本就不需要了。
+  - temporary 临时表空间可以配置多个物理文件，而且均为 InnoDB 存储引擎并能创建索引，这样加快了处理的速度。
+  - 用户可以像 Oracle 数据库那样设置一些表空间，每个表空间对应多个物理文件，每个表空间可以给多个表使用，但一个表只能存储在一个表空间中。
+  - 将 Doublewrite Buffer 从共享表空间 ibdata 中分离出来了。
 
 ## 3.3 InnoDB 线程模型
 
+![image-20220905133649867](assest/image-20220905133649867.png)
+
+- IO Thread
+
+  在 InnoDB 中使用了大量的 AIO（Async IO）来做读写处理，这样可以极大提高数据库的性能。在 InnoDB 1.0 版本之前共有4个 IO Thread ，分别是 write，read，insert buffer 和 log thread，后来版本将 read thread 和 write thread 分别增大到了 4 个，一共有 10 个。
+
+  - read thread：负责读取操作，将数据从磁盘加载到缓存 page 页。4 个。
+  - write thread：负责写操作，将缓存脏页刷新到磁盘。4 个。
+  - log thread：负责将日志缓冲区内容刷新到磁盘。1个。
+  - insert buffer thread：负责将写缓冲区内容刷新到磁盘，1个。
+
+- Purge Thread
+
+  事务提交之后，其使用的 undo 日志将不再需要，因此需要 Purge Thread 回收已经分配的 undo 页。
+
+  `show variables like '%innodb_purge_threads%';`
+
+  ![image-20220905135701967](assest/image-20220905135701967.png)
+
+- Page Cleaner Thread
+
+  作用是将脏数据刷新到磁盘，脏数据刷盘后相应的 redo log 也就可以覆盖，即可以同步数据，又能达到 redo log 循环使用的目的。会调用 write thread 线程处理。
+
+  `show variables like '%innodb_page_cleaners%';`
+
+  ![image-20220905141133791](assest/image-20220905141133791.png)
+
+- Master Thread
+
+  Master thread 是 InnoDB 的主线程，负责调度其他各线程，优先级最高。作用是将缓冲池中的数据异步刷新到磁盘，保证数据的一致性。包含：脏页的刷新（page cleaner thread）、undo 页回收（purge thread）、redo 日志刷新（log thread）、合并写缓冲区 等。内部有两个主处理、分别是 每隔 1 秒 和 10 秒 处理。
+
+  每 1 秒的操作：
+
+  - 刷新日志缓冲区，刷到磁盘
+  - 合并写缓冲区数据，根据 IO 读写压力来决定是否操作
+  - 刷新脏页数据到磁盘，根据脏页比例达到 75% 才操作（innodb_max_dirty_pages_pct，innodb_io_capacity）
+
+  ![image-20220905141735376](assest/image-20220905141735376.png)
+
+  每隔 10 秒操作：
+
+  - 刷新脏页数据到磁盘
+  - 合并写缓冲区数据
+  - 刷新日志缓冲区
+  - 删除无用的 undo 页
+
 ## 3.4 InnoDB 数据文件
+
+### 3.4.1 InnoDB 文件存储结构
+
+![img](assest/mysql-index-1.jpg)
+
+InnoDB 数据文件存储结构：
+
+分为一个 ibd 数据文件 --> Segment（段）--> Extent（区）--> Page（页） --> Row（行）
+
+- Tablespace
+
+  表 空间，用于存储多个 ibd 数据文件，用于存储表的记录 和 索引。一个文件包含多个段。
+
+- Segment
+
+  段，用于管理多个 Extent，分为数据段（Leaf node segment）、索引段（Non-lead node segment）、回滚段（Rollback segment）。一个表至少会有两个 segment，一个管理数据，一个管理索引。每多创建一个索引，会多两个 segment。
+
+- Extent
+
+  区，一个区固定包含 64 个 连续的页，大小为 1 M。当表空间不足，需要分配新的页资源，不会一页一页分，直接分配一个区。
+
+- Page
+
+  页，用于存储多个 Row 行记录，大小为 16K。包含很多页类型，比如数据页，undo 页，系统页，事务数据页，大的 BLOB 对象页。
+
+- Row
+
+  行，包含了记录的字段值，事务ID（Trx id）、滚动指针（Roll pointer）、字段指针（Field pointers）等信息。
+
+
+
+Page 是文件最基本的单位，无论何种类型的 page，都是由 page header，page trailer 和 page body 组成。如下图所示。
+
+![image-20220905144917535](assest/image-20220905144917535.png)
+
+
+
+### 3.4.2 InnoDB 文件存储格式
+
+通过 SHOW TABLE STATUS 命令。
+
+![image-20220905145254265](assest/image-20220905145254265.png)
+
+一般情况下，如果 row_format 为 REDUNDANT、COMPACT，文件格式为 Antelope；如果 row_format 为 DYNAMIC 和 COMPRESSED ，文件格式为 Barracuda。
+
+**通过 information_schema 查看指定表的文件格式**
+
+```sql
+select * from information_schema.innodb_sys_tables;
+select * from information_schema.innodb_sys_tables where name = 'turbo/r_resume';
+```
+
+
+
+![image-20220905145711907](assest/image-20220905145711907.png)
+
+![image-20220905145825335](assest/image-20220905145825335.png)
+
+### 3.4.3 File 文件格式（File-Format）
+
+[innodb-file-format](https://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html)
+
+在早期的 InnoDB 版本中，文件格式只有一种，随着 InnoDB 引擎的发展，出现了新文件格式，用于支持新的功能。目前 InnoDB 只支持两种文件格式：[Antelope](https://dev.mysql.com/doc/refman/5.7/en/glossary.html#glos_antelope) 和 [Barracuda](https://dev.mysql.com/doc/refman/5.7/en/glossary.html#glos_barracuda)。
+
+- Antelope：先前未命名的，最原始的 InnoDB 文件格式，它支持两种行格式：COMPACT 和 REDUNDANT，MySQL 5.6 及其以前版本默认格式为 Antelope。
+- Barracuda：新的文件格式。**它支持 InnoDB 的所有行格式**，包括新的行格式：COMPRESSED 和 DYNAMIC。
+
+通过 innodb_file_format 配置参数可以设置 InnoDB 文件格式，之前默认值为 Antelope，5.7 版本开始改为 Barracuda。
+
+[设置File 文件格式](https://dev.mysql.com/doc/refman/5.7/en/innodb-file-format-enabling.html)
+
+### 3.4.4 Row 行格式（Row_Format）
+
+[InnoDB Row Formats](https://dev.mysql.com/doc/refman/5.7/en/innodb-row-format.html)
+
+表的行格式决定了它的行是如何物理存储的，这反过来又会影响查询和 DML 操作的性能。如果在 单个 page 页中容纳更多行，查询和索引查找可以更快地工作，缓冲池中所需地内存更少，写入更新时所需的 I/O 更少。
+
+InnoDB 存储引擎支持四种行格式：REDUNDANT、COMPACT、COMPRESSED、DYNAMIC。
+
+![image-20220905154031201](assest/image-20220905154031201.png)
+
+DYNAMIC 和 COMPRESSED 新格式引入的功能有：数据压缩、增强型长数据的页外存储和大索引前缀。
+
+每个表的数据分成若干页来存储，每个页中采用 B 树结构存储；
+
+如果某些字段信息过长，无法存储在 B 树节点中，这时候会被单独分配空间，此时被称为 溢出页，该字段被称为页外列。
+
+- [REDUNDANT](https://dev.mysql.com/doc/refman/5.7/en/innodb-row-format.html#innodb-row-format-redundant) 行格式
+
+  使用 redundant 行格式，表会将变长列值的前 768 字节存储在 B 树节点的索引记录中，其余的存储在溢出页上。对于大于等于 768 字节的固定长度字段 InnoDB 会转换为变长字段，仪表能够在页外存储。
+
+- [COMPACT](https://dev.mysql.com/doc/refman/5.7/en/innodb-row-format.html#innodb-row-format-compact) 行格式
+
+  与 redundant 行格式相比，compact 行格式减少了约 20% 的行存储空间，但代价是增加了某些操作的 CPU 使用量。如果系统负载是受缓存命中率和磁盘速度限制，那么 compact 格式可能更快。如果系统负载受到 CPU 速度限制，那么 compact 格式可能会慢一些。
+
+- [DYNAMIC](https://dev.mysql.com/doc/refman/5.7/en/innodb-row-format.html#innodb-row-format-dynamic) 行格式
+
+  使用 dynamic 行格式，InnoDB 会将表中长可变长度的列值完全存储在页外，而索引记录只包含指向溢出页的 20 字节指针。大于或等于 768 字节的固定长度字段编码为可变长度字段。dynamic 行格式支持大索引前缀，最多可以为 3072 字节，可通过 innodb_large_prefix 参数控制。
+
+- [COMPRESSED](https://dev.mysql.com/doc/refman/5.7/en/innodb-row-format.html#innodb-row-format-compressed) 行格式
+
+  compressed 行格式提供与 dynamic 行格式相同的存储特性和功能，但增加了对表和索引数据压缩的支持。
+
+在创建表和索引时，文件格式都被用于每个 InnoDB 表数据文件（其名称与 .ibd 匹配）。修改文件格式的方法是重新创建表及其索引，最简单方法是对要修改的每个表使用以下命令：
+
+[Defining the Row Format of a Table](https://dev.mysql.com/doc/refman/5.7/en/innodb-row-format.html#innodb-row-format-defining)
+
+```bash
+ALTER TABLE 表名 ROW_FORMAT=格式类型;
+```
+
+![image-20220905161348263](assest/image-20220905161348263.png)
 
 ## 3.5 Undo Log
 
