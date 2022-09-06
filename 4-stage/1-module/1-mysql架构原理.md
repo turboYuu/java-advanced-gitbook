@@ -711,17 +711,135 @@ Redo Buffer 持久到 Redo Log 的策略，可通过 innodb_flush_log_at_trx_com
 
 ### 3.6.2 Binlog 日志
 
+[The Binay Log](https://dev.mysql.com/doc/internals/en/binary-log.html)
+
 #### 3.6.2.1 Binlog 记录模式
 
 Redo Log 是属于 InnoDB 存储引擎所特有的日志，而 Binlog  是 MySQL Server 自己的日志，即 Binary Log（二进制日志），简称 Binlog。Binlog 是记录所有数据库表结构变更以及表数据修改的二进制日志，不会记录 SELECT 和 SHOW 这类操作。  Binlog 日志是以事件形式记录，记录含语句所执行的消耗时间。开启 Binlog 日志有以下两个最重要的使用场景。
 
-- 主从复制
-- 数据恢复
+- 主从复制：在主库中开启 Binlog 功能，这样主库就可以把 Binlog 传递给从库，从库拿到 Binlog 后实现数据恢复达到主从数据一致性。
+- 数据恢复：通过 mysqlbinlog 工具来恢复数据。
+
+Binlog 文件名默认为 “主机名_binlog-序列号” 格式，例如 oak_binlog-000001，也可以在配置文件中指定名称。文件记录模式有 STATEMENT、ROW 和 MIXED 三种，具体含义如下。
+
+- ROW（row-based replication，RBR）：日志中会记录每一行数据被修改的情况，然后在 slave 端 对相同的数据进行修改。
+
+  优点：能清楚记录每一行数据的修改细节，能完全实现主从数据同步和数据的恢复。
+
+  缺点：批量操作，会产生大量的日志，尤其是 alter table 会让日志暴涨。
+
+- STATEMENT（statement-based replication，SBR）：每一条被修改数据的 SQL 都会记录到 master 的 Binlog 中，slave 在复制的时候 SQL 进程会解析成和原来 master 端执行过的相同的 SQL 再次执行。简称 SQL 语句复制。
+
+  优点：日志量小，减少磁盘 IO，提升存储和恢复速度
+
+  缺点：在某些情况下会导致主从数据不一致，比如 last_insert_id()、now() 等函数。
+
+- MIXED（mixed-based replication，MBR）：以上两种模式的混合使用，一般会使用 STATEMENT 模式保存 binlog，对于 STATEMENT 模式无法复制的操作使用 ROW 模式保存 binlog，MySQL 会根据执行的 SQL 语句选择写入模式。
+
+
 
 #### 3.6.2.2 Binlog 文件结构
 
+MySQL 的 binlog 文件中记录的是对数据库的各种修改操作，用来表示修改操作的数据结构是 [Log event](https://dev.mysql.com/doc/internals/en/event-classes-and-types.html)。不同的修改操作对应不同的 log event。比较常用的 log event 有：Query event、Row event、Xid event 等。binlog 文件的内容就是各种 Log event 的集合。
+
+Binlog 文件中 Log event 结构如下图所示：
+
+![image-20220906150218382](assest/image-20220906150218382.png)
+
+
+
 #### 3.6.2.3 Binlog 写入机制
+
+- 根据记录模式 和 操作触发 event 事件生成 log event（事件触发执行机制）
+
+- 将事务执行过程中产生 log event 写入缓冲区，每个事务线程都有一个缓冲区
+
+  Log Event 保存在一个 binlog_cache_mngr 数据结构中，在该结构中有两个缓冲区，一个是 stmt_cache，用于存放不支持事务的信息；另一个是 trx_cache，用于存放支持事务的信息。
+
+- 事务在提交阶段会将产生的 log event 写入到外部 binlog 文件中。
+
+  不同事务以串行方式将 log event 写入 binlog 文件中，所以一个事务包含的 log event 信息在 binlog 文件中是连续的，中间不会插入其他事务的 log event。
 
 #### 3.6.2.4 Binlog 文件操作
 
+- Binlog 状态查看
+
+  ```sql
+  show variables like '%log_bin%';
+  ```
+
+  ![image-20220906151500344](assest/image-20220906151500344.png)
+
+- 开启 Binlog 功能
+
+  ```sql
+  mysql> set global log_bin=mysqllogbin;
+  ERROR 1238 (HY000): Variable 'log_bin' is a read only variable
+  ```
+
+  需要修改 my.cnf 或 my.ini 配置文件，在 [mysqld] 下面增加 log_bin=mysql_bin_log，重启 MySQL 服务。
+
+  ```xml
+  binlog_format=ROW
+  log-bin=mysqlbinlog
+  server-id=1 #mysql5.7版本开启binlog强制需要添加该参数
+  ```
+
+  ![image-20220906151911309](assest/image-20220906151911309.png)
+
+- 使用 show binlog event 命令
+
+  ```sql
+  show binary logs; // show master logs;
+  show master status;
+  show binlog events;
+  show binlog events in 'binlog.000003';
+  ```
+
+  ![image-20220906152134204](assest/image-20220906152134204.png)
+
+  ![image-20220906152351113](assest/image-20220906152351113.png)
+
+  ![image-20220906152154200](assest/image-20220906152154200.png)
+
+  ![image-20220906152233094](assest/image-20220906152233094.png)
+
+  ![image-20220906152326016](assest/image-20220906152326016.png)
+
+- 使用 mysqlbinlog 命令
+
+  ```sql
+  mysqlbinlog 文件名 ## 打开文件
+  mysqlbinlog 文件名 > test.sql ##另存为
+  ```
+
+- 使用 binlog 恢复数据
+
+  [Using mysqlbinlog to Back Up Binary Log Files](https://dev.mysql.com/doc/refman/5.7/en/mysqlbinlog-backup.html)
+
+  ```sql
+  //按指定时间恢复
+  mysqlbinlog --start-datetime="2020-04-25 18:00:00" --stop-
+  datetime="2020-04-26 00:00:00" mysqlbinlog.000002 | mysql -uroot -p1234 
+  //按事件位置号恢复
+  mysqlbinlog --start-position=154 --stop-position=957 mysqlbinlog.000002 | mysql -uroot -p1234
+  ```
+
+  mysqldump：定期全部备份数据库。mysqlbinlog 可以做增量备份和恢复操作。
+  
+- 删除 Binlog 文件
+
+  ```sql
+  purge binary logs to 'mysqlbinlog.000001'; //删除指定文件
+  purge binary logs before '2020-04-28 00:00:00'; //删除指定时间之前的文件 
+  reset master; //清除所有文件
+  ```
+
+  可以通过设置 [expire_logs_days](https://dev.mysql.com/doc/refman/5.7/en/replication-options-binary-log.html#sysvar_expire_logs_days) 参数来启动自动清理功能。默认值为 0 表示没启用。设置为1表示超出1天 binlog 文件会自动删除掉。
+
 ### 3.6.3 Redo Log 和 Binlog 区别
+
+- Redo Log 是属于 InnoDB 引擎功能，Binlog 是属于 MySQL Server 自带功能，并且是以二进制文件记录。
+- Redo Log 属于物理日志，记录该数据页更新状态内容，Binlog 是逻辑日志，记录更新过程。
+- Redo Log 日志是循环写，日志空间大小是固定，Binlog 是追加写入，写完一个写下一个，不会覆盖使用。
+- Redo Log 作为服务器异常宕机后事务数据自动恢复使用，Binlog 可以作为主从复制和数据恢复使用。Binlog没有自动 crash-safe 能力。
