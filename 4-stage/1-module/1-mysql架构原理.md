@@ -829,6 +829,8 @@ Binlog 文件中 Log event 结构如下图所示：
   
 - 删除 Binlog 文件
 
+  需要登录数据库后操作。
+
   ```sql
   purge binary logs to 'mysqlbinlog.000001'; //删除指定文件
   purge binary logs before '2020-04-28 00:00:00'; //删除指定时间之前的文件 
