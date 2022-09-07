@@ -69,15 +69,76 @@
 - ALTER TABLE tablename ADD FULLTEXT [索引的名字] (字段名);
 - CREATE TABLE tablename ([...], FULLTEXT KEY [索引的名字] (字段名));
 
+
+
+![image-20220907141227863](assest/image-20220907141227863.png)
+
 和常用的 like 模糊查询不同，全文索引有自己的语法格式，使用 match 和 against 关键字，比如
 
 ```sql
-select * from user where match(name) against('aaa');
+select * from r_resume where match(email) against('test');
 ```
 
+![image-20220907141439488](assest/image-20220907141439488.png)
 
+
+
+全文索引使用注意事项：
+
+- 全文索引必须在字符串、文本字段上建立。
+- 全文索引字段值 必须在最小字符和最大字符之间才会有效。（innodb：3-84；myisam：4-84）
+- 全文索引字段值 要进行切词处理，按 syntax 字符进行切割，例如 b+aaa，切分成 b 和 aaa
+- 全文索引匹配查询，默认使用的是等值匹配，例如 a 匹配 a，不会匹配ab，ac。如果想匹配可以在布尔模式下搜索 a*
+
+
+
+```
+SELECT * FROM r_resume WHERE MATCH(email) AGAINST ('test*' in boolean mode);
+```
+
+![image-20220907143259384](assest/image-20220907143259384.png)
+
+```sql
+show variables like '%ft%';
+```
+
+![image-20220907142825379](assest/image-20220907142825379.png)
 
 # 2 索引原理
+
+MySQL 官方对索引定义：是存储引擎用于快速查找记录的一种数据结构。需要额外开辟空间和数据维护工作。
+
+- 索引是物理数据页存储，在数据文件中（InnoDB，ibd文件），利用数据页（page）存储。
+- 索引可以加快检索速度，但是同时也会降低 增删改 操作速度，索引维护需要代价。
+
+索引设计的理论知识：二分查找法、hash 和 B + Tree。
+
+## 2.1 二分查找法
+
+二分查找法也叫做折半查找法，他是在有序数组中查找指定数据的搜索算法。它的优点是等值查询，范围查询性能优秀；缺点是更新数据、新增数据、删除数据 维护成本高。
+
+- 首先定位 left 和 right 两个指针
+- 计算 (left + right)/2
+- 判断除 2 后索引位置值 与 目标值的大小比对
+- 索引位置值大于 目标值就 right(=mid-1) 移动；如果小于目标值 就 left(=mid+1) 移动 
+
+
+
+## 2.2 Hash 结构
+
+Hash 底层实现是由 Hash 表来实现的，是根据键值 <key,value> 存储数据的结构。非常适合根据 key 查找 value 值，也就是单个 key 查询，或者说等值查询。其结构如下：
+
+![image-20220907172236377](assest/image-20220907172236377.png)
+
+从上面结构可以看出，Hash 索引可以方便的提供等值查询，但是对于范围查询就需要全表扫描了。Hash 索引在 MySQL 中 Hash 结构主要应用在 Memory 原生的 Hash 索引、InnoDB 自适应哈希索引。
+
+InnoDB 提供的自适应哈希索引功能强大，接下来重点描述下 InnoDB 自适应哈希索引。
+
+InnoDB 自适应哈希索引是为了提升查询效率，InnoDB 存储引擎会监控表上各个索引页的查询，当 InnoDB 
+
+## 2.3 B+Tree结构
+
+## 2.4 聚簇索引和辅助索引
 
 # 3 索引分析与优化
 
