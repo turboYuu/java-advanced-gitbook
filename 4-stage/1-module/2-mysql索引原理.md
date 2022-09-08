@@ -201,4 +201,75 @@ B 树的搜索：从根节点开始，对节点内的索引值序列采用二分
 
 # 3 索引分析与优化
 
+## 3.1 EXPLAIN
+
+[mysql官网中explain解释](https://dev.mysql.com/doc/refman/5.7/en/explain-output.html)
+
+MySQL 提供了一个 EXPLAIN 命令，它可以对 SELECT 语句进行分析，并输出 SELECT 执行的详细信息，供开发人员有针对性地优化。例如：
+
+```sql
+explain select * from r_resume where id>3 \G;
+```
+
+explain 命令的输出内容大致如下：
+
+![image-20220908163459409](assest/image-20220908163459409.png)
+
+### 3.1.1 select_type
+
+表示查询的类型。常用的值如下：
+
+- SIMPLE：表示查询语句不包含子查询 或 union
+- PRIMARY：表示此查询是最外层的查询
+- UNION：表示此查询是 UNION 的第二个或后续的查询
+- DEPENDENT UNION：UNION 中的第二个或后续的查询语句，使用了外面查询结果
+- UNION RESULT：
+- SUBQUERY：
+- DEPENDENT SUBQUERY：
+
+最常见的查询类型是 SIMPLE，表示我们的查询没有子查询也没有用到 UNION 查询。
+
+### 3.1.2 type
+
+表示存储引擎查询数据时采用的方式。比较重要的一个属性，通过它可以判断出查询是全表扫描还是基于索引的部分扫描。常用属性值如下，从上至下 效率依次增强。
+
+- ALL
+- index
+- range
+- ref
+- eq_ref
+- const
+- NULl
+
+
+
+### 3.1.3 possible_keys
+
+表示查询时能够使用到的索引。注意并不一定会真正使用，显示的是索引名称。
+
+### 3.1.4 key
+
+表示查询时真正使用到的索引，显示的是索引名称。
+
+### 3.1.5 rows
+
+MySQL 查询优化器会根据统计信息，估算 SQL 要查询到结果需要扫描多少行记录。原则上 rows 是越少效率越高，可以直观的了解到 SQL 效率高低。
+
+### 3.1.6 key_len
+
+表示查询使用了索引的字节数量。可以判断是否全部使用了组合索引。
+
+
+
+### 3.1.7 Extra
+
+Extra 表示很多额外的信息，各种操作会在 Extra 提示相关信息，常见几种如下：
+
+- Using where
+- Using index
+- Using filesort
+- Using temporary
+
+
+
 # 4 查询优化
