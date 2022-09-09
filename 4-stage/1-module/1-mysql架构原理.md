@@ -225,7 +225,7 @@ InnoDB 和 MyISAM 是使用 MySQL 时最常用的两种引擎类型，我们重�
 
   InnoDB 支持事务和外键，具有安全性和完整性，适合大量 inset 或 update 操作
 
-  MyISAm 不支持事务和外键，它提供高速存储和检索，适合大量的 select 查询操作
+  **MyISAM 不支持事务和外键**，它提供高速存储和检索，适合大量的 select 查询操作
 
 - 锁机制
 
