@@ -324,7 +324,27 @@ NULL 列需要增加额外空间来记录其值是否为 NULL。对于 MyISAM �
 
 ## 3.7 索引与排序
 
+MySQL 查询支持 filesort 和 index 两种方式的排序，filesort 是先把结果查出，然后在缓存或磁盘进行排序操作，效率较低。使用 index 是指利用索引自动实现排序，不需要做排序操作，效率会比较高。
 
+filesort 有两种排序算法：双路排序 和 单路排序。
+
+双路排序：需要两次磁盘扫描读取，最终得到用户数据。第一次将排序字段读取出来，然后排序；第二次 去读取其他字段数据。
+
+单路排序：从磁盘查询所需的所有列数据，然后在内存排序将结果返回。如果查询数据超出缓存 sort_buffer，会导致多次磁盘读取操作，并创建临时表，最后产生了多次 IO，反而会增加负担。解决方案：少使用 select * ；增加 sort_buffer_size 容量 和 max_length_for_sort_data 容量。
+
+如果我们 Explain 分析 SQL，结果中 Extra 属性显示 Using filesort ，表示使用了 filesort 排序方式，需要优化。如果 Extra 属性显示 Using index 时，表示覆盖索引，也表示所有操作在索引上完成，也可以使用 index 排序方式，建议大家尽可能采用覆盖索引。
+
+
+
+以下几种情况，会使用 index 的方式排序。
+
+- ORDER BY 子句索引组合满足索引最左前列
+
+  ```sql
+  explain select id from user order by id;
+  ```
+
+  
 
 # 4 查询优化
 
