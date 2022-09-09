@@ -193,3 +193,21 @@ ZAB 协议（崩溃恢复、消息广播），Zookeeper 集群的Leade选举。
 **Ribbon细节结构图**
 
 ![image-20220819184552853](assest/image-20220819184552853.png)
+
+# 17 MySQL
+
+## 17.1 MySQL 体系结构
+
+MySQL Server 架构自顶向下大致可以分为网络连接层、服务层、存储引擎层 和 系统文件层。
+
+![preview](assest/view)
+
+## 17.2 MySQL 运行机制
+
+五个部分
+
+![image-20210715133857845](assest/image-20210715133857845.png)
+
+## 17.3 InnoDB 存储结构
+
+![InnoDB architecture diagram showing in-memory and on-disk structures.](assest/innodb-architecture.png)
