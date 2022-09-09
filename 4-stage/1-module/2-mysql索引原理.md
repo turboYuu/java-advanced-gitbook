@@ -341,10 +341,68 @@ filesort 有两种排序算法：双路排序 和 单路排序。
 - ORDER BY 子句索引组合满足索引最左前列
 
   ```sql
-  explain select id from user order by id;
+  explain select id from user order by id; // 对应(id)、(id,name) 索引有效
   ```
 
-  
+- WHERE 子句 + ORDER BY 子句索引列满足索引最左前列
+
+  ```sql
+  explain select id from user where age=18 order by name; // 对应 (age,name)索引
+  ```
+
+  ![image-20220909133101208](assest/image-20220909133101208.png)
+
+
+
+以下几种情况，会使用 filesort 方式的排序
+
+- 对索引列同时使用的 ASC 和 DESC 
+
+  ```sql
+  explain select id from user order by age asc,name desc; //对应(age,name)索引
+  ```
+
+  ![image-20220909133244269](assest/image-20220909133244269.png)
+
+- WHERE 子句 和 ORDER BY 子句满足最左前缀，但是 where 子句使用了范围查询（例如 >、<、in 等）
+
+  ```sql
+  explain select id from user where age>10 order name desc; //对应(age,name)索引
+  ```
+
+  ![image-20220909133742764](assest/image-20220909133742764.png)
+
+- ORDER BY 或者 WHERE + ORDER BY 索引列没有满足索引最左前列
+
+  ```sql
+  explain select id from user order by name; // 对应(id,name)索引
+  ```
+
+  ![image-20220909134027910](assest/image-20220909134027910.png)
+
+- 使用了不同的索引，MySQL 每次只采用一个索引，ORDER BY 涉及了两个索引
+
+  ```sql
+  explain select id from user order by name,age; 
+  ```
+
+  ![image-20220909134439230](assest/image-20220909134439230.png)
+
+- WHERE 子句 和 ORDER BY 子句，使用了不同的索引
+
+  ```sql
+  explain select id from user where name='echo' order by age;
+  ```
+
+  ![image-20220909134625548](assest/image-20220909134625548.png)
+
+- WHERE 子句 或者 ORDER BY 子句中索引列使用了表达式，包括函数表达式
+
+  ```sql
+  explain select id from user order by abs(age); // 对应 (age) 索引
+  ```
+
+  ![image-20220909134854974](assest/image-20220909134854974.png)
 
 # 4 查询优化
 
