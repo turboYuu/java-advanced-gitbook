@@ -233,12 +233,12 @@ explain 命令的输出内容大致如下：
 
 表示存储引擎查询数据时采用的方式。比较重要的一个属性，通过它可以判断出查询是全表扫描还是基于索引的部分扫描。常用属性值如下，从上至下 效率依次增强。
 
-- ALL
+- ALL：表示全表扫描，性能最差
 - index
 - range
-- ref
+- ref：表示使用非唯一索引进行单值查询。
 - eq_ref
-- const
+- const：表示使用主键或唯一索引做等值查询，常量查询。
 - NULl
 
 
@@ -505,7 +505,54 @@ set global long_query_time = 10;
 
 ### 4.2.2 提高索引过滤性
 
+假如有一个 5000 万记录的用户表，通过 sex = '男' 索引过滤后，还需要定位 3000万，SQL 执行速度也不会很快。其实这个问题涉及到索引的过滤性，比如 1 万 条记录利用索引过滤后定位 10 条、100 条、1000 条，那他们过滤性是不同的。索引过滤性 与 索引字段、表的数据量、表设计结构都有关系。
+
+下面看一个案例：
+
+```bash
+表：student
+字段：id,name,sex,age
+造数据：insert into student (name,sex,age) select name,sex,age from student;
+sql 案例：select * from student where age=18 and name like '张%'; (全表扫描)
+```
+
+ 
+
+- 优化1
+
+  ```sql
+  create index index_name on student (name);
+  ```
+
+- 优化2
+
+  ```sql
+  create index index_name on student (age,name);
+  ```
+
+- 优化3
+
+  ```bash
+  可以看出,index condition pushdown 优化效果还是很不错，再进一步优化，我们可以把名字的第一个字和年龄做一个联合索引，这里可以使用 MySQL 5.7 引入的虚拟列来实现。
+  ```
+
+  ```bash
+  // 为 student 表添加 first_name 虚拟列，以及联合索引 (first_name,age)
+  alter table student add first_name varchar(2) generated always as (left(name,1)),add index(first_name,age);
+  
+  explain select * from student where first_name='张' and age=18; 
+  ```
+
+  ![image-20220909151857417](assest/image-20220909151857417.png)
+
+  ![image-20220909152246840](assest/image-20220909152246840.png)
+
 ### 4.2.3 慢查询原因总结
+
+- 全表扫描：explain 分析 type 属性 all
+- 全索引扫描：explain 分析 type 属性 index
+- 索引过滤性不好：靠索引字段选型、数据量和状态、表设计
+- 频繁的徽标查询开销：尽量少用 select * ，使用覆盖索引。
 
 ## 4.3 分页查询优化
 
