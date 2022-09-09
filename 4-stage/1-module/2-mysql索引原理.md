@@ -406,7 +406,76 @@ filesort 有两种排序算法：双路排序 和 单路排序。
 
 # 4 查询优化
 
+## 4.1 慢查询定位
 
+### 4.1.1 开启慢查询日志
+
+查看 MySQL 数据库是否开启了慢查询日志 和 慢查询日志文件的存储位置的命令如下：
+
+```sql
+show variables like 'slow_query_log%';
+```
+
+![image-20220909135237268](assest/image-20220909135237268.png)
+
+通过如下命令开启慢查询日志
+
+```bash
+set global slow_query_log = NO;
+set global slow_query_log_file = 'oak-slow.log';
+set global log_queries_not_using_indexes = NO;
+set global long_query_time = 10;
+```
+
+- long_query_time：指定慢查询的阈值，单位秒。如果 SQL 执行时间超过阈值，就属于 慢查询 记录到日志文件中。
+- log_queries_not_using_indexes：表示会记录没有使用索引的查询SQL。前提是 slow_query_log 的值为 ON，否则不会生效。
+
+![image-20220909140216956](assest/image-20220909140216956.png)
+
+
+
+### 4.1.2 查看慢查询日志
+
+- 文本方式查看
+
+  直接使用文本编辑器打开 slow.log 日志即可。
+
+  ![image-20220909140522398](assest/image-20220909140522398.png)
+
+  - time：日志记录的时间
+  - User@Host：执行的用户及主机
+  - Query_time：执行的时间
+  - Lock_time：锁表时间
+  - Rows_sent：发送给请求方的记录数，结果数量
+  - Rows_examined：语句扫描的记录条数
+  - SET timestamp：语句指定的时间点
+  - select...：执行的具体SQL语句
+
+- 使用 mysqldumpslow 查看
+
+  MySQL 提供了一个慢查询日志分析工具 mysqldumpslow，可以通过该工具分析慢查询日志内容。
+
+  在 MySQL bin 目录下执行下面命令可以查看该使用格式。
+
+  ```bash
+  mysqldumpslow --help
+  ```
+
+  运行如下命令查看慢查询日志信息：
+
+  ```bash
+  mysqldumpslow -t 5 -s at mysqld-slow.log
+  ```
+
+  ![image-20220909141605419](assest/image-20220909141605419.png)
+
+除了使用 mysqldumpslow 工具，也可以使用第三方分析工具，比如 pt-query-digest、mysqlsla 等。
+
+## 4.2 慢查询优化
+
+
+
+## 4.3 分页查询优化
 
 
 
