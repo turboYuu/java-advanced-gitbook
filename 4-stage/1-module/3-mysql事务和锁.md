@@ -263,10 +263,56 @@ X 锁：事务A对记录添加了 X 锁，可以对记录进行读和修改操�
 - GapLock 锁：间隙锁，锁定索引记录间隙，确保索引记录的间隙不变。（范围锁，RR 隔离级别支持）
 - Next-key Lock 锁：记录锁和间隙锁组合，同时锁住数据，并且锁住数据前后范围。（记录锁+范围锁，RR 隔离级别支持）
 
+在 RR 隔离级别，InnoDB 对于记录加锁行为都是先采用 Next-Key Lock，但是当 SQL 操作含有唯一索引时，InnoDB 会对 Next-Key Lock 进行优化，降级为 RecordLock，仅锁住索引本身而非范围。
 
+1. select ... from 语句：InnoDB 引擎采用 MVCC 机制实现非阻塞，所以对于普通的 select 语句，InnoDB 不加锁。
+2. select ... from lock in share mode 语句：追加了共享锁，InnoDB 会使用 Next-Key Lock 锁进行处理，如果扫描发现唯一索引，可以降级为 Record Lock 锁。
+3. select ... from for update 语句：追加了排他锁，InnoDB 会使用 Next-Key Lock 锁进处理，如果扫描发现唯一索引，可以降级为 Record Lock 锁。
+4. update ... where 语句：InnoDB 会使用 Next-Key Lock 锁进行处理，如果扫描发现唯一索引，可以降级为 Record Lock 锁。
+5. delete ... where 语句：InnoDB 会使用 Next-Key Lock 锁进行处理，如果扫描发现唯一索引，可以降级为 Record Lock 锁。
+6. insert 语句：InnoDB 会在将要插入的那一行设置一个排他的 RecordLock 锁。
+
+下面以 “update t1 set name='XX' where id=10 ” 操作为例，举例分析下 InnoDB 对不同索引的加锁行为，以 RR 隔离级别为例。
+
+### 4.2.1 主键加锁
+
+
+
+![image-20220914122207161](assest/image-20220914122207161.png)
+
+加锁行为：仅在 id=10 的主键索引记录上加 X 锁。
+
+### 4.2.2 唯一键加锁
+
+![image-20220914123046134](assest/image-20220914123046134.png)
+
+加锁行为：先在唯一索引 id 上 加 X 锁，然后在 id = 10 的主键索引记录上加 X 锁。
+
+### 4.2.3 非唯一键加锁
+
+![image-20220914133301624](assest/image-20220914133301624.png)
+
+加锁行为：对满足 id=10 条件的记录加 Next-Key Lock （即 对记录加 X 锁，和 [6,c]-[10,b]，[10,b]-[10,d]，[10,d]-[11,f] 加 Gap Lock），然后通过扫描发现唯一索引 name，在唯一索引 name 上加 X 锁，去掉其他的锁。
+
+### 4.2.4 无索引加锁
+
+![image-20220914135254181](assest/image-20220914135254181.png)
+
+加锁行为：表里所有行和间隙都会加锁X锁（Next-Key Lock）。（当没有索引时，会导致全表锁定，因为 InnoDB 引擎锁机制是基于索引实现的记录锁定）。
 
 ## 4.3 悲观锁
 
 ## 4.4 乐观锁
 
 ## 4.5 死锁与解决方案
+
+
+
+
+
+
+
+
+
+
+
