@@ -141,7 +141,111 @@ mysql 主从复制存在的问题：
 
 ## 2.3 并行复制
 
+MySQL 的主从复制延迟一直失手开发者最为关注的问题之一，MySQL 从 5.6 版本开始追加了 并行复制 功能，目的就是为了改善复制延迟问题，并行复制称为 enhanced multi-threaded slave（简称 MTS）。
 
+在 从库中有两个线程 IO Thread 和 SQL Thread，都是单线程模式工作，因此有了延迟问题，我们可以采用多线程机制来加强，减少从库复制延迟。（IO Thread 多线程意义不大，主要指的是 SQL Thread 多线程）。
+
+在 MySQL 的 5.6、5.7、8.0 版本上，都是基于上述 SQL Thread 多线程思想，不断优化，减少复制延迟。
+
+### 2.3.1 MySQL 5.6 并行复制原理
+
+MySQL 5.6 版本也支持所谓的并行复制，但是其并行只是基于库的。如果用户的 MySQL 数据库中是有多个库，对于从库复制的速度 确实有比较大的帮助。
+
+![image-20220915133000653](assest/image-20220915133000653.png)
+
+![image-20220915133018574](assest/image-20220915133018574.png)
+
+基于库的并行复制，实现相对简单，使用也相对简单些。基于库的并行复制遇到单库多表使用场景就发挥不出优势了，另外对事务并行处理的执行顺序也是个大问题。
+
+### 2.3.2 MySQL 5.7 并行复制原理
+
+**MySQL 5.7 是基于组提交的并行复制**，MySQL 5.7 才可称为真正的并行复制，这其中最为主要的原因就是 Slave 服务器的回放 与 Master 服务器是一致的，即 Master 服务器上是怎么并行执行的 Slave 上就怎样进行并行回放。不再有库的并行复制限制。
+
+**MySQL 5.7 中组提交的并行复制究竟是如何实现的？**
+
+MySQL 5.7 是通过对事务进行分组，当事务提交时，它们将在单个操作中写入到 二进制 日志中。如果多个事务能同时提交成功，那么它们意味着没有冲突，因此可以在 Slave 上并行执行，所以通过在主库上的二进制日志中添加组提交信息。
+
+MySQL 5.7 的 并行复制 基于一个前提，即所有已经处于 prepare 阶段的事务，都是可以并行提交的。这些当然也可以在 从库 中并行提交，因为处理这个阶段的事务都是没有冲突的。在一个组里提交的事务，一定不会修改同一行。这是一种新的 并行复制 思路，完全摆脱了原来一直 致力于为了防止冲突而做的分发算法，等待策略 等复杂的而又效率低下的工作。
+
+InnoDB 事务提交采用的是 两阶段提交 模式。一个阶段是 prepare，另一个是 commit。
+
+为了兼容 MySQL 5.6 基于库的并行复制，5.7 引入了新的变量 [slave-parallel-type](https://dev.mysql.com/doc/refman/5.7/en/replication-options-replica.html#sysvar_slave_parallel_type)，其可以配置的值有 DATABASE（默认值，基于库的并行复制方式）、LOGICAL_CLOCK（基于组提交的并行复制方式）。
+
+**那么如何直到事务是否在同一组中，生成的 Binlog 内容如何告诉 Slave 哪些事务是可以并行复制的？**
+
+在 MySQL 5.7 版本中，其设计方式是将组提交的信息存放在 GTID 中，为了避免用户没有开启 GTID 功能（gtid_mode=OFF），MySQL 5.7 又引入了称之为 Anonymous_Gtid 的二级制日志 event 类型 ANONYMOUS_GTID_LOG_EVENT。
+
+通过mysqlbinlog 工具分析 binlog 日志，就可以发现 组提交内部信息。
+
+![image-20220915142055441](assest/image-20220915142055441.png)
+
+![image-20220915142021553](assest/image-20220915142021553.png)
+
+可以发现 MySQL 5.7 二进制日志 较之原来的二进制日志内容 多了 last_committed 和 sequence_number，last_committed 表示事务提交的时候，上次事务提交的编号，如果事务具有相同的 last_committed，表示这些事务都在一组内，可以进行并行的回放。
+
+使用 [`slave_parallel_workers`](https://dev.mysql.com/doc/refman/5.7/en/replication-options-replica.html#sysvar_slave_parallel_workers) 设置并行复制事务的应用程序线程数。
+
+### 2.3.3 MySQL 8.0 并行复制
+
+MySQL 8.0 是基于 write-set 的并行复制。MySQL 会有一个集合变量来存储事务修改的记录信息（主键哈希值），所有已提交的事务所修改的主键值经过 hash 后都会与那个变量的集合进行对比，来判断 该行 是否与其冲突，并以此来确定依赖关系，没有冲突即可并行。这样的粒度，就到了 row 级别了，此时并行的粒度更加精细，并行的速度会更快。
+
+### 2.3.4 并行复制 配置与调优
+
+- [binlog_transaction_dependency_history_size](https://dev.mysql.com/doc/refman/5.7/en/replication-options-binary-log.html#sysvar_binlog_transaction_dependency_history_size)
+
+  用于控制集合变量的大小
+
+  ![image-20220915144425676](assest/image-20220915144425676.png)
+
+- [binlog_transaction_dependency_tracking](https://dev.mysql.com/doc/refman/5.7/en/replication-options-binary-log.html#sysvar_binlog_transaction_dependency_tracking)
+
+  用于控制 binlog 文件中事务之间的依赖关系，即 last_committed 值。
+
+  ![image-20220915144558694](assest/image-20220915144558694.png)
+
+  - COMMIT_ORDER：基于组提交机制。
+  - WRITESET：基于写集合机制。
+  - WRITESET_SESSION：基于写集合，比 writeset 多了一个约束，同一个 session 中的事务 last_committed 按先后顺序递增。
+
+- [transaction_write_set_extraction](https://dev.mysql.com/doc/refman/5.7/en/replication-options-binary-log.html#sysvar_transaction_write_set_extraction)
+
+  用于控制事务的检测算法，参数值为：OFF、XXHASH64、MURMUR32
+
+- [master_info_repository](https://dev.mysql.com/doc/refman/5.7/en/replication-options-replica.html#sysvar_master_info_repository)
+
+  开启 MTS 功能后，务必将参数 master_info_repository 设置为 TABLE，这样性能可以有 50% - 80% 的提升。这是因为并行复制开启后对于元 master.info 这个文件更新将会大幅提升，资源的竞争也会变大。
+
+- [slave_parallel_workers](https://dev.mysql.com/doc/refman/5.7/en/replication-options-replica.html#sysvar_slave_parallel_workers)
+
+  若将 slave_parallel_workers 设置为 0，则 MySQL 5.7 退化为单线程 复制，但将 slave_parallel_workers 设置为1，则 SQL 线程功能转化为 coordinator 线程，但是只有1个 worker 线程进行回放，也是单线程复制。然而，这两种性能却又有一些区别，因为多了一次 coordinator 线程的转发，因此 slave_parallel_workers = 1 的性能反而比 0  还要差。
+
+- [slave_preserve_commit_order](https://dev.mysql.com/doc/refman/5.7/en/replication-options-replica.html#sysvar_slave_preserve_commit_order)
+
+  MySQL 5.7 后的 MTS 可以实现更小粒度的并行复制，但需要将 slave_parallel_type 设置为 LOGICAL_CLOCK，但仅仅设置为 LOGICAL_CLOCK 也会存在问题，因为此时在 slave 上应用事务的顺序是无序的，和 relay log 中记录的事务顺序不一样，这样数据一致性是无法保证的，为了保证事务是按照 relay log 中记录的顺序来回放，就需要开启 slave_preserve_commit-order。
+
+要开启 enhanced multi-threaded slave 其实很简单，只需要根据如下配置：
+
+```xml
+slave_parallel_type=LOGICAL_CLOCK
+slave_parallel_workers=16
+slave_pending_jobs_size_max=2147483648 #此变量设置可用于持有尚未应用的事件的工作队列的最大内存量
+slave_preserve_commit_order=1
+master_info_repository=TABLE
+relay_log_info_repository=TABLE
+relay_log_recovery=ON
+```
+
+### 2.3.5 并行复制监控
+
+在使用了 MTS 后，复制的监控依旧可以通过 SHOW SLAVE STATUS \G; 但是 MySQL 5.7 在 performance_schema 库中提供了很多元素据表，可以更详细的监控并行复制过程。
+
+![image-20210724230147507](assest/image-20210724230147507.png)
+
+通过replication_applier_status_by_worker可以看到worker进程的工作情况：
+
+![image-20210725174542182](assest/image-20210725174542182-1627705766137.png)
+
+最后，如果 MySQL 5.7 要使用 MTS 功能，建议使用新版本，最少升级到 5.7.19 版本，修复了很多Bug。
 
 ## 2.4 读写分离
 
