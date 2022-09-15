@@ -64,6 +64,59 @@
 
 # 2 主从模式
 
+## 2.1 使用场景
+
+MySQL 主从模式是指数据可以从一个 MySQL 数据服务器主节点复制到一个或多个从节点。MySQL 默认采用异步复制方式，这样从节点不用一直访问主服务器来更新自己的数据，从节点可以复制主数据库中的所有数据库，或者特定的数据库，或者特定的表。
+
+![image-20220915101723040](assest/image-20220915101723040.png)
+
+mysql 主从复制用途：
+
+- 实时灾备，用于故障切换（高可用）
+- 读写分离，提供查询服务（读扩展）
+- 数据备份，避免影响业务（高可用）
+
+主从部署必要条件：
+
+- 从库服务器能连通主库
+- 主库开启 binlog 日志（设置 log-bin 参数）
+- 主从 server-id 不同
+
+## 2.2 实现原理
+
+### 2.2.1 主从复制
+
+[Primary Secondary Replication](https://dev.mysql.com/doc/refman/5.7/en/group-replication-primary-secondary-replication.html)
+
+下图是主从复制的原理图：
+
+![img](assest/wKioL1bijwHhWDO_AACki5mAlXk627.jpg)
+
+主从复制整体分为以下三个步骤：
+
+1. 主库将数据库的变更操作记录到 Binlog 日志文件中。
+2. 从库读取主库中的 Binlog 日志文件信息写入到从库的 Relay Log 中继日志中。
+3. 从库读取中继日志信息 在 从库中进行 Replay，更新从库数据信息。
+
+在上述三个过程中，涉及了 Master 的 BinlogDump Thread 和 Slave 的 I/O Thread、SQL Thread ，它们的作用如下：
+
+- Master 服务器对数据库更改操作记录在 Binlog 中，BinlogDump Thread 接到写入请求后，读取 Binlog 信息推送给 Slave 的 I/O Thread。
+- Slave 的 I/O Thread 将读取到的 Binlog 信息写入到本地 Relay Log 中。
+- Slave 的 SQL Thread 检测到 Relay Log 的变更请求，解析 Relay Log 中的内容在 从库上执行。
+
+下图是异步复制的时序图：
+
+![MySQL Asynchronous Replication](assest/async-replication-diagram.png)
+
+mysql 主从复制存在的问题：
+
+- 主库宕机后，数据可能丢失。
+- 从库只有一个 SQL Thread，主库写压力大，复制很可能延时。
+
+## 2.3 并行复制
+
+## 2.4 读写分离
+
 # 3 双主模式
 
 # 4 分库分表
