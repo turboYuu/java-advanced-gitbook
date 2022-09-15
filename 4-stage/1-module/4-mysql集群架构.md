@@ -113,7 +113,35 @@ mysql 主从复制存在的问题：
 - 主库宕机后，数据可能丢失。
 - 从库只有一个 SQL Thread，主库写压力大，复制很可能延时。
 
+解决方案：
+
+- 半同步复制——解决数据丢失的问题
+- 并行复制——解决从库复制延迟的问题
+
+### 2.2.2 半同步复制
+
+为了提升数据安全，MySQL 让 Master 在某一个时间点等待 Slave 节点的 ACK （acknowledged）消息，接收到 ACK 消息后才进行事务提交，这也是半同步复制的基础，MySQL 从 5.5 版本开始引入半同步复制机制来降低数据丢失的概率。
+
+介绍本同步复制之前先快速过一下 MySQL 事务写入碰到主从复制时的完整过程，主库事务写入分为4 个步骤：
+
+- InnoDB Redo File Write（Prepare Write）
+- Binlog File Flush & Sync to Binlog File
+- InnoDB Redo File Commit（Commit Write）
+- Send Binlog to Slave
+
+当 Master 不需要关注 Slave 是否接收到 Binlog Event 时，即为传统的主从复制。
+
+当 Master 需要在 第三步等待 Slave 返回 ACK 时，即为 after-commit，半同步复制（MySQL 5.5 引入）。
+
+当 Master 需要在 第二步等待 Slave 返回 ACK 时，即为 after-sync，增强半同步（MySQL 5.7 引入）。
+
+下图是 MySQL 官方对于半同步复制的时序图，主库等待从库写入 relay log 并返回 ack 后 才进行 Engine Commit。
+
+![MySQL Semisynchronous Replication](assest/semisync-replication-diagram.png)
+
 ## 2.3 并行复制
+
+
 
 ## 2.4 读写分离
 
