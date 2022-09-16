@@ -368,7 +368,46 @@ codis
 
 **2008**年，意大利的一家创业公司 `Merzia` 推出了一款基于 `MySQL` 的网站实时统计系统 `LLOOGG`，然而没过多久该公司创始人 `Salvatore Sanfilippo`(*antirez*) 便对 MySQL 的性能感到失望，于是他决定亲自为 `LLOOGG` 量身定做一个数据库，并于 2009 年开发完成，这个数据库就是 **Redis**。
 
+**Redis 2.6**
 
+Redis 2.6 在 2012 年正式发布，主要特性如下：
+
+服务端支持 Lua 脚本、去点虚拟内存相关功能、键 的过期时间支持毫秒、从节点提供只读功能、两个新的位图命令：bitcount 和 bitop、重构了大量的核心代码，优化的大量的命令。
+
+**Redis 2.8**
+
+Redis 2.8 在 2013 年 11 月 22 日 正式发布，主要特性如下：
+
+添加部分主从复制（增量复制）的功能，可以用 bind 命令绑定多个 IP 地址、Redis 设置了明显的进程名、发布订阅添加了 pubsub 命令、Redis Sentinel 生产可用。
+
+**Redis 3.0**
+
+Redis 3.0 在 2015年4月1日正式发布，相比于 Redis 2.8 主要特性如下：
+
+Redis Cluster：Redis 的官方分布式实现（Ruby）、全新的对象编码结果、lru 算法大幅提升、部分命令的性能提升。
+
+**Redis 3.2**
+
+Redis 3.2 在 2016年5月6日正式发布，相比于 Redis 3.0 主要特性如下：
+
+添加 GEO 相关功能、SDS 在速度和节省空间上都做了优化，新的 List 编码类型：quicklist、从节点读取过期数据保证一致性、Lua 脚本功能增强 等。
+
+**Redis 4.0**
+
+Redis 4.0 在 2017年7月 正式发布，主要特性如下：
+
+提供了模块系统，方便第三方开发者拓展 Redis 的功能、PSYNC 2.0：优化了之前版本中，主从节点切换必然引起全量复制的问题、提供了新的缓存剔除算法：LFU（Last Frequently Used），并对已有算法进行了优化，提供了 RDB-AOP 混合持久化格式等。
+
+### 2.1.3 Redis 应用场景
+
+- 缓存使用，减轻 DB 压力
+- DB 使用，用于临时存储数据（字典表，购买记录）
+- 解决分布式场景下 Session 分离问题（登录信息）
+- 任务队列（秒杀、抢红包等等）乐观锁
+- 应用排行榜 zset
+- 签到 bitmap
+- 分布式锁
+- 冷热数据交换
 
 
 
@@ -376,19 +415,17 @@ codis
 
 使用5.0.5稳定版
 
-#### Redis下载
+### 2.2.1 Redis下载
 
 - 官网地址：https://redis.io/
 - 中文官网地址：http://www.redis.cn/
 - 下载地址：https://download.redis.io/releases/
 
+### 2.2.2 Redis安装环境
 
+Redis 没有官方的 windows版本，所以建议在 Linux 系统上安装运行。使用 centos 7作为安装环境。
 
-#### Redis安装环境
-
-Redis没有官方的windows版本，所以建议在Linux系统上安装运行。使用centos 7作为安装环境。
-
-#### Redis安装
+### 2.2.3 Redis安装
 
 1. 安装c语言需要的GCC环境
 
@@ -418,9 +455,9 @@ mkdir /usr/redis -p
 make install PREFIX=/usr/redis  
 ```
 
-#### Redis 启动
+### 2.2.4 Redis 启动
 
-##### 前端启动
+#### 2.2.4.1 前端启动
 
 - 启动命令：`redis-server`，直接运行`./bin/redis-server`将以前端模式启动
 
@@ -434,32 +471,36 @@ make install PREFIX=/usr/redis  
 
 ![image-20210824162959478](assest/image-20210824162959478.png)
 
-##### 后端启动（守护进程启动）
+#### 2.2.4.2 后端启动（守护进程启动）
 
-1.拷贝redis-5.0.5/redis/redis.conf配置文件到Redis安装目录的bin目录
+1. 拷贝redis-5.0.5/redis/redis.conf配置文件到Redis安装目录的bin目录
 
-```
-cp  redis.conf /usr/redis/bin/
-```
+   ```bash
+   cp  redis.conf /usr/redis/bin/
+   ```
 
-2.修改redis.conf
+2. 修改redis.conf
 
-```bash
-# 将`daemonize`由`no`改为`yes`
-daemonize yes
+   ```bash
+   # 将`daemonize`由`no`改为`yes`
+   daemonize yes
+   
+   # 默认绑定的是回环地址，默认不能被其他机器访问 
+   # bind 127.0.0.1
+   
+   # 是否开启保护模式，由yes该为no
+   protected-mode no  
+   ```
 
-# 默认绑定的是回环地址，默认不能被其他机器访问 
-# bind 127.0.0.1
+3. 启动服务
 
-# 是否开启保护模式，由yes该为no
-protected-mode no  
-```
+   ```bash
+   ./redis-server redis.conf
+   ```
 
-3.启动服务
+   
 
-```
-./redis-server redis.conf
-```
+
 
 ![image-20210825161946150](assest/image-20210825161946150.png)
 
@@ -469,7 +510,7 @@ protected-mode no  
 ./redis-cli shutdown
 ```
 
-##### 命令说明
+#### 2.2.4.3 命令说明
 
 ![image-20210824163749902](assest/image-20210824163749902.png)
 
@@ -480,7 +521,7 @@ protected-mode no  
 - `redis-check-dump`：`rdb`文件进行检查的工具
 - `redis-sentinel`：启动哨兵监控服务
 
-#### Redis命令行客户端
+### 2.2.5 Redis命令行客户端
 
 - 命令格式
 
@@ -517,171 +558,196 @@ protected-mode no  
 
 https://gitee.com/turboYuu/redis5.1/tree/master/lab/jedis_demo
 
-1.关闭防火墙
+1. 关闭防火墙
 
-```
-systemctl stop firewalld（默认）
-systemctl disable firewalld.service（设置开启不启动）
-```
+   ```bash
+   systemctl stop firewalld（默认）
+   systemctl disable firewalld.service（设置开启不启动）
+   ```
 
-2.新建maven项目后导入jedis包
+2. 新建maven项目后导入jedis包
 
-pom.xml
+   pom.xml
 
-```xml
-<dependency>
-    <groupId>redis.clients</groupId>
-    <artifactId>jedis</artifactId>
-    <version>2.9.0</version>
-</dependency>
-```
+   ```xml
+   <dependencies>
+       <dependency>
+           <groupId>redis.clients</groupId>
+           <artifactId>jedis</artifactId>
+           <version>2.9.0</version>
+       </dependency>
+       <dependency>
+           <groupId>junit</groupId>
+           <artifactId>junit</artifactId>
+           <version>4.12</version>
+           <scope>test</scope>
+       </dependency>
+   </dependencies>
+   
+   <build>
+       <plugins>
+           <plugin>
+               <groupId>org.apache.maven.plugins</groupId>
+               <artifactId>maven-compiler-plugin</artifactId>
+               <configuration>
+                   <source>11</source>
+                   <target>11</target>
+                   <encoding>utf-8</encoding>
+               </configuration>
+           </plugin>
+       </plugins>
+   </build>
+   ```
 
-3.程序
+3. 程序
 
-```java
-import org.junit.Test;
-import redis.clients.jedis.Jedis;
+   ```java
+   import org.junit.Test;
+   import redis.clients.jedis.Jedis;
+   
+   public class TestRedis {
+   
+       @Test
+       public void test(){
+           Jedis jedis = new Jedis("192.168.1.135",6379);
+           jedis.set("name","zhangsan");
+           System.out.println(jedis.get("name"));
+   
+           jedis.lpush("list1","1","2","3","4","5");
+           System.out.println(jedis.llen("list1"));
+       }
+   }
+   ```
 
-public class TestRedis {
-
-    @Test
-    public void test(){
-        Jedis jedis = new Jedis("192.168.1.135",6379);
-        jedis.set("name","zhangsan");
-        System.out.println(jedis.get("name"));
-
-        jedis.lpush("list1","1","2","3","4","5");
-        System.out.println(jedis.llen("list1"));
-    }
-}
-```
+   
 
 ## 3.2 Spring访问Redis
 
 https://gitee.com/turboYuu/redis5.1/tree/master/lab/spring_redis
 
-**1.新建Maven项目，引入Spring依赖**
+1. 新建Maven项目，引入Spring依赖
 
-```xml
-<dependency>
-    <groupId>org.springframework</groupId>
-    <artifactId>spring-beans</artifactId>
-    <version>5.2.5.RELEASE</version>
-</dependency>
-<dependency>
-    <groupId>org.springframework</groupId>
-    <artifactId>spring-core</artifactId>
-    <version>5.2.5.RELEASE</version>
-</dependency>
-<dependency>
-    <groupId>org.springframework</groupId>
-    <artifactId>spring-context</artifactId>
-    <version>5.2.5.RELEASE</version>
-</dependency>
-<dependency>
-    <groupId>org.springframework</groupId>
-    <artifactId>spring-test</artifactId>
-    <version>5.2.5.RELEASE</version>
-</dependency>
-<dependency>
-    <groupId>junit</groupId>
-    <artifactId>junit</artifactId>
-    <version>4.12</version>
-    <scope>test</scope>
-</dependency>
+   ```xml
+   <dependency>
+       <groupId>org.springframework</groupId>
+       <artifactId>spring-beans</artifactId>
+       <version>5.2.5.RELEASE</version>
+   </dependency>
+   <dependency>
+       <groupId>org.springframework</groupId>
+       <artifactId>spring-core</artifactId>
+       <version>5.2.5.RELEASE</version>
+   </dependency>
+   <dependency>
+       <groupId>org.springframework</groupId>
+       <artifactId>spring-context</artifactId>
+       <version>5.2.5.RELEASE</version>
+   </dependency>
+   <dependency>
+       <groupId>org.springframework</groupId>
+       <artifactId>spring-test</artifactId>
+       <version>5.2.5.RELEASE</version>
+   </dependency>
+   <dependency>
+       <groupId>junit</groupId>
+       <artifactId>junit</artifactId>
+       <version>4.12</version>
+       <scope>test</scope>
+   </dependency>
+   ```
 
-```
+2. 添加redis依赖
 
-**2.添加redis依赖**
+   ```xml
+   <dependency>
+       <groupId>org.springframework.data</groupId>
+       <artifactId>spring-data-redis</artifactId>
+       <version>1.0.3.RELEASE</version>
+   </dependency>
+   ```
 
-```
-<dependency>
-    <groupId>org.springframework.data</groupId>
-    <artifactId>spring-data-redis</artifactId>
-    <version>1.0.3.RELEASE</version>
-</dependency>
-```
+3. 添加Spring配置文件
 
-**3.添加Spring配置文件**
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <beans xmlns="http://www.springframework.org/schema/beans"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
+   
+       <bean id="propertyConfigurer" class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+           <property name="locations">
+               <list>
+                   <value>classpath:redis.properties</value>
+               </list>
+           </property>
+       </bean>
+   
+       <!--redis config-->
+       <bean id="jedisPoolConfig" class="redis.clients.jedis.JedisPoolConfig">
+           <property name="maxActive" value="${redis.pool.maxActive}"/>
+           <property name="maxIdle" value="${redis.pool.maxIdle}"/>
+           <property name="maxWait" value="${redis.pool.maxWait}"/>
+           <property name="testOnBorrow" value="${redis.pool.testOnBorrow}"/>
+       </bean>
+   
+       <bean id="jedisConnectionFactory" class="org.springframework.data.redis.connection.jedis.JedisConnectionFactory">
+           <property name="hostName" value="${redis.server}"/>
+           <property name="port" value="${redis.port}"/>
+           <property name="timeout" value="${redis.timeout}" />
+           <property name="poolConfig" ref="jedisPoolConfig" />
+       </bean>
+   
+   
+       <bean id="redisTemplate" class="org.springframework.data.redis.core.RedisTemplate">
+           <property name="connectionFactory" ref="jedisConnectionFactory"/>
+           <property name="keySerializer">
+               <bean class="org.springframework.data.redis.serializer.StringRedisSerializer"></bean>
+           </property>
+           <property name="valueSerializer">
+               <bean class="org.springframework.data.redis.serializer.StringRedisSerializer"></bean>
+           </property>
+       </bean>
+   
+   </beans>
+   ```
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<beans xmlns="http://www.springframework.org/schema/beans"
-       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
+4. 添加redis.properties
 
-    <bean id="propertyConfigurer" class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
-        <property name="locations">
-            <list>
-                <value>classpath:redis.properties</value>
-            </list>
-        </property>
-    </bean>
+   ```properties
+   redis.pool.maxActive=100
+   redis.pool.maxIdle=50
+   redis.pool.maxWait=1000
+   redis.pool.testOnBorrow=true
+   
+   redis.timeout=50000
+   redis.server=192.168.1.135
+   redis.port=6379
+   ```
 
-    <!--redis config-->
-    <bean id="jedisPoolConfig" class="redis.clients.jedis.JedisPoolConfig">
-        <property name="maxActive" value="${redis.pool.maxActive}"/>
-        <property name="maxIdle" value="${redis.pool.maxIdle}"/>
-        <property name="maxWait" value="${redis.pool.maxWait}"/>
-        <property name="testOnBorrow" value="${redis.pool.testOnBorrow}"/>
-    </bean>
+5. 编写测试用例
 
-    <bean id="jedisConnectionFactory" class="org.springframework.data.redis.connection.jedis.JedisConnectionFactory">
-        <property name="hostName" value="${redis.server}"/>
-        <property name="port" value="${redis.port}"/>
-        <property name="timeout" value="${redis.timeout}" />
-        <property name="poolConfig" ref="jedisPoolConfig" />
-    </bean>
+   ```java
+   import org.junit.Test;
+   import org.springframework.beans.factory.annotation.Autowired;
+   import org.springframework.data.redis.core.RedisTemplate;
+   import org.springframework.test.context.ContextConfiguration;
+   import org.springframework.test.context.junit4.AbstractJUnit4SpringContextTests;
+   
+   @ContextConfiguration("classpath:redis.xml")
+   public class TestRedis extends AbstractJUnit4SpringContextTests {
+   
+       @Autowired
+       RedisTemplate<String,String> redisTemplate;
+   
+       @Test
+       public void testConn(){
+           redisTemplate.opsForValue().set("name-s","lisi");
+           System.out.println(redisTemplate.opsForValue().get("name-s"));
+       }
+   }
+   ```
 
-
-    <bean id="redisTemplate" class="org.springframework.data.redis.core.RedisTemplate">
-        <property name="connectionFactory" ref="jedisConnectionFactory"/>
-        <property name="keySerializer">
-            <bean class="org.springframework.data.redis.serializer.StringRedisSerializer"></bean>
-        </property>
-        <property name="valueSerializer">
-            <bean class="org.springframework.data.redis.serializer.StringRedisSerializer"></bean>
-        </property>
-    </bean>
-
-</beans>
-```
-
-**4.添加redis.properties**
-
-```
-redis.pool.maxActive=100
-redis.pool.maxIdle=50
-redis.pool.maxWait=1000
-redis.pool.testOnBorrow=true
-
-redis.timeout=50000
-redis.server=192.168.1.135
-redis.port=6379
-```
-
-5.编写测试用例
-
-```java
-import org.junit.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.AbstractJUnit4SpringContextTests;
-
-@ContextConfiguration("classpath:redis.xml")
-public class TestRedis extends AbstractJUnit4SpringContextTests {
-
-    @Autowired
-    RedisTemplate<String,String> redisTemplate;
-
-    @Test
-    public void testConn(){
-        redisTemplate.opsForValue().set("name-s","lisi");
-        System.out.println(redisTemplate.opsForValue().get("name-s"));
-    }
-}
-```
+   
 
 ## 3.3 SpringBoot访问Redis
 
