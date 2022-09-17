@@ -873,6 +873,8 @@ https://gitee.com/turboYuu/redis5.1/tree/master/lab/springboot_redis
 
 # 4 Redis数据类型选择和应用场景
 
+[Redis data types](https://redis.io/docs/data-types/)
+
 Redis是一个Key-Value的存储系统，使用ANSI C语言编写。
 
 key的类型是字符串。
