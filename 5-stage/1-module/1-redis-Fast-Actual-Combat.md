@@ -780,94 +780,94 @@ https://gitee.com/turboYuu/redis5.1/tree/master/lab/springboot_redis
            timeout: 3000
    ```
 
+3. 添加配置类RedisConfig
+
+   ```java
+   package com.turbo.sbr.cache;
    
+   import org.springframework.beans.factory.annotation.Autowired;
+   import org.springframework.context.annotation.Bean;
+   import org.springframework.context.annotation.Configuration;
+   import org.springframework.data.redis.connection.RedisConnectionFactory;
+   import org.springframework.data.redis.core.RedisTemplate;
+   import org.springframework.data.redis.serializer.StringRedisSerializer;
+   
+   /**
+    * 配置类
+    */
+   @Configuration
+   public class RedisConfig {
+   
+       @Autowired
+       RedisConnectionFactory factory;
+   
+       @Bean
+       public RedisTemplate<String,Object> redisTemplate(){
+           RedisTemplate<String,Object> redisTemplate = new RedisTemplate<>();
+           redisTemplate.setKeySerializer(new StringRedisSerializer());
+           redisTemplate.setValueSerializer(new StringRedisSerializer());
+           redisTemplate.setHashKeySerializer(new StringRedisSerializer());
+           redisTemplate.setHashValueSerializer(new StringRedisSerializer());
+           redisTemplate.setConnectionFactory(factory);
+           return redisTemplate;
+       }
+   }
+   ```
 
-**3.添加配置类RedisConfig**
+4. 添加RedisController
 
-```java
-package com.turbo.sbr.cache;
+   ```java
+   ackage com.turbo.sbr.controller;
+   
+   import org.springframework.beans.factory.annotation.Autowired;
+   import org.springframework.data.redis.core.RedisTemplate;
+   import org.springframework.web.bind.annotation.GetMapping;
+   import org.springframework.web.bind.annotation.RequestMapping;
+   import org.springframework.web.bind.annotation.RequestParam;
+   import org.springframework.web.bind.annotation.RestController;
+   import java.util.concurrent.TimeUnit;
+   
+   @RestController
+   @RequestMapping(value = "/redis")
+   public class RedisController {
+   
+       @Autowired
+       RedisTemplate redisTemplate;
+   
+       @GetMapping("/put")
+       public String put(@RequestParam(required = true) String key, 
+       	@RequestParam(required = true) String value){
+           redisTemplate.opsForValue().set(key,value, 20,TimeUnit.SECONDS);
+           return "suc";
+       }
+   
+       @GetMapping("/get")
+       public String get(@RequestParam(required = true) String key){
+           return (String) redisTemplate.opsForValue().get(key);
+       }
+   }
+   ```
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.serializer.StringRedisSerializer;
+5. 修改Application并运行
 
-/**
- * 配置类
- */
-@Configuration
-public class RedisConfig {
+   ```java
+   package com.turbo.sbr;
+   
+   import org.springframework.boot.SpringApplication;
+   import org.springframework.boot.autoconfigure.SpringBootApplication;
+   import org.springframework.cache.annotation.EnableCaching;
+   
+   @SpringBootApplication
+   @EnableCaching
+   public class SpringbootRedisApplication {
+   
+       public static void main(String[] args) {
+           SpringApplication.run(SpringbootRedisApplication.class, args);
+       }
+   }
+   ```
 
-    @Autowired
-    RedisConnectionFactory factory;
-
-    @Bean
-    public RedisTemplate<String,Object> redisTemplate(){
-        RedisTemplate<String,Object> redisTemplate = new RedisTemplate<>();
-        redisTemplate.setKeySerializer(new StringRedisSerializer());
-        redisTemplate.setValueSerializer(new StringRedisSerializer());
-        redisTemplate.setHashKeySerializer(new StringRedisSerializer());
-        redisTemplate.setHashValueSerializer(new StringRedisSerializer());
-        redisTemplate.setConnectionFactory(factory);
-        return redisTemplate;
-    }
-}
-```
-
-**4.添加RedisController**
-
-```java
-ackage com.turbo.sbr.controller;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-import java.util.concurrent.TimeUnit;
-
-@RestController
-@RequestMapping(value = "/redis")
-public class RedisController {
-
-    @Autowired
-    RedisTemplate redisTemplate;
-
-    @GetMapping("/put")
-    public String put(@RequestParam(required = true) String key, 
-    	@RequestParam(required = true) String value){
-        redisTemplate.opsForValue().set(key,value, 20,TimeUnit.SECONDS);
-        return "suc";
-    }
-
-    @GetMapping("/get")
-    public String get(@RequestParam(required = true) String key){
-        return (String) redisTemplate.opsForValue().get(key);
-    }
-}
-```
-
-**5.修改Application并运行**
-
-```java
-package com.turbo.sbr;
-
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.cache.annotation.EnableCaching;
-
-@SpringBootApplication
-@EnableCaching
-public class SpringbootRedisApplication {
-
-    public static void main(String[] args) {
-        SpringApplication.run(SpringbootRedisApplication.class, args);
-    }
-}
-```
+   
 
 
 
