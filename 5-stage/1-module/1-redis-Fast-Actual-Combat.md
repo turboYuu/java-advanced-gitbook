@@ -753,32 +753,34 @@ https://gitee.com/turboYuu/redis5.1/tree/master/lab/spring_redis
 
 https://gitee.com/turboYuu/redis5.1/tree/master/lab/springboot_redis
 
-**1.新建springboot项目**
+1. 新建springboot项目
 
-选择Spring Web依赖，添加redis依赖
+   选择Spring Web依赖，添加redis依赖
 
-```xml
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-data-redis</artifactId>
-</dependency>
-```
+   ```xml
+   <dependency>
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-starter-data-redis</artifactId>
+   </dependency>
+   ```
 
-**2.添加配置文件application.yaml**
+2. 添加配置文件application.yaml
 
-```yaml
-spring:
-  redis:
-    host: 192.168.1.135
-    port: 6379
-    jedis:
-      pool:
-        min-idle: 0
-        max-active: 80
-        max-wait: 30000
-        max-idle: 8
-        timeout: 3000
-```
+   ```yaml
+   spring:
+     redis:
+       host: 192.168.1.135
+       port: 6379
+       jedis:
+         pool:
+           min-idle: 0
+           max-active: 80
+           max-wait: 30000
+           max-idle: 8
+           timeout: 3000
+   ```
+
+   
 
 **3.添加配置类RedisConfig**
 
