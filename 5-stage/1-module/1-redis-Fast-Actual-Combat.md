@@ -1221,7 +1221,7 @@ bitmap本身会极大的节省空间。
 
 举例：
 
-```
+```bash
 127.0.0.1:6379> setbit user:sign:1000 20200101 1
 (integer) 0
 127.0.0.1:6379> setbit user:sign:1000 20200103 1
@@ -1281,7 +1281,7 @@ geo是Redis用来处理位置信息的。在Redis3.2中使用。主要是利用�
 
 举例：
 
-```
+```bash
 127.0.0.1:6379> geoadd user:addr 116.31 40.05 zhangf 116.38 39.88 zhaoyun 116.47 40.00 diaochan
 (integer) 3
 127.0.0.1:6379> geohash user:addr zhangf diaochan
@@ -1358,7 +1358,7 @@ stream是Redis5.0后新增的数据结构，用于可持久化的消息队列。
 
 举例：
 
-```properties
+```bash
 127.0.0.1:6379> xadd topic:001 * name zhangfei age 23
 "1629825153821-0"
 127.0.0.1:6379> xadd topic:001 * name zhaoyun age 24 name diaochan age 16
