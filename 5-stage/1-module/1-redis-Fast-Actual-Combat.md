@@ -977,7 +977,7 @@ list列表类型可以存储有序，可重复的元素
 
 list的元素个数最多为2^32-1个（40亿）
 
-常见命令：
+常见命令：[List Commands](https://redis.io/commands/?group=list)
 
 | 命令名称   | 命令格式                             | 描述                                                         |
 | ---------- | ------------------------------------ | ------------------------------------------------------------ |
@@ -1001,11 +1001,11 @@ list的元素个数最多为2^32-1个（40亿）
 
 应用场景：
 
-1.作为栈或队列使用
+1. 作为栈或队列使用
 
-列表有序可以作为栈和队列使用
+   列表有序可以作为栈和队列使用
 
-2.可用于各种列表
+2. 可用于各种列表
 
 
 
@@ -1154,18 +1154,18 @@ Redis hash是一个string类型的field和value的映射表，它提供了字段
 
 常见操作命令：
 
-| 命令名称 | 命令格式 | 描述 |
-| -------- | -------- | ---- |
-| hset     |          |      |
-| hmset    |          |      |
-| hsetnx   |          |      |
-| hexists  |          |      |
-| hget     |          |      |
-| hmget    |          |      |
-| hgetall  |          |      |
-| hdel     |          |      |
-| hincrby  |          |      |
-| hlen     |          |      |
+| 命令名称 | 命令格式                    | 描述                                                         |
+| -------- | --------------------------- | ------------------------------------------------------------ |
+| hset     | hset key field value        | 赋值，不区分新增或修改                                       |
+| hmset    | hmset key field1 value1     | 批量赋值                                                     |
+| hsetnx   | hsetnx key field value      | 赋值，如果field 存在则不操作                                 |
+| hexists  | hexits key field            | 查看某个 field 是否存在                                      |
+| hget     | hget key field              | 获取一个字段值                                               |
+| hmget    | hmget key field1 field2 ... | 获取多个字段值                                               |
+| hgetall  | hgetall key                 | 返回存储在的哈希的所有字段和值`key`。<br>在返回值中，每个字段名后面都跟着它的值，<br>所以回复的长度是哈希大小的两倍。 |
+| hdel     | hdel key field1 field2      | 删除指定字段                                                 |
+| hincrby  | hincrby key field increment | 指定字段自增 increment                                       |
+| hlen     | hlen key                    | 获取字段数量                                                 |
 
 应用场景：
 
@@ -1191,7 +1191,6 @@ OK
 (integer) 24
 127.0.0.1:6379> hlen user:001
 (integer) 4
-
 ```
 
 ## 4.7 bitmap位图类型
