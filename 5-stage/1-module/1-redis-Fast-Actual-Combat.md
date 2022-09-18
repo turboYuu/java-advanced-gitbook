@@ -886,15 +886,30 @@ value的数据类型有：
 
 Redis5.0新增一种：stream类型
 
-注意：Redis中命令忽略大小写，key不忽略大小写。
+注意：Redis中命令忽略大小写（set SET），key不忽略大小写（name NAME）。
 
 ## 4.1 Redis的key的设计
 
+1. 用 `:` 分割
+2. 把表明转换为 key 前缀，比如：user:
+3. 第二段放置主键值
+4. 第三段放置列明
 
+比如：用户表 user，转换为 redis 的 key-value 存储
+
+| userid | username | password | email            |
+| ------ | -------- | -------- | ---------------- |
+| 9      | zhangf   | 111111   | zhangf@turbo.com |
+
+uername 的 key ：user:9:username ，value：{userid:9,username:zhangf}
+
+email 的 key：user:9:email，value：{userid:9,email:zhangf@turbo.com}
+
+表示明确：看 key 知道意思，不易被覆盖。
 
 ## 4.2 string字符串类型
 
-Redis的string能表达3中值的类型：字符串、整数、浮点数100.01是个六位数的串
+Redis的 String 能表达3种值的类型：字符串、整数、浮点数，100.01是个六位数的串
 
 常见命令：
 
@@ -913,17 +928,17 @@ Redis的string能表达3中值的类型：字符串、整数、浮点数100.01�
 
 应用场景：
 
-1.key和命令 是字符串
+1. key和命令 是字符串
 
-2.普通的赋值
+2. 普通的赋值
 
-3.incr用于乐观锁
+3. incr用于乐观锁
 
-incr：递增数字，可用于实现乐观锁watch(事务)
+   incr：递增数字，可用于实现乐观锁watch(事务)
 
-4.setnx用于分布式锁
+4. setnx用于分布式锁
 
-当key不存在时采用赋值，可用于实现分布式锁
+   当key不存在时采用赋值，可用于实现分布式锁
 
 
 
