@@ -1813,7 +1813,7 @@ lua是一种轻量小巧的**脚本语言**，用标准C语言编写并以源代
 
 Lua应用场景：游戏开发、独立应用脚本、Web应用脚本、扩展和数据库插件。
 
-OpenRestry：一个可伸缩的基于Nginx的Web平台，是在nginx之上集成了lua模块的第三方服务器 
+[OpenRestry](https://openresty.org/cn/)：一个可伸缩的基于Nginx的Web平台，是在nginx之上集成了lua模块的第三方服务器 
 
 OpenRestry是一个通过Lua扩展Nginx实现的可伸缩的Web平台，内部集成了大量精良的Lua库、第三方模块以及大多数的依赖项。用于方便地搭建能够处理超高并发（日活千万级别）、扩展性极高的动态Web应用、Web服务和动态网关。功能和nginx类似，就是由于支持lua动态脚本，所以更加灵活。
 
