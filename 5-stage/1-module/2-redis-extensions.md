@@ -378,28 +378,42 @@ OpenRestry 通过 Lua 脚本扩展 nginx 功能，可提供 负载均衡、请�
 
 # 4 慢日志查询
 
-```yaml
+MySQL 有慢查询日志
+
+Redis 也有慢查询日志，可用于监视和优化查询
+
+## 4.1 慢查询设置
+
+在 redis.conf 中可以配置和慢查询日志相关的选项：
+
+```bash
 # 执行时间超过多少微秒的命令请求会被记录到日志上 0 :全记录 <0 不记录 
 slowlog-log-slower-than  10000
-#slowlog-max-len 存储慢查询日志条数 
+# slowlog-max-len 存储慢查询日志条数 
 slowlog-max-len 128
 ```
 
-临时设置
+Redis 使用列表存储慢查询日志，采用队列方式（FIFO）
 
-config set
+config set 的方式可以临时设置，redis 重启后就无效
 
-```shell
+```bash
+config set slowlog-log-slower-than 微妙
+config set slow-max-len 条数
+slowlog get [n] 查看日志
+```
+
+```bash
 127.0.0.1:6379> config set slowlog-log-slower-than 0
 OK
 127.0.0.1:6379> config set slowlog-max-len 5
 OK
 127.0.0.1:6379> slowlog get 1
-1) 1) (integer) 2
-   2) (integer) 1636018486
-   3) (integer) 3
-   4) 1) "slowlog"
-      2) "get"
+1) 1) (integer) 2					# 日志的唯一标识符(uid)
+   2) (integer) 1636018486			# 命令执行时的UNIX时间戳
+   3) (integer) 3					# 命令执行的时长(微妙)
+   4) 1) "slowlog"					# 
+      2) "get"						# 执行命令及参数
       3) "[1]"
    5) "127.0.0.1:55990"
    6) ""
@@ -430,6 +444,97 @@ OK
    5) "127.0.0.1:55990"
    6) ""
 127.0.0.1:6379> 
+```
+
+
+
+## 4.2 慢查询记录的保存
+
+在 redisServer 中保存和慢查询日志相关的信息
+
+```c
+struct redisServer {    
+    // ...
+   	// 下一条慢查询日志的     ID
+   	long long slowlog_entry_id;
+   	// 保存了所有慢查询日志的链表 FIFO
+    list *slowlog;  
+   	// 服务器配置 slowlog-log-slower-than 选项的值    
+    long long slowlog_log_slower_than;
+   	// 服务器配置     slowlog-max-len 选项的值    
+    unsigned long slowlog_max_len;
+    // ... 
+};
+```
+
+`lowlog` 链表保存了服务器中的所有慢查询的日志，链表中的每个节点都保存了一个 `slowlogEntry` 结构，每个 `slowlogEntry` 架构代表一条慢查询日志。
+
+```c
+typedef struct slowlogEntry {    
+    // 唯一标识符
+   	long long id;
+   	// 命令执行时的时间，格式为 UNIX 时间戳    
+    time_t time;
+   	// 执行命令消耗的时间，以微秒为单位    
+    long long duration;
+   	// 命令与命令参数
+   	robj **argv;
+   	// 命令与命令参数的数量    
+    int argc;
+} slowlogEntry;
+```
+
+
+
+## 4.3 慢查询日志的阅览&删除
+
+初始化日志列表
+
+```c
+void slowlogInit(void) {
+   	server.slowlog = listCreate();    /* 创建一个list列表 */    
+    server.slowlog_entry_id = 0;      /* 日志ID从0开始*/
+   	listSetFreeMethod(server.slowlog,slowlogFreeEntry);  /* 指定慢查询日志list空间的释放方法*/
+}
+```
+
+获得慢查询日志记录
+
+slowlog get [n]
+
+```c
+def SLOWLOG_GET(number=None):
+	# 用户没有给定number 参数
+	# 那么打印服务器包含的全部慢查询日志    
+	if number is None:
+		number = SLOWLOG_LEN()    
+	
+	# 遍历服务器中的慢查询日志
+	for log in redisServer.slowlog:
+		if number <= 0:
+			# 打印的日志数量已经足够，跳出循环
+			break        
+		else:
+			# 继续打印，将计数器的值减一            
+			number -= 1
+		# 打印日志
+		printLog(log)
+```
+
+查看日志数量的 slowlog len
+
+```
+
+## 4.4 添加日志实现
+
+## 4.5 慢查询定位&处理
+
+临时设置
+
+config set
+
+```bash
+
 ```
 
 
