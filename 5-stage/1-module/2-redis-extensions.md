@@ -523,19 +523,29 @@ def SLOWLOG_GET(number=None):
 
 查看日志数量的 slowlog len
 
+```c
+def SLOWLOG_LEN():
+	# slowlog 链表的长度就是慢查询日志的条目数量    
+	return len(redisServer.slowlog)
 ```
+
+清除日志 slowlog reset
+
+```c
+def SLOWLOG_RESET():
+	# 遍历服务器中的所有慢查询日志
+	for log in redisServer.slowlog:        
+		# 删除日志
+		deleteLog(log)
+```
+
+
 
 ## 4.4 添加日志实现
 
+在每次执行命令之前和之后，程序都会记录微妙格式的当前 UNIX 时间戳，这两个时间戳之间的差就是服务器执行命令所耗费的时长，服务器会将这个时长作为参数之一传给 `slowlogPushEntryIfNeeded` 函数，而 `slowlogPushEntryIfNeeded`
+
 ## 4.5 慢查询定位&处理
-
-临时设置
-
-config set
-
-```bash
-
-```
 
 
 
