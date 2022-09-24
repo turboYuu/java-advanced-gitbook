@@ -543,7 +543,36 @@ def SLOWLOG_RESET():
 
 ## 4.4 添加日志实现
 
-在每次执行命令之前和之后，程序都会记录微妙格式的当前 UNIX 时间戳，这两个时间戳之间的差就是服务器执行命令所耗费的时长，服务器会将这个时长作为参数之一传给 `slowlogPushEntryIfNeeded` 函数，而 `slowlogPushEntryIfNeeded`
+在每次执行命令之前和之后，程序都会记录微妙格式的当前 UNIX 时间戳，这两个时间戳之间的差就是服务器执行命令所耗费的时长，服务器会将这个时长作为参数之一传给 `slowlogPushEntryIfNeeded` 函数，而 `slowlogPushEntryIfNeeded` 函数则负责检查是否需要为这次执行的命令创建慢查询日志。
+
+```c
+// 记录执行命令前的时间
+before = unixtime_now_in_us() 
+    
+//执行命令
+execute_command(argv, argc, client) 
+    
+//记录执行命令后的时间
+after = unixtime_now_in_us() 
+    
+// 检查是否需要创建新的慢查询日志
+slowlogPushEntryIfNeeded(argv, argc, before-after)
+    
+void slowlogPushEntryIfNeeded(robj **argv, int argc, long long duration) {
+    /* Slowlog disabled  负数表示禁用*/
+	if (server.slowlog_log_slower_than < 0) return;
+    /* 如果执行时间 > 指定阈值*/
+	if (duration >= server.slowlog_log_slower_than)
+        /* 创建一个slowlogEntry对象,添加到列表首部*/
+        listAddNodeHead(server.slowlog,slowlogCreateEntry(argv,argc,duration));
+    
+	/*如果列表长度>指定长度*/
+	while (listLength(server.slowlog) > server.slowlog_max_len)
+		listDelNode(server.slowlog,listLast(server.slowlog)); /* 移除列表尾部元素 */
+}
+```
+
+
 
 ## 4.5 慢查询定位&处理
 
