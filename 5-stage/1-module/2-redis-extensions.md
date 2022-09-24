@@ -572,7 +572,9 @@ void slowlogPushEntryIfNeeded(robj **argv, int argc, long long duration) {
 }
 ```
 
+`slowlogPushEntryIfNeeded` 函数的作用有两个：
 
+1. 检查命令的执行时长是否超过 `slowlogPushEntryIfNeeded` 选项所设置的时间，
 
 ## 4.5 慢查询定位&处理
 
