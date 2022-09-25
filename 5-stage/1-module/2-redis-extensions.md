@@ -581,9 +581,35 @@ void slowlogPushEntryIfNeeded(robj **argv, int argc, long long duration) {
 
 ## 4.5 慢查询定位&处理
 
+使用 slowlog get 可以过的执行较慢的 redis 命令，针对该命令可以进行优化：
 
+1. 尽量使用短的 key，对于 value 有些也可精简，能使用 int 就用 int。
+
+2. 避免使用 keys *、hgetall 等全量操作。
+
+3. 减少大 key 的存取，打散为小 key，100k以上。
+
+4. 将 rdb 改为 aof 模式
+
+   rdb fork 子进程，数据量过大，主进程阻塞，redis 性能大幅下降。
+
+   关闭持久化（适合于数据量较小，有固定数据源）
+
+5. 想要一次添加多条数据的时候可以使用管道。
+
+6. 尽可能地使用哈希存储。
+
+7. 尽量限制下 redis 使用地内存大小，这样可以避免 redis 使用 swap 分区或者出现 OOM 错误。
+
+   内存与硬盘的 swap
 
 # 5 监视器
+
+Redis 客户端通过执行 MONITOR 命令可以将自己变为一个监视器，实时地接收并打印出服务器当前的处理命令的相关信息。
+
+此时，当其他客户端向服务器发送一条命令请求时，服务器除了会处理这条命令请求之外，还会将这条命令请求的信息发送给所有监视器。
+
+![image-20220925170454094](assest/image-20220925170454094.png)
 
 Redis客户端1
 
@@ -603,4 +629,85 @@ OK
 127.0.0.1:6379> set name echo
 OK
 ```
+
+## 5.1 实现监视器
+
+`redisServer` 维护一个 `monitors` 的链表，记录自己的监视器，每次收到 `MONITOR` 命令之后，将客户端追加到链表尾。
+
+```c
+void monitorCommand(redisClient *c) {
+	/* ignore MONITOR if already slave or in monitor mode */    
+    if (c->flags & REDIS_SLAVE) return;
+    c->flags |= (REDIS_SLAVE|REDIS_MONITOR);        
+    listAddNodeTail(server.monitors,c);
+	addReply(c,shared.ok);  //回复OK 
+}
+```
+
+
+
+## 5.2 向监视器发送命令信息
+
+利用call函数实现向监视器发送命令。
+
+```c
+// call() 函数是执行命令的核心函数，这里只看监视器部分 
+/*src/redis.c/call*/
+/* Call() is the core of Redis execution of a command */ 
+void call(redisClient *c, int flags) {
+	long long dirty, start = ustime(), duration;    
+    int client_old_flags = c->flags;
+	/* Sent the command to clients in MONITOR mode, only if the commands are    
+	* not generated from reading an AOF. */
+	if (listLength(server.monitors) && 
+        !server.loading && 
+        !(c->cmd->flags & REDIS_CMD_SKIP_MONITOR)){
+		replicationFeedMonitors(c,server.monitors,c->db->id,c->argv,c->argc);  
+    }
+	...... 
+} 
+```
+
+`call` 主要调用了 `replicationFeedMonitors`，这个函数的作用就是将命令打包为协议，发送给监视器。
+
+## 5.3 redis监控平台
+
+[grafana](https://grafana.com/)、prometheus 以及 redis_export。
+
+Grafana 是一个开箱即用的可视化工具，具有功能齐全的度量仪表盘 和 图形编辑器，有灵活丰富的图形化选项，可以混合多种风格，支持多个数据源特点。
+
+Prometheus是一个开源的服务监控系统，它通过 HTTP 协议从远程的机器收集数据并存储在本地的时序数据库上。
+
+redis_exporter 为 Prometheus 提供了 redis 指标的导出，配合 Prometheus 以及 grafana 进行可视化及监控。
+
+[Grafana Install with RPM](https://grafana.com/docs/grafana/v9.0/setup-grafana/installation/rpm/#install-with-rpm), [Grafana Dowmload](https://grafana.com/grafana/download?pg=get&plcmt=selfmanaged-box1-cta1&platform=linux)
+
+启动后，默认访问端口: 3000
+
+安装 redis 数据源：
+
+```bash
+[root@localhost bin]# grafana-cli plugins install redis-datasource
+✔ Downloaded redis-datasource v2.1.1 zip successfully
+
+Please restart Grafana after installing plugins. Refer to Grafana documentation for instructions if necessary.
+
+[root@localhost bin]# systemctl restart grafana-server
+```
+
+安装完成后重启 grafana-server。然后配置 redis Data source：
+
+![image-20220925210025084](assest/image-20220925210025084.png)
+
+![image-20220925210108623](assest/image-20220925210108623.png)
+
+在 Dashboards 导入 redis 数据源：
+
+![image-20220925210205160](assest/image-20220925210205160.png)
+
+然后，点击数据源名称，进入 redis 的 Dashboards 界面：
+
+![image-20220925210316728](assest/image-20220925210316728.png)
+
+
 
