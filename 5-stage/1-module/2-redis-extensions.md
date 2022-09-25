@@ -574,7 +574,10 @@ void slowlogPushEntryIfNeeded(robj **argv, int argc, long long duration) {
 
 `slowlogPushEntryIfNeeded` 函数的作用有两个：
 
-1. 检查命令的执行时长是否超过 `slowlogPushEntryIfNeeded` 选项所设置的时间，
+1. 检查命令的执行时长是否超过 `slowlogPushEntryIfNeeded` 选项所设置的时间，如果是的话，就为命令创建一个新的日志，并将新日志添加到 `slowlog` 链表的表头。
+2. 检查慢查询日志的长度是否超过 `slowlog-max-len`  选项所设置的长度，如果是的话，那么将多出来的日志从 `slowlog` 链表中删除掉。
+
+
 
 ## 4.5 慢查询定位&处理
 
