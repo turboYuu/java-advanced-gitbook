@@ -709,5 +709,3 @@ Please restart Grafana after installing plugins. Refer to Grafana documentation 
 
 ![image-20220925210316728](assest/image-20220925210316728.png)
 
-
-
