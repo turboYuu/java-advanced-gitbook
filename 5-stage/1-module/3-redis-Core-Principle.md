@@ -199,13 +199,15 @@ AOF文件中存储的是redis的命令，同步命令到AOF文件的整个过程
 
 #### 1.3.2.4 AOF保存模式
 
+[how durable is the append only file](https://redis.io/docs/manual/persistence/#how-durable-is-the-append-only-file)
+
 Redis目前支持三种AOF保存模式，它们分别是：
 
-AOF_FSYNC_NO：不保存
+1. AOF_FSYNC_NO：不保存
 
-AOF_FSYNC_EVERYSEC：每秒钟保存一次（默认）
+2. AOF_FSYNC_EVERYSEC：每秒钟保存一次（默认）
 
-AOF_FSYNC_ALWAYS：每执行一个命令保存一次（不推荐）
+3. AOF_FSYNC_ALWAYS：每执行一个命令保存一次（不推荐）
 
 以下三个小结将分别讨论这三种保护模式。
 
