@@ -330,11 +330,11 @@ Redis数据库里的 + AOF重写过程中的命令 ---> 新的AOF文件 ---> 覆
    auto-aof-rewrite-min-size 64mb
    ```
 
-   
+   ![image-20220926125440248](assest/image-20220926125440248.png)
 
 2. 执行bgrewriteaof命令
 
-   ```shell
+   ```bash
    127.0.0.1:6379> bgrewriteaof
    Background append only file rewriting started
    127.0.0.1:6379> 
@@ -342,11 +342,13 @@ Redis数据库里的 + AOF重写过程中的命令 ---> 新的AOF文件 ---> 覆
 
 ##### 1.3.2.5.3 混合持久化
 
-RDB和AOF各有优缺点，Redis 4.0开始支持rdb和aof的混合持久化。如果把混合持久化打开，aof rewrite的时候就直接把rdb的内容写到aof文件开头。
+RDB和AOF各有优缺点，Redis 4.0 开始支持 rdb 和 aof 的混合持久化。如果把混合持久化打开，aof rewrite 的时候就直接把rdb的内容写到aof文件开头。
 
-RDB的头 + AOF的身体 ---> appendonly.aof
+**RDB的头 + AOF的身体**  ->  appendonly.aof
 
 开启混合持久化
+
+![image-20220926125609036](assest/image-20220926125609036.png)
 
 ```properties
 aof-use-rdb-preamble yes
@@ -354,7 +356,7 @@ aof-use-rdb-preamble yes
 
 ![image-20211029142427632](assest/image-20211029142427632.png)
 
-可以看到该AOF文件是rdb文件开头和aof格式的内容，在加载时，首先会识别AOF文件是否以REDIS字符串开头，如果是就是按RDB格式加载，加载完RDB后继续按AOF格式加载剩余部分。
+可以看到该AOF文件是 rdb 文件开头和 aof 格式的内容，在加载时，首先会识别 AOF 文件是否以 REDIS 字符串开头，如果是就是按 RDB 格式加载，加载完 RDB 后继续按 AOF 格式加载剩余部分。
 
 #### 1.3.2.6 AOF 文件在载入与数据还原
 
