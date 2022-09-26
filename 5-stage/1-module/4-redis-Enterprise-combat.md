@@ -24,7 +24,7 @@ JVM缓存就是本地缓存，设计在应用服务器中（tomcat）。
 
 这里的文件缓存是基于http协议的文件缓存，一般放在nginx中。
 
-因为静态文件（比如css，js，图片）中，很多都是不经常更新的。nginx适用proxy_cache将用户的请求缓存到本地一个目录。下一个相同请求可以直接调取缓存文件，就不用去请求服务器了。
+因为静态文件（比如css，js，图片）中，很多都是不经常更新的。nginx 使用 proxy_cache 将用户的请求缓存到本地一个目录。下一个相同请求可以直接调取缓存文件，就不用去请求服务器了。
 
 ```properties
 server {
@@ -52,7 +52,7 @@ server {
 
 ### 1.1.3 Redis缓存
 
-分布式缓存，采用主从 + 哨兵或RedisCluster的方式缓存数据库的数据。
+分布式缓存，采用 主从 + 哨兵 或 RedisCluster 的方式缓存数据库的数据。
 
 在实际开发中，作为数据库适用，数据要完整；作为缓存适用，作为Mybatis的二级缓存适用；
 
@@ -84,7 +84,7 @@ http {
 Redis 缓存设置
 
 ```properties
-maxmemory=num	#最大缓存容量	一般为内存的3/4
+maxmemory num	#最大缓存容量	一般为内存的3/4
 maxmemory-policy allkeys-lru
 ```
 
@@ -93,7 +93,8 @@ maxmemory-policy allkeys-lru
 - allkeys-lru：在不确定时一般采用策略。冷热数据交换
 - volatile-lru：比allkeys-lru性能差，需要存过期时间
 - allkeys-random：希望请求符合平均分布（每个元素以相同的概率被访问）
-- 自己控制：volatile-ttl（把过期时间设置小一点）
+- 自己控制：volatile-ttl（把过期时间设置小一点）huan
+- 禁止驱逐：用作 DB，不设置 maxmemory
 
 ## 1.3 key数量
 
@@ -111,9 +112,9 @@ Redis采用的是基于内存的，采用的是单进程单线程模型的KV数�
 
 命中：可以直接通过缓存获取到需要的数据。
 
-不命中：无法直接通过缓存获取到想要的数据，需要再次查询数据库或者执行其他的操作。其原因可能是由于缓存中根本不存在，挥着缓存已经过期。
+不命中：无法直接通过缓存获取到想要的数据，需要再次查询数据库或者执行其他的操作。其原因可能是由于缓存中根本不存在，或者缓存已经过期。
 
-通常来讲，缓存的命中率越高则表示适用缓存的收益越高，应用的性能越好（响应时间越短，吞吐量越高），抗并发的能力越强。
+通常来讲，缓存的命中率越高则表示使用缓存的收益越高，应用的性能越好（响应时间越短，吞吐量越高），抗并发的能力越强。
 
 由此可见，在高并发的互联网系统中，缓存的命中率是至关重要的指标。
 
@@ -127,7 +128,8 @@ redis_git_sha1:00000000
 redis_git_dirty:0
 redis_build_id:e188a39ce7a16352
 redis_mode:standalone
-os:Linux 3.10.0-229.el7.x86_64 x86_64 arch_bits:64
+os:Linux 3.10.0-229.el7.x86_64 x86_64 
+arch_bits:64
 #缓存命中
 keyspace_hits:1000  
 #缓存未命中
@@ -151,7 +153,7 @@ evicted_keys:1547380
 
 ## 1.6 过期策略
 
-参考上一部分的**删除策略**
+Redis 的过期策略是定时删除 + 惰性删除，参考上一部分的**删除策略**
 
 ## 1.7 性能监控指标
 
@@ -174,7 +176,7 @@ keyspace_misses:0 					#查找数据库键失败的次数
 
 Redis监控平台：
 
-grafana、prometheus以及redis_exporter。
+[grafana](https://grafana.com/)、prometheus以及redis_exporter。
 
 ## 1.8 缓存预热
 
