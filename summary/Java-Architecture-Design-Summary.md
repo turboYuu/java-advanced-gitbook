@@ -243,6 +243,18 @@ MySQL Server 架构自顶向下大致可以分为网络连接层、服务层、�
 
 
 
+## 17.4 InnoDB 中 LogBuffer 刷盘方式
+
+innodb_flush_log_at_trx_commit参数控制日志刷新行为，可通过 innodb_flush_log_at_trx_commit 设置：
+
+- 0：每秒提交 LogBuffer -> OS cache -> flush cache to disk，可能丢失一秒内的事务数据。由后台 master 线程每隔 1 秒 执行一次操作。
+- 1（默认值）：每次事务提交执行 LogBuffer -> OS cache -> flush cache to disk，最安全，性能最差的方式。
+- 2：每次事务提交执行 LogBuffer -> OS cache ，然后由后台 Master 线程再每隔1秒执行 OS cache -> flush cache to disk 的操作。
+
+一般建议选择 2，因为 MySQL 挂了数据没有损失，整个服务器挂了才会损失1秒的事务提交数据。
+
+![image-20220905184101688](assest/image-20220905184101688.png)
+
 # 18 Redis
 
 
