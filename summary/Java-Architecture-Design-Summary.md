@@ -259,15 +259,15 @@ innodb_flush_log_at_trx_commit参数控制日志刷新行为，可通过 innodb_
 
 
 
-redis 常用数据类型 对应的底层数据结构
+redis 常用数据类型 对应的底层数据结构（所有的数据类型都会使用的 type：数据字典）
 
-|        | 底层数据结构 |      |
-| ------ | ------------ | ---- |
-| String |              |      |
-| List   |              |      |
-| Hash   |              |      |
-| Set    |              |      |
-| ZSet   |              |      |
+| 数据类型   | 底层数据结构 type | RedisObject-encoding                                         |
+| ---------- | ----------------- | ------------------------------------------------------------ |
+| String     | 字符串对象        | int、row、embstr                                             |
+| List       | 快速链表          | quicklist                                                    |
+| Hash       | 压缩列表          | dict（当散列表元素的个数比较多 或 元素不是小整数 或 短字符串时）<br>ziplist（当散列表元素的个数比较少，且元素都是小整数 或 短字符串时） |
+| Set        |                   | intset（整数集合）、dict（字典）                             |
+| Sorted set | 跳跃表，压缩列表  | ziplist（压缩列表）、skiplist+dict（跳跃表+字典）            |
 
 
 
