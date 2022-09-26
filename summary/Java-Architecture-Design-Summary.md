@@ -93,7 +93,25 @@ Tomcat的两个重要身份：
 
 # 6 Nginx
 
-**Nginx 进程模式示意图**：
+## 6.1 Nginx 配置文件
+
+- 全局块
+
+  ![image-20220707092749993](assest/image-20220707092749993.png)
+
+- events 块
+
+  ![image-20220707094707593](assest/image-20220707094707593.png)
+
+- http 块
+
+  ![image-20220707095506426](assest/image-20220707095506426.png)
+
+  ![image-20220707095611629](assest/image-20220707095611629.png)
+
+  ![image-20220707095650457](assest/image-20220707095650457.png)
+
+## 6.2 Nginx 进程模式示意图
 
 ![image-20220707141355864](assest/image-20220707141355864.png)
 
