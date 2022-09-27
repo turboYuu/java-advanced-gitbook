@@ -1466,17 +1466,17 @@ LRU（Least recently used）最近最少使用，算法根据数据的历史访�
 
 > Redis的LRU数据淘汰机制
 
-在服务器配置中保存了lru计数器server.lrulock，会定时（redis定时程序serverCorn()）更新，server.lrulock的值是根据server.unixtime计算出来的。
+在服务器配置中保存了 lru 计数器 server.lrulock，会定时（redis定时程序serverCorn()）更新，server.lrulock的值是根据server.unixtime 计算出来的。
 
-另外，从struct redisObject中可以发现，每一个redis对象都会设置相应的lru。可以想象的是，每一次访问数据的时候，会更新redisObject.lru。
+另外，从 struct redisObject 中可以发现，每一个redis对象都会设置相应的lru。可以想象的是，每一次访问数据的时候，会更新redisObject.lru。
 
 LRU数据淘汰机制是这样的：在数据集中最忌挑选几个键值对，取出其中lru最大的键值对淘汰。
 
-不可能遍历key	用当前时间-最近访问	越大说明	访问间隔时间越长
+不可能遍历key，用当前时间 减去 最近访问，越大说明，访问间隔时间越长
 
-**volatile-lru** 从已设置过期时间的数据集（server.db[i].expires）中挑选最近最少使用的数据淘汰
+**volatile-lru** ：从已设置过期时间的数据集（server.db[i].expires）中挑选最近最少使用的数据淘汰
 
-**allkeys-lru** 从数据集（server.db[i].dict）中挑选最近最少使用的数据淘汰
+**allkeys-lru** ：从数据集（server.db[i].dict）中挑选最近最少使用的数据淘汰
 
 
 
@@ -1484,27 +1484,29 @@ LRU数据淘汰机制是这样的：在数据集中最忌挑选几个键值对�
 
 LFU（Least frequently used）最不经常使用，如果一个数据在最近一段时间内使用次数很少，那么在将来一段时间内被使用的可能性也很小。
 
-volatile-lfu
+volatile-lfu -> Evict using approximated LFU among the keys with an expire set.
 
-allkeys-lfu
+allkeys-lfu -> Evict any key using approximated LFU.
 
 #### 3.3.3.3 random
 
 随机
 
-**volatile-random** 从以设置过期时间的数据集（server.db[i].expires）中任意选择数据淘汰
+volatile-random： 从以设置过期时间的数据集（server.db[i].expires）中任意选择数据淘汰
 
-**allkeys-random** 从数据集（server.db[i].dict）中任意选择数据淘汰
+allkeys-random： 从数据集（server.db[i].dict）中任意选择数据淘汰
 
 
 
 #### 3.3.3.4 ttl
 
-**volatile-ttl** 从以设置过期时间的数据集（server.db[i].expires）中挑选将要过期的数据淘汰
+volatile-ttl -> Remove the key with the nearest expire time (minor TTL)
 
-redis数据集结构中保存了键值对过期时间的表，即redisDb.expires。
+volatile-ttl： 从以设置过期时间的数据集（server.db[i].expires）中挑选将要过期的数据淘汰
 
-TTL数据淘汰机制：从过期时间的表中随机挑选几个键值对，取出其中ttl最小的键值对淘汰
+redis 数据集结构中保存了键值对过期时间的表，即redisDb.expires。
+
+TTL 数据淘汰机制：从过期时间的表中随机挑选几个键值对，取出其中ttl最小的键值对淘汰
 
 #### 3.3.3.5 noenviction
 

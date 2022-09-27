@@ -875,6 +875,8 @@ https://gitee.com/turboYuu/redis5.1/tree/master/lab/springboot_redis
 
 [Redis data types](https://redis.io/docs/data-types/)
 
+[Redis Data Structures](https://redis.com/redis-enterprise/data-structures/)
+
 Redis是一个Key-Value的存储系统，使用ANSI C语言编写。
 
 key的类型是字符串。
