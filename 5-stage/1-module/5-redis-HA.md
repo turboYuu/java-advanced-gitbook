@@ -1,14 +1,20 @@
-第五部分 Redis高可用方案
+> 第五部分 Redis高可用方案
+
+"高可用性"（High Availability）通常来描述一个系统经过专门的设计，从而减少停工时间，而保持其服务的高度可用性。
+
+单机的 Redis 是无法保证高可用性的，当 Redis 服务器宕机后，即使在有持久化的机制下也无法保证不丢失数据。
+
+所以我们采用 Redis 多机和集群的方式来保证 Redis 的高可用性。
 
 # 1 主从复制
 
 Redis支持主从复制功能，可以通过执行slaveof（Redis 5 以后改成replicaof）或者配置文件中设置slaveof（Redis 5以后改成replicaof）来开启复制功能。
 
-![image-20211103140535045](assest/image-20211103140535045.png)
+![image-20220927171020446](assest/image-20220927171020446.png)
 
-![一主多从](assest/image-20211103140559133.png)
+![image-20220927171052334](assest/image-20220927171052334.png)
 
-![image-20211103140645649](assest/image-20211103140645649.png)
+![image-20220927171122688](assest/image-20220927171122688.png)
 
 - 主对外 从对内，主可写，从不可写
 - 主挂了，从不可为主
@@ -21,6 +27,8 @@ Redis支持主从复制功能，可以通过执行slaveof（Redis 5 以后改成
 
 ### 1.1.2 从Redis配置
 
+（安装后的redis 使用  `cp -r redis redis-slave-6380` 复制出一个redis）
+
 修改从服务器上的`redis.conf`文件：
 
 ```properties
@@ -29,32 +37,30 @@ Redis支持主从复制功能，可以通过执行slaveof（Redis 5 以后改成
 replicaof 127.0.0.1 6379
 ```
 
-
-
-```shell
+```bash
+[root@localhost bin]# ./redis-cli -p 6380
 127.0.0.1:6380> set lock 20
 (error) READONLY You can't write against a read only replica.
 ```
-
-
 
 ## 1.2 作用
 
 ### 1.2.1 读写分离
 
-一主多从，主从同步
+- 一主多从，主从同步。
 
-主负责写，从负责读
+- 主负责写，从负责读。
 
-提升Redis的性能和吞吐量
+- 提升Redis的性能和吞吐量。
 
-主从的数据一致性问题
-
-
+- 主从的数据一致性问题。
 
 ### 1.2.2 数据容灾
 
-从机是主机的备份
+- 从机是主机的备份。
+- 主机宕机，从机可读不可写。
+- 默认情况下主机宕机后，从机不可为主机。
+- 利用**哨兵**可以实现主从切换，做到高可用。
 
 ## 1.3 原理与实现
 
@@ -231,4 +237,24 @@ replconf ack <replication_offset>
 
 # 2 哨兵模式
 
+## 2.1 部署方案
+
+## 2.2 搭建配置
+
+## 2.3 执行流程
+
+## 2.4 哨兵 leader 选举
+
+## 2.5 主服务器的选择
+
 # 3 集群与分区
+
+## 3.1 分区的意义
+
+## 3.2 分区的方式
+
+## 3.3 client 端分区
+
+## 3.4 proxy 端分区
+
+## 3.5 官方 cluster 分区
