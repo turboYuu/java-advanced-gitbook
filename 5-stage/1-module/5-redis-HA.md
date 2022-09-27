@@ -247,11 +247,189 @@ replconf ack <replication_offset>
 
 # 2 哨兵模式
 
+哨兵（Sentinel）是 Redis 高可用性（High Availability）的解决方案：
+
+由一个或多个 sentinel 实例组成 sentient 集群可以监视一个或多个主服务器和多个从服务器。
+
+当主服务器进行下线状态时，sentinel 可以将主服务器下的某一从服务器升级为主服务器继续提供服务，从而保证 redis 的高可用。
+
 ## 2.1 部署方案
+
+![image-20220927180025725](assest/image-20220927180025725.png)
+
+
 
 ## 2.2 搭建配置
 
+这里在一台机器上采用伪分布式的方式不是。（生产环境应该是多台）
+
+根据上面的部署方案搭建如下：
+
+Redis-Master：127.0.0.1 6379，采用安装的方式，正常安装和配置。
+
+```bash
+# 1 安装 redis 5.0
+mkdir -p /usr/redis-ms/redis-master
+cd redis-5.0.5/src
+make install PREFIX=/usr/redis-ms/redis-master
+cp /root/redis-5.0.5/redis.conf /usr/redis-ms/redis-master/bin/
+
+# 2 修改 redis.conf
+	# 将`daemonize`由`no`改为`yes`
+	daemonize yes
+	
+	# 默认绑定的是回环地址，默认不能被其他机器访问 
+	# bind 127.0.0.1
+	
+	# 是否开启保护模式，由yes该为no
+	protected-mode no  
+```
+
+Redis-Slaver1：127.0.0.1 6380
+
+```bash
+# 在 /usr/redis-ms 目录下
+cp -r redis-master redis-slaver1
+# 修改配置文件
+vim redis-slave1/bin/redis.conf
+	port 6380
+	replicaof 127.0.0.1 6379
+```
+
+Redis-Slaver2：127.0.0.1 6381
+
+```bash
+# 在 /usr/redis-ms 目录下
+cp -r redis-master redis-slaver2
+# 修改配置文件
+vim redis-slave2/bin/redis.conf
+	port 6381
+	replicaof 127.0.0.1 6379
+```
+
+
+
+Redis-Sentinel1：127.0.0.1 26379
+
+```bash
+# 在 /usr/redis-ms 目录下
+cp -r redis-master redis-sentinel1
+# 拷贝 sentinel.conf 配置文件并修改
+cp /root/redis-5.0.5/sentinel.conf /usr/redis-ms/redis-sentinel1/bin/
+vim redis-sentinel1/bin/sentinel.conf
+
+	# 哨兵sentinel实例运行的端口，默认 26379
+	port 26379
+	
+	# 将`daemonize`由`no`改为`yes`
+	daemonize yes
+	
+	# 哨兵 sentinel 监控的redis主节点的 ip port
+	# master-name 可以自己命名的主节点名字，只能由字母 A-z、数字0-9、这三个字符“.-_” 组成。
+	# quorum 当这些 quorum 个数 sentinel哨兵认为 master 主节点失联，那么这时、客观上认为主节点失联了
+	# sentinel monitor <master-name> <ip> <redis-port> <quorum>
+	sentinel monitor mymaster 127.0.0.1 6379 2
+	
+	# 当在 Redis 实例中开启了requirepass foobared 授权密码，这样所有连接Redis实例的客户端都要提供密码
+	# 设置哨兵sentinel连接主从的密码，注意必须为主从设置一样的验证密码
+	# sentinel auth-pass <master-name> <password>
+	sentinel auth-pass mymaster MySUPER--secret-0123passw0rd
+	
+	# 执行多少毫秒之后，主节点没有应答哨兵sentinel此时，哨兵主观上认为主节点下线，默认30秒，改为3秒
+	# sentinel down-after-milliseconds <master-name> <milliseconds>
+	sentinel down-after-milliseconds mymaster 30000
+	
+	# 这个配置项指定了在发生failover主备切换时最多可以有多少个slave同时对新的master进行同步。
+	# 这个数字越小，完成failover所需的时间就越长，
+	# 但是如果这个数字越大，就意味着，多的slave因为replication而不可用
+	# 可以通过将这个值设置为1，来保证每次只有一个slave处于不能处理命令请求的状态
+	# sentinel parallel-syncs <master-name> <numreplicas>
+	sentinel parallel-syncs mymaster 1
+	
+	# 故障转移的超时时间，failover-timeout 可以用在以下这些方面：
+	# 1. 同一个sentinel对同一个master两次failover之间的间隔时间。
+	# 2. 当一个slave从一个错误的master那里同步数据开始计算时间，直到slave被纠正为正确的master那里同步数据时。
+	# 3. 当想要取消一个正在进行的failover所需的时间
+	# 4. 当进行faliover时，配置所有slaves指向新的master所需多的最大时间。不过，即使过了这个超时，slaves依然会被正确配置为指向master，但是就不按parallel-syncs所配置的规则来了
+	# sentinel failover-timeout <master-name> <milliseconds>
+	sentinel failover-timeout mymaster 180000
+```
+
+
+
+Redis-Sentinel2：127.0.0.1 26380
+
+```bash
+cp -r redis-sentinel1/ redis-sentinel2
+# 修改 sentinel.conf 配置文件
+vim redis-sentinel2/bin/sentinel.conf
+	port 26380
+```
+
+
+
+Redis-Sentinel3：127.0.0.1 26381
+
+```bash
+cp -r redis-sentinel1/ redis-sentinel3
+# 修改 sentinel.conf 配置文件
+vim redis-sentinel3/bin/sentinel.conf
+	port 26381
+```
+
+配置好依次执行 redis-master、redis-slaver1、redis-slaver2、redis-sentinel1、redis-sentinel2、redis-sentinel3。
+
+这里编写一个 start.sh 可执行文件，`chmod 77 start.sh`
+
+```bash
+vim 
+cd redis-master/bin
+./redis-server redis.conf
+cd ..
+cd ..
+
+cd redis-slaver1/bin
+./redis-server redis.conf
+cd ..
+cd ..
+
+cd redis-slaver2/bin
+./redis-server redis.conf
+cd ..
+cd ..
+
+cd redis-sentinel1/bin
+./redis-sentinel sentinel.conf
+cd ..
+cd ..
+
+cd redis-sentinel2/bin
+./redis-sentinel sentinel.conf
+cd ..
+cd ..
+
+cd redis-sentinel3/bin
+./redis-sentinel sentinel.conf
+cd ..
+cd ..
+```
+
+执行 start.sh 文件
+
+```bash
+[root@localhost redis-ms]# ps -ef|grep redis
+root     16136     1  0 19:21 ?        00:00:00 ./redis-server *:6379
+root     16141     1  0 19:21 ?        00:00:00 ./redis-server *:6380
+root     16147     1  0 19:21 ?        00:00:00 ./redis-server *:6381
+root     16152     1  0 19:21 ?        00:00:00 ./redis-sentinel *:26379 [sentinel]
+root     16157     1  0 19:21 ?        00:00:00 ./redis-sentinel *:26380 [sentinel]
+root     16159     1  0 19:21 ?        00:00:00 ./redis-sentinel *:26381 [sentinel]
+root     16172  1581  0 19:21 pts/0    00:00:00 grep --color=auto redis
+```
+
 ## 2.3 执行流程
+
+
 
 ## 2.4 哨兵 leader 选举
 
