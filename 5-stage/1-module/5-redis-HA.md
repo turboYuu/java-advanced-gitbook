@@ -70,10 +70,10 @@ replicaof 127.0.0.1 6379
 
 当客户端向从服务器发送 slaveof(replicaof) 主机地址（127.0.0.1）端口（6379）时：从服务器将主机IP（127.0.0.1）和 端口（6379）保存到 redisServer 的 masterhost 和 masterprot 中。
 
-```xml
+```c
 Struct redisServer{
-	char *masterhost;//主服务器ip   
-	int  masterport;//主服务器端口 
+	char *masterhost; 	//主服务器ip   
+	int  masterport; 	//主服务器端口 
 };
 ```
 
@@ -117,6 +117,8 @@ slaver 关联文件事件处理器。
 **主**设置密码（requirepass!=""）， **从**需要设置密码（masterauth=主的requirepass的值）
 
 或者 **从** 通过 auth 命令向 **主** 发送密码。
+
+![image-20220927172428077](assest/image-20220927172428077.png)
 
 ![image-20220419143333929](assest/image-20220419143333929.png)
 
@@ -208,7 +210,7 @@ Redis 的 全量同步过程主要分为三个阶段：
 
 在命令传播阶段，从服务器默认会以每秒一次的频率向主服务器发送命令：
 
-```xml
+```properties
 replconf ack <replication_offset>
     
 #ack :应答
@@ -223,17 +225,25 @@ replconf ack <replication_offset>
 
    通过向主服务器发送 INFO replication 命令，可以列出从服务器列表，可以看出最后一次向主发送命令距离现在过了多少秒。lag 的值应该在 0 或 1 之间跳动，如果超过 1 则说明主从之间的连接有故障。
 
+   ![image-20220927173711796](assest/image-20220927173711796.png)
+
 2. 辅助实现 min-slaves
+
+   ![image-20220927173303392](assest/image-20220927173303392.png)
 
    Redis 可以通过配置防止主服务器在不安全的情况下执行写命令
 
-   min-slaves-to-write 3 （min-replicas-to-write 3）
+   min-replicas-to-write 3 （min-replicas-to-write 3）
 
-   min-slaves-max-lag 10 （min-replicas-max-lag 10）
+   min-replicas-max-lag 10 （min-replicas-max-lag 10）
 
-   上面的配置表示：从服务器的数量少于 3 个，或者 三个
+   上面的配置表示：从服务器的数量少于 3 个，或者3个从服务器的延迟（lag）值都大于或等于10秒时，主服务器将拒绝执行写命令。这里的延迟值就是上面 `info replication` 命令的 lag 值。
 
 3. 检测命令丢失
+
+   如果因为网络故障，主服务器传播给从服务器的写命令在半路丢失，那么当从服务器向主服务器发送 REPLCONF ACK 命令时，主服务器将发觉从服务器当前的复制偏移量少于自己的复制偏移量，然后主服务器就会根据从服务器提交的复制偏移量，在复制积压缓冲区里面找到从服务器缺少的数据，并将这些数据重新发送给从服务器。（补发：网络不断）。
+
+   增量同步：网断了，再次连接
 
 # 2 哨兵模式
 
