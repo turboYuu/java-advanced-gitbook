@@ -431,23 +431,195 @@ root     16172  1581  0 19:21 pts/0    00:00:00 grep --color=auto redis
 
 ### 2.3.1 启动并初始化Sentinel
 
+Sentinel 是一个特殊的 Redis 服务器，不会进行持久化，Sentinel 实例启动后，每个 Sentinel 会创建2个连向主服务器的网络连接。
+
+- 命令连接：用于向主服务器发送命令，并接收响应；
+- 订阅连接：用于订阅主服务器的-sentinel-:hello 频道。
+
+
+
+![image-20220928104138476](assest/image-20220928104138476.png)
+
 ### 2.3.2 获取主服务器信息
+
+Sentinel 默认每 10s 一次，向被监控的主服务器发送 info 命令，获取主服务器和其下属从服务器的信息。
+
+```bash
+127.0.0.1:6379> info
+# Server
+redis_version:5.0.5
+os:Linux 3.10.0-1062.el7.x86_64 x86_64
+run_id:27bea79ffd71f8df8edcf67671e87c5f6046b482
+
+# Replication
+role:master
+connected_slaves:2
+slave0:ip=127.0.0.1,port=6380,state=online,offset=207363,lag=1
+slave1:ip=127.0.0.1,port=6381,state=online,offset=207363,lag=1
+master_replid:d55ea3246040a638bc51aa16007bbe2ea700c908
+master_replid2:0000000000000000000000000000000000000000
+master_repl_offset:207496
+second_repl_offset:-1
+repl_backlog_active:1
+repl_backlog_size:1048576
+repl_backlog_first_byte_offset:1
+repl_backlog_histlen:207496
+```
+
+
 
 ### 2.3.3 获取从服务器信息
 
-### 2.3.4 项主服务器和从服务器发送消息（以订阅的方式）
+当 Sentinel 发现主服务器有新的从服务器出现时，Sentinel 还会向从服务器建立**命令连接**和**订阅连接**。在命令连接建立之后，Sentinel 还是默认10s 一次，向从服务器发送 info 命令，并记录从服务器的信息。
+
+![image-20220928104119602](assest/image-20220928104119602.png)
+
+```bash
+127.0.0.1:6380> info
+# Server
+redis_version:5.0.5
+os:Linux 3.10.0-1062.el7.x86_64 x86_64
+run_id:ad1245c1c981931b5515a601140ef6228dfc1673
+
+# Replication
+role:slave
+master_host:127.0.0.1
+master_port:6379
+master_link_status:up
+master_last_io_seconds_ago:0
+master_sync_in_progress:0
+slave_repl_offset:320280
+slave_priority:100
+slave_read_only:1
+connected_slaves:0
+master_replid:d55ea3246040a638bc51aa16007bbe2ea700c908
+master_replid2:0000000000000000000000000000000000000000
+master_repl_offset:320280
+second_repl_offset:-1
+repl_backlog_active:1
+repl_backlog_size:1048576
+repl_backlog_first_byte_offset:1
+repl_backlog_histlen:320280
+```
+
+
+
+### 2.3.4 向主服务器和从服务器发送消息（以订阅的方式）
+
+默认情况下，Sentinel 每 2s 一次，向所有被监视的主服务器和从服务器所订阅的 -sentinel-:hello 频道上发送消息，消息中会携带 Sentinel 自身的信息 和 主服务器的信息。
+
+```bash
+PUBLISH _sentinel_:hello "< s_ip > < s_port >< s_runid >< s_epoch > < m_name > < m_ip >< m_port ><m_epoch>"
+```
+
+
 
 ### 2.3.5 接收来自主服务器和从服务器的频道信息
 
+当 Sentinel 与主服务器或者从服务器建立起订阅连接之后，Sentinel 就会通过订阅连接，向服务器发送以下命令：
+
+```bash
+subscribe -sentinel-:hello
+```
+
+**Sentinel 彼此之间只创建命令连接，而不创建订阅连接**，因为 Sentinel 通过订阅主服务器和从服务器，就可以感知到新的 Sentinel 的加入，而一旦新 Sentinel 加入后，相互感知的 Sentinel 通过命令连接来通信就可以了。
+
 ### 2.3.6 检测主观下线状态
+
+Sentinel 每秒一次向所有与它建立了命令连接的实例（主服务器、从服务器 和 其他 Sentinel ）发送 PING 命令。
+
+实例在 down-after-milliseconds 毫秒内返回无效回复（除了 +PONG、-LOADING、-MASTERDOWN 外）
+
+实例在 down-after-milliseconds 毫秒内无回复（超时）
+
+Sentinel 就会认为该实例主观下线（**SDown**）
 
 ### 2.3.7 检测客观下线状态
 
+当一个 Sentinel 将一个主服务器判断为主观下线后，Sentinel 会向同时监控这个主服务器的所有其他 Sentinel 发送查询命令。
+
+主机的：
+
+```bash
+SENTINEL is-master-down-by-addr <ip> <port> <current_epoch> <runid>
+```
+
+其他 Sentinel 回复
+
+```bash
+<down_state><leader_runid><leader_epoch>
+```
+
+判断它们是否也认为主服务器下线。如果达到 Sentinel 配置中的 quorum 数量的 Sentinel 实例都判断主服务器视为主观下线，则该主服务器就会被判定为客观下线（**ODown**）。
+
 ### 2.3.8 选举Leader Sentinel
+
+当一个主服务器被判定为客观下线后，监视这个主服务器的所有 Sentinel会通过选举算法（raft），选出一个 Leader Sentinel 去执行 failover（故障转移）操作。
 
 ## 2.4 哨兵 leader 选举
 
+### 2.4.1 Raft
+
+Raft 协议是用来解决分布式系统一致性问题的协议。
+
+Raft 协议描述的节点共有三种状态：Leader，Follower，Candidate。
+
+term：Raft 协议将时间切分为一个个的 Term（任期），可以认为是一种 “逻辑时间”。
+
+选举流程：
+
+Raft 采用心跳机制触发 Leader 选举
+
+系统启动后，全部节点初始化为 Follower，term 为 0。
+
+节点如果收到了 RequestVote 或者 AppendEntries，就会保持自己的 Follower 身份。
+
+节点如果一段时间内没收到 AppendEntries消息，在该节点的超时时间内还没发现 Leader，Follower 就会转换成 Candidate，自己开始竞选 Leader。
+
+一段转化为 Candidate，该节点立即开始下面几件事：
+
+- 增加自己的 term。
+- 启动一个新的定时器。
+- 给自己投一票。
+- 向所有其他节点发送 RequestVote，并等待其他节点的回复。
+
+如果在计时器超时前，节点收到多数节点的同意投票，就转换成 Leader。同时向所有其他节点发送 AppendEntries，告知自己成为了 Leader。
+
+每个节点在一个 term 内只能投一票，采取先到先得的策略，Candidate 前面说到已经投给了自己，Follower 会投给第一个收到 RequestVote的节点。
+
+Raft 协议的定时器采取随机超时时间，这是选举 Leader 的关键。
+
+在同一个 term 内，先转为 Candidate 的节点会先发起投票，从而获得多数票。
+
+### 2.4.2 Sentinel 的 leader 选举流程
+
+1. 某 Sentinel认定 master 客观下线，该 Sentinel 会先看看自己有没有投过票，如果自己已经投过票给其他 Sentinel 了，在一定时间内自己就不会成为 Leader。
+2. 如果该 Sentinel 还没投过票，那么他就成为 Candidate。
+3. Sentinel 需要完成几件事情：
+   - 更新故障转移状态为 start
+   - 当前 epoch 加 1，相当于进入一个新 term，在 Sentinel 中 epoch 就是Raft 协议中的 term。
+   - 向其他节点发送 `is-master-down-by-addr` 命令请求投票。命令会带上自己的 epoch。
+   - 给自己投一票（leader、leader_epoch）
+4. 当其它哨兵收到此命令时，可以统一或拒绝它成为领导；（通过判断 epoch）
+5. Candidate 会不断的统计自己的票数，直到他发现认同他成为 Leader 的票数超过一半而且超过它配置的 quorum，这时它就成为的 Leader。
+6. 其他 Sentinel 等待 Leader 从 slave 选出 master 后，检测到新的 master 正常工作后，就会去掉客观下线的标识。
+
+### 2.4.3 故障转移
+
+当选举出 Leader Sentinel 后，Leader Sentinel 会对下线的主服务器执行故障转移操作，主要有三个步骤：
+
+1. 它会将失效 `Master` 的其中一个 `Slave` 升级为新的 `Master` ，并让失效 `Master` 的其他 `Slave` 改为复制新的 `Master`；
+2. 当客户端试图连接失效的 `Master` 时，集群也会向客户端返回新 `Master` 的地址，使得集群可以使用现在的 `Master` 替换失效 `Master`。
+3. `Master` 和 `Slave` 服务器切换后，`Master` 的 `redis.conf`、`Slave` 的 `redis.conf` 和 `sentinel.conf` 的配置文件的内容都会发生相应的改变，即：`Master` 主服务器的 `redis.conf` 配置文件中会多一行 `replicaof` 的配置，`sentinel.conf` 的监控目标会随之调换。  
+
 ## 2.5 主服务器的选择
+
+哨兵 leader 根据以下规则从客观下线的主服务器的从服务器中选择出新的主服务器。
+
+1. 过滤掉主观下线的节点
+2. 选择 slave-priority 最高的节点，如果有则返回，没有就继续选择
+3. 选择出复制偏移量最大的 细节点，因为复制偏移量越大则数据复制的越完整，如果有就返回了，没有就继续。
+4. 选择 run_id 最小的节点，因为 run_id 越小说明重启次数越少
 
 # 3 集群与分区
 
