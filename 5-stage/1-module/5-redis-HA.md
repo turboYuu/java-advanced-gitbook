@@ -576,7 +576,7 @@ Raft 采用心跳机制触发 Leader 选举
 
 节点如果一段时间内没收到 AppendEntries消息，在该节点的超时时间内还没发现 Leader，Follower 就会转换成 Candidate，自己开始竞选 Leader。
 
-一段转化为 Candidate，该节点立即开始下面几件事：
+一旦转化为 Candidate，该节点立即开始下面几件事：
 
 - 增加自己的 term。
 - 启动一个新的定时器。
