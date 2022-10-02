@@ -735,4 +735,76 @@ Redis实例=1844213068%3
 
 ## 3.4 proxy 端分区
 
+在客户端和服务器端引入一个代理或代理集群，客户端将命令发送到代理上，由代理根据算法，将命令路由到相应的服务器上。常见的代理由 Codis（豌豆荚）和 TwemProxy（Twitter）。
+
+### 3.4.1 部署架构
+
+[Codis](https://github.com/CodisLabs/codis)由豌豆荚于 2014年11月开源，基于 Go和C开发，是近期涌现的，国人开发的优秀开源软件之一。
+
+![img](assest/architecture.png)
+
+Codis 3.x 有以下组件组成：
+
+- Codis Server：基于 redis-3.2.8 分支开发。增加了额外的数据结构，以支持 slot 有关的操作以及数据迁移指令。
+
+- Codis Proxy：客户端连接的 Redis 代理服务，实现了 Redis 协议。除部分命令不支持以外，表现得和原生的 Redis 没有区别（就像 Twemproxy）。
+
+  - 对于同一个业务集群而言，可以同时部署多个codis-proxy实例；
+  - 不同 codis-proxy 之间由 codis-dashboard 保证状态同步。
+
+- Codis Dashboard：集群管理工具，支持 codis-proxy、codis-server 的添加、删除，以及数据迁移等操作。在集群状态发生改变时，codis-dashboard 维护集群下所有 codis-proxy 的状态一致性。
+
+  - 对于同一个业务集群而言，同一时刻 codis-dashboard 只能有0个或者1个；
+  - 所有对集群的修改都必须通过 codis-dashboard 完成。
+
+- Codis Admin：集群管理的命令行工具。
+
+  可用于控制 codis-proxy、codis-dashboard 状态以及访问外部存储。
+
+- Codis FE：集群管理界面。
+
+  - 多个集群实例可以共享同一个前端展示页面；
+  - 通过配置文件管理后端 codis-dashboard 列表，配置文件可自动更新。
+
+- Storage：为集群状态提供外部存储
+
+  - 提供 Namespace 概念，不同集群会按照不同 product name 进行组织；
+  - 目前仅提供了 Zookeeper、Etcd、Fs 三种实现，但是提供了抽象的 interface 可自行扩展。
+
+  
+
+### 3.4.2 分片原理
+
+Codis 将所有的 key 默认划分为 1024 个槽位（slot），它首先对客户端传过来的 key 进行 crc32 运算计算哈希值，再将 hash 后的整数值对 1024 这个整数进行取模得到一个余数，这个余数就是对应 key 的槽位。
+
+
+
+Codis 的槽位和分组的映射关系就保存在 codis proxy 当中。
+
+### 3.4.3 优缺点
+
+优点：
+
+- 对客户端透明，与Codis交互方式和redis本身交互一样
+- 支持在线数据迁移，迁移过程对客户端透明有简单的管理和监控界面
+- 支持高可用，无论是 redis 数据存储还是代理节点
+- 自动进行数据的均衡分配
+- 最大支持 1024 个 redis 实例，存储容量海量
+- 高性能
+
+缺点
+
+- 采用自有的 redis 分支，不能与原版的 redis 保持同步
+- 如果 codis 的 proxy 只有一个的情况下，redis的性能会下降20%左右
+- 某些命令不支持
+
 ## 3.5 官方 cluster 分区
+
+
+
+
+
+
+
+
+
