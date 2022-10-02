@@ -800,11 +800,47 @@ Codis 的槽位和分组的映射关系就保存在 codis proxy 当中。
 
 ## 3.5 官方 cluster 分区
 
+Redis 3.0 之后，Redis官方提供了完整的集群解决方案。方案采用去中心化的方式，包括：sharding（分区）、replication（复制）、failover（故障转移）。称为 RedisCluster。
 
+Redis 5.0 前 采用 redis-trib 进行集群的创建和管理，需要 ruby 支持；
 
+Redis 5.0 可以直接使用 Redis-Cli 进行集群的创建和管理。
 
+### 3.5.1 部署架构
 
+![image-20221002171418016](assest/image-20221002171418016.png)
 
+#### 3.5.1.1 去中心化
+
+RedisCluster由多个Redis节点组成的，是一个P2P无中心节点的集群架构，依靠 Gossip协议传播的集群。
+
+#### 3.5.1.2 Gossip协议
+
+Gossip 协议是一个通信协议，一种传播消息的方式。
+
+起源于：病毒传播。
+
+Gossip协议的基本思想就是：一个节点周期性（每秒）随机选择一些节点，并把信息传递给这些节点。这些收到信息的节点接下来会做同样的事情，即把这些信息传递给其他一些随机选择的节点。信息会周期性的传递给N个目标节点，这个N被称为 **fanout**（扇出）。
+
+gossip 协议包含多种消息，包括 meet、ping、pong、fail、publish 等等。
+
+| 命令    | 说明                                                         |
+| ------- | ------------------------------------------------------------ |
+| meet    | sender向receiver发出，请求 receiver加入 sender 的集群        |
+| ping    | 节点检测其他节点是否在线                                     |
+| pong    | receiver收到 meet 或ping后的回复信息；在 failover 后，新的 Master 也会广播 pong |
+| fail    | 节点 A 判断节点B 下线后，A节点广播B的fail信息，其他收到节点会将B节点标记为下线 |
+| publish | 节点A收到publish命令，节点A执行该命令，并向集群广播 publish 命令，收到 publish 命令的节点都会执行相同的 publish 命令 |
+
+通过gossip协议，cluster可以提供集群间状态同步更新，选举自助failover等重要的集群功能。
+
+#### 3.5.1.3 slot
+
+#### 3.5.1.4 RedisCluster的优势
+
+### 3.5.2 分片
+
+### 3.5.3 容灾（failover）
 
 
 
