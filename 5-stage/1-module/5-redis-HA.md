@@ -836,6 +836,10 @@ gossip 协议包含多种消息，包括 meet、ping、pong、fail、publish 等
 
 #### 3.5.1.3 slot
 
+redis-cluster 把所有的物理节点映射到[0-16383]个**slot**上，基本采用平均分配和连续分配的方式。比如上图中有5个主节点，这样在 RedisCluster 创建时，slot槽可按下面分配：
+
+
+
 #### 3.5.1.4 RedisCluster的优势
 
 ### 3.5.2 分片
