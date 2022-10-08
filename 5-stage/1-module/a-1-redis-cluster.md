@@ -424,3 +424,57 @@ f14f8d90011aec54794d870648c00b81480067ae 192.168.31.138:7002@17002 master - 0 16
 
 
 ![image-20210829134604985](assest/image-20210829134604985.png)
+
+
+
+
+
+客户端连接集群
+
+命令：
+
+```bash
+./redis-cli -h 127.0.0.1 -p 7001 -c
+```
+
+注意：**-c** 表示是以 redis 集群方式进行连接
+
+查集群的命令
+
+- 查询集群状态
+
+  ```bash
+  127.0.0.1:7003> cluster info
+  cluster_state:ok
+  cluster_slots_assigned:16384
+  cluster_slots_ok:16384
+  cluster_slots_pfail:0
+  cluster_slots_fail:0
+  cluster_known_nodes:6
+  cluster_size:3
+  cluster_current_epoch:6
+  cluster_my_epoch:3
+  cluster_stats_messages_sent:926
+  cluster_stats_messages_received:926
+  ```
+
+- 查看集群中的节点：
+
+  ```bash
+  127.0.0.1:7003> cluster nodes
+  d277cd2984639747a17ca79428602480b28ef070 127.0.0.1:7003@17003 myself,master - 0 1570457306000 3 connected 10923-16383
+  af559fc6c82c83dc39d07e2dfe59046d16b6a429 127.0.0.1:7001@17001 master - 0 1570457307597 1 connected 0-5460
+  e7b1f1962de2a1ffef2bf1ac5d94574b2e4d67d8 127.0.0.1:7005@17005 slave
+  068b678923ad0858002e906040b0fef6fff8dda4 0 1570457308605 5 connected 068b678923ad0858002e906040b0fef6fff8dda4 127.0.0.1:7002@17002 master - 0 1570457309614 2 connected 5461-10922
+  51c3ebdd0911dd6564040c7e20b9ae69cabb0425 127.0.0.1:7004@17004 slave af559fc6c82c83dc39d07e2dfe59046d16b6a429 0 1570457307000 4 connected 78dfe773eaa817fb69a405a3863f5b8fcf3e172f 127.0.0.1:7006@17006 slave d277cd2984639747a17ca79428602480b28ef070 0 1570457309000 6 connected
+  127.0.0.1:7003>
+  ```
+
+- 查看某个key在哪个槽
+
+  ```bash
+  127.0.0.1:7001> cluster keyslot name:001 
+  (integer) 4354
+  ```
+
+  
