@@ -882,7 +882,7 @@ Redis Cluster的客户端相比单机 Redis 需要具备路由语义的识别能
 5. 客户端接收到节点返回的结果，如果是 moved异常，则从 moved 异常中获取目标节点的信息。
 6. 客户端向目标节点发送命令，获取命令执行结果。
 
-
+![image-20221008111254640](assest/image-20221008111254640.png)
 
 ```bash
 [root@localhost bin]# ./redis-cli -h 127.0.0.1 -p 7001 -c
@@ -897,6 +897,70 @@ OK
 127.0.0.1:7001> cluster keyslot name:001 
 (integer) 4354
 ```
+
+**ask重定向**
+
+在对集群进行扩容和缩容时，需要对槽及槽中数据进行迁移。
+
+当客户端向某个节点发送命令，节点向客户端返回moved异常，告诉客户端数据对应的槽的节点信息。
+
+如果此时正在进行集群扩展或者缩空操作，当客户端向正确的节点发送命令时，槽及槽中数据已经被迁移到别的节点了，就会返回 ask，这就是 ask 重定向机制。
+
+1. 客户端向目标节点发送命令，目标节点中的槽已经迁移至别的节点上了，此时目标节点会返回 ask 转向给 客户端。
+2. 客户端向新的节点发送 Asking 命令，然后再次向心节点发送命令。
+3. 新节点执行命令，把命令执行结果返回给客户端。
+
+
+
+![image-20221008144736900](assest/image-20221008144736900.png)
+
+moved 和 ask 的区别：
+
+1. moved：槽已确认转移
+2. ask：槽还在转移过程中
+
+**Smart智能客户端，JedisCluster**
+
+JedisCluster 是 Jedis 根据 RedisCluster 的特性提供的集群智能客户端，
+
+JedisCluster 为每个节点创建连接池，并跟节点建立映射关系缓存（Cluster slots），
+
+JedisCluster 将每个主节点负责的槽位 —— 与主节点连接池建立映射缓存，
+
+JedisCluster 启动时，已经知道 key，slot 和 node 之间的关系，可以找到目标节点，
+
+JedisCluster 对目标节点发送命令，目标节点直接响应给 JedisCluster。
+
+如果 JedisCluster 与目标节点连接出错，则 JedisCluster 会知道连接的节点是一个错误的节点，此时节点返回 moved 异常给 JedisCluster。
+
+JedisCluster 会重新初始化 slot 与 node 节点的缓存关系，然后向新的目标节点发送命令，目标节点执行命令并向 JedisCluster 响应。
+
+如果命令发送此时超过5次，则抛出异常 "Too many cluster redirection!"
+
+![image-20221008152727029](assest/image-20221008152727029.png)
+
+```java
+public void test(){
+    JedisPoolConfig config = new JedisPoolConfig();
+    Set<HostAndPort> jedisClusterNode = new HashSet<HostAndPort>();
+    jedisClusterNode.add(new HostAndPort("192.168.31.138",7001));
+    jedisClusterNode.add(new HostAndPort("192.168.31.138",7002));
+    jedisClusterNode.add(new HostAndPort("192.168.31.138",7003));
+    jedisClusterNode.add(new HostAndPort("192.168.31.138",7004));
+    jedisClusterNode.add(new HostAndPort("192.168.31.138",7005));
+    jedisClusterNode.add(new HostAndPort("192.168.31.138",7006));
+    jedisClusterNode.add(new HostAndPort("192.168.31.138",7007));
+    jedisClusterNode.add(new HostAndPort("192.168.31.138",7008));
+
+    JedisCluster jcd = new JedisCluster(jedisClusterNode,config);
+    for(int i=1;i<=9;i++){
+        jcd.set("name:00"+i,"turbo"+i);
+    }
+    System.out.println(jcd.get("name:001"));
+}
+```
+
+
 
 
 
