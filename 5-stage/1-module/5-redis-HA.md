@@ -962,17 +962,76 @@ public void test(){
 
 
 
-
-
 #### 3.5.2.2 迁移
+
+在 RedisCluster 中的每个 slot 对应的节点在初始化后就是确定的。在某些情况下，节点和分片需要变更：
+
+- 新的节点作为 master 加入；
+- 某个节点分组需要下线；
+- 负载不均衡需要调整 slot 分布。
+
+此时需要进行分片的迁移，迁移的触发和过程控制由外部系统完成。包含下面 2 种：
+
+- 节点迁移状态设置：迁移前标记 源/目标 节点。
+- key 迁移的原子化命令：迁移的具体步骤。
+
+
+
+![image-20221008162550042](assest/image-20221008162539498.png)
+
+1. 向节点 B 发送状态变更命令，将 B 的对应 slot 状态置为 importing；
+2. 向节点 A 发送状态变更命令，将 A 对应的 slot 状态置为 migrating；
+3. 向 A 发送 migrate 命令，告知 A 将要迁移的 slot 对应的 key 迁移到 B；
+4. 当所有 key 迁移完成后，cluster setslot 重新设置槽位。
 
 #### 3.5.2.3 扩容
 
 #### 3.5.2.4 缩容
 
+命令：
+
+```bash
+./redis-cli --cluster del-node 192.168.31.138:7008 6be94480315ab0dd2276a7f70c82c578535d6666
+```
+
+删除已经占有 hash 槽的节点会失败，报错如下：
+
+```bash
+[ERR] Node 192.168.31.138:7008 is not empty! Reshard data away and try again.
+```
+
+需要将该节点占用的 hash 槽分配出去。
+
 ### 3.5.3 容灾（failover）
 
 #### 3.5.3.1 故障检测
+
+集群中的每个节点都会定期地（每秒）向集群中的其他节点发送 PING 消息。
+
+如果在一定时间内（cluster-node-timeout），发送 ping 的节点 A 没有收到某节点 B 的 pong 回应，则 A 将 B 标识为 pfail。
+
+A 在后续发送 ping 时，会带上 B 的 pfail 信息，通知给其他节点。
+
+如果 B 被标记为 pfail 的个数大于集群主节点个数的一半（N/2+1）时，B会被标记为 fail，A 向整个集群广播，该节点已经下线。
+
+其他节点收到广播，标记 B 为 fail。
+
+
+
+**从节点选举**
+
+raft，每个从节点，都根据自己对 master 复制数据的 offset，来设置一个选举时间，offset 越大（复制数据越多）的从节点，选举时间越靠前，优先进行选举。
+
+slave 通过向其他 master 发送 FAILOVER_AUTH_REQUEST 消息发起竞选，master 收到后回复 FAILOVER_AUTH_ACK 消息告知是否同意。
+
+slave 发送 FAILOVER_AUTH_REQUEST 前会将 currentEpoch 自增，并将最新的 Epoch 导入到 FAILOVER_AUTH_REQUEST 消息中，如果自己未投过票，则回复同意，否则回复拒绝。
+
+所有的 Master 开始 slave 选举投票，给要进行选举的 slave 进行投票，如果大部分 Master Node （N/2+1）都投票给了某个从节点，那么选举通过，那个从节点可以切换成 master。
+
+RedisCluster 失效的判定：
+
+1. 集群中半数以上的主节点都宕机（无法投票）
+2. 宕机的主节点的从节点也宕机了（slot 槽分配不连续）
 
 #### 3.5.3.2 变更通知
 
