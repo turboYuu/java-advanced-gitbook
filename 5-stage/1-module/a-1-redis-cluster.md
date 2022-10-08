@@ -342,7 +342,7 @@ Do you want to proceed with the proposed reshard plan (yes/no)? yes
 
 查看结果：
 
-**7007分配到槽位，查看 node.conf**（当服务器ip 变化时，可以修改集群中每个redis下的 modes.conf 中的 ip 地址）
+**7007分配到槽位，查看 node.conf**（当服务器ip 变化时，可以修改集群中每个redis下的 nodes.conf 中的 ip 地址）
 
 ![image-20210829134048158](assest/image-20210829134048158.png)
 
