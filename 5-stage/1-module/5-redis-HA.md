@@ -865,7 +865,7 @@ hash("name") 采用crc16算法，得到值：1324203551%16384=15903，根据上�
 
 #### 3.5.1.5 集群搭建
 
-参考 Redis Cluster 扩展部分的讲解
+参考 Redis Cluster 扩展部分的讲解，[Redis官网 create and use a redis cluster](https://redis.io/docs/manual/scaling/#create-and-use-a-redis-cluster)
 
 ### 3.5.2 分片
 

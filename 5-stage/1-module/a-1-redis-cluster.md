@@ -1,6 +1,6 @@
 # Redis 官方 cluster分区
 
-
+[Redis 官网 create and use a redis cluster](https://redis.io/docs/manual/scaling/#create-and-use-a-redis-cluster)
 
 ![image-20210829125304344](assest/image-20210829125304344.png)
 
