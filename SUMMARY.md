@@ -142,7 +142,7 @@
 * [第六阶段 分布式消息服务中间件进阶](6-stage/README.md)
     * [模块一 开源消息中间件RabbitMQ](6-stage/1-module/README.md)
         * [第一部分 消息中间件概述](6-stage/1-module/1-MQ-Overview.md)
-        * [第二部分 RabbitMQ](6-stage/1-module/2-RabbitMQ.md)
+        * [第二部分 RabbitMQ](6-stage/1-module/2-README.md)
             * [第一节 RabbitMQ架构与实战](6-stage/1-module/2-1-RabbitMQ架构与实战.md)
             * [第二节 RabbitMQ高级特性解析](6-stage/1-module/2-2-RabbitMQ高级特性解析.md)
             * [第三节 RabbitMQ集群与运维](6-stage/1-module/2-3-RabbitMQ集群与运维.md)
