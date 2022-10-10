@@ -96,15 +96,174 @@ private boolean refreshStaticPage(Goods goods) {    
 }
 ```
 
+以上代码在执行中的问题：
+
+1. 如果相应的更新一直失败，岂不是一直死循环直到调用栈崩溃？
+2. 如果相应的更新一直在重试，在重试期间，添加商品的方法调用是不是一直阻塞中？
+3. 如果添加商品的时候并发量很大，效率岂不是很低？
+
 
 
 ## 1.3 分布式异步通信模式
+
+比较典型的 “生产者消费者模式”，可以跨平台、支持异构系统，通常借助消息中间件来完成。
+
+优点：系统间解耦，并具有一定的可回复性，支持异构系统，下游通常可并发执行，系统具备弹性。服务解耦，流量削峰填谷等。
+
+缺点：消息中间件存在一些瓶颈和一致性问题，对于开发来讲不直观不易调试，有额外成本。
+
+使用异步消息模式需要注意的问题：
+
+1. 哪些业务需要同步处理，哪些业务可以异步处理？
+2. 如何保证消息的安全？消息是否丢失，是否会重复？
+3. 请求的延迟如何能减少？
+4. 消息接收的顺序是否会影响到业务流程的正常执行？
+5. 消息处理失败后是否需要重发？如果重发如何保证幂等性？
+
+
 
 # 2 消息中间件简介
 
 ## 2.1 消息中间件概念
 
+维基百科对消息中间件的解释：面向消息的系统（消息中间件）是在分布式系统中完成消息的发送和接收的基础软件。
+
+消息中间件也可称 消息队列，是指用高效可靠的消息传递机制进行与平台无关的数据交流，并基于数据通信来进行分布式系统的集成。通过提供消息传递和消息队列模型，可以在分布式环境下扩展进程的通信。
+
+消息中间件就是在通信的上下游之间截断：break it，Broker
+
+然后利用中间件解耦、异步的特性、构建弹性、可靠、稳定的系统。
+
+体会一下：“必有歹人从中作梗，定有贵人从中相助”
+
+**异步处理、流量削峰**、限流、缓冲、排队、**最终一致性、消息驱动** 等需求的场景都可以使用消息中间件。
+
+![image-20221010112318474](assest/image-20221010112318474.png)
+
 ## 2.2 自定义消息中间件
+
+并发比那还曾领域经典面试题：**请使用 java 代码来实现 “生产者消费者模式”**。
+
+BlockingQueue（阻塞队列）是 java 中常见的容器，在多线程编程中被广泛使用。
+
+当队列容器已满时 生产者线程被阻塞，直到队列未满后才可以继续 put；<br>当队列容器为空时，消费者线程被阻塞，直到队列非空时才可以继续 take。
+
+![image-20221010150053911](assest/image-20221010150053911.png)
+
+```java
+package com.turbo.demo;
+
+public class KouZhao  {
+
+    private Integer id;
+    private String type;
+
+    @Override
+    public String toString() {
+        return "KouZhao{" +
+                "id=" + id +
+                ", type='" + type + '\'' +
+                '}';
+    }
+
+    public Integer getId() {
+        return id;
+    }
+    public void setId(Integer id) {
+        this.id = id;
+    }
+    public String getType() {
+        return type;
+    }
+    public void setType(String type) {
+        this.type = type;
+    }
+}
+```
+
+```java
+package com.turbo.demo;
+
+import java.util.concurrent.BlockingQueue;
+
+public class Producer implements Runnable {
+
+    private BlockingQueue<KouZhao> queue;
+    public Producer(BlockingQueue<KouZhao> queue) {
+        this.queue = queue;
+    }
+    private Integer index = 0;
+
+    @Override
+    public void run() {
+        while (true){
+            try {
+                Thread.sleep(200);
+
+                if(queue.remainingCapacity() <= 0){
+                    System.out.println("口罩已经堆积如山了...");
+                }else{
+                    KouZhao kouZhao = new KouZhao();
+                    kouZhao.setType("N95");
+                    kouZhao.setId(index++);
+                    System.out.println("正在生产第"+(index-1)+"个口罩。");
+                    queue.put(kouZhao);
+                    System.out.println("已经生产了口罩："+queue.size()+"个。");
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
+```
+
+```java
+package com.turbo.demo;
+
+import java.util.concurrent.BlockingQueue;
+
+public class Consumer implements Runnable {
+
+    private BlockingQueue<KouZhao> queue;
+    public Consumer(BlockingQueue<KouZhao> queue) {
+        this.queue = queue;
+    }
+
+    @Override
+    public void run() {
+        while (true){
+            try {
+                Thread.sleep(100);
+                System.out.println("正在准备买口罩...");
+                final KouZhao kouZhao = queue.take();
+                System.out.println("买到了口罩："+kouZhao.getId()+" "+kouZhao.getType()+"口罩。");
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
+```
+
+```java
+package com.turbo.demo;
+
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+
+public class App {
+
+    public static void main(String[] args) {
+        BlockingQueue<KouZhao> queue = new ArrayBlockingQueue<>(20);
+
+        new Thread(new Producer(queue)).start();
+        new Thread(new Consumer(queue)).start();
+    }
+}
+```
+
+
 
 ## 2.3 主流消息中间件及选型
 
