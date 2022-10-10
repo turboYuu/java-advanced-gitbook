@@ -354,7 +354,7 @@ Kafka 是 Scala 和 Java 开发的，对批处理和异步处理做了大量的�
 | 主题数量对吞吐量的影响 | \          | 几百上千个主题会对吞吐量有一个小的影响 | 几十上百个主题会极大影响吞吐量 |
 | 可用性                 | 高（主从） | 很高（主从）                           | 很高（分布式）                 |
 
-
+[rocketmq-vs-activemq-vs-kafka](https://rocketmq.apache.org/zh/docs/4.x/#rocketmq-vs-activemq-vs-kafka)
 
 ## 2.4 消息中间件应用场景
 
