@@ -292,13 +292,75 @@ RabbitMQ 与 Erlang 的兼容关系详见：https://www.rabbitmq.com/which-erlan
 8. 给用户添加权限
 
    ```bash
+   # First ".*" for configure permission on every entity
+   # Second ".*" for write permission on every entity
+   # Third ".*" for read permission on every entity
    [root@localhost ~]# rabbitmqctl set_permissions --vhost / root ".*" ".*" ".*"
    Setting permissions for user "root" in vhost "/" ...
    ```
 
+   用户的标签和权限：
+
    
 
+   | Tag           | Capabilities                                                 |
+   | ------------- | ------------------------------------------------------------ |
+   | None          | 没有访问 management 插件的权限                               |
+   | management    | 可以使用消费协议做任何操作的权限，加上：<br>1. 可以使用 AMQP 协议登录的虚拟主机的权限；<br>2. 查看它们能登录的所有阻尼主机中的所有队列，交换器和绑定的权限 |
+   | policymaker   |                                                              |
+   | monitoring    |                                                              |
+   | administrator |                                                              |
+
+   
+
+9. 访问 http://node1:15672
+
+   ![image-20221014183113880](assest/image-20221014183113880.png)
+
+   使用 root 登录：
+
+   ![image-20221014183252721](assest/image-20221014183252721.png)
+
 # 3 RabbitMQ 常用操作命令
+
+查看 rabbitmq 手册 `man rabbitmq-server`，如果配置了配置文件，在 `rabbitmqctl status` 时会看到。
+
+![image-20210905181539755](assest/image-20210905181539755.png)
+
+erlang port mapper daemon 端口管理，负责通信 epmd 4369 端口号
+
+```bash
+# 前台启动Erlang VM和RabbitMQ
+rabbitmq-server
+
+# 后台启动
+rabbitmq-server -detached
+
+# 停止RabbitMQ和Erlang VM
+rabbitmqctl stop
+
+#查看所有队列
+rabbitmqctl list_queues
+
+# 查看所有虚拟主机
+rabbitmqctl list_vhosts
+rabbitmqctl list_vhosts --formatter pretty_table
+
+# 在Erlang VM运行的情况下启动/关闭RabbitMQ应用
+rabbitmqctl start_app
+rabbitmqctl stop_app
+
+#查看节点状态
+rabbitmqctl status
+
+Listeners
+
+Interface: [::], port: 25672, protocol: clustering, purpose: inter-node and CLI tool communication
+Interface: [::], port: 5672, protocol: amqp, purpose: AMQP 0-9-1 and AMQP 1.0
+Interface: [::], port: 15672, protocol: http, purpose: HTTP API
+```
+
+
 
 # 4 RabbitMQ 工作流程详解
 
