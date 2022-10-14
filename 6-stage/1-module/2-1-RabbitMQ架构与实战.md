@@ -58,9 +58,9 @@ RabbitMQ 的消息有两种类型：
 1. 持久化消息
 2. 非持久化消息
 
-这两种消息都会被写入磁盘。持久化消息在到达队列时写入磁盘，同时会内存中保存一份备份，当内存吃紧时，消息从内从中清除。这会提高一定的性能。
+这两种消息都会被写入磁盘。**持久化消息在到达队列时写入磁盘，同时会内存中保存一份备份，当内存吃紧时，消息从内从中清除。这会提高一定的性能。**
 
-非持久化消息一般只存于内存中，当内存压力大时，数据刷盘处理，以节省内存空间。
+**非持久化消息一般只存于内存中，当内存压力大时，数据刷盘处理，以节省内存空间**。
 
 RabbitMQ 存储层包含两个部分：**队列索引** 和 **消息存储**。
 
@@ -123,11 +123,180 @@ rabbitmq.conf 中的配置信息：
 
 通常队列由 rabbit_amqqueue_process 和 backing_queue 这两部分组成，rabbit_amqqueue_process 负责协议相关的消息处理，即接收生产者发布的消息、向消费者交付消息，处理消息的确认（包括生产端的 confirm 和 消费端的 ack）等。backing_queue 是消息存储的具体形式 和 引擎，并向 rabbit_amqqueue_process 提供相关的接口以供调用。
 
+如果消息投递的目的队列是空的，并且有消费者订阅了这个队列，那么该消息会直接发送给消费者，不会经过队列这一步。当消息无法直接投递给消费者时，需要暂时将消息存入队列，以便重新投递。
 
+`rabbit_variable_queue.erl` 源码中定义了 RabbitMQ 队列的 **4种状态**：
 
+1. alpha：消息索引和消息内容都存内存，最耗内存，韩少消耗 CPU。
+2. beta：消息索引存内存，消息内容 存磁盘。
+3. gama：消息索引 在内存和磁盘 中都有，消息内容 存磁盘。
+4. delta：消息索引 和 内容 都存磁盘，基本不消耗 内存，消耗更多 CPU 和 I/O 操作
 
+消息存入队列后，不是固定不变的，它会随着系统的负载在队列中不断流动，消息的状态会不断发生变化。
+
+**持久化的消息，索引 和 内容 都必须先保存在磁盘上，才会处于上述状态中的一种**；
+
+**gama 状态只有持久化消息才会有的状态**。
+
+在运行时，RabbitMQ 会根据消息传递的速度定期计算一个当前内存中能够保存的最大消息数量（target_ram_count），如果 alpha 状态的消息数量大于此值，则会引起消息的状态转换，多余的消息可能会转换到 beta、game 或者 delta 状态。区分这 4 中状态的主要作用是满足不同的内存 和 CPU 需求。
+
+对于 **普通没有设置优先级和镜像** 的队列来说，backing_queue 的默认实现是 rabbit_variable_queue，其内部通过**5个子队列** Q1、Q2、delta、Q4 来体现消息的各个状态。
+
+![image-20221014140210156](assest/image-20221014140210156.png)
+
+![image-20221014140956572](assest/image-20221014140956572.png)
+
+消费者获取消息也会引起消息的状态转换。
+
+当消费者获取消息时：
+
+1. 首先会从 Q4 中获取消息，如果获取成功则返回。
+2. 如果 Q4 为空，则尝试从 Q3 中获取消息，系统首先会判断 Q3 是否为空，如果为空则返回队列为空，即此时队列中无消息。
+3. 如果 Q3 不为空，则取出 Q3 中的消息；**进而**再判断此时 Q3 和 Delta 中的长度，如果都为空，则可以认为 Q2、Delta、Q3、Q4 全部为空，此时将 Q1 中的消息转移至 Q4，下次直接从 Q4 中获取消息。
+4. 如果 Q3 为空，Delta 不为空，则将 Delta 的消息转移至 Q3 中，下次可以直接从 Q3 中获取消息。在将消息从 Delta 转移到 Q3 的过程中，是按照索引分端读取的，首先读取某一段，然后判断读取的消息的个数 与 Delta 中消息的个数是否相等，如果相等，则可以判定此时 Delta 中已无消息，则直接将 Q2 和刚读取的消息一并放入到 Q3 中，如果不相等，仅将此次读取到的消息转移到 Q3。
+
+这里就有两处疑问，第一个疑问是：为什么 Q3 为空则可以认定整个队列为空？
+
+1. 试想一下，如果 Q3 为空，Delta 不为空，那么在 Q3 取出最后一条消息的时候，Delta 上的消息就会被转移到 Q3 。这样与 Q3 为空矛盾；
+2. 如果 Delta 为空且 Q2 不为空，则在 Q3 取出最后一条消息时，会将 Q2 的消息并入到 Q3 中，这样也与 Q3 为空 矛盾；
+3. 在 Q3 取出最后一条消息之后，如果 Q2、Delta、Q3 都为空，且 Q1 不为空时，则 Q1 的消息会被转移到 Q4，这与 Q4 为空矛盾。
+
+其实这一番论述也解释了另一个问题：为什么 Q3 和 Delta 都为空时，则可以认为 Q2 、Delta、Q3、Q4 全部为空？
+
+通常在负载正常时，如果消费速度大于生产速度，对于不需要保证消息可靠不丢失的消息来说，极有可能只会处于 alpha 状态。
+
+对于持久化消息，它一定会进入 gama 状态，在开启 publisher confirm 机制时，只有到了 gama 状态时才会确认该消息以被接收，若消息消费速度足够快、内存也充足，这些消息也不会继续走到下一个状态。
+
+### 1.4.5 为什么消息的堆积导致性能下降？
+
+在系统负载较高时，消息若不能很快被消费掉，这些消息就会进入到很深的队列中去，这样会增加处理每个消息的平均开销。因为要花更多的时间和资源处理 "堆积" 的消息，如此用来处理新流入的消息的能力就会降低，使得后流入得消息又被积压到很深得队列中，继续增大处理每个消息得平均开销，继而情况变得越来越糟，使得系统的处理能力大大降低。
+
+应对这一问题一般有3中措施：
+
+1. 增加 prefetch_count 的值，即一次发送多条消息给消费者，加快消息被消费的速度。
+2. 采用 multiple ack ，降低处理 ack 带来的开销。
+3. 流量控制。
 
 # 2 安装和配置 RabbitMQ
+
+安装环境：
+
+1. 虚拟主机软件 ： VirtualBox  5.2.34 r133893 (Qt5.6.2)
+
+2. 操作系统：CentOS Linux release 7.7.1908
+
+3. Erlang：erlang-23.0.2-1.el7.x86_64
+
+4. RabbitMQ：rabbitmq-server-3.8.5-1.el7.noarch
+
+
+
+RabbitMQ 的安装需要首先安装 Erlang，因为它是基于 Erlang 的 VM运行的。
+
+RabbitMQ 需要的依赖：socat 和 logrotate，logrotate 操作系统中已经存在了，只需要安装 socat 就可以了。
+
+RabbitMQ 与 Erlang 的兼容关系详见：https://www.rabbitmq.com/which-erlang.html
+
+![image-20210831005111069](assest/image-20210831005111069.png)
+
+1. 安装依赖
+
+   ```bash
+   yum install socat -y
+   ```
+
+2. 安装 Erlang
+
+   erlang-23.0.2-1.el7.x86_64.rpm 下载地址
+
+   https://github.com/rabbitmq/erlang-rpm/releases/download/v23.0.2/erlang-23.0.2-1.el7.x86_64.rpm
+
+   然后执行命令：
+
+   ```bash
+   rpm -ivh erlang-23.0.2-1.el7.x86_64.rpm
+   ```
+
+3. 安装 RabbitMQ
+
+   rabbitmq-server-3.8.5-1.el7.noarch.rpm 下载地址：
+
+   http://github.com/rabbitmq/rabbitmq-server/releases/download/v3.8.5/rabbitmq-server-3.8.5-1.el7.noarch.rpm
+
+   然后执行命令：
+
+   ```bash
+   rpm -ivh rabbitmq-server-3.8.5-1.el7.noarch.rpm
+   ```
+
+   查看 rabbitmq 服务
+
+   ```bash
+   [root@node1 ~]# systemctl list-unit-files | grep rabbitmq-server
+   rabbitmq-server.service                       disabled
+   
+   # rabbitmq安装路径
+   [root@node1 rabbitmq]# pwd
+   /usr/lib/rabbitmq
+   ```
+
+4. 启用 RabbitMQ 的管理插件
+
+   ```bash
+   rabbitmq-plugins enable rabbitmq_management
+   ```
+
+   ![image-20221014165215881](assest/image-20221014165215881.png)
+
+   ![image-20210831002639888](assest/image-20210831002639888.png)
+
+   执行命令后：
+
+   ![image-20210901143623608](assest/image-20210901143623608.png)
+
+5. 开启 RabbitMQ
+
+   ```bash
+   #rabbitmq 后台启动
+   systemctl start rabbitmq-server
+   #或 前端启动
+   rabbitmq-server
+   #或 前端启动
+   rabbitmq-server --detached
+   ```
+
+6. 添加用户
+
+   ```bash
+   [root@localhost ~]# rabbitmqctl add_user root 123456
+   Adding user "root" ...
+   [root@localhost ~]# rabbitmqctl list_users
+   Listing users ...
+   user	tags
+   guest	[administrator]
+   root	[]
+   ```
+
+7. 给用户添加标签
+
+   ```bash
+   [root@localhost ~]# rabbitmqctl set_user_tags root administrator
+   Setting tags for user "root" to [administrator] ...
+   [root@localhost ~]# rabbitmqctl list_users
+   Listing users ...
+   user	tags
+   guest	[administrator]
+   root	[administrator]
+   ```
+
+8. 给用户添加权限
+
+   ```bash
+   [root@localhost ~]# rabbitmqctl set_permissions --vhost / root ".*" ".*" ".*"
+   Setting permissions for user "root" in vhost "/" ...
+   ```
+
+   
 
 # 3 RabbitMQ 常用操作命令
 
