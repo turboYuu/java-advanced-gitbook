@@ -360,6 +360,149 @@ Interface: [::], port: 5672, protocol: amqp, purpose: AMQP 0-9-1 and AMQP 1.0
 Interface: [::], port: 15672, protocol: http, purpose: HTTP API
 ```
 
+[rabbitmqctl 官网使用说明](https://www.rabbitmq.com/rabbitmqctl.8.html)，[rabbitmq-plugins 官网说明](https://www.rabbitmq.com/rabbitmq-plugins.8.html)
+
+
+
+```bash
+[root@node1 plugins]# pwd
+/usr/lib/rabbitmq/lib/rabbitmq_server-3.8.5/plugins #rabbitmq 插件地址
+
+#查看启动插件和关联启动插件
+[root@localhost plugins]# rabbitmq-plugins list --implicitly-enabled 
+Listing plugins with pattern ".*" ...
+ Configured: E = explicitly enabled; e = implicitly enabled
+ | Status: * = running on rabbit@localhost
+ |/
+[E*] rabbitmq_management       3.8.5
+[e*] rabbitmq_management_agent 3.8.5
+[e*] rabbitmq_web_dispatch     3.8.5
+
+# 查看插件 使用正则
+[root@node1 plugins]# rabbitmq-plugins list "discovery"
+Listing plugins with pattern "discovery" ...
+ Configured: E = explicitly enabled; e = implicitly enabled
+ | Status: * = running on rabbit@node1
+ |/
+[  ] rabbitmq_peer_discovery_aws    3.8.5
+[  ] rabbitmq_peer_discovery_common 3.8.5
+[  ] rabbitmq_peer_discovery_consul 3.8.5
+[  ] rabbitmq_peer_discovery_etcd   3.8.5
+[  ] rabbitmq_peer_discovery_k8s    3.8.5
+
+[root@node1 plugins]# rabbitmq-plugins list "examples$"
+Listing plugins with pattern "examples$" ...
+ Configured: E = explicitly enabled; e = implicitly enabled
+ | Status: * = running on rabbit@node1
+ |/
+[  ] rabbitmq_web_mqtt_examples  3.8.5
+[  ] rabbitmq_web_stomp_examples 3.8.5
+
+# 启用插件
+rabbitmqctl-plugins enable <plugin-name>
+# 停用插件
+rabbitmqctl-plugins disable <plugin-name>
+```
+
+![image-20221017143406966](assest/image-20221017143406966.png)
+
+```bash
+# 添加用户
+[root@node1 ~]# rabbitmqctl add_user zhangsan 123456
+Adding user "zhangsan" ...
+
+# 添加用户标签
+[root@node1 ~]# rabbitmqctl set_user_tags zhangsan administrator
+Setting tags for user "zhangsan" to [administrator] ...
+
+# 设置用户权限
+[root@node1 ~]# rabbitmqctl set_permissions --vhost / zhangsan "^$" ".*" ".*"
+Setting permissions for user "zhangsan" in vhost "/" ...
+
+# 列出用户权限
+[root@node1 ~]# rabbitmqctl list_user_permissions zhangsan
+Listing permissions for user "zhangsan" ...
+vhost	configure	write	read
+/	^$	.*	.*
+
+# 清空用户权限
+[root@node1 ~]# rabbitmqctl clear_permissions zhangsan
+Clearing permissions for user "zhangsan" in vhost "/" ...
+[root@node1 ~]# rabbitmqctl list_user_permissions zhangsan
+Listing permissions for user "zhangsan" ...
+
+# 列出虚拟机上的权限
+[root@node1 ~]# rabbitmqctl list_permissions 
+Listing permissions for vhost "/" ...
+user	configure	write	read
+guest	.*	.*	.*
+root	.*	.*	.*
+
+# 清除用户标签
+[root@node1 ~]# rabbitmqctl set_user_tags zhangsan ""
+Setting tags for user "zhangsan" to [] ...
+
+# 列出用户
+[root@node1 ~]# rabbitmqctl list_users
+Listing users ...
+user	tags
+guest	[administrator]
+zhangsan	[]
+root	[administrator]
+
+# 删除用户
+[root@node1 ~]# rabbitmqctl delete_user zhangsan
+Deleting user "zhangsan" ...
+
+# 列出用户
+[root@node1 ~]# rabbitmqctl list_users
+Listing users ...
+user	tags
+guest	[administrator]
+root	[administrator]
+
+# 修改密码
+[root@node1 ~]# rabbitmqctl change_password root 111111
+Changing password for user "root" ...
+
+```
+
+
+
+```bash
+# 创建虚机主机
+[root@node1 ~]# rabbitmqctl add_vhost vh1
+Adding vhost "vh1" ...
+
+# 流出所有虚机主机
+[root@node1 ~]# rabbitmqctl list_vhosts
+Listing vhosts ...
+name
+vh1
+/
+
+# 删除虚拟主机
+[root@node1 ~]# rabbitmqctl delete_vhost vh1
+Deleting vhost "vh1" ...
+[root@node1 ~]# rabbitmqctl list_vhosts
+Listing vhosts ...
+name
+/
+
+[root@node1 ~]# rabbitmqctl stop_app
+Stopping rabbit application on node rabbit@node1 ...
+# 移除所有数据之前，要在rabbitmqctl stop_app之后操作
+[root@node1 ~]# rabbitmqctl reset
+Resetting node rabbit@node1 ...
+[root@node1 ~]# rabbitmqctl start_app
+Starting node rabbit@node1 ...
+[root@node1 ~]# rabbitmqctl list_vhosts
+Listing vhosts ...
+name
+/
+
+```
+
 
 
 # 4 RabbitMQ 工作流程详解
