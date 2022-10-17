@@ -507,8 +507,246 @@ name
 
 # 4 RabbitMQ 工作流程详解
 
+## 4.1 生产者发送消息的流程
+
+1. 生产者连接 RabbitMQ，建立 TCP 连接（Connection），开启信道（Channel）；
+2. 生产者声明一个 Exchange（交换器），并设置相关属性，比如交换器类型，是否持久化等；
+3. 生产者声明一个队列并设置相关属性，比如是否排他，是否持久化，是否自动删除等；
+4. 生产者通过 `bindingkey` （绑定key）将交换器和队列绑定（`binding`）起来；
+5. 生产者发送消息至 RabbitMQ Broker，其中包含 `routingKey` （路由键）、交换器 等信息；
+6. 相应的交换器根据收到的 `routingKey`  查找相匹配的队列；
+7. 如果找到，则将从生产者发送过来的消息存入相应的队列中；
+8. 如果没有找到，则根据生产者配置的属性选择丢弃 或 回退给生产者；
+9. 关闭信道；
+10. 关闭连接。
+
+## 4.2 消费者接收消息的过程
+
+1. 消费者连接到 RabbitMQ Broker，建立一个连接（Connection），开启一个信道（Channel）；
+2. 消费者向 RabbitMQ Broker 请求消费相关队列中的消息，可能会设置相应的回调函数，以及做一些准备工作；
+3. 等待 RabbitMQ Broker 回应并投递相应队列中的消息，消费者接收消息；
+4. 消费者确认（ack）接收到的消息；
+5. RabbitMQ 从队列中删除相应已经被确认的消息；
+6. 关闭信道；
+7. 关闭连接。
+
+## 4.3 案例
+
+![img](assest/python-one-overall.png)
+
+Hello World 一对一的简单模式。生产者直接发送消息给 RabbitMQ，另一端消费。未定义和指定 Exchange 的情况下，使用的是 AMQP default 这个内置的 Exchange。
+
+[demo地址](https://gitee.com/turboYuu/rabbit-mq-6-1/tree/master/lab/rabbit-demo/demo_02_rabbitmq)
+
+1. HelloProducer
+
+   ```java
+   package com.turbo.rabbitmq.demo;
+   
+   import com.rabbitmq.client.BuiltinExchangeType;
+   import com.rabbitmq.client.Channel;
+   import com.rabbitmq.client.Connection;
+   import com.rabbitmq.client.ConnectionFactory;
+   
+   import java.io.IOException;
+   import java.util.concurrent.TimeoutException;
+   
+   /**
+    * Rabbitmq 是一个消息 broker：接收消息，传递给下游应用
+    *
+    * 术语：
+    *  Producing 就是指发送消息，发送消息的程序是 Producer
+    *  Queue 指的是 RabbitMQ 内部的一个组件，消息存储于 queue 中。
+    *      queue 使用主机的内存和磁盘存储，受到内存和磁盘空间的限制
+    *      可以想象为一个大的消息缓冲。很多Producer可以向同一个queue发送消息，很多消费者可以从同一个queue消费消息。
+    *  Consuming 就是接收消息。一个等待消息的应用程序称为 Consumer
+    *
+    *  生产者、消费者、队列 不必在同一台主机，一般都是在不同的主机上应用。一个应用可以同时是生产者和消费者
+    */
+   public class HelloProducer {
+   
+       public static void main(String[] args) throws IOException, TimeoutException {
+           // 1.连接工厂
+           ConnectionFactory factory = new ConnectionFactory();
+           // 设置主机名
+           factory.setHost("node1");
+           // 设置虚拟主机名称 /在url中的转义字符 %2f
+           factory.setVirtualHost("/");
+           // 用户名
+           factory.setUsername("root");
+           // 密码
+           factory.setPassword("123456");
+           // amqp的端口号
+           factory.setPort(5672);
+           // 建立tcp连接
+           Connection connection = factory.newConnection();
+           // 获取通道
+           Channel channel = connection.createChannel();
+   
+           // 声明消息队列
+               // 消息队列名称
+               // 是否是持久化的
+               // 是否是排他的
+               // 是否是自动删除的
+               // 消息队列属性信息，使用默认值
+           channel.queueDeclare("queue.biz",false,false,true,null);
+   
+           // 声明一个交换器
+               // 交换器名称
+               // 交换器类型
+               // 是否是持久化的
+               // 是否是自动删除的
+               // 交换器的属性map集合
+           channel.exchangeDeclare("ex.biz", BuiltinExchangeType.DIRECT,false,false,null);
+   
+           // 较交换器和消息队列绑定，并指定路由键
+           channel.queueBind("queue.biz","ex.biz","hello.world");
+   
+           // 发送消息
+               // 交换器名字
+               // 该消息的路由键
+               // 该消息的属性BasicProperties对象
+               // 消息字节数组
+           channel.basicPublish("ex.biz","hello.world",null,"hello world 2".getBytes());
+   
+           // 关闭通道
+           channel.close();
+           // 关闭连接
+           connection.close();
+       }
+   }
+   ```
+
+2. HelloConsumeConsumer 消息推送
+
+   ```java
+   package com.turbo.rabbitmq.demo;
+   
+   import com.rabbitmq.client.*;
+   
+   import java.io.IOException;
+   import java.net.URISyntaxException;
+   import java.security.KeyManagementException;
+   import java.security.NoSuchAlgorithmException;
+   import java.util.concurrent.TimeoutException;
+   
+   public class HelloConsumeConsumer {
+   
+       public static void main(String[] args) throws NoSuchAlgorithmException, KeyManagementException, URISyntaxException, IOException, TimeoutException {
+   
+           ConnectionFactory factory = new ConnectionFactory();
+           factory.setUri("amqp://root:123456@node1:5672/%2f");
+   
+           Connection connection = factory.newConnection();
+           Channel channel = connection.createChannel();
+   
+           // 确保MQ中有该队列，如果没有则创建
+           channel.queueDeclare("queue.biz",false,false,true,null);
+   
+           // 监听消息 一旦有消息推送过来，就调用第一个Lambda
+           channel.basicConsume("queue.biz", (consumerTag, message) -> {
+               System.out.println(new String(message.getBody()));
+           }, (consumerTag)->{});
+   
+   //        channel.close();
+   //        connection.close();
+       }
+   }
+   ```
+
+3. HelloGetConsumer 消息拉取
+
+   ```java
+   package com.turbo.rabbitmq.demo;
+   
+   import com.rabbitmq.client.*;
+   
+   import java.io.IOException;
+   import java.net.URISyntaxException;
+   import java.security.KeyManagementException;
+   import java.security.NoSuchAlgorithmException;
+   import java.util.concurrent.TimeoutException;
+   
+   public class HelloGetConsumer {
+   
+       public static void main(String[] args) throws NoSuchAlgorithmException, KeyManagementException, URISyntaxException, IOException, TimeoutException {
+   
+           ConnectionFactory factory = new ConnectionFactory();
+           // 指定协议 amqp:
+           // 指定 用户名   root
+           // 指定密码    123456
+           // 指定host   node1
+           // 指定端口号    5672
+           // 指定虚拟主机   %2f
+           factory.setUri("amqp://root:123456@node1:5672/%2f");
+   
+           Connection connection = factory.newConnection();
+   
+           Channel channel = connection.createChannel();
+   
+           // 拉消息模式
+           // 指定从哪个消费者消费
+           // 指定是否自动确认消息   true表示自动确认
+           GetResponse getResponse = channel.basicGet("queue.biz", true);
+   
+           // 获取消息体
+           byte[] body = getResponse.getBody();
+           System.out.println(new String(body));
+   
+           //AMQP.BasicProperties props = getResponse.getProps();
+   
+           channel.close();
+           connection.close();
+       }
+   }
+   ```
+
+   
+
+## 4.4 Connection 和 Channel 关系
+
+生产者和消费者，需要与 RabbitMQ Broker 建立 TCP 连接，也就是 Connection。一旦 TCP 连接建立，客户端紧接着创建一个 AMQP 信道（Channel），每个信道会被指派一个唯一的 ID。信道是建立在 Connection 之上的虚拟连接，RabbitMQ 处理的每条 AMQP 指令都是通过信道完成的。
+
+![image-20221017184035156](assest/image-20221017184035156.png)
+
+为什么不直接使用 TCP 连接，而是使用信道？
+
+RabbitMQ 采用类似 NIO 的做法，复用 TCP 连接，减少性能开销，便于管理。
+
+当每个信道的流量不是很大时，复用单一的 Connection 可以在产生性能瓶颈的情况下有效地节省 TCP 连接资源。
+
+当信道本身的流量很大时，一个 Connection 就会产生性能瓶颈，流量被限制。需要建立多个 Connection，分摊信道。具体的调优看业务需要。
+
+信道在 AMQP 中是一个很重要的概念，大多数操作都是在信道这个层面进行的。
+
+```java
+channel.queueDeclare
+channel.exchangeDeclare
+channel.queueBind
+channel.basicPublish
+    // ...
+```
+
+RabbitMQ 相关的 API 与 AMQP 紧密相连，比如 channel.basicPublish 对应 AMQP 的 Basic.Publish 命令。
+
 # 5 RabbitMQ 工作模式详解
 
+官网地址：https://www.rabbitmq.com/#getstarted
+
+## 5.1 Work Queue
+
+## 5.2 发布订阅模式
+
+## 5.3 路由模式
+
+## 5.4 direct交换器
+
+## 5.5 主题模式
+
 # 6 Spring 整合 RabbitMQ
+
+## 6.1 基于配置文件的整合
+
+## 6.2 基于注解的整合
 
 # 7 SpringBoot 整合 RabbitMQ
