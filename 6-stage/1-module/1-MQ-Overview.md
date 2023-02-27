@@ -72,7 +72,7 @@ if (goodsId != null) {
 
 ```java
 public Long saveGoods() {
-	Long goodsId = addGoods(goods);    
+    Long goodsId = addGoods(goods);    
     if (goodsId != null) {
 		// 调用递归的方法，实现重试
 		boolean indexFlag = refreshInvertedIndex(goods);       
