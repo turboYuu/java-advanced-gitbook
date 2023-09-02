@@ -653,3 +653,12 @@ Eureka Server 会定时（间隔值是 `eureka.server.eviction-interval-timer-in
 **经验：建议生产环境打开自我保护机制**
 
 # 5 Eureka 核心源码剖析
+
+## 5.1 Eureka Server 启动过程
+
+入口：SpringCloud 充分利用了 SpringBoot 的自动专配的特点
+
+- 观察eureka-server的jar包，发现在META-INF下面有配置文件spring.factories
+
+![image-20230902225314190](assest/image-20230902225314190.png)
+
