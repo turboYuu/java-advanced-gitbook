@@ -26,12 +26,14 @@
 
 [github名称 ：turbo-github](https://github.com/turboYuu/java-advanced-gitbook)
 
-
-
-> **gitbook**
+> **gitbook** npm
 
 https://www.npmjs.com/package/gitbook
 
 npm版本： 6.4.1
 
 node版本： v10.14.0
+
+> gitbook 地址
+
+https://turboyuu.gitbook.io/java-advanced/
