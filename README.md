@@ -16,7 +16,7 @@
 
 流程图 - ProcessOn
 
-编辑 - Typora
+编辑 - Typora [常用快捷键](https://support.typoraio.cn/Shortcut-Keys/)
 
 开发 - idea
 
@@ -37,3 +37,4 @@ node版本： v10.14.0
 > gitbook 地址
 
 https://turboyuu.gitbook.io/java-advanced/
+
