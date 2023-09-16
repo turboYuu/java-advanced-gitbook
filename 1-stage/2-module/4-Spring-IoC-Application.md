@@ -454,68 +454,68 @@ public class IoCTest {
 
 （复制 turbo-transfer-iocxml 到 turbo-transfer-iocxml-anno 项目）[gitee代码地址](https://gitee.com/turboYuu/spring-1-2/tree/master/lab/turbo-transfer-iocxml-anno)。
 
-- xml 中标签与注解的对应 （IoC）
+### 1.3.1 xml 中标签与注解的对应 （IoC）
 
-  | xml形式                    | 对应注解形式                                                 |
-  | -------------------------- | ------------------------------------------------------------ |
-  | 标签                       | @Component("accountDao")，注解加在类上<br>bean 的 id 属性内容直接配置在注解后面，如果不配置，默认定义这个 bean 的 id 为类名（首字母小写）；<br>另外针对分层代码开发提供了 @Component 的三种别名 <br>@Controller、@Service、@Repository 分别用于控制层类、服务层类、dao层类的 bean 定义，这四个注解的用法完全一致，只是为了更清晰的区分而已 |
-  | 标签的scope属性            | @Scope("prototype")，默认单例，注解加在类上                  |
-  | 标签的 init-method 属性    | @PostConstruct，注解加在方法上，该方法就是初始化后调用的方法 |
-  | 标签的 destory-method 属性 | @PreDestory，注解加在方法上，该方法就是销毁前调用的方法      |
+| xml形式                    | 对应注解形式                                                 |
+| -------------------------- | ------------------------------------------------------------ |
+| 标签                       | @Component("accountDao")，注解加在类上<br>bean 的 id 属性内容直接配置在注解后面，如果不配置，默认定义这个 bean 的 id 为类名（首字母小写）；<br>另外针对分层代码开发提供了 @Component 的三种别名 <br>@Controller、@Service、@Repository 分别用于控制层类、服务层类、dao层类的 bean 定义，这四个注解的用法完全一致，只是为了更清晰的区分而已 |
+| 标签的scope属性            | @Scope("prototype")，默认单例，注解加在类上                  |
+| 标签的 init-method 属性    | @PostConstruct，注解加在方法上，该方法就是初始化后调用的方法 |
+| 标签的 destory-method 属性 | @PreDestory，注解加在方法上，该方法就是销毁前调用的方法      |
 
-- DI 依赖注入的注解实现方式
+### 1.3.2 DI 依赖注入的注解实现方式
 
-  **@Autowired**（推荐使用）
+**@Autowired**（推荐使用）
 
-  @Autowired 为 Spring 提供的注解，需要导入包 `org.springframework.beans.factory.annotation.Autowired`。
+@Autowired 为 Spring 提供的注解，需要导入包 `org.springframework.beans.factory.annotation.Autowired`。
 
-  @Autowired 采取的策略是按照类型注入。
+@Autowired 采取的策略是按照类型注入。
 
-  ```java
-  @Service("transferService")
-  public class TransferServiceImpl implements TransferService {
-    @Autowired
-      private AccountDao accountDao;
-
-  ```
-
-  如上代码所示，这样装配会去 Spring 容器中找到类型为 AccountDao 的类，然后将其注入进来。这样会产生一个问题，当一个类型有多个 bean 值的时候，会造成无法选择具体注入哪一个的情况，这个时候我们就需要配合着使用 `@Qualifier` 。
-  
-  `@Qualifier` 告诉 Spring 具体去装配哪个对象。
-
-  ```java
-@Service("transferService")
-  public class TransferServiceImpl implements TransferService {
-
-      // 按照类型注入
-    // 如果按照类型无法唯一锁定对象 可以结合 @Qualifier 指定具体的 id
-      @Qualifier("accountDao")
-    @Autowired
-      private AccountDao accountDao;
-
-  ```
-  
-   这个时候就可以通过类型和名称定位到我们想要注入的对象。
-  
-  ------
-  
-  **@Resource**
-  
-  `@Resource` 注解是由 J2EE 提供，需要导入包 `javax.annotation.Resource`
-  
-  `@Resource` 默认按照 ByName 自动注入。
-  
 ```java
-  public class TransferService {
-  	@Resource
-  	private AccountDao accountDao; 
-      @Resource(name="studentDao")  
+@Service("transferService")
+public class TransferServiceImpl implements TransferService {
+  @Autowired
+    private AccountDao accountDao;
+
+```
+
+如上代码所示，这样装配会去 Spring 容器中找到类型为 AccountDao 的类，然后将其注入进来。这样会产生一个问题，当一个类型有多个 bean 值的时候，会造成无法选择具体注入哪一个的情况，这个时候我们就需要配合着使用 `@Qualifier` 。
+
+`@Qualifier` 告诉 Spring 具体去装配哪个对象。
+
+```java
+@Service("transferService")
+public class TransferServiceImpl implements TransferService {
+
+    // 按照类型注入
+  	// 如果按照类型无法唯一锁定对象 可以结合 @Qualifier 指定具体的 id
+    @Qualifier("accountDao")
+  	@Autowired
+    private AccountDao accountDao;
+}
+```
+
+ 这个时候就可以通过类型和名称定位到我们想要注入的对象。
+
+------
+
+**@Resource**
+
+`@Resource` 注解是由 J2EE 提供，需要导入包 `javax.annotation.Resource`
+
+`@Resource` 默认按照 ByName 自动注入。
+
+```java
+public class TransferService {
+    @Resource
+    private AccountDao accountDao; 
+    @Resource(name="studentDao")  
     private StudentDao studentDao; 
-      @Resource(type="TeacherDao")  
+    @Resource(type="TeacherDao")  
     private TeacherDao teacherDao;
-      @Resource(name="manDao",type="ManDao")  
-      private ManDao manDao;
-  }    
+    @Resource(name="manDao",type="ManDao")  
+    private ManDao manDao;
+}    
 ```
 
   - 如果同时指定了 name 和 type，则从 Spring 上下文中找到唯一匹配的 bean 进行装配，找不到则抛出异常
